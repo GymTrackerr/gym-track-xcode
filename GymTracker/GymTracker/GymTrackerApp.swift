@@ -26,8 +26,19 @@ struct GymTrackerApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+//            ContentView()
+            RootView()
         }
         .modelContainer(sharedModelContainer)
+    }
+}
+
+struct RootView: View {
+    @Environment(\.modelContext) private var context
+
+    var body: some View {
+        ContentView()
+//            .environmentObject(TrackerManager(context: context))
+            .environmentObject(SplitDayService(context: context))
     }
 }

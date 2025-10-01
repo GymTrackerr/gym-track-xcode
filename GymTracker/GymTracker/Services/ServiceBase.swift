@@ -1,0 +1,22 @@
+//
+//  ServiceBase.swift
+//  GymTracker
+//
+//  Created by Daniel Kravec on 2025-10-01.
+//
+
+import SwiftData
+import Combine
+
+class ServiceBase {
+    var modelContext: ModelContext
+
+    init(context: ModelContext) {
+        self.modelContext = context
+        loadFeature()
+    }
+    
+    func loadFeature() {
+        
+    }
+}

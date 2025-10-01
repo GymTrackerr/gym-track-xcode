@@ -10,13 +10,22 @@ import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+//    @Query private var items: [Item]
+//    @State private var manager: TrackerManager?
+//    private var manager: TrackerManager
 
+//    init() {
+////        modelContext = context
+//        self.manager = TrackerManager(context: modelContext)
+//    }
+//    
     var body: some View {
         NavigationView {
             HomeView()
         }
-        
+//        .onAppear {
+//            manager = TrackerManager(context: context)
+//        }
         /*NavigationSplitView {
             List {
                 ForEach(items) { item in
@@ -47,7 +56,7 @@ struct ContentView: View {
             Text("Select an item")
         }*/
     }
-
+/*
     private func addItem() {
         withAnimation {
             let newItem = Item(timestamp: Date())
@@ -61,7 +70,7 @@ struct ContentView: View {
                 modelContext.delete(items[index])
             }
         }
-    }
+    }*/
 }
 
 #Preview {
