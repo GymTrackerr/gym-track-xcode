@@ -4,6 +4,7 @@
 //
 //  Created by Daniel Kravec on 2025-10-01.
 //
+
 import SwiftUI
 import SwiftData
 import Combine
@@ -27,6 +28,13 @@ class SplitDayService : ServiceBase, ObservableObject {
         } catch {
             splitDays = []
         }
+    }
+    
+    func search(query: String) -> [SplitDay] {
+        print("searching split days \(query)")
+
+        guard !query.isEmpty else { return splitDays }
+        return splitDays.filter { $0.name.localizedCaseInsensitiveContains(query) }
     }
     
     func addSplitDay(name: String) {

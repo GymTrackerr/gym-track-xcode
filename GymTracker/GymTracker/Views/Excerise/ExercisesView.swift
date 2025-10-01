@@ -1,5 +1,5 @@
 //
-//  SplitDaysView.swift
+//  ExercisesView.swift
 //  GymTracker
 //
 //  Created by Daniel Kravec on 2025-10-01.
@@ -7,26 +7,27 @@
 
 import SwiftUI
 
-struct SplitDaysView: View {
-    @EnvironmentObject var splitDayService: SplitDayService
-    @State private var isAdding: Bool = false
-    @State private var selectedSplitDay: SplitDay? = nil
-    @State private var newSplitName: String = ""
-    
-    var body: some View {
+// add new exercises
+// add aliases to exercises
+// assign split day to exercises
+
+struct ExercisesView: View {
+    @EnvironmentObject var exerciseService: ExerciseService
+
+    var body : some View {
         List {
-            ForEach(splitDayService.splitDays) { splitDay in
+            ForEach(exerciseService.exercises) { exercise in
                 NavigationLink {
-                    SingleDayView(splitDay: splitDay)
+                    SingleExerciseView(exercise: exercise)
                 } label: {
-                    SingleDayLabelView(splitDay: splitDay)
+                    SingleExerciseLabelView(exercise: exercise)
                 }
             }
-            .onDelete(perform: splitDayService.removeSplitDay)
-            .onMove(perform: splitDayService.moveSplitDay)
-
+            
+            .onDelete(perform: exerciseService.removeExercise)
         }
-        .navigationTitle("Split Days")
+
+        .navigationTitle("Exercises")
         .toolbar {
 #if os(iOS)
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -35,30 +36,30 @@ struct SplitDaysView: View {
 #endif
             ToolbarItem {
                 Button {
-                    splitDayService.editingSplit = true
+                    exerciseService.editingExercise = true
                 } label: {
-                    Label("Add Split Day", systemImage: "plus.circle")
+                    Label("Add Exercise", systemImage: "plus.circle")
                 }
             }
         }
-        .sheet(isPresented: $splitDayService.editingSplit) {
+        .sheet(isPresented: $exerciseService.editingExercise) {
             NavigationView {
                 VStack(spacing: 16) {
-                    Text("Name your new split day")
+                    Text("Name your new exercise")
                         .font(.headline)
                     
-                    TextField("Name", text: $splitDayService.editingContent)
+                    TextField("Name", text: $exerciseService.editingContent)
                         .textFieldStyle(.roundedBorder)
                         .padding(.horizontal)
                     
                     Button {
-                        splitDayService.addSplitDay(name: newSplitName)
+                        exerciseService.addExercise()
                     } label: {
                         Label("Save", systemImage: "plus.circle")
                             .font(.title2)
                             .padding()
                     }
-                    .disabled(splitDayService.editingContent.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .disabled(exerciseService.editingContent.trimmingCharacters(in: .whitespaces).isEmpty)
                     
                     Spacer()
                 }
@@ -67,8 +68,8 @@ struct SplitDaysView: View {
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") {
-                            splitDayService.editingSplit = false
-                            splitDayService.editingContent = ""
+                            exerciseService.editingExercise = false
+                            exerciseService.editingContent = ""
                         }
                     }
                 }
@@ -77,3 +78,10 @@ struct SplitDaysView: View {
     }
 }
 
+struct SplitDaysDropdownSelection: View {
+    @EnvironmentObject var splitDayService: SplitDayService
+
+    var body : some View {
+        
+    }
+}

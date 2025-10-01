@@ -18,59 +18,53 @@ struct ContentView: View {
 ////        modelContext = context
 //        self.manager = TrackerManager(context: modelContext)
 //    }
-//    
-    var body: some View {
-        NavigationView {
-            HomeView()
-        }
-//        .onAppear {
-//            manager = TrackerManager(context: context)
-//        }
-        /*NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
-                }
-                .onDelete(perform: deleteItems)
-            }
-#if os(macOS)
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-#endif
-            .toolbar {
-#if os(iOS)
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-#endif
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
-            }
-        } detail: {
-            Text("Select an item")
-        }*/
-    }
-/*
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
+    @State var query: String = ""
+//
+    @State var localSelected:Int = 0
 
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+    var body: some View {
+//            if (localSelected == 0) {
+//                NavigationStack {
+//                    ExercisesView()
+//                }
+//            } else if (localSelected == 1) {
+//                NavigationStack {
+//                    SplitDaysView()
+//                }
+//                
+//            } else if (localSelected == 2) {
+//                SearchView()
+//                
+//            } else {
+//                EmptyView()
+//            }
+            
+        TabView (selection: $localSelected) {
+            Tab("Exercises", systemImage: "tray.and.arrow.down.fill", value: 0) {
+                NavigationStack {
+                    ExercisesView()
+                }
+            }
+            
+            
+            Tab("Splits", systemImage: "tray.and.arrow.up.fill", value: 1) {
+                NavigationStack {
+                    SplitDaysView()
+                }
+            }
+            
+            Tab("Search", systemImage: "magnifyingglass", value: 2, role: .search) {
+                NavigationStack {
+                    SearchView(query: $query)
+                }
             }
         }
-    }*/
+        .searchable(text: $query)
+
+        .tabBarMinimizeBehavior(TabBarMinimizeBehavior.onScrollDown)
+        .tabBarMinimizeBehavior(TabBarMinimizeBehavior.onScrollUp)
+
+    }
 }
 
 #Preview {
