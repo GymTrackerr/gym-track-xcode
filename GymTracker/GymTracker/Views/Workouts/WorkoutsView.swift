@@ -7,30 +7,25 @@
 
 import SwiftUI
 
-struct SplitDaysView: View {
-    @EnvironmentObject var splitDayService: SplitDayService
-    @State private var isAdding: Bool = false
+/*
+struct WorkoutsView: View {
+    @EnvironmentObject var workoutService: WorkoutService
+//    @State private var isAdding: Bool = false
+//    @State private var selectedSplitDay: SplitDay? = nil
+//    @State private var newSplitName: String = ""
     
     var body: some View {
-        HStack {
-            Button("Clear Splits") {
-                splitDayService.clearSplitDays()
-            }
-            Button("Print Splits") {
-                splitDayService.printSplitDays()
-            }
-        }
-
         List {
-            ForEach(splitDayService.splitDays,  id: \.id) { splitDay in
+            ForEach(workoutService.workouts) { workout in
                 NavigationLink {
-                    SingleDayView(splitDay: splitDay)
+                    SingleWorkoutView(workout: workout)
                 } label: {
-                    SingleDayLabelView(splitDay: splitDay)
+                    SingleWorkoutLabelView(workout: workout)
                 }
             }
             .onDelete(perform: splitDayService.removeSplitDay)
             .onMove(perform: splitDayService.moveSplitDay)
+
         }
         .navigationTitle("Split Days")
         .toolbar {
@@ -58,7 +53,7 @@ struct SplitDaysView: View {
                         .padding(.horizontal)
                     
                     Button {
-                        splitDayService.addSplitDay()
+                        splitDayService.addSplitDay(name: newSplitName)
                     } label: {
                         Label("Save", systemImage: "plus.circle")
                             .font(.title2)
@@ -83,3 +78,4 @@ struct SplitDaysView: View {
     }
 }
 
+*/

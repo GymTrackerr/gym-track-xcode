@@ -22,6 +22,18 @@ class ServiceBase {
     }
 }
 
+extension ServiceBase {
+    func fetchSplitDay(id: UUID) -> SplitDay? {
+        let descriptor = FetchDescriptor<SplitDay>(
+            predicate: #Predicate { $0.id == id }
+        )
+        do {
+            return try modelContext.fetch(descriptor).first
+        } catch {
+            return nil
+        }
+    }
+}
 
 enum SearchResult: Identifiable {
     case exercise(Exercise)
@@ -41,3 +53,4 @@ enum SearchResult: Identifiable {
         }
     }
 }
+

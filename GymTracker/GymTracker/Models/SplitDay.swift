@@ -15,6 +15,9 @@ final class SplitDay {
     var name: String
     var timestamp: Date
     
+    @Relationship(deleteRule: .cascade, inverse: \ExerciseSplitDay.splitDay)
+    var exerciseSplits: [ExerciseSplitDay] = []
+    
     init(order: Int, name: String) {
         self.order = order
         self.name = name

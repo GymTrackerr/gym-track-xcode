@@ -17,10 +17,10 @@ final class Exercise {
     var type: Int64? = nil
     var muscle_groups: [String]? = []
     var timestamp: Date
-    
-    // have another model for transfering exercise day (if used in multiple days)
-    // or i guess thats "Workout"
-    
+
+    @Relationship(deleteRule: .cascade, inverse: \ExerciseSplitDay.exercise)
+    var splits: [ExerciseSplitDay] = []
+
     init(name:String) {
         self.npId = nil
         self.name = name

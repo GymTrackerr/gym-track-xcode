@@ -37,8 +37,7 @@ class SplitDayService : ServiceBase, ObservableObject {
         return splitDays.filter { $0.name.localizedCaseInsensitiveContains(query) }
     }
     
-    func addSplitDay(name: String) {
-        print("Adding")
+    func addSplitDay() {
         let trimmedName = editingContent.trimmingCharacters(in: .whitespaces)
         guard !trimmedName.isEmpty else { return }
         
@@ -47,11 +46,9 @@ class SplitDayService : ServiceBase, ObservableObject {
             modelContext.insert(newItem)
             do {
                 try modelContext.save()
-                // Clear and dismiss sheet after successful save
                 editingSplit = false
                 editingContent = ""
                 loadSplitDays()
-
             } catch {
                 print("Failed to save new split day: \(error)")
             }
@@ -59,41 +56,49 @@ class SplitDayService : ServiceBase, ObservableObject {
     }
     
     func removeSplitDay(offsets: IndexSet) {
-        print("not activating")
         withAnimation {
             for index in offsets {
                 modelContext.delete(splitDays[index])
             }
+            try? modelContext.save()
+            loadSplitDays()
             renumberSplitDays()
-            do {
-                try modelContext.save()
-                loadSplitDays()
-
-            } catch {
-                print("Failed to save after deletion: \(error)")
-            }
         }
     }
     
-    func moveSplitDay(from source: IndexSet, to destination: Int) {
-        print("not activating")
-
-        var updated = splitDays
-        updated.move(fromOffsets: source, toOffset: destination)
-        
-        for (i, day) in updated.enumerated() {
-            day.order = i
+    func clearSplitDays() {
+        let descriptor = FetchDescriptor<SplitDay>()
+        if let items = try? modelContext.fetch(descriptor) {
+            for item in items { modelContext.delete(item) }
+            try? modelContext.save()
         }
-        
-        try? modelContext.save()
         loadSplitDays()
     }
 
+    func printSplitDays() {
+        let descriptor = FetchDescriptor<SplitDay>()
+        do {
+            let items = try modelContext.fetch(descriptor)
+            print("SplitDays count: \(items.count)")
+            for item in items {
+                print("id: \(item.id), name: \(item.name), order: \(item.order), timestamp: \(item.timestamp)")
+            }
+        } catch {
+            print("Failed to fetch SplitDays: \(error)")
+        }
+    }
+
+    func moveSplitDay(from source: IndexSet, to destination: Int) {
+        withAnimation {
+            splitDays.move(fromOffsets: source, toOffset: destination)
+            renumberSplitDays()
+        }
+    }
     
     func renumberSplitDays() {
         for (i, day) in splitDays.enumerated() {
             day.order = i
         }
-        loadSplitDays()
+        try? modelContext.save()
     }
 }

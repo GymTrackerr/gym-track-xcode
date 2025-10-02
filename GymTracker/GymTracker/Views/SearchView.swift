@@ -14,7 +14,6 @@ struct SearchView : View {
     @State var results: [SearchResult] = []
 
     var body: some View {
-//        NavigationStack {
         VStack{
             List (results) { result in
                 switch result {
@@ -32,48 +31,8 @@ struct SearchView : View {
                 performSearch()
             }
             .listStyle(.plain)
-            //            .isSea
             .navigationTitle("Search")
-//            .isSearchable()
-            
         }
-
-        //        .isSearchable
-        /*
-         VStack {
-         Text("Search")
-         .searchable(text: $query)
-         .toolbar {
-         DefaultToolbarItem(kind: .search, placement: .bottomBar)
-         
-         
-         }
-         //            if (results.count == 0) {
-         //                Text("Search for something...")
-         //            } else {
-         List(results) { result in
-         switch result {
-         case .exercise(let e):
-         SingleExerciseLabelView(exercise: e)
-         //                        Text("Exercise: \(e.name)")
-         case .splitDay(let s):
-         SingleDayView(splitDay: s)
-         //                        Text("Split Day: \(s.name)")
-         }
-         }
-         
-         //            }
-         
-         }
-         
-         .navigationTitle("Search")
-         //        .searchable(text: $query,/* placement: .toolbar,*/ prompt: "Search")
-         //        .onChange(of: query) { _ in
-         //            self.performSearch()
-         //        }
-         
-         }
-         */
     }
     
     func performSearch() {

@@ -14,7 +14,8 @@ struct GymTrackerApp: App {
         let schema = Schema([
             Item.self,
             SplitDay.self,
-            Exercise.self
+            Exercise.self,
+            ExerciseSplitDay.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -42,5 +43,6 @@ struct RootView: View {
 //            .environmentObject(TrackerManager(context: context))
             .environmentObject(SplitDayService(context: context))
             .environmentObject(ExerciseService(context: context))
+            .environmentObject(ExerciseSplitDayService(context: context))
     }
 }
