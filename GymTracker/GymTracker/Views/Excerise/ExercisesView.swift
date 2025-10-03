@@ -16,7 +16,7 @@ struct ExercisesView: View {
 
     var body : some View {
         List {
-            ForEach(exerciseService.exercises) { exercise in
+            ForEach(exerciseService.exercises, id: \.id) { exercise in
                 NavigationLink {
                     SingleExerciseView(exercise: exercise)
                 } label: {
