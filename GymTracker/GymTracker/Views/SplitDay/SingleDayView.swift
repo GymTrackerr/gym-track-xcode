@@ -7,6 +7,12 @@
 
 import SwiftUI
 
+// TODO: FIX BUG
+// BUG: swipe to delete doesnt delete proper
+// and order doesnt update again when updating for some reason
+
+// now seems to just be renumbering function not working nicely, not sure
+
 struct SingleDayView: View {
     @EnvironmentObject var esdService: ExerciseSplitDayService
     @EnvironmentObject var exerciseService: ExerciseService
@@ -14,6 +20,7 @@ struct SingleDayView: View {
     
     @State var searchText = ""
     @State var searchResults: [Exercise] = []
+//    @State var refreshTrigger: Bool = false
 
     var body: some View {
         VStack {
@@ -23,7 +30,7 @@ struct SingleDayView: View {
                 Text("Date: \(splitDay.timestamp.formatted(date: .numeric, time: .omitted))")
             }
             .padding()
-            Spacer()
+            
             List {
                 ForEach(splitDay.exerciseSplits.sorted { $0.order < $1.order }, id: \.id) { exerciseSplit in
                     NavigationLink {
@@ -36,6 +43,12 @@ struct SingleDayView: View {
                 .onDelete(perform: removeExercise)
                 .onMove(perform: moveExercise)
             }
+//            .frame(maxHeight: .infinity)
+
+//            .onChange(of: splitDay.exerciseSplits) {
+//                refreshTrigger.toggle()
+//            }
+
         }
         .navigationTitle(splitDay.name)
         .toolbar {
@@ -60,11 +73,27 @@ struct SingleDayView: View {
                     TextField("Search Exercise", text: $searchText)
                         .textFieldStyle(.roundedBorder)
                         .padding()
+                    TextField("Name", text: $exerciseService.editingContent)
+                        .textFieldStyle(.roundedBorder)
+                        .padding(.horizontal)
                     
-//                    List(exerciseService.exercises, id: \.id) { exercise in
-                    List {
-                        ForEach(exerciseService.exercises, id: \.id) { exercise in
+                    Button {
+//                        with 
+                        let exerciseNew = exerciseService.addExercise()
+                        DispatchQueue.main.async {
+                            if let exercise = exerciseNew {
+                                addExerciseEditing(exercise: exercise)
+                            }
                             
+                        }
+                    } label: {
+                        Label("Save", systemImage: "plus.circle")
+                            .font(.title2)
+                            .padding()
+                    }
+                    .disabled(exerciseService.editingContent.trimmingCharacters(in: .whitespaces).isEmpty)
+                    List {
+                        ForEach(searchResults, id: \.id) { exercise in
                             Button(action: {
                                 if esdService.showingMinusIcon(splitDay: splitDay, id: exercise.id) {
                                     removeExerciseEditing(exercise: exercise)
@@ -104,6 +133,8 @@ struct SingleDayView: View {
                         Button("Cancel") {
                             esdService.endEditing()
                             searchText = ""
+                            exerciseService.editingContent = ""
+
                         }
                     }
                 }
@@ -131,6 +162,7 @@ struct SingleDayView: View {
         }
     }
     func performSearch() {
+        print("searching \(searchText)")
         searchResults = exerciseService.search(query: searchText)
     }
     func removeExercise(offsets: IndexSet) {
@@ -168,3 +200,4 @@ struct SingleDayLabelView: View {
         }
     }
 }
+

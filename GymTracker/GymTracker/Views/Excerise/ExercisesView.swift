@@ -53,7 +53,7 @@ struct ExercisesView: View {
                         .padding(.horizontal)
                     
                     Button {
-                        exerciseService.addExercise()
+                        _ = exerciseService.addExercise()
                     } label: {
                         Label("Save", systemImage: "plus.circle")
                             .font(.title2)
@@ -64,7 +64,7 @@ struct ExercisesView: View {
                     Spacer()
                 }
                 .padding()
-                .navigationTitle("Create New Split Day")
+                .navigationTitle("Create New Exercise")
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") {

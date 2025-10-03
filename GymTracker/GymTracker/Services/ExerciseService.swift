@@ -35,13 +35,15 @@ class ExerciseService : ServiceBase, ObservableObject {
         return exercises.filter { $0.name.localizedCaseInsensitiveContains(query) }
     }
     
-    func addExercise() {
+    func addExercise() -> Exercise? {
         print("Adding")
         let trimmedName = editingContent.trimmingCharacters(in: .whitespaces)
-        guard !trimmedName.isEmpty else { return }
+        guard !trimmedName.isEmpty else { return nil }
+        
+        let newItem = Exercise(name: trimmedName)
+        var failed = false
         
         withAnimation {
-            let newItem = Exercise(name: trimmedName)
             modelContext.insert(newItem)
             
             do {
@@ -53,8 +55,14 @@ class ExerciseService : ServiceBase, ObservableObject {
 
             } catch {
                 print("Failed to save new split day: \(error)")
+                failed=true
             }
         }
+        
+        if (failed==true) {
+            return nil
+        }
+        return newItem;
     }
     
     func removeExercise(offsets: IndexSet) {

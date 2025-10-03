@@ -12,12 +12,10 @@ internal import CoreData
 
 class ExerciseSplitDayService: ServiceBase, ObservableObject {
     @Published var addingExerciseSplit: Bool = false
-    //    @Published var addingExerciseIDs: Swift.Set<UUID> = []
     @Published var addingExercises: [Exercise] = []
     @Published var removingExercises: [Exercise] = []
     
     func renumberExercises(splitDay: SplitDay) {
-        //        let exercises = Array(splitDay.exerciseSplits)
         let exercises = splitDay.exerciseSplits.sorted { $0.order < $1.order }
         
         for (i, exercise) in exercises.enumerated() {
@@ -25,11 +23,9 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
         }
         
         try? modelContext.save()
-        //
-        //        for (i, esd) in splitDay.exerciseSplits.enumerated() {
-        //            esd.order = i
-        //        }
-        //        try? modelContext.save()
+        
+//        splitDay.exerciseSplits.sort { $0.order < $1.order }
+
     }
     
     // helpers
@@ -38,6 +34,7 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
         // if added and NOT in removing
         return (isInAdding(id: id) || (!isInRemoving(id: id) && isInSplit(splitDay: splitDay, id: id)))
     }
+    
     func isInRemoving(id: UUID) -> Bool {
         return removingExercises.contains(where: { $0.id == id})
         
@@ -93,33 +90,23 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
             let esd = splitDay.exerciseSplits.first(where: { $0.exercise == exercise })!
             modelContext.delete(esd)
             try? modelContext.save()
-            
-            //            renumberExercises(splitDay: splitDay)
         }
     }
     
     func removeExercise(splitDay:SplitDay, offsets: IndexSet) {
-        //        withAnimation {
+        print("ofset \(offsets)")
         
-        //        let exercises = Array(splitDay.exerciseSplits)
         withAnimation {
-            
+            DispatchQueue.main.async {
+
             for index in offsets {
-                modelContext.delete(splitDay.exerciseSplits[index])
+                self.modelContext.delete(splitDay.exerciseSplits[index])
             }
-            //        try? modelContext.save()
             
-            //        let _ = Array(splitDay.exerciseSplits)
-            
-            //        withAnimation {
-            renumberExercises(splitDay: splitDay)
+//            DispatchQueue.main.async {
+                self.renumberExercises(splitDay: splitDay)
+            }
         }
-        /*
-         for index in offsets {
-         let exercise = splitDay.exerciseSplits[index].exercise
-         
-         removeExercise(splitDay: splitDay, exercise: exercise)
-         }*/
     }
     
     func moveExercise(splitDay: SplitDay, from source: IndexSet, to destination: Int) {
@@ -127,23 +114,11 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
         
         exercises.move(fromOffsets: source, toOffset: destination)
         
-        for (index, exerciseSplit) in exercises.enumerated() {
-            exerciseSplit.order = index
+        for (i, exercise) in exercises.enumerated() {
+            exercise.order = i
         }
-        
+
         try? modelContext.save()
-        /*
-         withAnimation {
-         var exercises = splitDay.exerciseSplits.sorted { $0.order < $1.order }
-         
-         
-         //            sortedExer
-         exercises.move(fromOffsets: source, toOffset: destination)
-         
-         
-         renumberExercises(splitDay: splitDay)
-         }
-         */
     }
 }
 
