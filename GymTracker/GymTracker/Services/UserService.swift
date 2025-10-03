@@ -1,0 +1,86 @@
+//
+//  UserService.swift
+//  GymTracker
+//
+//  Created by Daniel Kravec on 2025-10-03.
+//
+
+import SwiftUI
+import SwiftData
+import Combine
+internal import CoreData
+
+class UserService: ServiceBase, ObservableObject {
+    @Published var accountCreated: Bool = false
+    @Published var accounts: [User] = []
+//    @Published override var currentUser: User?: User? = nil
+    
+    override func loadFeature() {
+        self.loadAccounts()
+    }
+    
+    func loadAccounts() {
+        print("loadingaccounts")
+        let descriptor = FetchDescriptor<User>(sortBy: [SortDescriptor(\.lastLogin)])
+
+        do {
+            print("not ??")
+
+            accounts = try modelContext.fetch(descriptor)
+            print("ac", accounts.count)
+            for item in accounts {
+                print("id: \(item.id), name: \(item.name), timestamp: \(item.timestamp)")
+            }
+
+            if let first = accounts.first {
+                currentUser = first
+                accountCreated = true
+            } else {
+                currentUser = nil
+                accountCreated = false
+            }
+            
+        } catch {
+            print("not create")
+            accounts = []
+        }
+        print("??")
+    }
+    
+    func removeUser(id: UUID) {
+        withAnimation {
+            modelContext.delete(accounts.first(where: { $0.id == id })!)
+            
+            do {
+                try modelContext.save()
+                loadAccounts()
+            } catch {
+                print("Failed to save new split day: \(error)")
+            }
+        }
+    }
+    
+    func addUser(text: String) {
+        print("ccreating \(text)")
+        let trimmedName = text.trimmingCharacters(in: .whitespaces)
+        guard !trimmedName.isEmpty else { return  }
+        
+        
+        withAnimation {
+//            modelContext.
+            let newItem = User(name:trimmedName)
+
+            
+            modelContext.insert(newItem)
+            
+            do {
+                try modelContext.save()
+                currentUser = newItem
+                accountCreated = true
+                loadAccounts()
+            } catch {
+                print("Failed to save new split day: \(error)")
+            }
+        }
+    }
+}

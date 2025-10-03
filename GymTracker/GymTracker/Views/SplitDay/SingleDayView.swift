@@ -20,7 +20,6 @@ struct SingleDayView: View {
     
     @State var searchText = ""
     @State var searchResults: [Exercise] = []
-//    @State var refreshTrigger: Bool = false
 
     var body: some View {
         VStack {
@@ -43,12 +42,6 @@ struct SingleDayView: View {
                 .onDelete(perform: removeExercise)
                 .onMove(perform: moveExercise)
             }
-//            .frame(maxHeight: .infinity)
-
-//            .onChange(of: splitDay.exerciseSplits) {
-//                refreshTrigger.toggle()
-//            }
-
         }
         .navigationTitle(splitDay.name)
         .toolbar {

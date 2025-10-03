@@ -19,13 +19,11 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
         let exercises = splitDay.exerciseSplits.sorted { $0.order < $1.order }
         
         for (i, exercise) in exercises.enumerated() {
+            print("number \(i)")
             exercise.order = i
         }
         
         try? modelContext.save()
-        
-//        splitDay.exerciseSplits.sort { $0.order < $1.order }
-
     }
     
     // helpers
@@ -37,8 +35,8 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
     
     func isInRemoving(id: UUID) -> Bool {
         return removingExercises.contains(where: { $0.id == id})
-        
     }
+    
     func isInAdding(id: UUID) -> Bool {
         return addingExercises.contains(where: { $0.id == id})
     }
@@ -98,12 +96,11 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
         
         withAnimation {
             DispatchQueue.main.async {
-
-            for index in offsets {
-                self.modelContext.delete(splitDay.exerciseSplits[index])
-            }
-            
-//            DispatchQueue.main.async {
+                for index in offsets {
+                    self.modelContext.delete(splitDay.exerciseSplits[index])
+                }
+                
+                try? self.modelContext.save()
                 self.renumberExercises(splitDay: splitDay)
             }
         }

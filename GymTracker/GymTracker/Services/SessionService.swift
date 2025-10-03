@@ -10,8 +10,8 @@ import SwiftData
 import Combine
 internal import CoreData
 
-class WorkoutService : ServiceBase, ObservableObject {
-    @Published var workouts: [Workout] = []
+class SessionService : ServiceBase, ObservableObject {
+    @Published var sessions: [Session] = []
     
     @Published var create_split_day_id: UUID?
     @Published var create_notes: String?
@@ -22,22 +22,22 @@ class WorkoutService : ServiceBase, ObservableObject {
     }
     
     func loadWorkouts() {
-        let descriptor = FetchDescriptor<Workout>(sortBy: [SortDescriptor(\.timestamp)])
+        let descriptor = FetchDescriptor<Session>(sortBy: [SortDescriptor(\.timestamp)])
 
         do {
-            workouts = try modelContext.fetch(descriptor)
+            sessions = try modelContext.fetch(descriptor)
         } catch {
-            workouts = []
+            sessions = []
         }
 
     }
     
-    func search(query: String) -> [Workout] {
-        guard !query.isEmpty else { return workouts }
+    func search(query: String) -> [Session] {
+        guard !query.isEmpty else { return sessions }
         return [];
     }
     
-    func addWorkout() {
+    func addSession() {
         print("Adding")
 //        let trimmedNotes = create_notes?.trimmingCharacters(in: .whitespaces)
         

@@ -10,13 +10,17 @@ import SwiftData
 
 @main
 struct GymTrackerApp: App {
+    @Environment(\.modelContext) private var context
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Item.self,
             SplitDay.self,
             Exercise.self,
-            ExerciseSplitDay.self
+            ExerciseSplitDay.self,
+            User.self
         ])
+        
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
         do {
@@ -29,20 +33,35 @@ struct GymTrackerApp: App {
     var body: some Scene {
         WindowGroup {
 //            ContentView()
-            RootView()
+            ParentRootView()
+//                .environmentObject(UserService(context: context, currentUser: nil))
         }
         .modelContainer(sharedModelContainer)
     }
 }
 
-struct RootView: View {
+struct ParentRootView: View {
     @Environment(\.modelContext) private var context
+//    @EnvironmentObject var userService: UserService
 
     var body: some View {
-        ContentView()
-//            .environmentObject(TrackerManager(context: context))
-            .environmentObject(SplitDayService(context: context))
-            .environmentObject(ExerciseService(context: context))
-            .environmentObject(ExerciseSplitDayService(context: context))
+        RootView()
+            .environmentObject(UserService(context: context, currentUser: nil))
+
+    }
+}
+struct RootView: View {
+    @Environment(\.modelContext) private var context
+    @EnvironmentObject var userService: UserService
+
+    var body: some View {
+        if (userService.accountCreated == false) {
+            OnBoardView()
+        } else {
+            ContentView()
+                .environmentObject(SplitDayService(context: context, currentUser: userService.currentUser))
+                .environmentObject(ExerciseService(context: context, currentUser: userService.currentUser))
+                .environmentObject(ExerciseSplitDayService(context: context, currentUser: userService.currentUser))
+        }
     }
 }

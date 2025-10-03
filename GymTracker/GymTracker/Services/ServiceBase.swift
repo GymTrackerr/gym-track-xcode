@@ -11,9 +11,17 @@ import Foundation
 
 class ServiceBase {
     var modelContext: ModelContext
+    var currentUser: User?
 
-    init(context: ModelContext) {
+    
+//    convenience init(context: ModelContext) {
+//        self.init(context:)
+//    }
+    init(context: ModelContext, currentUser: User?) {
         self.modelContext = context
+        if let currentUser {
+            self.currentUser = currentUser
+        }
         loadFeature()
     }
     
