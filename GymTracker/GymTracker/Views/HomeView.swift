@@ -42,35 +42,6 @@ struct HomeView: View {
     }
 }
 
-struct SettingsView: View {
-    @EnvironmentObject var userService: UserService
-
-    var body: some View {
-        VStack {
-            List {
-                // Settings
-                // Show Account
-                Button {
-                    userService.removeUser(id: userService.currentUser!.id)
-                } label: {
-                    Text("Delete Account")
-                }
-            }
-        }
-        .navigationTitle("Settings")
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button {
-//                    exerciseService.editingExercise = true
-                } label: {
-//                    Label("Add Exercise", systemImage: "plus.circle")
-                }
-            }
-        }
-    }
-    
-}
-
 #Preview {
     NavigationStack {
         HomeView()
