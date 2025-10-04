@@ -13,10 +13,6 @@ class ServiceBase {
     var modelContext: ModelContext
     var currentUser: User?
 
-    
-//    convenience init(context: ModelContext) {
-//        self.init(context:)
-//    }
     init(context: ModelContext, currentUser: User?) {
         self.modelContext = context
         if let currentUser {
@@ -25,9 +21,7 @@ class ServiceBase {
         loadFeature()
     }
     
-    func loadFeature() {
-        
-    }
+    func loadFeature() { }
 }
 
 extension ServiceBase {

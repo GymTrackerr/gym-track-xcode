@@ -7,69 +7,99 @@
 
 import SwiftUI
 
-/*
-struct WorkoutsView: View {
-    @EnvironmentObject var workoutService: WorkoutService
-//    @State private var isAdding: Bool = false
-//    @State private var selectedSplitDay: SplitDay? = nil
-//    @State private var newSplitName: String = ""
+
+struct SessionsView: View {
+    @EnvironmentObject var sessionService: SessionService
+    @EnvironmentObject var splitDayService: SplitDayService
+    @Binding var openedSession: Session?
     
     var body: some View {
         List {
-            ForEach(workoutService.workouts) { workout in
-                NavigationLink {
-                    SingleWorkoutView(workout: workout)
+            HStack {
+                Button {
+                    sessionService.creating_session = true
                 } label: {
-                    SingleWorkoutLabelView(workout: workout)
+                    HStack {
+                        Image(systemName: "plus")
+                        Text("New Session")
+                    }
                 }
             }
-            .onDelete(perform: splitDayService.removeSplitDay)
-            .onMove(perform: splitDayService.moveSplitDay)
-
+            
+            if !sessionService.sessions.isEmpty {
+                Section {
+                    HStack {
+                        Text("Previous Sessions")
+                    }
+                    ForEach(sessionService.sessions) { session in
+                        NavigationLink {
+                            SingleSessionView(session: session)
+                        } label: {
+                            SingleSessionLabelView(session: session)
+                        }
+                    }
+                    .onDelete(perform: sessionService.removeSession)
+                }
+            }
         }
-        .navigationTitle("Split Days")
         .toolbar {
 #if os(iOS)
             ToolbarItem(placement: .navigationBarTrailing) {
                 EditButton()
             }
 #endif
-            ToolbarItem {
-                Button {
-                    splitDayService.editingSplit = true
-                } label: {
-                    Label("Add Split Day", systemImage: "plus.circle")
-                }
-            }
         }
-        .sheet(isPresented: $splitDayService.editingSplit) {
+        .sheet(isPresented: $sessionService.creating_session) {
             NavigationView {
                 VStack(spacing: 16) {
-                    Text("Name your new split day")
+                    Text("Create Your New Session")
                         .font(.headline)
                     
-                    TextField("Name", text: $splitDayService.editingContent)
+                    TextField("Notes", text: $sessionService.create_notes)
                         .textFieldStyle(.roundedBorder)
                         .padding(.horizontal)
                     
+                    /* select day*/
+                    if let splitDay = sessionService.selected_splitDay {
+                        Text("Selected Split Day: \(splitDay.name)")
+                        Button {
+                            sessionService.selected_splitDay = nil
+                        } label: {
+                            Text("Unselect Split")
+                        }
+                    } else {
+                        List {
+                            ForEach(splitDayService.splitDays, id: \.id) { splitDay in
+                                Button(action: {
+                                    sessionService.selected_splitDay = splitDay
+                                }) {
+                                    HStack {
+                                        Image(systemName: "scope")
+                                        Text(splitDay.name)
+                                    }
+                                }
+                            }
+                        }
+                        .listStyle(.plain)
+                    }
+                    Spacer()
                     Button {
-                        splitDayService.addSplitDay(name: newSplitName)
+                        openedSession = sessionService.addSession()
                     } label: {
                         Label("Save", systemImage: "plus.circle")
                             .font(.title2)
                             .padding()
                     }
-                    .disabled(splitDayService.editingContent.trimmingCharacters(in: .whitespaces).isEmpty)
-                    
                     Spacer()
                 }
                 .padding()
-                .navigationTitle("Create New Split Day")
+                .navigationTitle("Create New Session")
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") {
-                            splitDayService.editingSplit = false
-                            splitDayService.editingContent = ""
+                            sessionService.creating_session = false
+                            sessionService.create_notes = ""
+                            sessionService.selected_splitDay = nil
                         }
                     }
                 }
@@ -78,4 +108,3 @@ struct WorkoutsView: View {
     }
 }
 
-*/

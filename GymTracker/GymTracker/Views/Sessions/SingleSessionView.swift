@@ -4,40 +4,63 @@
 //
 //  Created by Daniel Kravec on 2025-10-01.
 //
-/*
+
 import SwiftUI
 
-struct SingleWorkoutView: View {
-    @Bindable var workout: Workout
+struct SingleSessionView: View {
+    @Bindable var session: Session
     
     var body: some View {
         VStack {
             VStack(alignment: .leading) {
-                Text("SplitDay: \(splitDay.name)")
-                Text("Order: \(splitDay.order)")
-                Text("Date: \(splitDay.timestamp.formatted(date: .numeric, time: .omitted))")
+                if let splitDay = session.splitDay {
+                    Text("SplitDay: \(splitDay.name)")
+                }
+                if let notes = session.notes {
+                    Text("Notes: \(notes)")
+                }
+                Text("Date: \(session.timestamp.formatted(date: .numeric, time: .standard))")
             }
             .padding()
-            Spacer()
+//            Spacer()
+            if let splitDay = session.splitDay {
+                List {
+                    // TODO: TO BE EDITED, USE NEW MODEL FOR EXERCISES BASED ON SESSION
+                    ForEach(splitDay.exerciseSplits.sorted { $0.order < $1.order }, id: \.id) { exerciseSplit in
+                        NavigationLink {
+                            SingleExerciseView(exercise: exerciseSplit.exercise, orderInSplit: exerciseSplit.order)
+                        } label: {
+                            SingleExerciseLabelView(exercise: exerciseSplit.exercise, orderInSplit: exerciseSplit.order)
+                                .id(exerciseSplit.order)
+                        }
+                    }
+                    // .onDelete(perform: removeExercise)
+                    // .onMove(perform: moveExercise)
+                }
+            }
+
         }
-        .navigationTitle(splitDay.name)
+        .navigationTitle("Session \(session.timestamp.formatted(date: .numeric, time: .omitted))")
     }
 }
 
-struct SingleWorkoutLabelView: View {
-    @Bindable var workout: Workout
+struct SingleSessionLabelView: View {
+    @Bindable var session: Session
 
     var body : some View {
         ZStack {
             VStack(alignment: .leading) {
-                Text(splitDay.name)
+                if let splitDay = session.splitDay {
+                    Text("SplitDay: \(splitDay.name)")
+                }
                 HStack {
-                    Text("Day #\(splitDay.order+1)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
+                    if let splitDay = session.splitDay {
+                        Text("Day #\(splitDay.order+1)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                     Spacer()
-                    Text(splitDay.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+                    Text(session.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -47,4 +70,3 @@ struct SingleWorkoutLabelView: View {
     }
 }
 
-*/

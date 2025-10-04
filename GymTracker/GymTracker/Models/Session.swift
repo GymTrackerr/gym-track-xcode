@@ -12,20 +12,22 @@ import SwiftData
 final class Session {
     var id: UUID = UUID()
     var timestamp: Date
-    var split_day_id: UUID?
     var notes: String?
     
+    var splitDay: SplitDay?
+    var split_day_id: UUID? { splitDay?.id }
+
     convenience init (timestamp: Date) {
-        self.init(timestamp: timestamp, split_day_id: nil, notes: "")
+        self.init(timestamp: timestamp, splitDay: nil, notes: "")
     }
     
-    convenience init(timestamp: Date, split_day_id: UUID?) {
-        self.init(timestamp: timestamp, split_day_id: split_day_id, notes: "")
+    convenience init(timestamp: Date, splitDay: SplitDay?) {
+        self.init(timestamp: timestamp, splitDay: splitDay, notes: "")
     }
 
-    init (timestamp: Date, split_day_id: UUID?, notes: String) {
+    init (timestamp: Date, splitDay: SplitDay?, notes: String) {
         self.timestamp = timestamp
         self.notes = notes
-        self.split_day_id = split_day_id
+        self.splitDay = splitDay
     }
 }

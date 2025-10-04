@@ -13,15 +13,16 @@ internal import CoreData
 class SessionService : ServiceBase, ObservableObject {
     @Published var sessions: [Session] = []
     
-    @Published var create_split_day_id: UUID?
-    @Published var create_notes: String?
-    @Published var creating_workout: Bool = false
+    @Published var create_notes: String = ""
+    @Published var creating_session: Bool = false
+    @Published var selected_splitDay: SplitDay? = nil
+    
     
     override func loadFeature() {
-        self.loadWorkouts()
+        self.loadSessions()
     }
     
-    func loadWorkouts() {
+    func loadSessions() {
         let descriptor = FetchDescriptor<Session>(sortBy: [SortDescriptor(\.timestamp)])
 
         do {
@@ -37,15 +38,46 @@ class SessionService : ServiceBase, ObservableObject {
         return [];
     }
     
-    func addSession() {
+    func addSession() -> Session? {
         print("Adding")
-//        let trimmedNotes = create_notes?.trimmingCharacters(in: .whitespaces)
+        let trimmedNotes = create_notes.trimmingCharacters(in: .whitespaces)
+        
+        let newItem = Session(timestamp: Date(), splitDay: selected_splitDay, notes: trimmedNotes)
+        var failed = false
         
         withAnimation {
+            modelContext.insert(newItem)
+
             do {
                 try modelContext.save()
+                creating_session = false
+                create_notes = ""
+                selected_splitDay = nil
+                loadSessions()
             } catch {
                 print("Failed to save new split day: \(error)")
+                failed = true
+            }
+        }
+        
+        if (failed==true) {
+            return nil
+        }
+        
+        return newItem
+    }
+    
+    func removeSession(offsets: IndexSet) {
+        withAnimation {
+            for index in offsets {
+                modelContext.delete(sessions[index])
+            }
+            
+            do {
+                try modelContext.save()
+                loadSessions()
+            } catch {
+                print("Failed to save after deletion")
             }
         }
     }

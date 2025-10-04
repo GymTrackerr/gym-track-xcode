@@ -63,6 +63,9 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
         }
         
         endEditing()
+        withAnimation {
+            renumberExercises(splitDay: splitDay)
+        }
     }
     
     func addExercises(splitDay: SplitDay) {

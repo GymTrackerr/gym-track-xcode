@@ -21,7 +21,6 @@ final class ExerciseSplitDay {
     var exercise_id: UUID { exercise.id }
 
     init(order: Int, splitDay: SplitDay, exercise: Exercise) {
-        self.id = UUID()
         self.order = order
         self.splitDay = splitDay
         self.exercise = exercise

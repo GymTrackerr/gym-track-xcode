@@ -7,12 +7,6 @@
 
 import SwiftUI
 
-// TODO: FIX BUG
-// BUG: swipe to delete doesnt delete proper
-// and order doesnt update again when updating for some reason
-
-// now seems to just be renumbering function not working nicely, not sure
-
 struct SingleDayView: View {
     @EnvironmentObject var esdService: ExerciseSplitDayService
     @EnvironmentObject var exerciseService: ExerciseService
