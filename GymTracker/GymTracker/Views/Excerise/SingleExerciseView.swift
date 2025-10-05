@@ -21,6 +21,7 @@ struct SingleExerciseView: View {
                 Text("Alises: \(exercise.aliases?.joined(separator: ", ") ?? "")")
                 Text("Muscle Groups: \(exercise.muscle_groups?.joined(separator: ", ") ?? "")")
                 Text("Date: \(exercise.timestamp.formatted(date: .numeric, time: .omitted))")
+                Text("Exercise Type: \(exercise.exerciseType.name)")
             }
             .padding()
             Spacer()

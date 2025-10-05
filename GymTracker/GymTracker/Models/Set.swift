@@ -11,17 +11,19 @@ import SwiftData
 @Model
 final class Set {
     var id: UUID = UUID()
-    var exercise_id: UUID
-    var workout_id: UUID
-    var set_type: Int?
     var order: Int
+//    var type: Set_Types
     var notes: String?
-    
-    init(exercise_id: UUID, workout_id: UUID, set_type: Int? = nil, order: Int, notes: String? = nil) {
-        self.exercise_id = exercise_id
-        self.workout_id = workout_id
-        self.set_type = set_type
+    var timestamp: Date
+
+    var sessionExercise: SessionExercise
+    var session_exercise_id: UUID { sessionExercise.id }
+
+    init(order: Int, sessionExercise: SessionExercise, notes: String? = nil) {
         self.order = order
         self.notes = notes
+        self.timestamp = Date()
+        
+        self.sessionExercise = sessionExercise
     }
 }

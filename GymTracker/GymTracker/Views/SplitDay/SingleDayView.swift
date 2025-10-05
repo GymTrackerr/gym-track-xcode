@@ -12,7 +12,6 @@ struct SingleDayView: View {
     @EnvironmentObject var exerciseService: ExerciseService
     @Bindable var splitDay: SplitDay
     
-    @State var searchText = ""
     @State var searchResults: [Exercise] = []
 
     var body: some View {
@@ -46,7 +45,7 @@ struct SingleDayView: View {
         #endif
             ToolbarItem {
                 Button {
-                    searchText = ""
+                    exerciseService.editingContent = ""
                     performSearch()
                     esdService.addingExerciseSplit = true
                 } label: {
@@ -57,12 +56,12 @@ struct SingleDayView: View {
         .sheet(isPresented: $esdService.addingExerciseSplit) {
             NavigationView {
                 VStack(spacing: 16) {
-                    TextField("Search Exercise", text: $searchText)
+                    TextField("Search or Create Exercise", text: $exerciseService.editingContent)
                         .textFieldStyle(.roundedBorder)
                         .padding()
-                    TextField("Name", text: $exerciseService.editingContent)
-                        .textFieldStyle(.roundedBorder)
-                        .padding(.horizontal)
+//                    TextField("Name", text: $exerciseService.editingContent)
+//                        .textFieldStyle(.roundedBorder)
+//                        .padding(.horizontal)
                     
                     Button {
 //                        with 
@@ -112,20 +111,20 @@ struct SingleDayView: View {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button("Done") {
                             esdService.confirmEditing(splitDay: splitDay)
-                            searchText = ""
+                            exerciseService.editingContent = ""
                         }
                     }
                 
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") {
                             esdService.endEditing()
-                            searchText = ""
+                            exerciseService.editingContent = ""
                             exerciseService.editingContent = ""
 
                         }
                     }
                 }
-                .onChange(of: searchText) {
+                .onChange(of: exerciseService.editingContent) {
                     performSearch()
                 }
             }
@@ -149,8 +148,8 @@ struct SingleDayView: View {
         }
     }
     func performSearch() {
-        print("searching \(searchText)")
-        searchResults = exerciseService.search(query: searchText)
+        print("searching \(exerciseService.editingContent)")
+        searchResults = exerciseService.search(query: exerciseService.editingContent)
     }
     func removeExercise(offsets: IndexSet) {
         esdService.removeExercise(splitDay: splitDay, offsets: offsets)

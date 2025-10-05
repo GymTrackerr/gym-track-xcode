@@ -7,6 +7,7 @@
 
 import SwiftUI
 
+// TODO: completion of sessions - similar to completion of sessionexercises
 
 struct SessionsView: View {
     @EnvironmentObject var sessionService: SessionService

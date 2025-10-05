@@ -48,6 +48,10 @@ class SessionService : ServiceBase, ObservableObject {
         withAnimation {
             modelContext.insert(newItem)
 
+            if let splitDay = selected_splitDay {
+                createSessionExercise(session: newItem, splitDay: splitDay)
+            }
+        
             do {
                 try modelContext.save()
                 creating_session = false
@@ -65,6 +69,19 @@ class SessionService : ServiceBase, ObservableObject {
         }
         
         return newItem
+    }
+    
+    // create new session from split day
+    func createSessionExercise(session:Session, splitDay: SplitDay) {
+        // for each exercise in splitDay
+        for (_, exerciseSplit) in splitDay.exerciseSplits.enumerated() {
+            let newSessionExercise = SessionExercise(
+                session: session,
+                exerciseSplitDay: exerciseSplit
+            )
+            
+            modelContext.insert(newSessionExercise)
+        }
     }
     
     func removeSession(offsets: IndexSet) {

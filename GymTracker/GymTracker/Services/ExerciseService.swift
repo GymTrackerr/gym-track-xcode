@@ -14,6 +14,7 @@ class ExerciseService : ServiceBase, ObservableObject {
     @Published var exercises: [Exercise] = []
     @Published var editingContent: String = ""
     @Published var editingExercise: Bool = false
+    @Published var selectedExerciseType: ExerciseType = ExerciseType.weight
 
     override func loadFeature() {
         self.loadSplitDays()
@@ -24,6 +25,10 @@ class ExerciseService : ServiceBase, ObservableObject {
 
         do {
             exercises = try modelContext.fetch(descriptor)
+            // verify exercises
+            for exercise in exercises {
+                print("\(exercise.name) \(exercise.type)")
+            }
         } catch {
             exercises = []
         }
@@ -40,7 +45,7 @@ class ExerciseService : ServiceBase, ObservableObject {
         let trimmedName = editingContent.trimmingCharacters(in: .whitespaces)
         guard !trimmedName.isEmpty else { return nil }
         
-        let newItem = Exercise(name: trimmedName)
+        let newItem = Exercise(name: trimmedName, type: selectedExerciseType)
         var failed = false
         
         withAnimation {
@@ -52,6 +57,7 @@ class ExerciseService : ServiceBase, ObservableObject {
                 editingExercise = false
                 editingContent = ""
                 loadSplitDays()
+                selectedExerciseType = .weight
 
             } catch {
                 print("Failed to save new split day: \(error)")
@@ -82,3 +88,4 @@ class ExerciseService : ServiceBase, ObservableObject {
         }
     }
 }
+

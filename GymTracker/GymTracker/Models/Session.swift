@@ -16,14 +16,9 @@ final class Session {
     
     var splitDay: SplitDay?
     var split_day_id: UUID? { splitDay?.id }
-
-    convenience init (timestamp: Date) {
-        self.init(timestamp: timestamp, splitDay: nil, notes: "")
-    }
     
-    convenience init(timestamp: Date, splitDay: SplitDay?) {
-        self.init(timestamp: timestamp, splitDay: splitDay, notes: "")
-    }
+    @Relationship(deleteRule: .cascade, inverse: \SessionExercise.session)
+    var sessionExercises: [SessionExercise] = []
 
     init (timestamp: Date, splitDay: SplitDay?, notes: String) {
         self.timestamp = timestamp
