@@ -77,6 +77,7 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
     
     func addExercise(splitDay: SplitDay, exercise: Exercise)  {
         // adds relations automatically
+        // TODO: why cant i just do the count? not order
         let newESD = ExerciseSplitDay(
             order: (splitDay.exerciseSplits.last?.order ?? 0) + 1,
             splitDay: splitDay,

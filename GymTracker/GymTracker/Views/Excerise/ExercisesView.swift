@@ -55,12 +55,13 @@ struct ExercisesView: View {
                         ForEach (ExerciseType.allCases, id: \.id) { exerciseType in
                             Button(exerciseType.name, action: { exerciseService.selectedExerciseType = exerciseType })
                         }
-                       } label: {
-                           Label("Exercise Type: \(exerciseService.selectedExerciseType.name)", systemImage: "chevron.down")
+                   } label: {
+                       Label("Exercise Type: \(exerciseService.selectedExerciseType.name)", systemImage: "chevron.down")
 //                           .padding()
 //                           .background(Color.blue.opacity(0.1))
 //                           .cornerRadius(8)
-                       }
+                   }
+                    
                     Button {
                         _ = exerciseService.addExercise()
                     } label: {

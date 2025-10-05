@@ -103,7 +103,7 @@ class SessionExerciseService: ServiceBase, ObservableObject {
     }
     
     func removeExercise(session: Session, sessionExercise: SessionExercise) {
-        print("sessoin exercise \(sessionExercise.id)")
+        print("session exercise \(sessionExercise.id)")
         withAnimation {
             if let esd = session.sessionExercises.first(where: { $0.id == sessionExercise.id }) {
                 modelContext.delete(esd)
@@ -113,13 +113,6 @@ class SessionExerciseService: ServiceBase, ObservableObject {
             }
         }
     }
-//    func removeExercise(session: Session, exercise: Exercise) {
-//        withAnimation {
-//            let esd = session.sessionExercises.first(where: { $0.exercise == exercise })!
-//            modelContext.delete(esd)
-//            try? modelContext.save()
-//        }
-//    }
     
     func removeExercise(session:Session, offsets: IndexSet) {
         print("ofset \(offsets)")

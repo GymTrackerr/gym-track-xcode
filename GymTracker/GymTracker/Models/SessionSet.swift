@@ -8,8 +8,9 @@
 import Foundation
 import SwiftData
 
+// renamed from Set to SessionSet due to reserved keyword
 @Model
-final class Set {
+final class SessionSet {
     var id: UUID = UUID()
     var order: Int
 //    var type: Set_Types
@@ -19,6 +20,9 @@ final class Set {
     var sessionExercise: SessionExercise
     var session_exercise_id: UUID { sessionExercise.id }
 
+    @Relationship(deleteRule: .cascade, inverse: \SessionRep.sessionSet)
+    var sessionReps: [SessionRep] = []
+    
     init(order: Int, sessionExercise: SessionExercise, notes: String? = nil) {
         self.order = order
         self.notes = notes

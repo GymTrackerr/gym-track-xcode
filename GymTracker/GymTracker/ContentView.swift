@@ -14,6 +14,7 @@ struct ContentView: View {
     @State var localSelected:Int = 0
     @State var showingOnboarding = false
 
+
     var body: some View {
         //        VStack {
         //            if (userService.accountCreated)
@@ -44,12 +45,33 @@ struct ContentView: View {
                 }
             }
         }
-//        .searchable(text: $query)
-        .tabBarMinimizeBehavior(TabBarMinimizeBehavior.onScrollDown)
-        .tabBarMinimizeBehavior(TabBarMinimizeBehavior.onScrollUp)
+        //.searchable(text: $query)
+        .tabBarMinimizeIfAvailable()
         //        }
     }
 }
+extension View {
+    @ViewBuilder func `if`<Content: View>(_ condition: Bool, content: (Self) -> Content) -> some View {
+        if condition {
+            content(self)
+        } else {
+            self
+        }
+    }
+}
+
+extension View {
+    @ViewBuilder func tabBarMinimizeIfAvailable() -> some View {
+        if #available(iOS 26, *) {
+            self
+                .tabBarMinimizeBehavior(.onScrollDown)
+                .tabBarMinimizeBehavior(.onScrollUp)
+        } else {
+            self
+        }
+    }
+}
+
 
 struct OnBoardView: View {
     @EnvironmentObject var userService: UserService
@@ -88,3 +110,4 @@ struct OnBoardView: View {
     ContentView()
         .modelContainer(for: Item.self, inMemory: true)
 }
+

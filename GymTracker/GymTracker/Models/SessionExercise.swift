@@ -20,8 +20,8 @@ final class SessionExercise {
     var exercise: Exercise
     var session: Session
     
-//    @Relationship(deleteRule: .cascade, inverse: \Sets.sessionExercise)
-//    var sets: [Session]
+    @Relationship(deleteRule: .cascade, inverse: \SessionSet.sessionExercise)
+    var sets: [SessionSet] = []
     
     var exercise_id: UUID { exercise.id }
     var session_id: UUID { session.id }

@@ -20,7 +20,9 @@ struct GymTrackerApp: App {
             ExerciseSplitDay.self,
             User.self,
             Session.self,
-            SessionExercise.self
+            SessionExercise.self,
+            SessionSet.self,
+            SessionRep.self
         ])
         
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
@@ -66,6 +68,7 @@ struct RootView: View {
                 .environmentObject(ExerciseSplitDayService(context: context, currentUser: userService.currentUser))
                 .environmentObject(SessionService(context: context, currentUser: userService.currentUser))
                 .environmentObject(SessionExerciseService(context: context, currentUser: userService.currentUser))
+                .environmentObject(SetService(context: context, currentUser: userService.currentUser))
         }
     }
 }

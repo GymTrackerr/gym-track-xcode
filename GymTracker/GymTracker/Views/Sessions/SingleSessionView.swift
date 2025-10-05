@@ -32,7 +32,7 @@ struct SingleSessionView: View {
             List {
                 ForEach(session.sessionExercises.sorted { $0.order < $1.order }, id: \.id) { sessionExercise in
                     NavigationLink {
-                        SingleExerciseView(exercise: sessionExercise.exercise, orderInSplit: sessionExercise.order)
+                        SessionExerciseView(sessionExercise: sessionExercise)
                     } label: {
                         HStack {
                             if (sessionExercise.isCompleted) {

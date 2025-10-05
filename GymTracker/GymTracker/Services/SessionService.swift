@@ -17,7 +17,6 @@ class SessionService : ServiceBase, ObservableObject {
     @Published var creating_session: Bool = false
     @Published var selected_splitDay: SplitDay? = nil
     
-    
     override func loadFeature() {
         self.loadSessions()
     }
@@ -30,7 +29,6 @@ class SessionService : ServiceBase, ObservableObject {
         } catch {
             sessions = []
         }
-
     }
     
     func search(query: String) -> [Session] {
@@ -47,6 +45,7 @@ class SessionService : ServiceBase, ObservableObject {
         
         withAnimation {
             modelContext.insert(newItem)
+            try? modelContext.save()
 
             if let splitDay = selected_splitDay {
                 createSessionExercise(session: newItem, splitDay: splitDay)
