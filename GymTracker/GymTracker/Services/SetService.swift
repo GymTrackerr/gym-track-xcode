@@ -31,9 +31,30 @@ class SetService: ServiceBase, ObservableObject {
         // load sets of a certain set
 //    }
     
+    
+    func getSetRepCount(sessionSet: SessionSet) -> Int {
+        var totalRepCount: Int = 0
+        for rep in sessionSet.sessionReps {
+            totalRepCount += rep.count
+        }
+        
+        return totalRepCount
+    }
+    
+    func getSetWorkload(sessionSet: SessionSet) -> Int {
+        var totalWorkload: Double = 0
+        for rep in sessionSet.sessionReps {
+            totalWorkload += (rep.weight*Double(rep.count))
+        }
+        
+
+        return Int(round(totalWorkload))
+    }
+    
     func addSet(sessionExercise: SessionExercise) -> SessionSet? {
         let newSet = SessionSet(order: (sessionExercise.sets.count), sessionExercise: sessionExercise, notes: create_notes)
         var failed = false
+        
         withAnimation {
             do {
                 modelContext.insert(newSet)
@@ -55,9 +76,32 @@ class SetService: ServiceBase, ObservableObject {
                 try? modelContext.save()
             }
         }
-        // reps auto save
         
+        // reps auto save
         self.creatingSet = false
+    }
+    
+    func createBlankRep(sessionSet: SessionSet) -> SessionRep? {
+        let newRep = SessionRep(
+            sessionSet: sessionSet,
+            weight: 0,
+            weight_unit: WeightUnit.lb,
+            count: 0
+        )
+        
+        var failedSave = false
+        createReps.append(newRep)
+        withAnimation {
+            do {
+                sessionSet.sessionReps.append(newRep)
+                try modelContext.save()
+            } catch {
+                failedSave = true
+            }
+        }
+        
+        if (failedSave) { return nil }
+        return newRep;
     }
     
     func addRep(sessionSet: SessionSet) {
@@ -68,4 +112,23 @@ class SetService: ServiceBase, ObservableObject {
         
     }
     
+    func saveSetData(sessionSet: SessionSet) {
+        withAnimation {
+            try? modelContext.save()
+        }
+    }
+    
+
+    func saveRepData(sessionRep: SessionRep) {
+        withAnimation {
+            try? modelContext.save()
+        }
+    }
+    
+    func toggleSetCompletion(sessionSet: SessionSet) {
+        withAnimation {
+            sessionSet.isCompleted.toggle()
+            try? modelContext.save()
+        }
+    }
 }

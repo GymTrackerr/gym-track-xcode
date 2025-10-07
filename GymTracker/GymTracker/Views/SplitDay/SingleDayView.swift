@@ -7,6 +7,12 @@
 
 import SwiftUI
 
+// TODO: manage feature with more than one exercise of the same type
+// adding exercise UI needs to be updated to support
+// backend needs to delete by ID, look at sessionExercises
+// show "last completed split(/exercise)" in view - same in exercises
+// and a "last edited"
+
 struct SingleDayView: View {
     @EnvironmentObject var esdService: ExerciseSplitDayService
     @EnvironmentObject var exerciseService: ExerciseService

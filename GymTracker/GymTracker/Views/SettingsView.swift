@@ -5,6 +5,7 @@
 //  Created by Daniel Kravec on 2025-10-04.
 //
 import SwiftUI
+import SwiftData
 
 struct SettingsView: View {
     @EnvironmentObject var userService: UserService
@@ -34,6 +35,14 @@ struct SettingsView: View {
                     }
                 }
 
+                NavigationLink {
+                    TestDataShow()
+                } label: {
+                    HStack {
+                        Image(systemName: "swiftdata")
+                        Text("Debug Data")
+                    }
+                }
             }
         }
         .navigationTitle("Settings")
@@ -124,5 +133,98 @@ struct AboutView: View {
             return build
         }
         return "Unknown"
+    }
+}
+
+struct TestDataShow : View {
+    @Environment(\.modelContext) private var context
+
+    @State var splitDays: [SplitDay] = []
+    @State var exercises: [Exercise] = []
+    @State var ESD: [ExerciseSplitDay] = []
+    @State var sessions: [Session] = []
+    @State var sessionSets: [SessionSet] = []
+    @State var sessionReps: [SessionRep] = []
+    @State var sessionExercises: [SessionExercise] = []
+    @State var users: [User] = []
+
+    var body: some View {
+        List {
+            Section("Split Days") {
+                ForEach(splitDays, id: \.self) { item in
+                    VStack {
+                        Text("\(item.id)")
+                        Text("\(item.name)")
+                    }
+                }
+            }
+            Section("Exercises") {
+                ForEach(exercises, id: \.self) { item in
+                    VStack {
+                        Text("\(item.id)")
+                        Text("\(item.name)")
+                    }
+                }
+            }
+            Section("Exercises Split Days") {
+                ForEach(ESD, id: \.self) { item in
+                    VStack {
+                        Text("\(item.id)")
+                        Text("\(item.splitDay.name)")
+                    }
+                }
+            }
+            Section("Sessions") {
+                ForEach(sessions, id: \.self) { item in
+                    VStack {
+                        Text("\(item.id)")
+                    }
+                }
+            }
+            Section("Session Sets") {
+                ForEach(sessionSets, id: \.self) { item in
+                    VStack {
+                        Text("\(item.id)")
+                    }
+                }
+            }
+            Section("Session Reps") {
+                ForEach(sessionReps, id: \.self) { item in
+                    VStack {
+                        Text("\(item.id)")
+                    }
+                }
+            }
+            Section("Session Exercises") {
+                ForEach(sessionExercises, id: \.self) { item in
+                    VStack {
+                        Text("\(item.id)")
+                        Text("\(item.exercise.name)")
+                    }
+                }
+            }
+            Section("Users") {
+                ForEach(users, id: \.self) { item in
+                    VStack {
+                        Text("\(item.id)")
+                        Text("\(item.name)")
+                    }
+                }
+            }
+        }
+        .onAppear() {
+            splitDays = try! context.fetch(FetchDescriptor<SplitDay>(sortBy: [SortDescriptor(\.timestamp)]))
+            exercises = try! context.fetch(FetchDescriptor<Exercise>(sortBy: [SortDescriptor(\.timestamp)]))
+            ESD = try! context.fetch(FetchDescriptor<ExerciseSplitDay>(sortBy: [SortDescriptor(\.id)]))
+            
+            sessions = try! context.fetch(FetchDescriptor<Session>(sortBy: [SortDescriptor(\.timestamp)]))
+            sessionSets = try! context.fetch(FetchDescriptor<SessionSet>(sortBy: [SortDescriptor(\.timestamp)]))
+            sessionReps = try! context.fetch(FetchDescriptor<SessionRep>(sortBy: [SortDescriptor(\.id)]))
+            
+            sessionExercises = try! context.fetch(FetchDescriptor<SessionExercise>(sortBy: [SortDescriptor(\.id)]))
+            
+            users = try! context.fetch(FetchDescriptor<User>(sortBy: [SortDescriptor(\.lastLogin)]))
+
+        }
     }
 }

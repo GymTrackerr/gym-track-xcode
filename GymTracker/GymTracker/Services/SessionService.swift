@@ -70,6 +70,17 @@ class SessionService : ServiceBase, ObservableObject {
         return newItem
     }
     
+    func updateSessionToSplitDay(session: Session, splitDay: SplitDay) {
+        withAnimation {
+            print("updaiting session")
+            session.splitDay = splitDay
+            try? modelContext.save()
+            
+            createSessionExercise(session: session, splitDay: splitDay)
+            loadSessions()
+        }
+    }
+    
     // create new session from split day
     func createSessionExercise(session:Session, splitDay: SplitDay) {
         // for each exercise in splitDay

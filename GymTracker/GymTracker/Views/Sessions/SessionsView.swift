@@ -32,7 +32,7 @@ struct SessionsView: View {
                     HStack {
                         Text("Previous Sessions")
                     }
-                    ForEach(sessionService.sessions) { session in
+                    ForEach(sessionService.sessions.reversed()) { session in
                         NavigationLink {
                             SingleSessionView(session: session)
                         } label: {

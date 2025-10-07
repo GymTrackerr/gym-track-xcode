@@ -16,6 +16,8 @@ final class SessionSet {
 //    var type: Set_Types
     var notes: String?
     var timestamp: Date
+    
+    var isCompleted: Bool = false
 
     var sessionExercise: SessionExercise
     var session_exercise_id: UUID { sessionExercise.id }

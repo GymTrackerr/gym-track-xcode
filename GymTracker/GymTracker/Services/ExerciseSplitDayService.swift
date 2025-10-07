@@ -68,6 +68,18 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
         }
     }
     
+    func syncSplitWithSession(splitDay: SplitDay, session: Session) {
+        for (_, exerciseSplit) in splitDay.exerciseSplits.enumerated() {
+            removeExercise(splitDay: splitDay, exercise: exerciseSplit.exercise)
+        }
+        
+        for (_, exercise) in session.sessionExercises.enumerated() {
+            // remove old exercises
+            addExercise(splitDay: splitDay, exercise: exercise.exercise)
+        }
+        loadFeature()
+    }
+    
     func addExercises(splitDay: SplitDay) {
         for (_, exercise) in addingExercises.enumerated() {
             // if it has relationship already, dont do?

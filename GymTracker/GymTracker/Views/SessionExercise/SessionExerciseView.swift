@@ -12,47 +12,46 @@ struct SessionExerciseView : View {
 //    @EnvironmentObject var exerciseService: ExerciseService
     
     @Bindable var sessionExercise: SessionExercise
-    @State var sessionSet: SessionSet?
+    @State var currentSessionSet: SessionSet?
+    @State var latestRep: SessionRep?
     
     var body: some View {
         // show sets in exercise
         List {
-            HStack {
-                Button {
-                    setService.creatingSet = true
-                } label: {
-                    HStack {
-                        Image(systemName: "plus")
-                        Text("New Set")
-                    }
-                }
-            }
-                
-            ForEach(sessionExercise.sets.sorted { $0.order < $1.order }, id: \.id) { sessionSet in
-                
-                NavigationLink {
-                    SingleSetView(sessionSet: sessionSet)
-                } label: {
-                    HStack {
-                        Text("Set #\(sessionSet.order+1)")
+            Section {
+                HStack {
+                    Button {
+                        setService.creatingSet = true
+                        createSet()
+                        
+                    } label: {
+                        HStack {
+                            Image(systemName: "plus")
+                            Text("New Set")
+                        }
                     }
                 }
             }
             
-        }
-        .navigationTitle(Text("Sets"))
-        .sheet(isPresented: $setService.creatingSet) {
-            NavigationView {
-                if let sessionSet {
-                    CreateSetView(sessionExercise: sessionExercise, sessionSet: sessionSet)
+            ForEach(sessionExercise.sets.sorted { $0.order < $1.order }, id: \.id) { sessionSet in
+                VStack {
+                    if (currentSessionSet == sessionSet) && (sessionSet.isCompleted == false) {
+                        CreateSetView(sessionExercise: sessionExercise, sessionSet: sessionSet)
+                    } else {
+                        SingleSetLabelView(sessionSet: sessionSet)
+                    }
                 }
             }
-            .onAppear(perform: createSet)
         }
+        .navigationTitle(Text("Sets"))
     }
     
     func createSet() {
-        sessionSet = setService.addSet(sessionExercise: sessionExercise)
+        if let newSessionSet = setService.addSet(sessionExercise: sessionExercise) {
+            currentSessionSet = newSessionSet
+            latestRep = setService.createBlankRep(sessionSet: newSessionSet)
+            
+        }
     }
 }
 

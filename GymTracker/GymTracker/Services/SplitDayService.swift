@@ -37,12 +37,14 @@ class SplitDayService : ServiceBase, ObservableObject {
         return splitDays.filter { $0.name.localizedCaseInsensitiveContains(query) }
     }
     
-    func addSplitDay() {
+    func addSplitDay() -> SplitDay? {
         let trimmedName = editingContent.trimmingCharacters(in: .whitespaces)
-        guard !trimmedName.isEmpty else { return }
+        guard !trimmedName.isEmpty else { return nil }
         
+        let newItem = SplitDay(order: splitDays.count, name: trimmedName)
+        var failedAdd = false
         withAnimation {
-            let newItem = SplitDay(order: splitDays.count, name: trimmedName)
+//            let newItem = SplitDay(order: splitDays.count, name: trimmedName)
             modelContext.insert(newItem)
             do {
                 try modelContext.save()
@@ -51,8 +53,12 @@ class SplitDayService : ServiceBase, ObservableObject {
                 loadSplitDays()
             } catch {
                 print("Failed to save new split day: \(error)")
+                failedAdd = true
             }
         }
+        
+        if (failedAdd) { return nil }
+        return newItem
     }
     
     func removeSplitDay(offsets: IndexSet) {

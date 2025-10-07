@@ -58,7 +58,7 @@ struct SplitDaysView: View {
                         .padding(.horizontal)
                     
                     Button {
-                        splitDayService.addSplitDay()
+                        _ = splitDayService.addSplitDay()
                     } label: {
                         Label("Save", systemImage: "plus.circle")
                             .font(.title2)
