@@ -12,8 +12,9 @@ import SwiftData
 final class Session {
     var id: UUID = UUID()
     var timestamp: Date
-    var notes: String?
+    var notes: String = ""
     
+//    @Relationship(deleteRule: .nullify)
     var splitDay: SplitDay?
     var split_day_id: UUID? { splitDay?.id }
     

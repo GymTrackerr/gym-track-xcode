@@ -16,6 +16,8 @@ class SplitDayService : ServiceBase, ObservableObject {
     @Published var editingContent: String = ""
     @Published var editingSplit: Bool = false
     
+    @Published var editingNotes: String = ""
+    
     override func loadFeature() {
         self.loadSplitDays()
     }

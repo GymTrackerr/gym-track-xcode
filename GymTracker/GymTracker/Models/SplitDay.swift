@@ -18,6 +18,9 @@ final class SplitDay {
     @Relationship(deleteRule: .cascade, inverse: \ExerciseSplitDay.splitDay)
     var exerciseSplits: [ExerciseSplitDay] = []
     
+    @Relationship(deleteRule: .nullify, inverse: \Session.splitDay)
+    var sessions: [Session] = []
+    
     init(order: Int, name: String) {
         self.order = order
         self.name = name

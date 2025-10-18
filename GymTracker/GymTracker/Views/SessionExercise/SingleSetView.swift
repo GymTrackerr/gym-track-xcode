@@ -76,13 +76,15 @@ struct CreateSetView: View {
             .buttonStyle(.borderless)
             .padding(.top, 4)
             
-            Button {
-                setService.saveSetData(sessionSet: sessionSet)
-                setService.toggleSetCompletion(sessionSet: sessionSet)
-            } label: {
-                Label("Save", systemImage: "plus.circle")
-                    .font(.title2)
-                    .padding()
+            VStack {
+                Button {
+                    setService.saveSetData(sessionSet: sessionSet)
+                    setService.toggleSetCompletion(sessionSet: sessionSet)
+                } label: {
+                    Label("Save", systemImage: "plus.circle")
+                        .font(.title2)
+                        .padding()
+                }
             }
             Spacer()
         }

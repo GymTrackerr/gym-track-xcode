@@ -211,6 +211,30 @@ struct TestDataShow : View {
                     }
                 }
             }
+            Section("Wipe Data") {
+                Button {
+                    do {
+                        try context.delete(model: ExerciseSplitDay.self)
+                        
+                        try context.delete(model: SessionSet.self)
+                        try context.delete(model: SessionRep.self)
+
+                        
+                        try context.delete(model: SplitDay.self)
+                        
+                        try context.delete(model: Exercise.self)
+                        try context.delete(model: Session.self)
+                        try context.delete(model: SessionExercise.self)
+                        try context.delete(model: User.self)
+
+                    } catch {
+                        print("Failed to clear all data.")
+                    }
+
+                } label: {
+                    Text("Wipe All Data")
+                }
+            }
         }
         .onAppear() {
             splitDays = try! context.fetch(FetchDescriptor<SplitDay>(sortBy: [SortDescriptor(\.timestamp)]))

@@ -40,6 +40,18 @@ struct SingleDayView: View {
                 }
                 .onDelete(perform: removeExercise)
                 .onMove(perform: moveExercise)
+                
+                /* */
+                Section {
+                    ForEach(splitDay.sessions.sorted { $0.timestamp < $1.timestamp }, id: \.id) { session in
+                        NavigationLink {
+                            SingleSessionView(session: session)
+                        } label: {
+                            SingleSessionLabelView(session: session)
+                            //                            .id(exerciseSlit.order)
+                        }
+                    }
+                }
             }
         }
         .navigationTitle(splitDay.name)

@@ -23,79 +23,99 @@ struct SingleSessionView: View {
     var body: some View {
         VStack {
             VStack(alignment: .leading) {
-                if let splitDay = session.splitDay {
-                    Text("SplitDay: \(splitDay.name)")
-                }
-                if let notes = session.notes {
-                    Text("Notes: \(notes)")
-                }
-                Text("Date: \(session.timestamp.formatted(date: .numeric, time: .standard))")
-                
-                if let splitDay = session.splitDay {
-                    if syncingSplit==true {
-                        VStack {
-                            Text("Are you sure? This action will replace all exercises with those in this session.")
+                if (editMode?.wrappedValue == .inactive){
+                    VStack {
+                        if let splitDay = session.splitDay {
+                            Text("SplitDay: \(splitDay.name)")
+                        } else {
+                            Text("No Split Day")
                         }
-                        HStack {
-                            Button {
-                                syncingSplit = false
-                            } label: {
-                                Text("Cancel")
-                            }
+                        if (session.notes != "") {
+                            Text("Notes: \(session.notes)")
+                        }
                             
-                            Button {
-                                esdService.syncSplitWithSession(splitDay: splitDay, session: session)
-                                syncingSplit = false
-                                
-                            } label: {
-                                Text("Confirm")
-                            }
-                        }
+                        
+                        Text("Date: \(session.timestamp.formatted(date: .numeric, time: .standard))")
                     }
-                    else {
-                        Button {
-                            syncingSplit = true
-                        } label: {
-                            Text("Sync Split with Session")
-                        }
-                    }
-                    // TODO: actually let eitehr 
+
                 } else {
-                    if syncingSplit==false {
-                        Button {
-                            syncingSplit = true
-                        } label: {
-                            Text("Create new Split Day")
-                        }
-                    } else {
-                        VStack {
-                            Text("Name your new split day")
-                                .font(.headline)
-                            
-                            TextField("Name", text: $splitDayService.editingContent)
-                                .textFieldStyle(.roundedBorder)
-                                .padding(.horizontal)
-                        }
-                        HStack {
-                            Button {
-                                splitDayService.editingSplit = false
-                                splitDayService.editingContent = ""
-                            } label: {
-                                Text("Cancel")
+                    VStack {
+                        TextField("Notes", text: $session.notes)
+                            .textFieldStyle(.roundedBorder)
+                            .padding(.horizontal)
+
+                        DatePicker("Date & Time", selection: $session.timestamp, displayedComponents: [.date, .hourAndMinute])
+                            .datePickerStyle(.compact)
+                            .labelsHidden()
+                    }
+                    
+                    if let splitDay = session.splitDay {
+                        if syncingSplit==true {
+                            VStack {
+                                Text("Are you sure? This action will replace all exercises with those in this session.")
                             }
-                            
-                            Button {
-                                let newSplit = splitDayService.addSplitDay()
-                                if let newSplit {
-                                    sessionService.updateSessionToSplitDay(session: session, splitDay: newSplit)
-                                    esdService.syncSplitWithSession(splitDay: newSplit, session: session)
+                            HStack {
+                                Button {
+                                    syncingSplit = false
+                                } label: {
+                                    Text("Cancel")
                                 }
                                 
-                                syncingSplit = false
-                            } label: {
-                                Text("Save")
+                                Button {
+                                    esdService.syncSplitWithSession(splitDay: splitDay, session: session)
+                                    syncingSplit = false
+                                    
+                                } label: {
+                                    Text("Confirm")
+                                }
                             }
-                            .disabled(splitDayService.editingContent.trimmingCharacters(in: .whitespaces).isEmpty)
+                        }
+                        else {
+                            Button {
+                                syncingSplit = true
+                            } label: {
+                                Text("Sync Split with Session")
+                            }
+                        }
+                        // TODO: actually let eitehr
+                    } else {
+                        if syncingSplit==false {
+                            Button {
+                                syncingSplit = true
+                            } label: {
+                                Text("Create new Split Day")
+                            }
+                        } else {
+                            VStack {
+                                Text("Name your new split day")
+                                    .font(.headline)
+                                
+                                TextField("Name", text: $splitDayService.editingContent)
+                                    .textFieldStyle(.roundedBorder)
+                                    .padding(.horizontal)
+                            }
+                            HStack {
+                                Button {
+                                    syncingSplit=false
+                                    splitDayService.editingSplit = false
+                                    splitDayService.editingContent = ""
+                                } label: {
+                                    Text("Cancel")
+                                }
+                                
+                                Button {
+                                    let newSplit = splitDayService.addSplitDay()
+                                    if let newSplit {
+                                        sessionService.updateSessionToSplitDay(session: session, splitDay: newSplit)
+                                        esdService.syncSplitWithSession(splitDay: newSplit, session: session)
+                                    }
+                                    
+                                    syncingSplit = false
+                                } label: {
+                                    Text("Save")
+                                }
+                                .disabled(splitDayService.editingContent.trimmingCharacters(in: .whitespaces).isEmpty)
+                            }
                         }
                     }
                 }
@@ -188,12 +208,29 @@ struct SingleSessionLabelView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                         Spacer()
+//                        Text("SplitDayFound \(session.splitDay != nil ? "Yes" : "No")")
+//
+//                        if let split_day_id = session.split_day_id {
+//                            Text("Split: \(split_day_id)")
+//                                .font(.caption)
+//                                .foregroundColor(.secondary)
+//                        }
 
+//                        if let splitDay = session.splitDay {
+////                            if let splitDayID = session
+//                            Text("Split: \(splitDay.id)")
+//                                .font(.caption)
+//                                .foregroundColor(.secondary)
+//                        }
+
+//                        if let splitDayID = session.splitDay?.id {
+//                            Text("SplitID \(splitDayID)")
                         if let splitDay = session.splitDay {
                             Text("Split: \(splitDay.name)")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
+//                        }
                         
                     }
                 }

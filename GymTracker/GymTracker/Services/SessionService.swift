@@ -26,6 +26,31 @@ class SessionService : ServiceBase, ObservableObject {
 
         do {
             sessions = try modelContext.fetch(descriptor)
+//            let descript2 = FetchDescriptor<SplitDay>(sortBy: [SortDescriptor(\.order)])
+//            var splitDays:[SplitDay] = []
+//            do {
+//                splitDays = try modelContext.fetch(descript2)
+//            } catch {
+//                splitDays = []
+//            }
+//
+//            for session in sessions {
+//                print(session.splitDay)
+//                if let splitDay = session.splitDay {
+//                    
+//                } else {
+//                    var sesiosnEdit = session
+////                    sesiosnEdit.split_day_id = nil
+//                    try? modelContext.save()
+//                }
+//                if (session.splitDay) {
+////                    if (session.splitDay.id)
+//                }
+//                if (session.splitDay == null) {
+//                    print("null")
+//                }
+//            }
+//            loadSessions()
         } catch {
             sessions = []
         }
@@ -95,6 +120,7 @@ class SessionService : ServiceBase, ObservableObject {
     }
     
     func removeSession(offsets: IndexSet) {
+        // TODO: OFFSETS IS WRONG?
         withAnimation {
             for index in offsets {
                 modelContext.delete(sessions[index])

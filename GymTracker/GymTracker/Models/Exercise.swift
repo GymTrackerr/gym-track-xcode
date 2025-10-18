@@ -18,6 +18,7 @@ final class Exercise {
     var muscle_groups: [String]? = []
     var timestamp: Date
 
+    // deletes the exerise split day
     @Relationship(deleteRule: .cascade, inverse: \ExerciseSplitDay.exercise)
     var splits: [ExerciseSplitDay] = []
 

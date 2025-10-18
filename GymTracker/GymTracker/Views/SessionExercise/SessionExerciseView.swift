@@ -19,6 +19,9 @@ struct SessionExerciseView : View {
         // show sets in exercise
         List {
             Section {
+                VStack {
+                    Text("Sets for " + sessionExercise.exercise.name)
+                }
                 HStack {
                     Button {
                         setService.creatingSet = true
@@ -43,7 +46,7 @@ struct SessionExerciseView : View {
                 }
             }
         }
-        .navigationTitle(Text("Sets"))
+        .navigationTitle(Text(sessionExercise.exercise.name))
     }
     
     func createSet() {
