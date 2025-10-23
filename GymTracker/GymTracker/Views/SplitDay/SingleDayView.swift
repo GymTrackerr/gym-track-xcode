@@ -19,15 +19,24 @@ struct SingleDayView: View {
     @Bindable var splitDay: SplitDay
     
     @State var searchResults: [Exercise] = []
+    @Environment(\.editMode) private var editMode
 
     var body: some View {
         VStack {
-            VStack(alignment: .leading) {
-                Text("SplitDay: \(splitDay.name)")
-                Text("Order: \(splitDay.order)")
-                Text("Date: \(splitDay.timestamp.formatted(date: .numeric, time: .omitted))")
+            if (editMode?.wrappedValue == .inactive){
+                VStack(alignment: .leading) {
+                    Text("SplitDay: \(splitDay.name)")
+                    Text("Order: \(splitDay.order)")
+                    Text("Date: \(splitDay.timestamp.formatted(date: .numeric, time: .omitted))")
+                }
+                .padding()
+            } else {
+                VStack {
+                    TextField("SplitDay Name", text: $splitDay.name)
+                        .textFieldStyle(.roundedBorder)
+                        .padding(.horizontal)
+                }
             }
-            .padding()
             
             List {
                 ForEach(splitDay.exerciseSplits.sorted { $0.order < $1.order }, id: \.id) { exerciseSplit in

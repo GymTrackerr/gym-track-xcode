@@ -75,6 +75,7 @@ class ExerciseService : ServiceBase, ObservableObject {
         print("not activating")
         withAnimation {
             for index in offsets {
+                // TODO: crashed here, EXC_BAD_ACESS
                 modelContext.delete(exercises[index])
             }
 

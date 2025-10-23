@@ -39,6 +39,17 @@ struct SingleSessionView: View {
                     }
 
                 } else {
+                    // TODO: work on the UI
+                    VStack {
+                        SessionSelectSplit()
+                        Button {
+                            sessionService.updateSessionToSplitDay(session: session )
+                        } label: {
+                            Label("Change Split", systemImage: "plus.circle")
+                                .font(.title2)
+                                .padding()
+                        }
+                    }
                     VStack {
                         TextField("Notes", text: $session.notes)
                             .textFieldStyle(.roundedBorder)

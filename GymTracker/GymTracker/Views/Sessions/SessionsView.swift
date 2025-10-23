@@ -61,6 +61,7 @@ struct SessionsView: View {
                         .padding(.horizontal)
                     
                     /* select day*/
+                    /*
                     if let splitDay = sessionService.selected_splitDay {
                         Text("Selected Split Day: \(splitDay.name)")
                         Button {
@@ -83,6 +84,8 @@ struct SessionsView: View {
                         }
                         .listStyle(.plain)
                     }
+                     */
+                    SessionSelectSplit()
                     Spacer()
                     Button {
                         openedSession = sessionService.addSession()
@@ -109,3 +112,36 @@ struct SessionsView: View {
     }
 }
 
+
+struct SessionSelectSplit : View {
+    @EnvironmentObject var sessionService: SessionService
+    @EnvironmentObject var splitDayService: SplitDayService
+    
+//    @Binding
+    var body: some View {
+        VStack {
+            if let splitDay = sessionService.selected_splitDay {
+                Text("Selected Split Day: \(splitDay.name)")
+                Button {
+                    sessionService.selected_splitDay = nil
+                } label: {
+                    Text("Unselect Split")
+                }
+            } else {
+                List {
+                    ForEach(splitDayService.splitDays, id: \.id) { splitDay in
+                        Button(action: {
+                            sessionService.selected_splitDay = splitDay
+                        }) {
+                            HStack {
+                                Image(systemName: "scope")
+                                Text(splitDay.name)
+                            }
+                        }
+                    }
+                }
+                .listStyle(.plain)
+            }
+        }
+    }
+}

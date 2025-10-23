@@ -106,6 +106,8 @@ class SessionExerciseService: ServiceBase, ObservableObject {
         print("session exercise \(sessionExercise.id)")
         withAnimation {
             if let esd = session.sessionExercises.first(where: { $0.id == sessionExercise.id }) {
+                // TODO: crashed here, EXC_BAD_ACESS
+                // this was     half solved by nullifying relationships in SessionExercise model
                 modelContext.delete(esd)
                 try? modelContext.save()
                 self.renumberExercises(session: session)

@@ -95,6 +95,14 @@ class SessionService : ServiceBase, ObservableObject {
         return newItem
     }
     
+    func updateSessionToSplitDay(session: Session) {
+        withAnimation {
+            session.splitDay = selected_splitDay
+            try? modelContext.save()
+            loadSessions()
+        }
+    }
+    
     func updateSessionToSplitDay(session: Session, splitDay: SplitDay) {
         withAnimation {
             print("updaiting session")
