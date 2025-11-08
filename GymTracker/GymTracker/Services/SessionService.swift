@@ -25,7 +25,19 @@ class SessionService : ServiceBase, ObservableObject {
         let descriptor = FetchDescriptor<Session>(sortBy: [SortDescriptor(\.timestamp)])
 
         do {
+//            sessions = try modelContext.fetch(descriptor)
+            
+            // migration for timestampDone
+            for session in try modelContext.fetch(FetchDescriptor<Session>()) {
+                if session.timestampDone == .distantPast || session.timestampDone == Date(timeIntervalSince1970: 0) {
+                    session.timestampDone = session.timestamp
+                }
+            }
+            try? modelContext.save()
+            
             sessions = try modelContext.fetch(descriptor)
+
+
 //            let descript2 = FetchDescriptor<SplitDay>(sortBy: [SortDescriptor(\.order)])
 //            var splitDays:[SplitDay] = []
 //            do {
@@ -124,6 +136,18 @@ class SessionService : ServiceBase, ObservableObject {
             )
             
             modelContext.insert(newSessionExercise)
+        }
+    }
+    
+    func removeSession(session: Session) {
+        withAnimation {
+            do {
+                modelContext.delete(session)
+                try modelContext.save()
+                loadSessions()
+            } catch {
+                print("Failed to save after deletion")
+            }
         }
     }
     

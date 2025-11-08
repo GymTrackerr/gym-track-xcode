@@ -3,6 +3,8 @@ import SwiftData
 
 struct HomeView: View {
     @EnvironmentObject var userService: UserService
+    @EnvironmentObject var hkManager: HealthKitManager
+
     @State private var openedSession: Session? = nil
     @State private var navigateToSession:Bool = false
     
@@ -10,17 +12,41 @@ struct HomeView: View {
         VStack {
             if let _ = userService.currentUser {
                 if !navigateToSession { // hide home content when navigating
-//                    Text("Welcome \(currentUser.name)")
-                    SessionsView(openedSession: $openedSession)
-                    .onChange(of: openedSession) {
-                        if openedSession != nil {
-                            navigateToSession = true
+                    ScrollView {
+                        VStack {
+                            HStack(spacing: 16) {
+                                MetricCard(title: "Current Weight", value: String(hkManager.userWeight ?? 0.00), icon: "lock.fill")
+                                
+                                MetricCard(title: "Weekly Steps", value: String(hkManager.totalStepsWeek.rounded()), icon: "figure.walk.motion")
+                            }
+                            
+                            StepBarGraph()
+                                .padding()
+                                .background(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .fill(Color(.systemBackground))
+                                        .shadow(color: .gray.opacity(0.2), radius: 4, x: 0, y: 2)
+                                )
+                                .padding()
+                            VStack {
+                                SessionsView(openedSession: $openedSession)
+                                    .onChange(of: openedSession) {
+                                        if openedSession != nil {
+                                            navigateToSession = true
+                                        }
+                                    }
+                            }
                         }
                     }
                 }
             } else {
                 Text("Please continue to onboarding")
             }
+        }
+        .task {
+            await hkManager.requestAuthorization()
+            await hkManager.fetchWeeklySteps()
+            await hkManager.fetchUserWeight()
         }
         .navigationDestination(isPresented: $navigateToSession) {
             Group {

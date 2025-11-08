@@ -75,8 +75,25 @@ extension View {
 
 struct OnBoardView: View {
     @EnvironmentObject var userService: UserService
-    @State var userName : String = ""
+    
+    var body: some View {
+        VStack {
+            switch userService.onBoardingScreen {
+            case 0:
+                OnBoardScreen0()
+            case 1:
+                OnBoardScreen1()
+            default:
+                EmptyView()
+            }
+        }
+    }
+}
 
+struct OnBoardScreen0: View {
+    @EnvironmentObject var userService: UserService
+    @State var userName : String = ""
+    
     var body: some View {
         VStack {
             Text("Welcome to GymTracker")
@@ -91,21 +108,41 @@ struct OnBoardView: View {
             TextField("Name", text: $userName)
                 .textFieldStyle(.roundedBorder)
                 .padding(.horizontal)
-            // make a user
+            
             Button {
                 userService.addUser(text: userName)
                 userName = ""
+                userService.onBoardingScreen = 1
             } label: {
                 Label("Submit", systemImage: "plus.circle")
                     .font(.title2)
                     .padding()
             }
             .disabled(userName.trimmingCharacters(in: .whitespaces).isEmpty)
-            Spacer()
         }
     }
 }
 
+struct OnBoardScreen1: View {
+    @EnvironmentObject var userService: UserService
+
+    var body: some View {
+        VStack {
+            Text("Welcome, \(userService.currentUser?.name ?? "")")
+                .font(Font.largeTitle)
+                .foregroundColor(.primary)
+                .padding()
+            Button {
+                userService.onBoardingScreen = 2
+                userService.onBoarding = false
+            } label: {
+                Label("Proceed", systemImage: "plus.circle")
+                    .font(.title2)
+                    .padding()
+            }
+        }
+    }
+}
 #Preview {
     ContentView()
         .modelContainer(for: Item.self, inMemory: true)

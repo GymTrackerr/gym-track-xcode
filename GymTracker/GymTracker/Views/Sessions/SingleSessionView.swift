@@ -33,15 +33,19 @@ struct SingleSessionView: View {
                         if (session.notes != "") {
                             Text("Notes: \(session.notes)")
                         }
-                            
+                        
                         
                         Text("Date: \(session.timestamp.formatted(date: .numeric, time: .standard))")
+                        if session.timestamp != session.timestampDone {
+                            Text("Until: \(session.timestampDone.formatted(Date.FormatStyle(date: .numeric, time: .standard)))")
+                        }
                     }
 
                 } else {
                     // TODO: work on the UI
                     VStack {
                         SessionSelectSplit()
+                            .padding()
                         Button {
                             sessionService.updateSessionToSplitDay(session: session )
                         } label: {
@@ -58,7 +62,20 @@ struct SingleSessionView: View {
                         DatePicker("Date & Time", selection: $session.timestamp, displayedComponents: [.date, .hourAndMinute])
                             .datePickerStyle(.compact)
                             .labelsHidden()
+                            .onChange(of: session.timestamp) { oldValue, newValue in
+                                // change done timestamp in reference to start time 
+                                let duration = session.timestampDone.timeIntervalSince(oldValue)
+                                session.timestampDone = newValue.addingTimeInterval(duration)
+                            }
+
+                        Text("Until")
+
+                        DatePicker("Date & Time", selection: $session.timestampDone, displayedComponents: [.date, .hourAndMinute])
+                            .datePickerStyle(.compact)
+                            .labelsHidden()
                     }
+
+
                     
                     if let splitDay = session.splitDay {
                         if syncingSplit==true {

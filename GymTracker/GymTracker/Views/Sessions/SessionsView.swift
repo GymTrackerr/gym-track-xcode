@@ -8,14 +8,14 @@
 import SwiftUI
 
 // TODO: completion of sessions - similar to completion of sessionexercises
-
 struct SessionsView: View {
     @EnvironmentObject var sessionService: SessionService
     @EnvironmentObject var splitDayService: SplitDayService
     @Binding var openedSession: Session?
-    
+//    @State private var isEditing = false
+
     var body: some View {
-        List {
+        VStack {
             HStack {
                 Button {
                     sessionService.creating_session = true
@@ -23,33 +23,80 @@ struct SessionsView: View {
                     HStack {
                         Image(systemName: "plus")
                         Text("New Session")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        
                     }
                 }
+                .buttonStyle(.plain)
+                .padding()
+                .frame(maxWidth: .infinity)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color(.systemBackground))
+                        .shadow(color: .gray.opacity(0.2), radius: 4, y: 2)
+                )
+                .padding()
             }
+
             
             if !sessionService.sessions.isEmpty {
-                Section {
-                    HStack {
-                        Text("Previous Sessions")
+                HStack {
+                    Text("Previous Sessions")
+                        .font(.headline)
+                        .padding(.horizontal)
+                        .underline()
+                        .padding(.top, 8)
+                }
+                
+                ForEach(sessionService.sessions.reversed(), id: \.self) { session in
+                    NavigationLink {
+                        SingleSessionView(session: session)
+                    } label: {
+                        SingleSessionLabelView(session: session)
+                            .foregroundColor(.primary)
                     }
-                    ForEach(sessionService.sessions.reversed(), id: \.self) { session in
-                        NavigationLink {
-                            SingleSessionView(session: session)
+                    .contextMenu {
+                        Button {
+                            openedSession = session
                         } label: {
-                            SingleSessionLabelView(session: session)
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        Button(role: .destructive) {
+                            sessionService.removeSession(session: session)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
                         }
                     }
-                    .onDelete(perform: sessionService.removeSession)
+                    // TODO: Figure out solution for scrollview
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                           Button(role: .destructive) {
+                               sessionService.removeSession(session: session)
+                           } label: {
+                               Label("Delete", systemImage: "trash")
+                           }
+                       }
+                    .buttonStyle(.plain)
+                    
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color(.systemBackground))
+                            .shadow(color: .gray.opacity(0.2), radius: 4, y: 2)
+                    )
+                    .padding()
+                    
                 }
             }
         }
-        .toolbar {
-#if os(iOS)
-            ToolbarItem(placement: .navigationBarTrailing) {
-                EditButton()
-            }
-#endif
-        }
+//        .toolbar {
+//#if os(iOS)
+//            ToolbarItem(placement: .navigationBarTrailing) {
+//                EditButton()
+//            }
+//#endif
+//        }
         .sheet(isPresented: $sessionService.creating_session) {
             NavigationView {
                 VStack(spacing: 16) {
@@ -59,7 +106,6 @@ struct SessionsView: View {
                     TextField("Notes", text: $sessionService.create_notes)
                         .textFieldStyle(.roundedBorder)
                         .padding(.horizontal)
-                    
                     /* select day*/
                     /*
                     if let splitDay = sessionService.selected_splitDay {
@@ -86,6 +132,7 @@ struct SessionsView: View {
                     }
                      */
                     SessionSelectSplit()
+                    
                     Spacer()
                     Button {
                         openedSession = sessionService.addSession()
@@ -111,7 +158,6 @@ struct SessionsView: View {
         }
     }
 }
-
 
 struct SessionSelectSplit : View {
     @EnvironmentObject var sessionService: SessionService

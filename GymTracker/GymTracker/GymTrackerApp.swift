@@ -42,6 +42,10 @@ struct GymTrackerApp: App {
         }
         .modelContainer(sharedModelContainer)
     }
+    
+    init() {
+        print(URL.applicationSupportDirectory.path(percentEncoded: false))
+    }
 }
 
 struct ParentRootView: View {
@@ -59,10 +63,11 @@ struct RootView: View {
     @EnvironmentObject var userService: UserService
 
     var body: some View {
-        if (userService.accountCreated == false) {
+        if (userService.onBoarding == true) {
             OnBoardView()
         } else {
             ContentView()
+                .environmentObject(HealthKitManager())
                 .environmentObject(SplitDayService(context: context, currentUser: userService.currentUser))
                 .environmentObject(ExerciseService(context: context, currentUser: userService.currentUser))
                 .environmentObject(ExerciseSplitDayService(context: context, currentUser: userService.currentUser))

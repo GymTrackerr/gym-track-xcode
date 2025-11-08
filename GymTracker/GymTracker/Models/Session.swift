@@ -12,6 +12,7 @@ import SwiftData
 final class Session {
     var id: UUID = UUID()
     var timestamp: Date
+    var timestampDone: Date = Date() // temporary just saving as 
     var notes: String = ""
     
 //    @Relationship(deleteRule: .nullify)
@@ -25,5 +26,6 @@ final class Session {
         self.timestamp = timestamp
         self.notes = notes
         self.splitDay = splitDay
+        self.timestampDone = timestamp
     }
 }

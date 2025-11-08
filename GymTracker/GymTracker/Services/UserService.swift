@@ -13,6 +13,8 @@ internal import CoreData
 class UserService: ServiceBase, ObservableObject {
     @Published var accountCreated: Bool = false
     @Published var accounts: [User] = []
+    @Published var onBoarding: Bool = false
+    @Published var onBoardingScreen: Int = 0
 //    @Published override var currentUser: User?: User? = nil
     
     override func loadFeature() {
@@ -27,6 +29,7 @@ class UserService: ServiceBase, ObservableObject {
             print("not ??")
 
             accounts = try modelContext.fetch(descriptor)
+            
             print("ac", accounts.count)
             for item in accounts {
                 print("id: \(item.id), name: \(item.name), timestamp: \(item.timestamp)")
@@ -35,9 +38,11 @@ class UserService: ServiceBase, ObservableObject {
             if let first = accounts.first {
                 currentUser = first
                 accountCreated = true
+                accountCreated = false
             } else {
                 currentUser = nil
                 accountCreated = false
+                onBoarding = true
             }
             
         } catch {
