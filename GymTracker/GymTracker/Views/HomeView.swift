@@ -14,20 +14,23 @@ struct HomeView: View {
                 if !navigateToSession { // hide home content when navigating
                     ScrollView {
                         VStack {
+                                
                             HStack(spacing: 16) {
                                 MetricCard(title: "Current Weight", value: String(hkManager.userWeight ?? 0.00), icon: "lock.fill")
                                 
                                 MetricCard(title: "Weekly Steps", value: String(hkManager.totalStepsWeek.rounded()), icon: "figure.walk.motion")
                             }
+                            .padding(.horizontal)
                             
                             StepBarGraph()
                                 .padding()
-                                .background(
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .fill(Color(.systemBackground))
-                                        .shadow(color: .gray.opacity(0.2), radius: 4, x: 0, y: 2)
-                                )
-                                .padding()
+                                .glassEffect(in: .rect(cornerRadius: 16.0))
+//                                .background(
+//                                    RoundedRectangle(cornerRadius: 16)
+//                                        .fill(Color(.systemBackground))
+//                                        .shadow(color: .gray.opacity(0.2), radius: 4, x: 0, y: 2)
+//                                )
+                                .padding(.horizontal)
                             VStack {
                                 SessionsView(openedSession: $openedSession)
                                     .onChange(of: openedSession) {

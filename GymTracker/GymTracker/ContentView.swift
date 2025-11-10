@@ -21,7 +21,22 @@ struct ContentView: View {
         TabView (selection: $localSelected) {
             Tab("Home", systemImage: "house", value: 0) {
                 NavigationStack {
-                    HomeView()
+                    GlassEffectContainer {
+                        HomeView()
+                            .background(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        Color(red: 0.85, green: 0.1, blue: 0.1),//.red,
+                                        Color.clear//gray.opacity(0.3)
+                                    ]),
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                                .frame(height: 400)
+                                .frame(maxHeight: .infinity, alignment: .top)
+                                .ignoresSafeArea(edges: .top)
+                            )
+                    }
                 }
             }
             Tab("Exercises", systemImage: "dumbbell", value: 1) {
@@ -143,8 +158,3 @@ struct OnBoardScreen1: View {
         }
     }
 }
-#Preview {
-    ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
-}
-

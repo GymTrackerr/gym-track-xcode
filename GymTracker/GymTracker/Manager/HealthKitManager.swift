@@ -32,38 +32,51 @@ class HealthKitManager: ObservableObject {
     }
 
     func fetchWeeklySteps() async {
+        let calendar = Calendar.current
         let now = Date()
-        guard let startOfWeek = Calendar.current.date(byAdding: .day, value: -6, to: now) else { return }
-
-        var results: [Double] = Array(repeating: 0, count: 7)
-        let predicate = HKQuery.predicateForSamples(withStart: startOfWeek, end: now)
-
+        
+        // Start of today
+        let startOfToday = calendar.startOfDay(for: now)
+        
+        // 6 days ago (start of that day)
+        guard let startOfRange = calendar.date(byAdding: .day, value: -6, to: startOfToday) else { return }
+        
+        var results = Array(repeating: 0.0, count: 7)
+        
+        let predicate = HKQuery.predicateForSamples(withStart: startOfRange, end: now)
+        
         let query = HKStatisticsCollectionQuery(
             quantityType: stepsType,
             quantitySamplePredicate: predicate,
             options: .cumulativeSum,
-            anchorDate: startOfWeek,
+            anchorDate: startOfToday, // aligns buckets to day boundaries
             intervalComponents: DateComponents(day: 1)
         )
-
+        
+        self.totalStepsWeek = 0 // reset total
+        
         query.initialResultsHandler = { _, collection, _ in
-            collection?.enumerateStatistics(from: startOfWeek, to: now) { stats, _ in
-                let dayIndex = Calendar.current.dateComponents([.day], from: startOfWeek, to: stats.startDate).day ?? 0
-                if dayIndex >= 0 && dayIndex < 7 {
-                    results[dayIndex] = stats.sumQuantity()?.doubleValue(for: .count()) ?? 0
-                    DispatchQueue.main.async {
-                        
-                        self.totalStepsWeek += results[dayIndex]
-                    }
+            guard let collection = collection else { return }
+            
+            collection.enumerateStatistics(from: startOfRange, to: now) { stats, _ in
+                let dayStart = calendar.startOfDay(for: stats.startDate)
+                if let dayIndex = calendar.dateComponents([.day], from: startOfRange, to: dayStart).day,
+                   dayIndex >= 0 && dayIndex < 7 {
+                    let steps = stats.sumQuantity()?.doubleValue(for: .count()) ?? 0
+                    results[dayIndex] = steps
                 }
             }
+            
             DispatchQueue.main.async {
                 self.weeklySteps = results
+                self.totalStepsWeek = results.reduce(0, +)
             }
         }
-
+        
         healthStore.execute(query)
     }
+
+
 
     func fetchUserWeight() async {
         let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)

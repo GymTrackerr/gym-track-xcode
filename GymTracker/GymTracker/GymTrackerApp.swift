@@ -14,7 +14,6 @@ struct GymTrackerApp: App {
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
             SplitDay.self,
             Exercise.self,
             ExerciseSplitDay.self,
@@ -36,9 +35,7 @@ struct GymTrackerApp: App {
 
     var body: some Scene {
         WindowGroup {
-//            ContentView()
             ParentRootView()
-//                .environmentObject(UserService(context: context, currentUser: nil))
         }
         .modelContainer(sharedModelContainer)
     }

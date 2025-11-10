@@ -46,13 +46,9 @@ struct SingleSessionView: View {
                     VStack {
                         SessionSelectSplit()
                             .padding()
-                        Button {
-                            sessionService.updateSessionToSplitDay(session: session )
-                        } label: {
-                            Label("Change Split", systemImage: "plus.circle")
-                                .font(.title2)
-                                .padding()
-                        }
+                            .onChange(of: sessionService.selected_splitDay?.id) { oldValue, newValue in
+                                sessionService.updateSessionToSplitDay(session: session)
+                            }
                     }
                     VStack {
                         TextField("Notes", text: $session.notes)
@@ -226,7 +222,7 @@ struct SingleSessionLabelView: View {
     @Bindable var session: Session
 
     var body : some View {
-        ZStack {
+        HStack {
             VStack(alignment: .leading) {
                 Text(session.timestamp, format: Date.FormatStyle(date: .long, time: .shortened))
                 
@@ -236,34 +232,18 @@ struct SingleSessionLabelView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                         Spacer()
-//                        Text("SplitDayFound \(session.splitDay != nil ? "Yes" : "No")")
-//
-//                        if let split_day_id = session.split_day_id {
-//                            Text("Split: \(split_day_id)")
-//                                .font(.caption)
-//                                .foregroundColor(.secondary)
-//                        }
-
-//                        if let splitDay = session.splitDay {
-////                            if let splitDayID = session
-//                            Text("Split: \(splitDay.id)")
-//                                .font(.caption)
-//                                .foregroundColor(.secondary)
-//                        }
-
-//                        if let splitDayID = session.splitDay?.id {
-//                            Text("SplitID \(splitDayID)")
+                        
                         if let splitDay = session.splitDay {
                             Text("Split: \(splitDay.name)")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
-//                        }
-                        
                     }
                 }
             }
             .padding(.vertical, 4)
+            
+            Image(systemName: "arrow.forward.circle")
         }
     }
 }

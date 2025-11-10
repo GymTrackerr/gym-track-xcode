@@ -112,6 +112,7 @@ class SessionService : ServiceBase, ObservableObject {
             session.splitDay = selected_splitDay
             try? modelContext.save()
             loadSessions()
+            return session
         }
     }
     

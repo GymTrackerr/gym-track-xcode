@@ -24,12 +24,13 @@ struct MetricCard: View {
         }
         .padding()
         .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
-                .shadow(color: .gray.opacity(0.2), radius: 4, y: 2)
-        )
-        .padding()
+        .glassEffect(in: .rect(cornerRadius: 16.0))
+//        .background(
+//            RoundedRectangle(cornerRadius: 16)
+//                .fill(Color(.systemBackground))
+//                .shadow(color: .gray.opacity(0.2), radius: 4, y: 2)
+//        )
+        
     }
 }
 

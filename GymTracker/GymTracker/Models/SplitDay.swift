@@ -15,7 +15,7 @@ final class SplitDay {
     var name: String
     var timestamp: Date
     
-    @Relationship(deleteRule: .cascade, inverse: \ExerciseSplitDay.splitDay)
+    @Relationship(deleteRule: .nullify, inverse: \ExerciseSplitDay.splitDay)
     var exerciseSplits: [ExerciseSplitDay] = []
     
     @Relationship(deleteRule: .nullify, inverse: \Session.splitDay)
