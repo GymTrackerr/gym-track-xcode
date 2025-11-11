@@ -243,7 +243,7 @@ struct SingleSessionLabelView: View {
             }
             .padding(.vertical, 4)
             
-            Image(systemName: "arrow.forward.circle")
+            Image(systemName: "chevron.forward")
         }
     }
 }

@@ -73,6 +73,21 @@ class SessionService : ServiceBase, ObservableObject {
         return [];
     }
     
+    func duplicateSession(session: Session) -> Session? {
+        // duplicating exercises only
+//        let newSession = Session(timestamp: Date(), splitDay: session.splitDay, notes: session.notes)
+        selected_splitDay = session.splitDay
+        let newSession = addSession()
+        
+        if let newSession = newSession {
+            withAnimation {
+                
+            }
+            return newSession
+        }
+        return nil
+    }
+    
     func addSession() -> Session? {
         print("Adding")
         let trimmedNotes = create_notes.trimmingCharacters(in: .whitespaces)

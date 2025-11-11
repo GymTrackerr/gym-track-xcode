@@ -15,9 +15,17 @@ class ExerciseService : ServiceBase, ObservableObject {
     @Published var editingContent: String = ""
     @Published var editingExercise: Bool = false
     @Published var selectedExerciseType: ExerciseType = ExerciseType.weight
+    
+    // for api data
+
+    @Published var apiExercises: [ExerciseDTO] = []
 
     override func loadFeature() {
         self.loadSplitDays()
+        
+        Task {
+           await self.loadApiExercises()              // <— Fetch API exercises too
+       }
     }
     
     func loadSplitDays() {
@@ -33,6 +41,19 @@ class ExerciseService : ServiceBase, ObservableObject {
             exercises = []
         }
     }
+    
+    @MainActor
+   func loadApiExercises() async {
+       do {
+           let data = try await exerciseApi.getExercises()
+           await MainActor.run {
+               self.apiExercises = data
+               print("Loaded \(data.count) exercises from API")
+           }
+       } catch {
+           print("Error loading API exercises: \(error)")
+       }
+   }
     
     func search(query: String) -> [Exercise] {
         print("searching exercise \(query)")

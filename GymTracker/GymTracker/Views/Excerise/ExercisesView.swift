@@ -23,8 +23,43 @@ struct ExercisesView: View {
                     SingleExerciseLabelView(exercise: exercise)
                 }
             }
-            
             .onDelete(perform: exerciseService.removeExercise)
+
+            Section("From API") {
+                ForEach(exerciseService.apiExercises, id: \.id) { apiExercise in
+//                    HStack {
+//                        AsyncImage(url: URL(string: "http://localhost:5002/v1/static\(apiExercise.images.first ?? "")")) { phase in
+//                            switch phase {
+//                            case .empty:
+//                                ZStack {
+//                                    Rectangle().fill(Color.gray.opacity(0.1))
+//                                    ProgressView()
+//                                }
+//                            case .success(let image):
+//                                image
+//                                    .resizable()
+//                                    .scaledToFill()
+//                                    .frame(height: 120)
+//                                    .clipped()
+//                            case .failure:
+//                                Rectangle()
+//                                    .fill(Color.gray.opacity(0.1))
+//                                    .overlay(Image(systemName: "photo").foregroundColor(.gray))
+//                            @unknown default:
+//                                EmptyView()
+//                            }
+//                        }
+//                        .cornerRadius(12)
+//
+//                        VStack {
+//                            
+//                        }
+//                    }
+                    Text(apiExercise.name)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
         }
 
         .navigationTitle("Exercises")

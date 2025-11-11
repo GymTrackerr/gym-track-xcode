@@ -55,11 +55,13 @@ class HealthKitManager: ObservableObject {
         
         self.totalStepsWeek = 0 // reset total
         
+        // what the query runs
         query.initialResultsHandler = { _, collection, _ in
             guard let collection = collection else { return }
             
             collection.enumerateStatistics(from: startOfRange, to: now) { stats, _ in
                 let dayStart = calendar.startOfDay(for: stats.startDate)
+                
                 if let dayIndex = calendar.dateComponents([.day], from: startOfRange, to: dayStart).day,
                    dayIndex >= 0 && dayIndex < 7 {
                     let steps = stats.sumQuantity()?.doubleValue(for: .count()) ?? 0
@@ -76,13 +78,14 @@ class HealthKitManager: ObservableObject {
         healthStore.execute(query)
     }
 
-
-
     func fetchUserWeight() async {
         let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
+        
+        // gets only 1 result, could get more
         let query = HKSampleQuery(sampleType: weightType, predicate: nil, limit: 1, sortDescriptors: [sort]) { _, samples, _ in
             guard let sample = samples?.first as? HKQuantitySample else { return }
             let weightKg = sample.quantity.doubleValue(for: .gramUnit(with: .kilo))
+            
             DispatchQueue.main.async {
                 self.userWeight = weightKg
             }

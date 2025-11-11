@@ -12,12 +12,18 @@ import Foundation
 class ServiceBase {
     var modelContext: ModelContext
     var currentUser: User?
-
+    var apiHelper: API_Helper
+    var exerciseApi: ExerciseApi
     init(context: ModelContext, currentUser: User?) {
         self.modelContext = context
         if let currentUser {
             self.currentUser = currentUser
         }
+        
+        let apiHelper = API_Helper()
+        self.apiHelper = apiHelper
+        self.exerciseApi = ExerciseApi(apiHelper: apiHelper)
+
         loadFeature()
     }
     

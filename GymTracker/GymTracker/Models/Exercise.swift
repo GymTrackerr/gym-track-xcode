@@ -15,7 +15,13 @@ final class Exercise {
     var name: String
     var aliases: [String]? = []
     var type: Int = ExerciseType.weight.id
+    
     var muscle_groups: [String]? = []
+    var equipment: String? = nil         // e.g. "barbell", "body only"
+    var category: String? = nil          // e.g. "strength", "stretching"
+    var instructions: [String]? = []     // Optional — only from API
+    var imagePaths: [String]? = []       // Relative image URLs
+    var isUserCreated: Bool = true       // Key flag
     var timestamp: Date
 
     // deletes the exerise split day
@@ -29,21 +35,43 @@ final class Exercise {
         ExerciseType(rawValue: type) ?? ExerciseType.weight
     }
 
-    init(name:String, type: ExerciseType=ExerciseType.weight) {
+    init(name:String, type: ExerciseType=ExerciseType.weight, isUserCreated: Bool = true) {
         self.name = name
         self.type = type.rawValue
+        self.timestamp = Date()
+        self.isUserCreated = isUserCreated
+    }
+    
+    // ✅ New init for API decoding
+    init(from api: ExerciseDTO) {
+        self.name = api.name
+        self.npId = api.id
+        self.isUserCreated = false
+        self.muscle_groups = api.primaryMuscles
+        self.equipment = api.equipment
+        self.category = api.category
+        self.instructions = api.instructions
+        self.imagePaths = api.images
         self.timestamp = Date()
     }
 }
 
 
 enum ExerciseType: Int, CaseIterable, Identifiable {
-    case weight, run, bike, swim
+    case strength, stretching, strongman, plyometrics, weight, run, bike, swim
     
     var id: Int { return self.rawValue }
 
     var name: String {
         switch self {
+        case .strength:
+            return "Strength"
+        case .stretching:
+            return "Stretching"
+        case .strongman:
+            return "Strongman"
+        case .plyometrics:
+            return "plyometrics"
         case .weight:
             return "Weight"
         case .run:
@@ -56,4 +84,19 @@ enum ExerciseType: Int, CaseIterable, Identifiable {
 //            return "Unknown"
         }
     }
+}
+
+
+struct ExerciseDTO: Identifiable, Codable {
+    let id: String
+    let name: String
+    let force: String?
+    let level: String?
+    let mechanic: String?
+    let equipment: String?
+    let primaryMuscles: [String]
+    let secondaryMuscles: [String]
+    let instructions: [String]
+    let category: String
+    let images: [String]
 }
