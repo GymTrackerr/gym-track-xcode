@@ -16,11 +16,15 @@ final class Exercise {
     var aliases: [String]? = []
     var type: Int = ExerciseType.weight.id
     
-    var muscle_groups: [String]? = []
+    var muscle_groups: [String]? = [] // old
+    
+    var primary_muscles: [String]? = []
+    var secondary_muscles: [String]? = []
+    
     var equipment: String? = nil         // e.g. "barbell", "body only"
     var category: String? = nil          // e.g. "strength", "stretching"
     var instructions: [String]? = []     // Optional — only from API
-    var imagePaths: [String]? = []       // Relative image URLs
+    var images: [String]? = []          // Relative image URLs
     var isUserCreated: Bool = true       // Key flag
     var timestamp: Date
 
@@ -42,16 +46,18 @@ final class Exercise {
         self.isUserCreated = isUserCreated
     }
     
-    // ✅ New init for API decoding
     init(from api: ExerciseDTO) {
-        self.name = api.name
         self.npId = api.id
         self.isUserCreated = false
-        self.muscle_groups = api.primaryMuscles
+
+        self.name = api.name
+        self.muscle_groups = api.primaryMuscles + api.secondaryMuscles
+        self.primary_muscles = api.primaryMuscles
+        self.secondary_muscles = api.secondaryMuscles
         self.equipment = api.equipment
         self.category = api.category
         self.instructions = api.instructions
-        self.imagePaths = api.images
+        self.images = api.images
         self.timestamp = Date()
     }
 }
@@ -100,3 +106,4 @@ struct ExerciseDTO: Identifiable, Codable {
     let category: String
     let images: [String]
 }
+

@@ -17,13 +17,13 @@ final class SessionExercise {
     
     var isCompleted: Bool = false
     
-    @Relationship(deleteRule: .nullify)
+    @Relationship(deleteRule: .cascade)
     var exercise: Exercise
     
-    @Relationship(deleteRule: .nullify)
+    @Relationship(deleteRule: .cascade)
     var session: Session
     
-    @Relationship(deleteRule: .nullify, inverse: \SessionSet.sessionExercise)
+    @Relationship(deleteRule: .cascade, inverse: \SessionSet.sessionExercise)
     var sets: [SessionSet] = []
     
     var exercise_id: UUID { exercise.id }

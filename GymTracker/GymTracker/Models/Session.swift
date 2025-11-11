@@ -15,7 +15,7 @@ final class Session {
     var timestampDone: Date = Date() // temporary just saving as 
     var notes: String = ""
     
-//    @Relationship(deleteRule: .nullify)
+    @Relationship(deleteRule: .nullify)
     var splitDay: SplitDay?
     var split_day_id: UUID? { splitDay?.id }
     

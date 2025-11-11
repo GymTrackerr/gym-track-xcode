@@ -21,14 +21,14 @@ class ExerciseService : ServiceBase, ObservableObject {
     @Published var apiExercises: [ExerciseDTO] = []
 
     override func loadFeature() {
-        self.loadSplitDays()
+        self.loadExercises()
         
         Task {
-           await self.loadApiExercises()              // <— Fetch API exercises too
+           await self.loadApiExercises()
        }
     }
     
-    func loadSplitDays() {
+    func loadExercises() {
         let descriptor = FetchDescriptor<Exercise>(sortBy: [SortDescriptor(\.name)])
 
         do {
@@ -42,18 +42,32 @@ class ExerciseService : ServiceBase, ObservableObject {
         }
     }
     
-    @MainActor
-   func loadApiExercises() async {
-       do {
-           let data = try await exerciseApi.getExercises()
-           await MainActor.run {
-               self.apiExercises = data
-               print("Loaded \(data.count) exercises from API")
-           }
-       } catch {
-           print("Error loading API exercises: \(error)")
-       }
-   }
+    func loadApiExercises() async {
+        do {
+            let data = try await exerciseApi.getExercises()
+
+            // Preload all current IDs once
+            let existing = Set(exercises.compactMap { $0.npId?.lowercased() })
+            var inserted = 0
+
+            // Insert only missing exercises
+            for exercise in data where !existing.contains(exercise.id.lowercased()) {
+                modelContext.insert(Exercise(from: exercise))
+                inserted += 1
+            }
+
+            // Save once at the end
+            if inserted > 0 {
+                try modelContext.save()
+                await MainActor.run { self.loadExercises() }
+            }
+
+            print("Loaded \(data.count) exercises from API (\(inserted) new)")
+        } catch {
+            print("Error loading API exercises: \(error)")
+        }
+    }
+
     
     func search(query: String) -> [Exercise] {
         print("searching exercise \(query)")
@@ -77,7 +91,7 @@ class ExerciseService : ServiceBase, ObservableObject {
                 // Clear and dismiss sheet after successful save
                 editingExercise = false
                 editingContent = ""
-                loadSplitDays()
+                loadExercises()
                 selectedExerciseType = .weight
 
             } catch {
@@ -102,7 +116,7 @@ class ExerciseService : ServiceBase, ObservableObject {
 
             do {
                 try modelContext.save()
-                loadSplitDays()
+                loadExercises()
                 
             } catch {
                 print("Failed to save after deletion: \(error)")

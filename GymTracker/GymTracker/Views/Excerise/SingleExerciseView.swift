@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import Charts
+import WebKit
 
 struct SingleExerciseView: View {
     @Bindable var exercise: Exercise
@@ -13,20 +15,164 @@ struct SingleExerciseView: View {
     
     var body: some View {
         VStack {
-            VStack(alignment: .leading) {
-                if (orderInSplit != nil) {
-                    Text("Order in Split: \(orderInSplit ?? 0)")
+            if (exercise.isUserCreated) {
+                VStack(alignment: .leading) {
+                    if (orderInSplit != nil) {
+                        Text("Order in Split: \(orderInSplit ?? 0)")
+                    }
+                    Text("Exercise: \(exercise.name)")
+                    Text("Alises: \(exercise.aliases?.joined(separator: ", ") ?? "")")
+                    Text("Muscle Groups: \(exercise.muscle_groups?.joined(separator: ", ") ?? "")")
+                    Text("Date: \(exercise.timestamp.formatted(date: .numeric, time: .omitted))")
+                    Text("Exercise Type: \(exercise.exerciseType.name)")
                 }
-                Text("Exercise: \(exercise.name)")
-                Text("Alises: \(exercise.aliases?.joined(separator: ", ") ?? "")")
-                Text("Muscle Groups: \(exercise.muscle_groups?.joined(separator: ", ") ?? "")")
-                Text("Date: \(exercise.timestamp.formatted(date: .numeric, time: .omitted))")
-                Text("Exercise Type: \(exercise.exerciseType.name)")
+                .padding()
+                Spacer()
+            } else {
+                ExerciseDetailView(exercise: exercise)
             }
-            .padding()
-            Spacer()
         }
         .navigationTitle(exercise.name)
+    }
+}
+
+struct ExerciseDetailView: View {
+    let exercise: Exercise
+    @State private var showHowToPerform = true
+    @State private var showMistakes = false
+    @State private var selectedTab = "Max Weight"
+    
+    // Example progress data
+    struct ProgressPoint: Identifiable {
+        let id = UUID()
+        let month: String
+        let value: Double
+    }
+    
+    let progressData = [
+        ProgressPoint(month: "Jun", value: 50),
+        ProgressPoint(month: "Jul", value: 90),
+        ProgressPoint(month: "Aug", value: 110)
+    ]
+    
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                
+                if let firstImage = exercise.images?.last,
+                   let url = URL(string: "http://localhost:3002\(firstImage)") {
+                    GIFView(url: url)
+                        .frame(height: 240)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .padding(.horizontal)
+                }
+                
+                DisclosureGroup(isExpanded: $showHowToPerform) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        if let instructions = exercise.instructions {
+                            ForEach(Array(instructions.enumerated()), id: \.offset) { i, step in
+                                Text("\(i + 1). \(step)")
+                                    .foregroundColor(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                    }
+                    .padding(.top, 4)
+                } label: {
+                    Text("How to Perform")
+                        .font(.headline)
+                }
+                .padding()
+                .background(Color(.systemGray6))
+                .cornerRadius(12)
+                .padding(.horizontal)
+                
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Your Progress")
+                        .font(.headline)
+                    
+                    HStack {
+                        ForEach(["Max Weight", "Total Volume", "Reps"], id: \.self) { tab in
+                            Button {
+                                selectedTab = tab
+                            } label: {
+                                Text(tab)
+                                    .font(.subheadline)
+                                    .padding(.vertical, 6)
+                                    .padding(.horizontal, 12)
+                                    .background(selectedTab == tab
+                                                ? Color.green.opacity(0.2)
+                                                : Color.gray.opacity(0.1))
+                                    .cornerRadius(8)
+                                    .foregroundColor(selectedTab == tab ? .green : .primary)
+                            }
+                        }
+                    }
+                    
+                    Chart(progressData) { point in
+                        LineMark(
+                            x: .value("Month", point.month),
+                            y: .value("Value", point.value)
+                        )
+                        .symbol(.circle)
+                        .interpolationMethod(.catmullRom)
+                    }
+                    .frame(height: 160)
+                }
+                .padding()
+                .background(Color(.systemGray6))
+                .cornerRadius(12)
+                .padding(.horizontal)
+                
+                Button {
+                    print("Log exercise pressed")
+                } label: {
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                        Text("Log this Exercise")
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.green)
+                    .cornerRadius(14)
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 20)
+                Button {
+                    print("add to Split pressed")
+                } label: {
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                        Text("Add to Split")
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.green)
+                    .cornerRadius(14)
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 20)
+            }
+        }
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color(red: 0.85, green: 0.1, blue: 0.1),//.red,
+                    Color.clear//gray.opacity(0.3)
+                ]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 400)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .ignoresSafeArea(edges: .top)
+        )
+        .navigationTitle(exercise.name)
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -36,22 +182,80 @@ struct SingleExerciseLabelView: View {
 
     var body : some View {
         ZStack {
-            VStack(alignment: .leading) {
-                Text(exercise.name)
-                HStack {
-                    if (orderInSplit != nil) {
-                        Text("Order \(orderInSplit ?? 0)")
+            if (exercise.isUserCreated) {
+                VStack(alignment: .leading) {
+                    Text(exercise.name)
+                    HStack {
+                        if (orderInSplit != nil) {
+                            Text("Order \(orderInSplit ?? 0)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                        }
+                        
+                        Text(exercise.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        Spacer()
                     }
-
-                    Text(exercise.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
                 }
+                .padding(.vertical, 4)
+            } else {
+                DetailedExerciseLabelView(exercise: exercise, orderInSplit: orderInSplit)
+
             }
-            .padding(.vertical, 4)
         }
     }
+}
+
+struct DetailedExerciseLabelView: View {
+    @Bindable var exercise: Exercise
+    @State var orderInSplit: Int? = nil
+    
+    var body: some View {
+        HStack {
+//                            Text(apiExercise.images.first ?? "")
+            AsyncImage(url: URL(string: "http://localhost:3002\(exercise.images?.first ?? "")")) { phase in
+                switch phase {
+                case .empty:
+                    ProgressView()
+                        .frame(width: 45, height: 45)
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 45, height: 45)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .clipped()
+                case .failure:
+                    Image(systemName: "photo")
+                        .clipped()
+                        .frame(width: 45, height: 45)
+                @unknown default:
+                    EmptyView()
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .padding(.trailing, 8) // Add space between the image and text
+            VStack {
+                
+            }
+            Text(exercise.name)
+            
+        }
+    }
+}
+
+struct GIFView: UIViewRepresentable {
+    let url: URL
+
+    func makeUIView(context: Context) -> WKWebView {
+        let webView = WKWebView()
+        webView.scrollView.isScrollEnabled = false
+        webView.isUserInteractionEnabled = false
+        webView.backgroundColor = .clear
+        webView.load(URLRequest(url: url))
+        return webView
+    }
+
+    func updateUIView(_ uiView: WKWebView, context: Context) {}
 }

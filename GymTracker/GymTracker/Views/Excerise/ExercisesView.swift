@@ -24,44 +24,20 @@ struct ExercisesView: View {
                 }
             }
             .onDelete(perform: exerciseService.removeExercise)
-
-            Section("From API") {
-                ForEach(exerciseService.apiExercises, id: \.id) { apiExercise in
-//                    HStack {
-//                        AsyncImage(url: URL(string: "http://localhost:5002/v1/static\(apiExercise.images.first ?? "")")) { phase in
-//                            switch phase {
-//                            case .empty:
-//                                ZStack {
-//                                    Rectangle().fill(Color.gray.opacity(0.1))
-//                                    ProgressView()
-//                                }
-//                            case .success(let image):
-//                                image
-//                                    .resizable()
-//                                    .scaledToFill()
-//                                    .frame(height: 120)
-//                                    .clipped()
-//                            case .failure:
-//                                Rectangle()
-//                                    .fill(Color.gray.opacity(0.1))
-//                                    .overlay(Image(systemName: "photo").foregroundColor(.gray))
-//                            @unknown default:
-//                                EmptyView()
-//                            }
-//                        }
-//                        .cornerRadius(12)
-//
-//                        VStack {
-//                            
-//                        }
-//                    }
-                    Text(apiExercise.name)
-                        .foregroundColor(.secondary)
-                }
-            }
-            
         }
-
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color(red: 0.85, green: 0.1, blue: 0.1),//.red,
+                    Color.clear//gray.opacity(0.3)
+                ]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 400)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .ignoresSafeArea(edges: .top)
+        )
         .navigationTitle("Exercises")
         .toolbar {
 #if os(iOS)
@@ -92,9 +68,6 @@ struct ExercisesView: View {
                         }
                    } label: {
                        Label("Exercise Type: \(exerciseService.selectedExerciseType.name)", systemImage: "chevron.down")
-//                           .padding()
-//                           .background(Color.blue.opacity(0.1))
-//                           .cornerRadius(8)
                    }
                     
                     Button {
