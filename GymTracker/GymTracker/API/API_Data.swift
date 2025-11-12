@@ -8,14 +8,14 @@
 import Foundation
 
 class API_Data {
-    private let prodMode:Bool = false;
+    private let prodMode:Bool = true;
     
     func getURL() -> String {
         if (prodMode != true) {
             return "http://localhost:3002/v1"
         }
         else {
-            return "https://interact-api.novapro.net/v1"
+            return "http://192.168.3.21:3002/v1"
         }
     }
 }

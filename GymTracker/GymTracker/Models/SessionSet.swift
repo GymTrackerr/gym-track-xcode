@@ -18,7 +18,8 @@ final class SessionSet {
     var timestamp: Date
     
     var isCompleted: Bool = false
-
+    
+    @Relationship(deleteRule: .nullify)
     var sessionExercise: SessionExercise
     var session_exercise_id: UUID { sessionExercise.id }
 

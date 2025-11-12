@@ -17,10 +17,10 @@ final class SessionExercise {
     
     var isCompleted: Bool = false
     
-    @Relationship(deleteRule: .cascade)
+    @Relationship(deleteRule: .nullify)
     var exercise: Exercise
     
-    @Relationship(deleteRule: .cascade)
+    @Relationship(deleteRule: .nullify)
     var session: Session
     
     @Relationship(deleteRule: .cascade, inverse: \SessionSet.sessionExercise)

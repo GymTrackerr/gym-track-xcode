@@ -211,18 +211,29 @@ struct TestDataShow : View {
                     }
                 }
             }
+            Section("Clear Cache") {
+                Button {
+                    Task {
+                        await MediaCache.shared.clearAll()
+                    }
+                } label: {
+                    Text("Clear Media Cache")
+                }
+            }
             Section("Wipe Data") {
                 Button {
                     do {
-                        try context.delete(model: ExerciseSplitDay.self)
-                        
-                        try context.delete(model: SessionSet.self)
                         try context.delete(model: SessionRep.self)
+
+                        try context.delete(model: SessionSet.self)
 
                         
                         try context.delete(model: SplitDay.self)
                         
                         try context.delete(model: Exercise.self)
+                        
+                        try context.delete(model: ExerciseSplitDay.self)
+
                         try context.delete(model: Session.self)
                         try context.delete(model: SessionExercise.self)
                         try context.delete(model: User.self)
@@ -252,3 +263,4 @@ struct TestDataShow : View {
         }
     }
 }
+

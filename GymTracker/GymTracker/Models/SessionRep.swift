@@ -16,6 +16,7 @@ final class SessionRep {
     var count: Int
     var notes: String?
     
+    @Relationship(deleteRule: .cascade)
     var sessionSet: SessionSet
     var sessionSet_id: UUID { sessionSet.id }
     

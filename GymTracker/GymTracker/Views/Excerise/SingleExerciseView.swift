@@ -38,6 +38,8 @@ struct SingleExerciseView: View {
 
 struct ExerciseDetailView: View {
     let exercise: Exercise
+    @EnvironmentObject var exerciseService: ExerciseService
+
     @State private var showHowToPerform = true
     @State private var showMistakes = false
     @State private var selectedTab = "Max Weight"
@@ -59,9 +61,8 @@ struct ExerciseDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 
-                if let firstImage = exercise.images?.last,
-                   let url = URL(string: "http://localhost:3002\(firstImage)") {
-                    GIFView(url: url)
+                if let gifURL = exerciseService.gifURL(for: exercise) {
+                    CachedMediaView(url: gifURL)
                         .frame(height: 240)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .padding(.horizontal)
@@ -208,37 +209,30 @@ struct SingleExerciseLabelView: View {
 }
 
 struct DetailedExerciseLabelView: View {
+    @EnvironmentObject var exerciseService: ExerciseService
     @Bindable var exercise: Exercise
     @State var orderInSplit: Int? = nil
     
     var body: some View {
         HStack {
 //                            Text(apiExercise.images.first ?? "")
-            AsyncImage(url: URL(string: "http://localhost:3002\(exercise.images?.first ?? "")")) { phase in
-                switch phase {
-                case .empty:
-                    ProgressView()
-                        .frame(width: 45, height: 45)
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 45, height: 45)
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                        .clipped()
-                case .failure:
-                    Image(systemName: "photo")
-                        .clipped()
-                        .frame(width: 45, height: 45)
-                @unknown default:
-                    EmptyView()
-                }
+            if let thumbnailURL = exerciseService.thumbnailURL(for: exercise) {
+                CachedMediaView(url: thumbnailURL)
+//                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 45, height: 45)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .clipped()
+                    .padding(.trailing, 8) // Add space between the image and text
+
+
             }
-            .clipShape(RoundedRectangle(cornerRadius: 4))
-            .padding(.trailing, 8) // Add space between the image and text
-            VStack {
-                
-            }
+             
+//            .clipShape(RoundedRectangle(cornerRadius: 4))
+//            .padding(.trailing, 8) // Add space between the image and text
+//            VStack {
+//                
+//            }
             Text(exercise.name)
             
         }

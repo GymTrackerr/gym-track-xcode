@@ -25,6 +25,7 @@ final class Exercise {
     var category: String? = nil          // e.g. "strength", "stretching"
     var instructions: [String]? = []     // Optional — only from API
     var images: [String]? = []          // Relative image URLs
+    var cachedMedia: Bool? = false
     var isUserCreated: Bool = true       // Key flag
     var timestamp: Date
 
