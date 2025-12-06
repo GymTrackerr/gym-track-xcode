@@ -122,13 +122,13 @@ class SessionService : ServiceBase, ObservableObject {
         return newItem
     }
     
-    func updateSessionToSplitDay(session: Session) {
-        withAnimation {
+    func updateSessionToSplitDay(session: Session) -> Session? {
+//        withAnimation {
             session.splitDay = selected_splitDay
             try? modelContext.save()
             loadSessions()
             return session
-        }
+//        }
     }
     
     func updateSessionToSplitDay(session: Session, splitDay: SplitDay) {

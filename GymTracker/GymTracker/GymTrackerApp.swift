@@ -21,7 +21,8 @@ struct GymTrackerApp: App {
             Session.self,
             SessionExercise.self,
             SessionSet.self,
-            SessionRep.self
+            SessionRep.self,
+            TrackerTimer.self
         ])
         
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
@@ -71,6 +72,7 @@ struct RootView: View {
                 .environmentObject(SessionService(context: context, currentUser: userService.currentUser))
                 .environmentObject(SessionExerciseService(context: context, currentUser: userService.currentUser))
                 .environmentObject(SetService(context: context, currentUser: userService.currentUser))
+                .environmentObject(TimerService(context: context, currentUser: userService.currentUser))
         }
     }
 }

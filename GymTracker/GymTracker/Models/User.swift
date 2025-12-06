@@ -16,6 +16,8 @@ final class User {
     var lastLogin: Date
     var active: Bool = true
     
+    var defaultTimer: Int = 90
+    
     init(name: String) {
         self.name = name
         self.timestamp = Date()

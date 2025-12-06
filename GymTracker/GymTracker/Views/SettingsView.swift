@@ -34,6 +34,9 @@ struct SettingsView: View {
                         Text("About")
                     }
                 }
+//                NavigationLink {
+//
+//                }
 
                 NavigationLink {
                     TestDataShow()

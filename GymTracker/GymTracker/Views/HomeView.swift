@@ -3,6 +3,7 @@ import SwiftData
 
 struct HomeView: View {
     @EnvironmentObject var userService: UserService
+    @EnvironmentObject var timerService: TimerService
     @EnvironmentObject var hkManager: HealthKitManager
 
     @State private var openedSession: Session? = nil
@@ -22,15 +23,40 @@ struct HomeView: View {
                             }
                             .padding(.horizontal)
                             
+                            HStack(spacing: 16) {
+                                
+                                NavigationLink(destination:
+                                    TimerView()
+                                    .background(
+                                        LinearGradient(
+                                            gradient: Gradient(colors: [
+                                                Color(red: 0.85, green: 0.1, blue: 0.1),//.red,
+                                                Color.clear//gray.opacity(0.3)
+                                            ]),
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
+                                        .frame(height: 400)
+                                        .frame(maxHeight: .infinity, alignment: .top)
+                                        .ignoresSafeArea(edges: .top)
+                                    )
+                                ) {
+                                    MetricCard(
+                                        title: timerService.timer != nil ? "Timer" : "Start Timer",
+                                        value: timerService.timer != nil ? String(timerService.displayedTime) : "--:--",
+                                        icon: "timer"
+                                    )
+                                }
+                            }
+                            .padding(.horizontal)
+
                             StepBarGraph()
                                 .padding()
                                 .glassEffect(in: .rect(cornerRadius: 16.0))
-//                                .background(
-//                                    RoundedRectangle(cornerRadius: 16)
-//                                        .fill(Color(.systemBackground))
-//                                        .shadow(color: .gray.opacity(0.2), radius: 4, x: 0, y: 2)
-//                                )
                                 .padding(.horizontal)
+                        
+                            
+                           
                             VStack {
                                 SessionsView(openedSession: $openedSession)
                                     .onChange(of: openedSession) {

@@ -14,6 +14,7 @@ class ServiceBase {
     var currentUser: User?
     var apiHelper: API_Helper
     var exerciseApi: ExerciseApi
+    
     init(context: ModelContext, currentUser: User?) {
         self.modelContext = context
         if let currentUser {
