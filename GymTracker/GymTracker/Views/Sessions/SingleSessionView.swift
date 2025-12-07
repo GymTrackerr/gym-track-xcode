@@ -47,7 +47,7 @@ struct SingleSessionView: View {
                         SessionSelectSplit()
                             .padding()
                             .onChange(of: sessionService.selected_splitDay?.id) { oldValue, newValue in
-                                sessionService.updateSessionToSplitDay(session: session)
+                                _ = sessionService.updateSessionToSplitDay(session: session)
                             }
                     }
                     VStack {

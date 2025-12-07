@@ -46,8 +46,24 @@ class TimerService: ServiceBase, ObservableObject {
             .autoconnect()
             .sink { [weak self] _ in
                 guard let self else { return }
+                
+                // if countdown ended
+                if let remaining = self.remainingTime, remaining <= 0 {
+                    self.handleTimerFinished()
+                }
+                
                 self.objectWillChange.send()
             }
+    }
+    
+    private func handleTimerFinished() {
+        pause()
+        
+        if let t = timer {
+            modelContext.delete(t)
+            self.timer = nil
+            try? modelContext.save()
+        }
     }
         
     func start() {
@@ -98,8 +114,13 @@ class TimerService: ServiceBase, ObservableObject {
     
     func adjustPending(seconds: Int) {
         pendingLength = max(pendingLength + seconds, 0)
+
+        guard let currentUser = currentUser else { return }
+        currentUser.defaultTimer = pendingLength
+
+        try? modelContext.save()
     }
-    
+
     func add(seconds: Int) {
         guard let timer else {
             adjustPending(seconds: seconds)
@@ -115,6 +136,10 @@ class TimerService: ServiceBase, ObservableObject {
         add(seconds: -seconds)
     }
     
+    var isFinished: Bool {
+        return timer == nil && displayedTime == 0 && pendingLength > 0
+    }
+
     var displayedTime: Int {
         guard let timer = timer else { return pendingLength }
         if timer.isPaused { return timer.elapsedTime }

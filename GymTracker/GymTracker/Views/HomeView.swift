@@ -43,7 +43,7 @@ struct HomeView: View {
                                 ) {
                                     MetricCard(
                                         title: timerService.timer != nil ? "Timer" : "Start Timer",
-                                        value: timerService.timer != nil ? String(timerService.displayedTime) : "--:--",
+                                        value: timerService.timer != nil ? timerService.formatted : "--:--",
                                         icon: "timer"
                                     )
                                 }

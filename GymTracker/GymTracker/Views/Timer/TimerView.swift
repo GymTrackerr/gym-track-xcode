@@ -49,9 +49,11 @@ struct TimerView: View {
                         .foregroundColor(.gray)
                         .font(.system(size: 18, weight: .medium))
                     
-                    Text(timerService.timer == nil ?
-                         timerService.formattedPending :
-                         timerService.formatted)
+                    Text(timerService.isFinished ? "Done"
+                         : timerService.timer == nil
+                            ? timerService.formattedPending : timerService.formatted
+                    )
+
                         .font(.system(size: 52, weight: .black, design: .rounded))
                 }
             }
@@ -86,14 +88,21 @@ struct TimerView: View {
 
             
             // MARK: Cancel
-            if timerService.timer != nil {
-                Button("Cancel") {
-                    timerService.stop(delete: true)
+            Group {
+                if timerService.timer != nil {
+                    Button("Cancel") {
+                        timerService.stop(delete: true)
+                    }
+                    .foregroundColor(.gray)
+                    .font(.system(size: 20, weight: .medium))
+                } else {
+                    // Invisible placeholder to keep height the same
+                    Text("Cancel")
+                        .font(.system(size: 20, weight: .medium))
+                        .opacity(0)
                 }
-                .foregroundColor(.gray)
-                .font(.system(size: 20, weight: .medium))
-                .padding(.top, 8)
             }
+            .padding(.top, 8)
             
             Spacer()
         }
