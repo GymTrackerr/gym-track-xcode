@@ -9,15 +9,13 @@ import SwiftUI
 import SwiftData
 
 struct ContentView: View {
-//    @EnvironmentObject var userService: UserService
+    @EnvironmentObject var timerService: TimerService
+    
     @State var query: String = ""
     @State var localSelected:Int = 0
     @State var showingOnboarding = false
 
-
     var body: some View {
-        //        VStack {
-        //            if (userService.accountCreated)
         TabView (selection: $localSelected) {
             Tab("Home", systemImage: "house", value: 0) {
                 NavigationStack {
@@ -60,9 +58,17 @@ struct ContentView: View {
                 }
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+            timerService.appDidEnterBackground()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            timerService.appDidBecomeActive()
+        }
+
         //.searchable(text: $query)
         .tabBarMinimizeIfAvailable()
         //        }
+
     }
 }
 extension View {

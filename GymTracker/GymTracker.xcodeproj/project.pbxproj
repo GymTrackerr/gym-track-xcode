@@ -41,6 +41,7 @@
 		65F66C1A2EE4FD780089B62E /* TrackerWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TrackerWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		65F66C1C2EE4FD780089B62E /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		65F66C1E2EE4FD780089B62E /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		65F66CFF2EE51F800089B62E /* TrackerWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TrackerWidgetExtension.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -58,6 +59,39 @@
 			);
 			target = 65F66C192EE4FD780089B62E /* TrackerWidgetExtension */;
 		};
+		65F66C3A2EE4FF130089B62E /* Exceptions for "TrackerWidget" folder in "GymTracker" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				TrackerTimer/IslandExpandedView.swift,
+				TrackerTimer/TimerActivityAttributes.swift,
+				TrackerTimer/TimerAppIntents.swift,
+				TrackerTimer/TimerDataController.swift,
+				WidgetTimerHelper.swift,
+				WidgetUtils.swift,
+			);
+			target = 651FCBAC2E8D3B9B00AC42F6 /* GymTracker */;
+		};
+		65F66C422EE500F10089B62E /* Exceptions for "GymTracker" folder in "TrackerWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				API/API_Base.swift,
+				API/API_Data.swift,
+				API/API_Helper.swift,
+				API/ExerciseApi.swift,
+				Models/Exercise.swift,
+				Models/ExerciseSplitDay.swift,
+				Models/Session.swift,
+				Models/SessionExercise.swift,
+				Models/SessionRep.swift,
+				Models/SessionSet.swift,
+				Models/SplitDay.swift,
+				Models/TrackerTimer.swift,
+				Models/User.swift,
+				Services/ServiceBase.swift,
+				SharedModelConfig.swift,
+			);
+			target = 65F66C192EE4FD780089B62E /* TrackerWidgetExtension */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -65,6 +99,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				65F66C152EE4FCF50089B62E /* Exceptions for "GymTracker" folder in "GymTracker" target */,
+				65F66C422EE500F10089B62E /* Exceptions for "GymTracker" folder in "TrackerWidgetExtension" target */,
 			);
 			path = GymTracker;
 			sourceTree = "<group>";
@@ -72,6 +107,7 @@
 		65F66C202EE4FD780089B62E /* TrackerWidget */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
+				65F66C3A2EE4FF130089B62E /* Exceptions for "TrackerWidget" folder in "GymTracker" target */,
 				65F66C342EE4FD790089B62E /* Exceptions for "TrackerWidget" folder in "TrackerWidgetExtension" target */,
 			);
 			path = TrackerWidget;
@@ -102,6 +138,7 @@
 		651FCBA42E8D3B9B00AC42F6 = {
 			isa = PBXGroup;
 			children = (
+				65F66CFF2EE51F800089B62E /* TrackerWidgetExtension.entitlements */,
 				651FCBAF2E8D3B9C00AC42F6 /* GymTracker */,
 				65F66C202EE4FD780089B62E /* TrackerWidget */,
 				65F66C1B2EE4FD780089B62E /* Frameworks */,
@@ -386,7 +423,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = GymTracker/GymTracker.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = VHCWBN8GY3;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -437,7 +474,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = GymTracker/GymTracker.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = VHCWBN8GY3;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -486,14 +523,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = TrackerWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = VHCWBN8GY3;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = TrackerWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = TrackerWidget;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -518,14 +556,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = TrackerWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = VHCWBN8GY3;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = TrackerWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = TrackerWidget;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

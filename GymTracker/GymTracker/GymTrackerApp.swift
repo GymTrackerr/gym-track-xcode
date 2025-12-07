@@ -10,29 +10,8 @@ import SwiftData
 
 @main
 struct GymTrackerApp: App {
-    @Environment(\.modelContext) private var context
-
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            SplitDay.self,
-            Exercise.self,
-            ExerciseSplitDay.self,
-            User.self,
-            Session.self,
-            SessionExercise.self,
-            SessionSet.self,
-            SessionRep.self,
-            TrackerTimer.self
-        ])
-        
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
+    var sharedModelContainer: ModelContainer = 
+        SharedModelConfig.createSharedModelContainer()
 
     var body: some Scene {
         WindowGroup {
@@ -42,7 +21,9 @@ struct GymTrackerApp: App {
     }
     
     init() {
-        print(URL.applicationSupportDirectory.path(percentEncoded: false))
+        if let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: SharedModelConfig.appGroupIdentifier) {
+            print("Container Path: \(url)")
+        }
     }
 }
 

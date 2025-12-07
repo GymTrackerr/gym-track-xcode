@@ -11,8 +11,9 @@ import SwiftUI
 @main
 struct TrackerWidgetBundle: WidgetBundle {
     var body: some Widget {
-        TrackerWidget()
+        HomeScreenWidget()
         TrackerWidgetControl()
+
         TrackerWidgetLiveActivity()
     }
 }

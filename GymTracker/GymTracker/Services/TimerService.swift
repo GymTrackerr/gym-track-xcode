@@ -8,16 +8,19 @@
 import Combine
 import SwiftUI
 import SwiftData
+import ActivityKit
 
 class TimerService: ServiceBase, ObservableObject {
     @Published var timer: TrackerTimer?
     @Published var pendingLength: Int = 0
 
     private var ticker: AnyCancellable?
-    
+    private var hadTimerBefore = false
+    private var timerWasLocallyUpdated = false
+
     override func loadFeature() {
         loadTimer()
-        startTicker()
+        if timer != nil { startTicker() }
     }
         
     func loadTimer() {
@@ -36,38 +39,65 @@ class TimerService: ServiceBase, ObservableObject {
     }
     
     private func saveChange() {
+        timerWasLocallyUpdated = true
         timer?.updatedAt = Date()
         try? modelContext.save()
-        objectWillChange.send()
     }
-        
+    
     private func startTicker() {
+        ticker?.cancel()
+        
         ticker = Timer.publish(every: 1, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
                 guard let self else { return }
                 
-                // if countdown ended
-                if let remaining = self.remainingTime, remaining <= 0 {
-                    self.handleTimerFinished()
+                if !self.timerWasLocallyUpdated {
+                    self.loadTimer()   // Only reload if widget changed it
+                }
+                self.timerWasLocallyUpdated = false
+                
+                guard let timer = self.timer else {
+                    if self.hadTimerBefore {
+                        self.endLiveActivity()
+                        self.hadTimerBefore = false
+                        self.stopTicker()
+                    }
+                    return
                 }
                 
+                self.hadTimerBefore = true
+                
+                if !timer.isPaused, let remaining = self.remainingTime, remaining <= 0 {
+                    self.handleTimerFinished()
+                    return
+                }
+                
+                self.updateLiveActivity()
                 self.objectWillChange.send()
             }
     }
     
-    private func handleTimerFinished() {
-        pause()
-        
+    private func stopTicker() {
+        ticker?.cancel()
+        ticker = nil
+    }
+    
+    private func deleteTimerModel() {
         if let t = timer {
             modelContext.delete(t)
-            self.timer = nil
+            timer = nil
             try? modelContext.save()
         }
     }
-        
+    
+    private func handleTimerFinished() {
+        pause()
+        deleteTimerModel()
+        endLiveActivity(after: 3)
+    }
+    
     func start() {
-        // if the user tapped +15 before start
         let finalLength = pendingLength
         
         let newTimer = TrackerTimer()
@@ -80,8 +110,11 @@ class TimerService: ServiceBase, ObservableObject {
 
         modelContext.insert(newTimer)
         timer = newTimer
-//        pendingLength = 0
+        
         saveChange()
+        startLiveActivity()
+        
+        if ticker == nil { startTicker() }
     }
 
     
@@ -91,33 +124,32 @@ class TimerService: ServiceBase, ObservableObject {
         timer.startTime = nil
         timer.isPaused = true
         saveChange()
+        updateLiveActivity()
     }
-    
+        
     func resume() {
         guard let timer else { return }
         timer.startTime = Date()
         timer.isPaused = false
         saveChange()
+        updateLiveActivity()
     }
     
     func stop(delete: Bool = false) {
         pause()
-
-        if delete, let t = timer {
-            modelContext.delete(t)
-            self.timer = nil
-            try? modelContext.save()
-        }
-
+        
+        if delete { deleteTimerModel() }
+        
         pendingLength = currentUser?.defaultTimer ?? pendingLength
+        
+        hadTimerBefore = false
+        stopTicker()
+        endLiveActivity()
     }
-    
+
     func adjustPending(seconds: Int) {
         pendingLength = max(pendingLength + seconds, 0)
-
-        guard let currentUser = currentUser else { return }
-        currentUser.defaultTimer = pendingLength
-
+        currentUser?.defaultTimer = pendingLength
         try? modelContext.save()
     }
 
@@ -129,7 +161,9 @@ class TimerService: ServiceBase, ObservableObject {
         
         timer.timerLength += seconds
         if timer.elapsedTime < 0 { timer.elapsedTime = 0 }
+        
         saveChange()
+        updateLiveActivity()
     }
         
     func subtract(seconds: Int) {
@@ -172,6 +206,16 @@ class TimerService: ServiceBase, ObservableObject {
         
         return timer.timerLength.asTimeString()
     }
+    
+    func appDidEnterBackground() {
+        // Ticker keeps running to update live activity in background
+    }
+
+    func appDidBecomeActive() {
+        loadTimer()
+        updateLiveActivity()
+    }
+
 }
 
 extension Int {
