@@ -15,7 +15,6 @@ struct HomeView: View {
                 if !navigateToSession { // hide home content when navigating
                     ScrollView {
                         VStack {
-                                
                             HStack(spacing: 16) {
                                 MetricCard(title: "Current Weight", value: String(hkManager.userWeight ?? 0.00), icon: "lock.fill")
                                 

@@ -14,6 +14,9 @@ struct ContentView: View {
     @State var query: String = ""
     @State var localSelected:Int = 0
     @State var showingOnboarding = false
+    
+    @State var linkActive = false
+    @State var selectedLink = -1
 
     var body: some View {
         TabView (selection: $localSelected) {
@@ -34,6 +37,22 @@ struct ContentView: View {
                                 .frame(maxHeight: .infinity, alignment: .top)
                                 .ignoresSafeArea(edges: .top)
                             )
+                            .navigationDestination(isPresented: $linkActive) {
+                                TimerView()
+                                    .background(
+                                        LinearGradient(
+                                            gradient: Gradient(colors: [
+                                                Color(red: 0.85, green: 0.1, blue: 0.1),//.red,
+                                                Color.clear//gray.opacity(0.3)
+                                            ]),
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
+                                        .frame(height: 400)
+                                        .frame(maxHeight: .infinity, alignment: .top)
+                                        .ignoresSafeArea(edges: .top)
+                                    )
+                            }
                     }
                 }
             }
@@ -68,6 +87,11 @@ struct ContentView: View {
         //.searchable(text: $query)
         .tabBarMinimizeIfAvailable()
         //        }
+        .onOpenURL { url in
+            print("Received deep link: \(url)")
+            linkActive = true
+        }
+        // 4.
 
     }
 }

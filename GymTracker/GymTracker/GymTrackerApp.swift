@@ -40,7 +40,7 @@ struct ParentRootView: View {
 struct RootView: View {
     @Environment(\.modelContext) private var context
     @EnvironmentObject var userService: UserService
-
+    
     var body: some View {
         if (userService.onBoarding == true) {
             OnBoardView()
@@ -54,6 +54,7 @@ struct RootView: View {
                 .environmentObject(SessionExerciseService(context: context, currentUser: userService.currentUser))
                 .environmentObject(SetService(context: context, currentUser: userService.currentUser))
                 .environmentObject(TimerService(context: context, currentUser: userService.currentUser))
+
         }
     }
 }

@@ -74,7 +74,6 @@ struct HomeScreenEntryView: View {
     var body: some View {
         VStack(spacing: 10) {
             if timerData.hasTimer && timerData.remaining > 0 {
-                
                 ZStack {
                     Circle()
                         .stroke(Color.gray.opacity(0.3), lineWidth: 6)
@@ -103,7 +102,7 @@ struct HomeScreenEntryView: View {
                 
             } else {
                 VStack(spacing: 8) {
-                    Text("😴")
+                    Image(systemName: "plus.circle")
                         .font(.system(size: 40))
                     
                     Text("No Timer")
@@ -119,9 +118,9 @@ struct HomeScreenEntryView: View {
         }
         .padding()
         .containerBackground(.fill.tertiary, for: .widget)
+        .widgetURL(URL(string: "gymtracker//TrackerTimer"))
     }
 
-    
     private func timeString(_ seconds: Int) -> String {
         let mins = seconds / 60
         let secs = seconds % 60
@@ -129,7 +128,7 @@ struct HomeScreenEntryView: View {
     }
 }
 
-// MARK: - Home Screen Widget
+// Home Screen Widget
 struct HomeScreenWidget: Widget {
     let kind: String = "HomeScreenWidget"
 
