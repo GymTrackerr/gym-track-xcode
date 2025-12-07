@@ -100,6 +100,9 @@ class TimerService: ServiceBase, ObservableObject {
     func start() {
         let finalLength = pendingLength
         
+        currentUser?.defaultTimer = finalLength
+        try? modelContext.save()
+
         let newTimer = TrackerTimer()
         newTimer.timerLength = finalLength
         newTimer.elapsedTime = 0
@@ -137,11 +140,17 @@ class TimerService: ServiceBase, ObservableObject {
     
     func stop(delete: Bool = false) {
         pause()
-        
+        if let timerLength = timer?.timerLength {
+            if (timerLength != pendingLength) {
+                currentUser?.defaultTimer = timerLength
+                pendingLength = timerLength
+                
+                try? modelContext.save()
+            }
+        }
+      
         if delete { deleteTimerModel() }
-        
-        pendingLength = currentUser?.defaultTimer ?? pendingLength
-        
+
         hadTimerBefore = false
         stopTicker()
         endLiveActivity()
@@ -149,8 +158,6 @@ class TimerService: ServiceBase, ObservableObject {
 
     func adjustPending(seconds: Int) {
         pendingLength = max(pendingLength + seconds, 0)
-        currentUser?.defaultTimer = pendingLength
-        try? modelContext.save()
     }
 
     func add(seconds: Int) {

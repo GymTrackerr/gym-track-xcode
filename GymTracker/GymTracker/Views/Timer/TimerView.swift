@@ -87,7 +87,7 @@ struct TimerView: View {
             }
 
             
-            // MARK: Cancel
+            // Cancel
             Group {
                 if timerService.timer != nil {
                     Button("Cancel") {
