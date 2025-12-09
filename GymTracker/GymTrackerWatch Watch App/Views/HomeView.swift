@@ -1,7 +1,15 @@
+//
+//  HomeView.swift
+//  GymTracker
+//
+//  Created by Daniel Kravec on 2025-12-07.
+//
+
 import SwiftUI
 import SwiftData
 
 struct HomeView: View {
+//    @EnvironmentObject var watchSession: WatchSessionManager
     @EnvironmentObject var userService: UserService
     @EnvironmentObject var timerService: TimerService
     @EnvironmentObject var hkManager: HealthKitManager
@@ -23,8 +31,9 @@ struct HomeView: View {
                             .padding(.horizontal)
                             
                             HStack(spacing: 16) {
+                                
                                 NavigationLink(destination:
-                                    TimerView()
+                                    WatchTimerView()
                                     .background(
                                         LinearGradient(
                                             gradient: Gradient(colors: [
@@ -52,15 +61,17 @@ struct HomeView: View {
                                 .padding()
                                 .glassEffect(in: .rect(cornerRadius: 16.0))
                                 .padding(.horizontal)
- 
-                             VStack {
-                                SessionsView(openedSession: $openedSession)
-                                    .onChange(of: openedSession) {
-                                        if openedSession != nil {
-                                            navigateToSession = true
-                                        }
-                                    }
-                            }
+                        
+                            
+                          
+                           VStack {
+//                               SessionsView(openedSession: $openedSession)
+//                                   .onChange(of: openedSession) {
+//                                       if openedSession != nil {
+//                                           navigateToSession = true
+//                                       }
+//                                   }
+                           }
                         }
                     }
                 }
@@ -73,30 +84,22 @@ struct HomeView: View {
             await hkManager.fetchWeeklySteps()
             await hkManager.fetchUserWeight()
         }
-        .navigationDestination(isPresented: $navigateToSession) {
-            Group {
-                if let openedSession {
-                    SingleSessionView(session: openedSession)
-                } else {
-                    EmptyView()
-                }
-            }
-        }
-        .navigationTitle(userService.currentUser != nil ? "Welcome \(userService.currentUser!.name)" : "Home" )
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                NavigationLink(destination: SettingsView()) {
-                    Label("Settings", systemImage: "gearshape")
-                }
-            }
-        }
-    }
-}
-
-#Preview {
-    NavigationStack {
-        HomeView()
-            .modelContainer(for: SplitDay.self, inMemory: true)
-            .modelContainer(for: Exercise.self, inMemory: true)
+       .navigationDestination(isPresented: $navigateToSession) {
+           Group {
+               if let openedSession {
+//                   SingleSessionView(session: openedSession)
+               } else {
+                   EmptyView()
+               }
+           }
+       }
+       .navigationTitle(userService.currentUser != nil ? "Welcome \(userService.currentUser!.name)" : "Home" )
+       .toolbar {
+//           ToolbarItem(placement: .navigationBarTrailing) {
+//               NavigationLink(destination: SettingsView()) {
+//                   Label("Settings", systemImage: "gearshape")
+//               }
+//           }
+       }
     }
 }

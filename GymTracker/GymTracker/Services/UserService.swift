@@ -15,12 +15,35 @@ class UserService: ServiceBase, ObservableObject {
     @Published var accounts: [User] = []
     @Published var onBoarding: Bool = false
     @Published var onBoardingScreen: Int = 0
+    @Published var currentUserLoggedin: UUID
 //    @Published override var currentUser: User?: User? = nil
+    
+    override init (context: ModelContext) {
+        self.currentUserLoggedin = UUID()
+
+        super.init(context: context)
+//        if (self.currentUser)
+        // react to currentUser changing
+        self.$currentUser
+            .sink { [weak self] user in
+                guard let self else { return }
+                self.accountCreated = (user != nil)
+                if (user==nil) {self.onBoarding=true}
+                else if (self.accountCreated==false) {accountCreated = true}
+            }
+            .store(in: &cancellables)        
+    }
     
     override func loadFeature() {
         self.loadAccounts()
     }
     
+    @MainActor
+    func loadAccountsIfNeeded() {
+        guard currentUser == nil else { return }
+        loadAccounts() // your existing function
+    }
+
     func loadAccounts() {
         print("loadingaccounts")
         let descriptor = FetchDescriptor<User>(sortBy: [SortDescriptor(\.lastLogin)])

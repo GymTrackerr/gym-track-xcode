@@ -8,27 +8,49 @@
 import SwiftData
 import Combine
 import Foundation
+#if os(iOS)
+import CoreHaptics
+import UIKit
+#endif
 
 class ServiceBase {
+    @Published var currentUser: User?
+
     var modelContext: ModelContext
-    var currentUser: User?
+    var cancellables = Set<AnyCancellable>()
+
     var apiHelper: API_Helper
     var exerciseApi: ExerciseApi
-    
-    init(context: ModelContext, currentUser: User?) {
+
+    init(context: ModelContext) {
         self.modelContext = context
-        if let currentUser {
-            self.currentUser = currentUser
-        }
         
         let apiHelper = API_Helper()
         self.apiHelper = apiHelper
         self.exerciseApi = ExerciseApi(apiHelper: apiHelper)
-
+        
         loadFeature()
     }
     
+    // guard currentUser != nil else { return }
     func loadFeature() { }
+    
+    func bind(to userService: UserService) {
+        userService.$currentUser
+            .sink { [weak self] user in
+                self?.currentUser = user
+                self?.loadFeature()
+            }
+            .store(in: &cancellables)
+    }
+    
+    func hapticPress() {
+//        if (self.currentUser.haptic?.isEnabled == true) {
+            #if os(iOS)
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            #endif
+//        }
+    }
 }
 
 extension ServiceBase {

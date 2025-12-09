@@ -8,11 +8,13 @@
 import Combine
 import SwiftUI
 import SwiftData
+#if os(iOS)
 import ActivityKit
+#endif
 
 class TimerService: ServiceBase, ObservableObject {
     @Published var timer: TrackerTimer?
-    @Published var pendingLength: Int = 0
+    @Published var pendingLength: Int = 90
 
     private var ticker: AnyCancellable?
     private var hadTimerBefore = false
@@ -97,11 +99,15 @@ class TimerService: ServiceBase, ObservableObject {
         endLiveActivity(after: 3)
     }
     
-    func start() {
-        let finalLength = pendingLength
-        
-        currentUser?.defaultTimer = finalLength
+    func updateDefaultTimer(sec: Int) {
+        currentUser?.defaultTimer = sec
         try? modelContext.save()
+    }
+    
+    func start() {
+        self.hapticPress()
+        
+        let finalLength = pendingLength
 
         let newTimer = TrackerTimer()
         newTimer.timerLength = finalLength
@@ -132,6 +138,7 @@ class TimerService: ServiceBase, ObservableObject {
         
     func resume() {
         guard let timer else { return }
+        self.hapticPress()
         timer.startTime = Date()
         timer.isPaused = false
         saveChange()
@@ -139,13 +146,11 @@ class TimerService: ServiceBase, ObservableObject {
     }
     
     func stop(delete: Bool = false) {
+        self.hapticPress()
         pause()
         if let timerLength = timer?.timerLength {
             if (timerLength != pendingLength) {
-                currentUser?.defaultTimer = timerLength
                 pendingLength = timerLength
-                
-                try? modelContext.save()
             }
         }
       
@@ -161,6 +166,8 @@ class TimerService: ServiceBase, ObservableObject {
     }
 
     func add(seconds: Int) {
+        self.hapticPress()
+        updateDefaultTimer(sec: (pendingLength+seconds))
         guard let timer else {
             adjustPending(seconds: seconds)
             return

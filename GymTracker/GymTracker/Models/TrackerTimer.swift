@@ -31,4 +31,38 @@ final class TrackerTimer {
         self.createdAt = Date()
         self.updatedAt = Date()
     }
+    
+    func toDTO() -> TrackerTimerDTO {
+        TrackerTimerDTO(
+            id: id.uuidString,
+            startTime: startTime,
+            elapsedTime: elapsedTime,
+            timerLength: timerLength,
+            isPaused: isPaused,
+            createdAt: createdAt,
+            updatedAt: updatedAt
+        )
+    }
+}
+
+struct TrackerTimerDTO: Identifiable, Codable {
+    let id: String
+    let startTime: Date?
+    let elapsedTime: Int
+    let timerLength: Int
+    let isPaused: Bool
+    let createdAt: Date
+    let updatedAt: Date
+    
+    func apply(to timer: TrackerTimer) {
+        timer.id = UUID(uuidString: id) ?? UUID()
+        if let startTime = startTime {
+            timer.startTime = startTime
+        }
+        timer.elapsedTime = elapsedTime
+        timer.timerLength = timerLength
+        timer.isPaused = isPaused
+        timer.createdAt = createdAt
+        timer.updatedAt = updatedAt
+    }
 }

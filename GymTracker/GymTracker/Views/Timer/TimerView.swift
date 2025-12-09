@@ -31,11 +31,11 @@ struct TimerView: View {
                 Circle()
                     .stroke(Color.gray.opacity(0.25), lineWidth: 18)
 
-                // Show progress only if countdown
-                if let _ = timerService.remainingTime {
+                // Show progress for active timer or pending length
+                if timerService.remainingTime != nil || timerService.pendingLength > 0 {
                     Circle()
                         .trim(from: 0, to: progress)
-                        .stroke(Color.green, style: StrokeStyle(lineWidth: 18, lineCap: .round))
+                        .stroke(Color.blue, style: StrokeStyle(lineWidth: 18, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                         .animation(.easeInOut(duration: 0.2), value: progress)
                 }
@@ -75,15 +75,15 @@ struct TimerView: View {
 //                    let length = userService.currentUser?.defaultTimer ?? 90
                     timerService.start()
                 }
-                .buttonStyle(MainTimerButton(color: Color(.green)))
+                .buttonStyle(MainTimerButton(color: Color(.blue)))
 
             } else if timerService.timer?.isPaused == true {
                 Button("Resume") { timerService.resume() }
-                    .buttonStyle(MainTimerButton(color: Color(.green)))
+                    .buttonStyle(MainTimerButton(color: Color(.blue)))
 
             } else {
                 Button("Pause") { timerService.pause() }
-                    .buttonStyle(MainTimerButton(color: Color(.green)))
+                    .buttonStyle(MainTimerButton(color: Color(.blue)))
             }
 
             
@@ -111,8 +111,10 @@ struct TimerView: View {
     // MARK: Circle progress
     private var progress: CGFloat {
         if timerService.timer == nil {
-            let total = CGFloat(userService.currentUser?.defaultTimer ?? 1)
-            return CGFloat(timerService.pendingLength) / total
+            // Show pending length as progress (0 to 1)
+            let total = CGFloat(userService.currentUser?.defaultTimer ?? 90)
+            let pending = CGFloat(timerService.pendingLength)
+            return min(pending / total, 1.0)
         }
 
         guard let remaining = timerService.remainingTime else { return 1 }

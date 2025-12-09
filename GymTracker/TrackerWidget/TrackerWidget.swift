@@ -25,18 +25,27 @@ struct HomeScreenProvider: TimelineProvider {
         completion(entry)
     }
     
-   func getTimeline(in context: Context, completion: @escaping (Timeline<HomeScreenEntry>) -> Void) {
-        let entry = HomeScreenEntry(date: Date())
-        let nextRefresh = Calendar.current.date(byAdding: .second, value: 30, to: Date())!
-        completion(Timeline(entries: [entry], policy: .after(nextRefresh)))
+    func getTimeline(in context: Context, completion: @escaping (Timeline<HomeScreenEntry>) -> Void) {
+        var entries: [HomeScreenEntry] = []
+        let currentDate = Date()
+        
+        // Generate entries every 0.5 seconds for continuous updates
+        for i in 0 ..< 120 {
+            let entryDate = currentDate.addingTimeInterval(TimeInterval(Double(i) * 0.5))
+            entries.append(HomeScreenEntry(date: entryDate))
+        }
+        
+        // Refresh after 60 seconds (when timeline is exhausted)
+        let nextRefresh = currentDate.addingTimeInterval(60)
+        completion(Timeline(entries: entries, policy: .after(nextRefresh)))
     }
 }
 
 // Home Screen Widget Entry View
 struct HomeScreenEntryView: View {
     var entry: HomeScreenEntry
-    // @State private var updateTrigger = UUID()
-    // @State private var lastDisplayedSeconds = -1
+    @State private var updateTrigger = UUID()
+    @State private var lastDisplayedSeconds = -1
     
     var timerData: (remaining: Int, total: Int, isPaused: Bool, hasTimer: Bool) {
         // Read from the shared UserDefaults with App Groups
@@ -119,6 +128,11 @@ struct HomeScreenEntryView: View {
         .padding()
         .containerBackground(.fill.tertiary, for: .widget)
         .widgetURL(URL(string: "gymtracker//TrackerTimer"))
+        // Force re-renders every 0.5 seconds by updating state
+        .onReceive(Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()) { _ in
+            updateTrigger = UUID()
+        }
+        .id(updateTrigger)
     }
 
     private func timeString(_ seconds: Int) -> String {

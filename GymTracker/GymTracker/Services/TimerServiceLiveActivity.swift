@@ -5,9 +5,27 @@
 //  Created by Daniel Kravec on 2025-12-07.
 //
 
+#if os(iOS)
 import ActivityKit
+#endif
+
 import Foundation
 
+#if os(watchOS)
+extension TimerService {
+    // Start a live activity for the current timer
+    func startLiveActivity() {
+    }
+    
+    // Update the live activity with current timer state
+    func updateLiveActivity() {
+    }
+    
+    // End the live activity
+    func endLiveActivity(after seconds: UInt64 = 0) {
+    }
+}
+#else
 extension TimerService {
     // Start a live activity for the current timer
     func startLiveActivity() {
@@ -34,3 +52,4 @@ extension TimerService {
         LiveActivityManager.shared.end(after: seconds)
     }
 }
+#endif

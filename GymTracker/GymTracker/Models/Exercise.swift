@@ -107,4 +107,3 @@ struct ExerciseDTO: Identifiable, Codable {
     let category: String
     let images: [String]
 }
-
