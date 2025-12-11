@@ -12,9 +12,10 @@ struct MetricCard: View {
     let title: String
     let value: String
     let icon: String
-    
+    @State var alignment: HorizontalAlignment = .leading
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: alignment, spacing: 8) {
             Label(title, systemImage: icon)
                 .font(.subheadline)
                 .foregroundColor(.secondary)

@@ -15,30 +15,60 @@ struct ExercisesView: View {
     @EnvironmentObject var exerciseService: ExerciseService
 
     var body : some View {
-        List {
-            ForEach(exerciseService.exercises, id: \.id) { exercise in
-                NavigationLink {
-                    SingleExerciseView(exercise: exercise)
-                } label: {
-                    SingleExerciseLabelView(exercise: exercise)
-                }
+        VStack(spacing: 0) {
+            // Header
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Exercises")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                
+                Text("\(exerciseService.exercises.count) exercises")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
-            .onDelete(perform: exerciseService.removeExercise)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding()
+
+            // Exercises List
+            if exerciseService.exercises.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "dumbbell.fill")
+                        .font(.system(size: 40))
+                        .foregroundColor(.secondary)
+                    
+                    Text("No Exercises")
+                        .font(.headline)
+                    
+                    Text("Create your first exercise")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxHeight: .infinity)
+                .padding()
+            } else {
+                List {
+                    ForEach(exerciseService.exercises, id: \.id) { exercise in
+                        NavigationLink {
+                            SingleExerciseView(exercise: exercise)
+                        } label: {
+                            SingleExerciseLabelView(exercise: exercise)
+                        }
+                        .listRowInsets(EdgeInsets(top: 6, leading: 4, bottom: 6, trailing: 16))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.gray.opacity(0.1))
+                                .padding(.vertical, 4)
+                                .padding(.horizontal, 4)
+                        )
+//                        .padding(.horizontal, 16)
+                    }
+                    .onDelete(perform: exerciseService.removeExercise)
+                }
+                .listStyle(.plain)
+            }
         }
-        .background(
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color(red: 0.85, green: 0.1, blue: 0.1),//.red,
-                    Color.clear//gray.opacity(0.3)
-                ]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: 400)
-            .frame(maxHeight: .infinity, alignment: .top)
-            .ignoresSafeArea(edges: .top)
-        )
-        .navigationTitle("Exercises")
+//        .navigationTitle("Exercises")
         .toolbar {
 #if os(iOS)
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -96,10 +126,3 @@ struct ExercisesView: View {
     }
 }
 
-struct SplitDaysDropdownSelection: View {
-    @EnvironmentObject var splitDayService: SplitDayService
-
-    var body : some View {
-        
-    }
-}

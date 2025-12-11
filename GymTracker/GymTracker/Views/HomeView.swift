@@ -32,7 +32,7 @@ struct HomeView: View {
                                                 Color.clear//gray.opacity(0.3)
                                             ]),
                                             startPoint: .top,
-                                            endPoint: .bottom
+                                            endPoint: .bottom,
                                         )
                                         .frame(height: 400)
                                         .frame(maxHeight: .infinity, alignment: .top)
@@ -42,12 +42,40 @@ struct HomeView: View {
                                     MetricCard(
                                         title: timerService.timer != nil ? "Timer" : "Start Timer",
                                         value: timerService.timer != nil ? timerService.formatted : "--:--",
-                                        icon: "timer"
+                                        icon: "timer",
+                                        alignment: .center
                                     )
                                 }
                             }
                             .padding(.horizontal)
-
+                            
+                            HStack(spacing: 16) {
+                                NavigationLink(destination:
+                                    HealthWorkoutView()
+                                    .background(
+                                        LinearGradient(
+                                            gradient: Gradient(colors: [
+                                                Color(red: 0.85, green: 0.1, blue: 0.1),//.red,
+                                                Color.clear//gray.opacity(0.3)
+                                            ]),
+                                            startPoint: .top,
+                                            endPoint: .bottom,
+                                        )
+                                        .frame(height: 400)
+                                        .frame(maxHeight: .infinity, alignment: .top)
+                                        .ignoresSafeArea(edges: .top)
+                                    )
+                                ) {
+                                    MetricCard(
+                                        title: "Fitness Workouts",
+                                        value: String(hkManager.workouts.count),
+                                        icon: "figure.strengthtraining.traditional",
+                                        alignment: .center
+                                    )
+                                }
+                            }
+                            .padding(.horizontal)
+                            
                             StepBarGraph()
                                 .padding()
                                 .glassEffect(in: .rect(cornerRadius: 16.0))

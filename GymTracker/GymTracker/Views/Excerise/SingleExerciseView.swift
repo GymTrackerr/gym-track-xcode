@@ -182,29 +182,37 @@ struct SingleExerciseLabelView: View {
     @State var orderInSplit: Int? = nil
 
     var body : some View {
-        ZStack {
-            if (exercise.isUserCreated) {
-                VStack(alignment: .leading) {
-                    Text(exercise.name)
-                    HStack {
-                        if (orderInSplit != nil) {
-                            Text("Order \(orderInSplit ?? 0)")
+        VStack (alignment: .leading, spacing: 4) {
+            ZStack {
+                if (exercise.isUserCreated) {
+                    VStack(alignment: .leading) {
+                        Text(exercise.name)
+                        HStack {
+                            if (orderInSplit != nil) {
+                                Text("Order \(orderInSplit ?? 0)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                            }
+                            
+                            Text(exercise.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                            Spacer()
                         }
-                        
-                        Text(exercise.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                            .font(.caption)
-                            .foregroundColor(.secondary)
                     }
+                    .padding(.vertical, 4)
+                } else {
+                    DetailedExerciseLabelView(exercise: exercise, orderInSplit: orderInSplit)
                 }
-                .padding(.vertical, 4)
-            } else {
-                DetailedExerciseLabelView(exercise: exercise, orderInSplit: orderInSplit)
-
             }
         }
+
+
+        .padding(12)
+//        .background/*(*/Color.gray.opacity(0.1))
+        .cornerRadius(12)
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
     }
 }
 
@@ -236,6 +244,7 @@ struct DetailedExerciseLabelView: View {
             Text(exercise.name)
             
         }
+        
     }
 }
 

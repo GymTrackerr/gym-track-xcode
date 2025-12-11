@@ -59,6 +59,19 @@ struct ContentView: View {
             Tab("Exercises", systemImage: "dumbbell", value: 1) {
                 NavigationStack {
                     ExercisesView()
+                        .background(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color(red: 0.85, green: 0.1, blue: 0.1),//.red,
+                                    Color.clear//gray.opacity(0.3)
+                                ]),
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                            .frame(height: 400)
+                            .frame(maxHeight: .infinity, alignment: .top)
+                            .ignoresSafeArea(edges: .top)
+                        )
                 }
             }
             
