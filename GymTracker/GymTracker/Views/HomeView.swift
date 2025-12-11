@@ -16,61 +16,68 @@ struct HomeView: View {
                     ScrollView {
                         VStack {
                             HStack(spacing: 16) {
-                                MetricCard(title: "Current Weight", value: String(hkManager.userWeight ?? 0.00), icon: "lock.fill")
+                                MetricCard(
+                                    title: "Current Weight",
+                                    value: String(hkManager.userWeight ?? 0.00),
+                                    icon: "lock.fill")
                                 
-                                MetricCard(title: "Weekly Steps", value: String(hkManager.totalStepsWeek.rounded()), icon: "figure.walk.motion")
+                                MetricCard(
+                                    title: "Weekly Steps",
+                                    value: String(hkManager.totalStepsWeek.rounded()),
+                                    icon: "figure.walk.motion")
                             }
                             .padding(.horizontal)
                             
+                            if let previousSleepNight = hkManager.sleepData.first?.duration {
+                                let sleepHours = previousSleepNight / 3600
+                                HStack(spacing: 16) {
+                                    MetricCard(
+                                        title: "Sleep",
+                                        value: String(format: "%.1f", sleepHours)+" hrs",
+                                        icon: "bed.double",
+                                        alignment: .center
+                                    )
+                                }
+                                .padding(.horizontal)
+                            }
+                            
+                            if let ars = hkManager.activityRingStatus {
+                                HStack(spacing: 16) {
+                                    MetricActivityRingCard(
+                                        title: "Activity Rings",
+                                        activityRings: ars,
+                                        alignment: .center
+                                    )
+                                }
+                                .padding(.horizontal)
+                            }
                             HStack(spacing: 16) {
                                 NavigationLink(destination:
                                     TimerView()
-                                    .background(
-                                        LinearGradient(
-                                            gradient: Gradient(colors: [
-                                                Color(red: 0.85, green: 0.1, blue: 0.1),//.red,
-                                                Color.clear//gray.opacity(0.3)
-                                            ]),
-                                            startPoint: .top,
-                                            endPoint: .bottom,
-                                        )
-                                        .frame(height: 400)
-                                        .frame(maxHeight: .infinity, alignment: .top)
-                                        .ignoresSafeArea(edges: .top)
-                                    )
+                                    .appBackground()
                                 ) {
                                     MetricCard(
                                         title: timerService.timer != nil ? "Timer" : "Start Timer",
                                         value: timerService.timer != nil ? timerService.formatted : "--:--",
                                         icon: "timer",
-                                        alignment: .center
+                                        pageNav: true
+//                                        alignment: .center
                                     )
                                 }
-                            }
-                            .padding(.horizontal)
-                            
-                            HStack(spacing: 16) {
+//                            }
+//                            .padding(.horizontal)
+//                            
+//                            HStack(spacing: 16) {
                                 NavigationLink(destination:
                                     HealthWorkoutView()
-                                    .background(
-                                        LinearGradient(
-                                            gradient: Gradient(colors: [
-                                                Color(red: 0.85, green: 0.1, blue: 0.1),//.red,
-                                                Color.clear//gray.opacity(0.3)
-                                            ]),
-                                            startPoint: .top,
-                                            endPoint: .bottom,
-                                        )
-                                        .frame(height: 400)
-                                        .frame(maxHeight: .infinity, alignment: .top)
-                                        .ignoresSafeArea(edges: .top)
-                                    )
+                                    .appBackground()
                                 ) {
                                     MetricCard(
                                         title: "Fitness Workouts",
                                         value: String(hkManager.workouts.count),
                                         icon: "figure.strengthtraining.traditional",
-                                        alignment: .center
+                                        pageNav: true
+//                                        alignment: .center
                                     )
                                 }
                             }
@@ -100,6 +107,11 @@ struct HomeView: View {
             await hkManager.requestAuthorization()
             await hkManager.fetchWeeklySteps()
             await hkManager.fetchUserWeight()
+            await hkManager.fetchWorkouts()
+//            let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+            await hkManager.fetchActivityRingStatus()//for: yesterday)
+            await hkManager.fetchSleepData()
+
         }
         .navigationDestination(isPresented: $navigateToSession) {
             Group {

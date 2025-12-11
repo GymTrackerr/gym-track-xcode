@@ -13,15 +13,23 @@ struct MetricCard: View {
     let value: String
     let icon: String
     @State var alignment: HorizontalAlignment = .leading
+    @State var pageNav: Bool = false
 
     var body: some View {
         VStack(alignment: alignment, spacing: 8) {
             Label(title, systemImage: icon)
                 .font(.subheadline)
                 .foregroundColor(.secondary)
-            Text(String(value))
-                .font(.title3)
-                .fontWeight(.semibold)
+            HStack {
+                Text(String(value))
+                    .font(.title3)
+                    .fontWeight(.semibold)
+                if (pageNav) {
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(.secondary)
+                }
+            }
         }
         .padding()
         .frame(maxWidth: .infinity)
@@ -35,6 +43,117 @@ struct MetricCard: View {
     }
 }
 
+struct MetricActivityRingCard: View {
+    let title: String
+    let activityRings: ActivityRingStatus
+    @State var alignment: HorizontalAlignment = .leading
+    
+    var body: some View {
+        VStack(alignment: alignment, spacing: 12) {
+            Label(title, systemImage: "gauge.with.needle")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+
+            
+            HStack(spacing: 20) {
+                if (alignment == .center) {
+                    Spacer()
+                }
+                // Move Ring
+                VStack(spacing: 8) {
+                    ZStack {
+                        Circle()
+                            .stroke(Color.gray.opacity(0.3), lineWidth: 6)
+                        
+                        Circle()
+                            .trim(from: 0, to: min(activityRings.moveRingPercentage / 100, 1.0))
+                            .stroke(Color.red, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                        
+                        VStack(spacing: 2) {
+                            Text("\(Int(activityRings.moveRingValue))")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                            Text("Cal")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .frame(width: 60, height: 60)
+                    
+                    Text("Move")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                if (alignment == .center) {
+                    Spacer()
+                }
+                
+                // Exercise Ring
+                VStack(spacing: 8) {
+                    ZStack {
+                        Circle()
+                            .stroke(Color.gray.opacity(0.3), lineWidth: 6)
+                        
+                        Circle()
+                            .trim(from: 0, to: min(activityRings.exerciseRingPercentage / 100, 1.0))
+                            .stroke(Color.green, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                        
+                        VStack(spacing: 2) {
+                            Text("\(Int(activityRings.exerciseRingValue))")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                            Text("Min")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .frame(width: 60, height: 60)
+                    
+                    Text("Exercise")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                if (alignment == .center) {
+                    Spacer()
+                }
+                // Stand Ring
+                VStack(spacing: 8) {
+                    ZStack {
+                        Circle()
+                            .stroke(Color.gray.opacity(0.3), lineWidth: 6)
+                        
+                        Circle()
+                            .trim(from: 0, to: min(Double(activityRings.standRingPercentage) / 100, 1.0))
+                            .stroke(Color.blue, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                        
+                        VStack(spacing: 2) {
+                            Text("\(activityRings.standRingValue)")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                            Text("hrs")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .frame(width: 60, height: 60)
+                    
+                    Text("Stand")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassEffect(in: .rect(cornerRadius: 16.0))
+    }    
+}
 
 struct StepBarGraph: View {
     @EnvironmentObject var hkManager: HealthKitManager

@@ -24,34 +24,10 @@ struct ContentView: View {
                 NavigationStack {
                     GlassEffectContainer {
                         HomeView()
-                            .background(
-                                LinearGradient(
-                                    gradient: Gradient(colors: [
-                                        Color(red: 0.85, green: 0.1, blue: 0.1),//.red,
-                                        Color.clear//gray.opacity(0.3)
-                                    ]),
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                                .frame(height: 400)
-                                .frame(maxHeight: .infinity, alignment: .top)
-                                .ignoresSafeArea(edges: .top)
-                            )
+                            .appBackground()
                             .navigationDestination(isPresented: $linkActive) {
                                 TimerView()
-                                    .background(
-                                        LinearGradient(
-                                            gradient: Gradient(colors: [
-                                                Color(red: 0.85, green: 0.1, blue: 0.1),//.red,
-                                                Color.clear//gray.opacity(0.3)
-                                            ]),
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                        )
-                                        .frame(height: 400)
-                                        .frame(maxHeight: .infinity, alignment: .top)
-                                        .ignoresSafeArea(edges: .top)
-                                    )
+                                    .appBackground()
                             }
                     }
                 }
@@ -59,19 +35,7 @@ struct ContentView: View {
             Tab("Exercises", systemImage: "dumbbell", value: 1) {
                 NavigationStack {
                     ExercisesView()
-                        .background(
-                            LinearGradient(
-                                gradient: Gradient(colors: [
-                                    Color(red: 0.85, green: 0.1, blue: 0.1),//.red,
-                                    Color.clear//gray.opacity(0.3)
-                                ]),
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                            .frame(height: 400)
-                            .frame(maxHeight: .infinity, alignment: .top)
-                            .ignoresSafeArea(edges: .top)
-                        )
+                        .appBackground()
                 }
             }
             
@@ -199,5 +163,27 @@ struct OnBoardScreen1: View {
                     .padding()
             }
         }
+    }
+}
+
+struct AppBackground: View {
+    var body: some View {
+        LinearGradient(
+            gradient: Gradient(colors: [
+                Color(red: 0.85, green: 0.1, blue: 0.1),//.red,
+                Color.clear//gray.opacity(0.3)
+            ]),
+            startPoint: .top,
+            endPoint: .bottom,
+        )
+        .frame(height: 400)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .ignoresSafeArea(edges: .top)
+    }
+}
+
+extension View {
+    func appBackground() -> some View {
+        self.background(AppBackground())
     }
 }

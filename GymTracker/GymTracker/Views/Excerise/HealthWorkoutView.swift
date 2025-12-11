@@ -100,11 +100,11 @@ struct HealthWorkoutView: View {
                 .listStyle(.plain)
             }
         }
-        .task {
-            isLoading = true
-            await hkManager.fetchWorkouts(days: 90)
-            isLoading = false
-        }
+//        .task {
+//            isLoading = true
+//            await hkManager.fetchWorkouts(days: 90)
+//            isLoading = false
+//        }
     }
 
     // Helper Methods
