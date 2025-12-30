@@ -88,7 +88,8 @@ struct ActivityRingStatus: Identifiable {
 
 @MainActor
 class HealthKitManager: ObservableObject {
-    private let healthStore = HKHealthStore()
+    // should change to private
+    public let healthStore = HKHealthStore()
     
     @Published var weeklySteps: [Double] = []
     @Published var totalStepsWeek: Double = 0
@@ -112,7 +113,8 @@ class HealthKitManager: ObservableObject {
             sleepType,
             activeEnergyType,
             exerciseTimeType,
-            standTimeType
+            standTimeType,
+            HKSeriesType.workoutRoute()
         ]
         try? await healthStore.requestAuthorization(toShare: [], read: toRead)
     }

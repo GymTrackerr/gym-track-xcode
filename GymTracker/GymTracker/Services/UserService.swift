@@ -61,7 +61,7 @@ class UserService: ServiceBase, ObservableObject {
             if let first = accounts.first {
                 currentUser = first
                 accountCreated = true
-                accountCreated = false
+                onBoarding = false
             } else {
                 currentUser = nil
                 accountCreated = false

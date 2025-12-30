@@ -29,7 +29,7 @@ class ServiceBase {
         self.apiHelper = apiHelper
         self.exerciseApi = ExerciseApi(apiHelper: apiHelper)
         
-        loadFeature()
+//        loadFeature()
     }
     
     // guard currentUser != nil else { return }

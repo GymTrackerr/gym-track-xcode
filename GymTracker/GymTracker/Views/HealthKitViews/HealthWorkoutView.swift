@@ -28,7 +28,7 @@ struct HealthWorkoutView: View {
             }
         }
     }
-
+    
     var filteredWorkouts: [HealthKitWorkout] {
         switch selectedFilter {
         case .all:
@@ -70,6 +70,16 @@ struct HealthWorkoutView: View {
                         }
                     }
                     Spacer()
+                    NavigationLink {
+                        WorkoutRoutesMapView()
+                    } label: {
+                        Label("Map View", systemImage: "map")
+                    }
+//                    NavigationLink {
+//                        WorkoutRoutesMapView
+//                    }, label: {
+//                        Text("")
+//                    }
                 }
                 .padding(.horizontal)
             }

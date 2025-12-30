@@ -37,6 +37,8 @@ struct GymTrackerApp: App {
 
         // Create — no currentUser passed
         let userService = UserService(context: context)
+        userService.loadFeature()
+        
         let timerService = TimerService(context: context)
         let exerciseService = ExerciseService(context: context)
         let splitDayService = SplitDayService(context: context)
