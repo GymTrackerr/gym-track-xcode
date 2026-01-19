@@ -104,11 +104,15 @@ struct OnBoardView: View {
             case 0:
                 OnBoardScreen0()
             case 1:
-                OnBoardScreen1()
+                OnBoardScreenPermissions()
+            case 2:
+                OnBoardScreenFinal()
             default:
                 EmptyView()
             }
+            Spacer()
         }
+        .appBackground()
     }
 }
 
@@ -117,7 +121,7 @@ struct OnBoardScreen0: View {
     @State var userName : String = ""
     
     var body: some View {
-        VStack {
+        VStack(alignment: .leading, spacing: 24) {
             Text("Welcome to GymTracker")
                 .font(Font.largeTitle)
                 .foregroundColor(.primary)
@@ -131,38 +135,116 @@ struct OnBoardScreen0: View {
                 .textFieldStyle(.roundedBorder)
                 .padding(.horizontal)
             
-            Button {
+//            Button {
+//                userService.addUser(text: userName)
+//                userName = ""
+//                userService.onBoardingScreen = 1
+//            } label: {
+//                Label("Submit", systemImage: "plus.circle")
+//                    .font(.title2)
+//                    .padding()
+//            }
+            Spacer()
+
+            Button("Next"){
                 userService.addUser(text: userName)
                 userName = ""
                 userService.onBoardingScreen = 1
-            } label: {
-                Label("Submit", systemImage: "plus.circle")
-                    .font(.title2)
-                    .padding()
+//            } label: {
+//                Label("Next", systemImage: "plus.circle")
+//                    .disabled(userName.trimmingCharacters(in: .whitespaces).isEmpty)
+
             }
             .disabled(userName.trimmingCharacters(in: .whitespaces).isEmpty)
+
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color.accentColor)
+            .foregroundStyle(.white)
+            .clipShape(Capsule())
+        }
+        .padding(24)
+    }
+}
+
+struct OnBoardScreenPermissions: View {
+    @EnvironmentObject var userService: UserService
+    @EnvironmentObject var hkManager: HealthKitManager
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Text("Allow Health access to power GymTracker features like:")
+                .font(.largeTitle)
+                .bold()
+
+            VStack(alignment: .leading, spacing: 20) {
+                row("scalemass.fill", "Auto-fill your current weight (if available)")
+                row("figure.walk", "Show weekly activity like steps and trends")
+                row("heart.fill", "Keep your training data alongside your health history")
+            }
+
+            Button("Allow Health Access") {
+                Task {
+                    await hkManager.requestAuthorization()
+                    
+                    userService.hkUserAllow(connected: hkManager.hkConnected, requested: hkManager.hkRequested)
+                }
+            }
+            .buttonStyle(.borderedProminent)
+
+            Text("We only request the data needed for these features. You can change access anytime in the Health app or Settings.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            Button("Next") {
+                userService.onBoardingScreen = 2
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color.accentColor)
+            .foregroundStyle(.white)
+            .clipShape(Capsule())
+        }
+        .padding(24)
+    }
+
+    private func row(_ icon: String, _ text: String) -> some View {
+        HStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.title2)
+
+            Text(text)
+                .font(.body)
         }
     }
 }
 
-struct OnBoardScreen1: View {
+struct OnBoardScreenFinal: View {
     @EnvironmentObject var userService: UserService
 
     var body: some View {
-        VStack {
+        VStack(alignment: .leading, spacing: 24) {
             Text("Welcome, \(userService.currentUser?.name ?? "")")
                 .font(Font.largeTitle)
                 .foregroundColor(.primary)
                 .padding()
-            Button {
-                userService.onBoardingScreen = 2
+            Text("You are ready to start using GymTracker")
+            Spacer()
+
+            
+            Button("Done") {
+                userService.onBoardingScreen = 3
                 userService.onBoarding = false
-            } label: {
-                Label("Proceed", systemImage: "plus.circle")
-                    .font(.title2)
-                    .padding()
             }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color.accentColor)
+            .foregroundStyle(.white)
+            .clipShape(Capsule())
         }
+//        .appBackground()
     }
 }
 

@@ -14,10 +14,10 @@ final class ExerciseSplitDay {
     var id: UUID = UUID()
     var order: Int
     
-    @Relationship(deleteRule: .nullify)
+    @Relationship(deleteRule: .cascade)
     var splitDay: SplitDay
     
-    @Relationship(deleteRule: .nullify)
+    @Relationship(deleteRule: .cascade)
     var exercise: Exercise
 
     var split_day_id: UUID { splitDay.id }

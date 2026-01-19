@@ -14,80 +14,85 @@ struct HomeView: View {
             if let _ = userService.currentUser {
                 if !navigateToSession { // hide home content when navigating
                     ScrollView {
-                        VStack {
-                            HStack(spacing: 16) {
-                                MetricCard(
-                                    title: "Current Weight",
-                                    value: String(hkManager.userWeight ?? 0.00),
-                                    icon: "lock.fill")
+                        if (userService.currentUser?.allowHealthAccess ?? false) {
+                            VStack {
+                                HStack(spacing: 16) {
+                                    MetricCard(
+                                        title: "Current Weight",
+                                        value: String(hkManager.userWeight ?? 0.00),
+                                        icon: "lock.fill")
+                                    
+                                    MetricCard(
+                                        title: "Weekly Steps",
+                                        value: String(hkManager.totalStepsWeek.rounded()),
+                                        icon: "figure.walk.motion")
+                                }
+                                .padding(.horizontal)
                                 
-                                MetricCard(
-                                    title: "Weekly Steps",
-                                    value: String(hkManager.totalStepsWeek.rounded()),
-                                    icon: "figure.walk.motion")
+                                if let previousSleepNight = hkManager.sleepData.first?.duration {
+                                    let sleepHours = previousSleepNight / 3600
+                                    HStack(spacing: 16) {
+                                        MetricCard(
+                                            title: "Sleep",
+                                            value: String(format: "%.1f", sleepHours)+" hrs",
+                                            icon: "bed.double",
+                                            alignment: .center
+                                        )
+                                    }
+                                    .padding(.horizontal)
+                                }
+                                
+                                if let ars = hkManager.activityRingStatus {
+                                    HStack(spacing: 16) {
+                                        MetricActivityRingCard(
+                                            title: "Activity Rings",
+                                            activityRings: ars,
+                                            alignment: .center
+                                        )
+                                    }
+                                    .padding(.horizontal)
+                                }
                             }
-                            .padding(.horizontal)
-                            
-                            if let previousSleepNight = hkManager.sleepData.first?.duration {
-                                let sleepHours = previousSleepNight / 3600
                                 HStack(spacing: 16) {
-                                    MetricCard(
-                                        title: "Sleep",
-                                        value: String(format: "%.1f", sleepHours)+" hrs",
-                                        icon: "bed.double",
-                                        alignment: .center
-                                    )
+                                    NavigationLink(destination: TimerView()
+                                        .appBackground()
+                                    ) {
+                                        MetricCard(
+                                            title: timerService.timer != nil ? "Timer" : "Start Timer",
+                                            value: timerService.timer != nil ? timerService.formatted : "--:--",
+                                            icon: "timer",
+                                            pageNav: true
+                                            //                                        alignment: .center
+                                        )
+                                    }
+                                    //                            }
+                                    //                            .padding(.horizontal)
+                                    //
+                                    //                            HStack(spacing: 16) {
+                                    if (userService.currentUser?.allowHealthAccess ?? false) {
+                                        
+                                        NavigationLink(destination:
+                                                        HealthWorkoutView()
+                                            .appBackground()
+                                        ) {
+                                            MetricCard(
+                                                title: "Fitness Workouts",
+                                                value: String(hkManager.workouts.count),
+                                                icon: "figure.strengthtraining.traditional",
+                                                pageNav: true
+                                                //                                        alignment: .center
+                                            )
+                                        }
+                                    }
                                 }
                                 .padding(.horizontal)
+                            if (userService.currentUser?.allowHealthAccess ?? false) {
+                                StepBarGraph()
+                                    .padding()
+                                    .glassEffect(in: .rect(cornerRadius: 16.0))
+                                    .padding(.horizontal)
                             }
                             
-                            if let ars = hkManager.activityRingStatus {
-                                HStack(spacing: 16) {
-                                    MetricActivityRingCard(
-                                        title: "Activity Rings",
-                                        activityRings: ars,
-                                        alignment: .center
-                                    )
-                                }
-                                .padding(.horizontal)
-                            }
-                            HStack(spacing: 16) {
-                                NavigationLink(destination:
-                                    TimerView()
-                                    .appBackground()
-                                ) {
-                                    MetricCard(
-                                        title: timerService.timer != nil ? "Timer" : "Start Timer",
-                                        value: timerService.timer != nil ? timerService.formatted : "--:--",
-                                        icon: "timer",
-                                        pageNav: true
-//                                        alignment: .center
-                                    )
-                                }
-//                            }
-//                            .padding(.horizontal)
-//                            
-//                            HStack(spacing: 16) {
-                                NavigationLink(destination:
-                                    HealthWorkoutView()
-                                    .appBackground()
-                                ) {
-                                    MetricCard(
-                                        title: "Fitness Workouts",
-                                        value: String(hkManager.workouts.count),
-                                        icon: "figure.strengthtraining.traditional",
-                                        pageNav: true
-//                                        alignment: .center
-                                    )
-                                }
-                            }
-                            .padding(.horizontal)
-                            
-                            StepBarGraph()
-                                .padding()
-                                .glassEffect(in: .rect(cornerRadius: 16.0))
-                                .padding(.horizontal)
- 
                              VStack {
                                 SessionsView(openedSession: $openedSession)
                                     .onChange(of: openedSession) {
@@ -104,7 +109,7 @@ struct HomeView: View {
             }
         }
         .task {
-            await hkManager.requestAuthorization()
+//            await hkManager.requestAuthorization()
             await hkManager.fetchWeeklySteps()
             await hkManager.fetchUserWeight()
             await hkManager.fetchWorkouts()
@@ -132,6 +137,7 @@ struct HomeView: View {
         }
     }
 }
+
 
 #Preview {
     NavigationStack {

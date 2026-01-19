@@ -15,6 +15,7 @@ final class User {
     var timestamp: Date
     var lastLogin: Date
     var active: Bool = true
+    var allowHealthAccess: Bool = false
     
     var defaultTimer: Int = 90
     

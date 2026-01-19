@@ -22,7 +22,7 @@ struct SingleExerciseView: View {
                     }
                     Text("Exercise: \(exercise.name)")
                     Text("Alises: \(exercise.aliases?.joined(separator: ", ") ?? "")")
-                    Text("Muscle Groups: \(exercise.muscle_groups?.joined(separator: ", ") ?? "")")
+                    Text("Muscle Groups: \(exercise.primary_muscles?.joined(separator: ", ") ?? "")")
                     Text("Date: \(exercise.timestamp.formatted(date: .numeric, time: .omitted))")
                     Text("Exercise Type: \(exercise.exerciseType.name)")
                 }

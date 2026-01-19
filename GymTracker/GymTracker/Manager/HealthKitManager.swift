@@ -15,6 +15,7 @@
 import Foundation
 import HealthKit
 import Combine
+import SwiftUI
 
 // Model for workouts from HealthKit
 struct HealthKitWorkout: Identifiable {
@@ -105,20 +106,42 @@ class HealthKitManager: ObservableObject {
     private let exerciseTimeType = HKQuantityType.quantityType(forIdentifier: .appleExerciseTime)!
     private let standTimeType = HKQuantityType.quantityType(forIdentifier: .appleStandTime)!
 
+    
+    @AppStorage("hkRequested") var hkRequested: Bool = false
+    @Published var hkConnected: Bool = false
+
     func requestAuthorization() async {
-        let toRead: Set = [
-            stepsType,
-            weightType,
-            HKObjectType.workoutType(),
-            sleepType,
-            activeEnergyType,
-            exerciseTimeType,
-            standTimeType,
-            HKSeriesType.workoutRoute()
-        ]
-        try? await healthStore.requestAuthorization(toShare: [], read: toRead)
+//        func requestAuthorization() async {
+        let toRead: Set = [ stepsType, weightType, HKObjectType.workoutType(), sleepType, activeEnergyType, exerciseTimeType, standTimeType, HKSeriesType.workoutRoute() ]
+//            try? await healthStore./*requestAuthorization*/(toShare: [], read: toRead) }
+
+        do {
+            try await healthStore.requestAuthorization(toShare: [], read: toRead)
+            hkRequested = true
+            await refreshConnectionState()
+        } catch {
+            hkRequested = false
+            hkConnected = false
+        }
     }
 
+    func refreshConnectionState() async {
+        // simplest: try reading step count for last 1 day
+        let stepsType = HKQuantityType.quantityType(forIdentifier: .stepCount)!
+        let now = Date()
+        let start = Calendar.current.date(byAdding: .day, value: -1, to: now)!
+        let pred = HKQuery.predicateForSamples(withStart: start, end: now)
+
+        let ok = await withCheckedContinuation { cont in
+            let q = HKSampleQuery(sampleType: stepsType, predicate: pred, limit: 1, sortDescriptors: nil) { _, _, error in
+                cont.resume(returning: error == nil)
+            }
+            healthStore.execute(q)
+        }
+
+        hkConnected = ok
+    }
+    
     func fetchWeeklySteps() async {
         let calendar = Calendar.current
         let now = Date()

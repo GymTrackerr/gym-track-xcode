@@ -91,8 +91,9 @@ class SessionService : ServiceBase, ObservableObject {
     func addSession() -> Session? {
         print("Adding")
         let trimmedNotes = create_notes.trimmingCharacters(in: .whitespaces)
+        guard let userId = currentUser?.id else { return nil }
         
-        let newItem = Session(timestamp: Date(), splitDay: selected_splitDay, notes: trimmedNotes)
+        let newItem = Session(timestamp: Date(), user_id: userId, splitDay: selected_splitDay, notes: trimmedNotes)
         var failed = false
         
         withAnimation {

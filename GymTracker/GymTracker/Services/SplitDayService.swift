@@ -42,8 +42,9 @@ class SplitDayService : ServiceBase, ObservableObject {
     func addSplitDay() -> SplitDay? {
         let trimmedName = editingContent.trimmingCharacters(in: .whitespaces)
         guard !trimmedName.isEmpty else { return nil }
+        guard let userId = currentUser?.id else { return nil }
         
-        let newItem = SplitDay(order: splitDays.count, name: trimmedName)
+        let newItem = SplitDay(order: splitDays.count, name: trimmedName, user_id: userId)
         var failedAdd = false
         withAnimation {
 //            let newItem = SplitDay(order: splitDays.count, name: trimmedName)

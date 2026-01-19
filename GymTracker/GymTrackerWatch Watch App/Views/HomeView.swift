@@ -80,7 +80,7 @@ struct HomeView: View {
             }
         }
         .task {
-            await hkManager.requestAuthorization()
+//            await hkManager.requestAuthorization()
             await hkManager.fetchWeeklySteps()
             await hkManager.fetchUserWeight()
         }

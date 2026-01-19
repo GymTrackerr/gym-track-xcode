@@ -82,7 +82,7 @@ class ExerciseService : ServiceBase, ObservableObject {
                     try? self.modelContext.save()
                 }
                 
-                print("📦 Cached all non-user exercise thumbnails and GIFs.")
+                print("Cached all non-user exercise thumbnails and GIFs.")
             }
             print("Loaded \(data.count) exercises from API (\(inserted) new)")
         } catch {
@@ -100,8 +100,9 @@ class ExerciseService : ServiceBase, ObservableObject {
         print("Adding")
         let trimmedName = editingContent.trimmingCharacters(in: .whitespaces)
         guard !trimmedName.isEmpty else { return nil }
+        guard let userId = currentUser?.id else { return nil }
         
-        let newItem = Exercise(name: trimmedName, type: selectedExerciseType)
+        let newItem = Exercise(name: trimmedName, type: selectedExerciseType, user_id: userId)
         var failed = false
         
         withAnimation {

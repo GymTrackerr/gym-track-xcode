@@ -15,8 +15,7 @@ final class Exercise {
     var name: String
     var aliases: [String]? = []
     var type: Int = ExerciseType.weight.id
-    
-    var muscle_groups: [String]? = [] // old
+    var user_id: UUID
     
     var primary_muscles: [String]? = []
     var secondary_muscles: [String]? = []
@@ -33,16 +32,17 @@ final class Exercise {
     @Relationship(deleteRule: .cascade, inverse: \ExerciseSplitDay.exercise)
     var splits: [ExerciseSplitDay] = []
 
-    @Relationship(deleteRule: .cascade, inverse: \SessionExercise.exercise)
+    @Relationship(deleteRule: .nullify, inverse: \SessionExercise.exercise)
     var sessionExercises: [SessionExercise] = []
 
     var exerciseType: ExerciseType {
         ExerciseType(rawValue: type) ?? ExerciseType.weight
     }
 
-    init(name:String, type: ExerciseType=ExerciseType.weight, isUserCreated: Bool = true) {
+    init(name:String, type: ExerciseType=ExerciseType.weight, user_id: UUID, isUserCreated: Bool = true) {
         self.name = name
         self.type = type.rawValue
+        self.user_id = user_id
         self.timestamp = Date()
         self.isUserCreated = isUserCreated
     }
@@ -50,9 +50,9 @@ final class Exercise {
     init(from api: ExerciseDTO) {
         self.npId = api.id
         self.isUserCreated = false
+        self.user_id = UUID() // API exercises get a new UUID, will be associated with user creating them
 
         self.name = api.name
-        self.muscle_groups = api.primaryMuscles + api.secondaryMuscles
         self.primary_muscles = api.primaryMuscles
         self.secondary_muscles = api.secondaryMuscles
         self.equipment = api.equipment

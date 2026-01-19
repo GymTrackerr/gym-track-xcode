@@ -11,6 +11,7 @@ import SwiftData
 @Model
 final class Session {
     var id: UUID = UUID()
+    var user_id: UUID
     var timestamp: Date
     var timestampDone: Date = Date() // temporary just saving as 
     var notes: String = ""
@@ -22,8 +23,9 @@ final class Session {
     @Relationship(deleteRule: .cascade, inverse: \SessionExercise.session)
     var sessionExercises: [SessionExercise] = []
 
-    init (timestamp: Date, splitDay: SplitDay?, notes: String) {
+    init (timestamp: Date, user_id: UUID, splitDay: SplitDay?, notes: String) {
         self.timestamp = timestamp
+        self.user_id = user_id
         self.notes = notes
         self.splitDay = splitDay
         self.timestampDone = timestamp

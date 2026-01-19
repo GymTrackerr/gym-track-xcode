@@ -44,7 +44,7 @@ class UserService: ServiceBase, ObservableObject {
         loadAccounts() // your existing function
     }
 
-    func loadAccounts() {
+    func loadAccounts(firstLoad: Bool = false) {
         print("loadingaccounts")
         let descriptor = FetchDescriptor<User>(sortBy: [SortDescriptor(\.lastLogin)])
 
@@ -61,7 +61,9 @@ class UserService: ServiceBase, ObservableObject {
             if let first = accounts.first {
                 currentUser = first
                 accountCreated = true
-                onBoarding = false
+                if (firstLoad==false) {
+                    onBoarding = false
+                }
             } else {
                 currentUser = nil
                 accountCreated = false
@@ -71,6 +73,10 @@ class UserService: ServiceBase, ObservableObject {
         } catch {
             print("not create")
             accounts = []
+            currentUser = nil
+            accountCreated = false
+            onBoarding = true
+
         }
         print("??")
     }
@@ -88,6 +94,7 @@ class UserService: ServiceBase, ObservableObject {
         }
     }
     
+     
     func addUser(text: String) {
         print("ccreating \(text)")
         let trimmedName = text.trimmingCharacters(in: .whitespaces)
@@ -105,10 +112,17 @@ class UserService: ServiceBase, ObservableObject {
                 try modelContext.save()
                 currentUser = newItem
                 accountCreated = true
-                loadAccounts()
+                loadAccounts(firstLoad: true)
             } catch {
                 print("Failed to save new split day: \(error)")
             }
+        }
+    }
+    
+    func hkUserAllow(connected: Bool, requested: Bool) {
+        withAnimation {
+            currentUser?.allowHealthAccess = connected && requested
+            try? modelContext.save()
         }
     }
 }

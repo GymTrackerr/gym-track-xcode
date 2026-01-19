@@ -11,6 +11,7 @@ import SwiftData
 @Model
 final class SplitDay {
     var id: UUID = UUID()
+    var user_id: UUID
     var order: Int
     var name: String
     var timestamp: Date
@@ -21,9 +22,10 @@ final class SplitDay {
     @Relationship(deleteRule: .cascade, inverse: \Session.splitDay)
     var sessions: [Session] = []
     
-    init(order: Int, name: String) {
+    init(order: Int, name: String, user_id: UUID) {
         self.order = order
         self.name = name
+        self.user_id = user_id
         self.timestamp = Date()
     }
 }

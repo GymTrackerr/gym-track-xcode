@@ -12,7 +12,6 @@ struct SettingsView: View {
 
     var body: some View {
         VStack {
-
             List {
                 HStack {
                     Text("GymTracker Settings")
@@ -25,6 +24,7 @@ struct SettingsView: View {
                 } label: {
                     Text("Delete Account")
                 }
+                
                 
                 NavigationLink {
                     AboutView()
