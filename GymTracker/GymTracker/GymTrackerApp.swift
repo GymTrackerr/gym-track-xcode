@@ -13,6 +13,7 @@ struct GymTrackerApp: App {
     var sharedModelContainer: ModelContainer = SharedModelConfig.createSharedModelContainer()
 
     @StateObject var userService: UserService
+    @StateObject var dashboardService: DashboardService
     @StateObject var timerService: TimerService
     @StateObject var exerciseService: ExerciseService
     @StateObject var splitDayService: SplitDayService
@@ -39,6 +40,7 @@ struct GymTrackerApp: App {
         let userService = UserService(context: context)
         userService.loadFeature()
         
+        let dashboardService = DashboardService(context: context)
         let timerService = TimerService(context: context)
         let exerciseService = ExerciseService(context: context)
         let splitDayService = SplitDayService(context: context)
@@ -48,6 +50,7 @@ struct GymTrackerApp: App {
         let sessionExerciseService = SessionExerciseService(context: context)
 
         // Bind AFTER creation
+        dashboardService.bind(to: userService)
         timerService.bind(to: userService)
         exerciseService.bind(to: userService)
         splitDayService.bind(to: userService)
@@ -56,6 +59,7 @@ struct GymTrackerApp: App {
         exerciseSplitDayService.bind(to: userService)
         sessionExerciseService.bind(to: userService)
 
+        self._dashboardService = StateObject(wrappedValue: dashboardService)
         self._userService = StateObject(wrappedValue: userService)
         self._timerService = StateObject(wrappedValue: timerService)
         self._exerciseService = StateObject(wrappedValue: exerciseService)
@@ -80,6 +84,7 @@ struct GymTrackerApp: App {
                 .environmentObject(healthKitManager)
                 .environmentObject(watchSessionManager)
                 .environmentObject(userService)
+                .environmentObject(dashboardService)
                 .environmentObject(splitDayService)
                 .environmentObject(exerciseService)
                 .environmentObject(exerciseSplitDayService)

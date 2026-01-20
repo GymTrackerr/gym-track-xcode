@@ -108,7 +108,7 @@ struct TimerView: View {
         }
     }
     
-    // MARK: Circle progress
+    // Circle progress
     private var progress: CGFloat {
         if timerService.timer == nil {
             // Show pending length as progress (0 to 1)

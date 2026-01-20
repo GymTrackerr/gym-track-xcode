@@ -38,7 +38,7 @@ struct SessionsView: View {
 //                )
                 .glassEffect(in: .rect(cornerRadius: 16.0))
 
-                .padding()
+//                .padding()
             }
 
             
@@ -93,7 +93,7 @@ struct SessionsView: View {
 //                            .fill(Color(.systemBackground))
 //                            .shadow(color: .gray.opacity(0.2), radius: 4, y: 2)
 //                    )
-                    .padding(.horizontal)
+//                    .padding(.horizontal)
                     
                 }
             }

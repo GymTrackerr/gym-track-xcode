@@ -14,12 +14,10 @@ struct MetricCard: View {
     let icon: String
     @State var alignment: HorizontalAlignment = .leading
     @State var pageNav: Bool = false
+    @State var hasBackground: Bool = true
 
     var body: some View {
         VStack(alignment: alignment, spacing: 8) {
-            Label(title, systemImage: icon)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
             HStack {
                 Text(String(value))
                     .font(.title3)
@@ -33,7 +31,9 @@ struct MetricCard: View {
         }
         .padding()
         .frame(maxWidth: .infinity)
-        .glassEffect(in: .rect(cornerRadius: 16.0))
+//        .if(hasBackground) { view in
+//            view.glassEffect(in: .rect(cornerRadius: 16.0))
+//        }
 //        .background(
 //            RoundedRectangle(cornerRadius: 16)
 //                .fill(Color(.systemBackground))
@@ -47,14 +47,10 @@ struct MetricActivityRingCard: View {
     let title: String
     let activityRings: ActivityRingStatus
     @State var alignment: HorizontalAlignment = .leading
+    @State var hasBackground: Bool = true
     
     var body: some View {
-        VStack(alignment: alignment, spacing: 12) {
-            Label(title, systemImage: "gauge.with.needle")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-
-            
+        VStack(alignment: alignment, spacing: 12) {            
             HStack(spacing: 20) {
                 if (alignment == .center) {
                     Spacer()
@@ -149,9 +145,9 @@ struct MetricActivityRingCard: View {
                 Spacer()
             }
         }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(in: .rect(cornerRadius: 16.0))
+
+        .padding(8)
+        .frame(maxWidth: .infinity)
     }    
 }
 

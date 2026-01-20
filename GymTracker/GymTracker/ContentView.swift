@@ -244,6 +244,8 @@ struct OnBoardScreenFinal: View {
             .foregroundStyle(.white)
             .clipShape(Capsule())
         }
+        .padding(24)
+
 //        .appBackground()
     }
 }
