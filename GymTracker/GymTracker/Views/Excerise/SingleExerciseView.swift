@@ -189,7 +189,7 @@ struct SingleExerciseLabelView: View {
                         Text(exercise.name)
                         HStack {
                             if (orderInSplit != nil) {
-                                Text("Order \(orderInSplit ?? 0)")
+                                Text("Order \((orderInSplit ?? 0)+1)")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                 Spacer()
@@ -208,11 +208,11 @@ struct SingleExerciseLabelView: View {
         }
 
 
-        .padding(12)
+        .padding(8)
 //        .background/*(*/Color.gray.opacity(0.1))
         .cornerRadius(12)
-        .padding(.vertical, 4)
-        .padding(.horizontal, 8)
+//        .padding(.vertical, 4)
+//        .padding(.horizontal, 8)
     }
 }
 
@@ -236,15 +236,22 @@ struct DetailedExerciseLabelView: View {
 
             }
              
-//            .clipShape(RoundedRectangle(cornerRadius: 4))
-//            .padding(.trailing, 8) // Add space between the image and text
-//            VStack {
-//                
-//            }
-            Text(exercise.name)
-            
+
+            VStack {
+                HStack {
+                    Text(exercise.name)
+                    Spacer()
+                }
+                if let orderInSplit = orderInSplit {
+                    HStack {
+                        Text("Order \((orderInSplit)+1)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                }
+            }
         }
-        
     }
 }
 

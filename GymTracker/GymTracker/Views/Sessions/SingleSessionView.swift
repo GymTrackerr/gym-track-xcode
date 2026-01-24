@@ -22,22 +22,39 @@ struct SingleSessionView: View {
 
     var body: some View {
         VStack {
-            VStack(alignment: .leading) {
+            VStack(alignment: .leading, spacing: 8) {
                 if (editMode?.wrappedValue == .inactive){
-                    VStack {
-                        if let splitDay = session.splitDay {
-                            Text("SplitDay: \(splitDay.name)")
-                        } else {
-                            Text("No Split Day")
+                    VStack(alignment: .leading, spacing: 4) {
+                        // Day header
+                        HStack {
+                            if let splitDay = session.splitDay {
+                                Text("Program Day: " + splitDay.name)
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                            } else {
+                                Text("Day #1")
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                            }
+                            Spacer()
                         }
+                        
+                        // Date and time
+                        HStack {
+                            Text(session.timestamp.formatted(date: .long, time: .shortened))
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                        }
+                        
+                        // Notes if present
                         if (session.notes != "") {
-                            Text("Notes: \(session.notes)")
-                        }
-                        
-                        
-                        Text("Date: \(session.timestamp.formatted(date: .numeric, time: .standard))")
-                        if session.timestamp != session.timestampDone {
-                            Text("Until: \(session.timestampDone.formatted(Date.FormatStyle(date: .numeric, time: .standard)))")
+                            HStack {
+                                Text("Notes: \(session.notes)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                            }
                         }
                     }
 
@@ -151,16 +168,35 @@ struct SingleSessionView: View {
                     NavigationLink {
                         SessionExerciseView(sessionExercise: sessionExercise)
                     } label: {
-                        HStack {
+                        HStack(spacing: 12) {
                             if (sessionExercise.isCompleted) {
                                 Image(systemName: "checkmark.arrow.trianglehead.counterclockwise")
+                                    .foregroundColor(.green)
                             } else {
                                 Image(systemName: "square.and.pencil")
+                                    .foregroundColor(.gray)
                             }
+                            
                             SingleExerciseLabelView(exercise: sessionExercise.exercise, orderInSplit: sessionExercise.order)
                                 .id(sessionExercise.order)
+                            
+                            Spacer()
+//                            
+//                            Image(systemName: "chevron.right")
+//                                .foregroundColor(.gray)
                         }
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 8)
                     }
+                    .listRowInsets(EdgeInsets(top: 6, leading: 4, bottom: 6, trailing: 16))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.gray.opacity(0.1))
+                            .padding(.vertical, 4)
+                            .padding(.horizontal, 4)
+                    )
+
                     .swipeActions(edge: (editMode?.wrappedValue == .inactive) ? .leading : .trailing, allowsFullSwipe: (editMode?.wrappedValue == .inactive)) {
                         Button {
                             seService.toggleCompletion(sessionExercise: sessionExercise)
@@ -185,8 +221,11 @@ struct SingleSessionView: View {
                 .onDelete(perform: removeExercise)
                 .onMove(perform: moveExercise)
             }
+            .listStyle(.plain)
         }
+        
         .navigationTitle("Session \(session.timestamp.formatted(date: .numeric, time: .omitted))")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
         #if os(iOS)
             ToolbarItem(placement: .navigationBarTrailing) {

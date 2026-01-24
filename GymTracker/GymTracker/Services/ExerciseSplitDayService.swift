@@ -101,8 +101,10 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
     
     func removeExercise(splitDay:SplitDay, exercise: Exercise) {
         withAnimation {
-            let esd = splitDay.exerciseSplits.first(where: { $0.exercise == exercise })!
-            modelContext.delete(esd)
+            let esd = splitDay.exerciseSplits.first(where: { $0.exercise == exercise })
+            if let esd = esd {
+                modelContext.delete(esd)
+            }
             try? modelContext.save()
         }
     }

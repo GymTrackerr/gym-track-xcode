@@ -40,7 +40,7 @@ struct ContentView: View {
             }
             
             
-            Tab("Splits", systemImage: "figure.walk.motion", value: 2) {
+            Tab("Program", systemImage: "figure.walk.motion", value: 2) {
                 NavigationStack {
                     SplitDaysView()
                 }

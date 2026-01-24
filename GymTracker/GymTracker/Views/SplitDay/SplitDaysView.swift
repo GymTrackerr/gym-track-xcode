@@ -12,15 +12,6 @@ struct SplitDaysView: View {
     @State private var isAdding: Bool = false
     
     var body: some View {
-        HStack {
-            Button("Clear Splits") {
-                splitDayService.clearSplitDays()
-            }
-            Button("Print Splits") {
-                splitDayService.printSplitDays()
-            }
-        }
-
         List {
             ForEach(splitDayService.splitDays,  id: \.id) { splitDay in
                 NavigationLink {
@@ -32,7 +23,7 @@ struct SplitDaysView: View {
             .onDelete(perform: splitDayService.removeSplitDay)
             .onMove(perform: splitDayService.moveSplitDay)
         }
-        .navigationTitle("Split Days")
+        .navigationTitle("Program")
         .toolbar {
 #if os(iOS)
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -43,14 +34,14 @@ struct SplitDaysView: View {
                 Button {
                     splitDayService.editingSplit = true
                 } label: {
-                    Label("Add Split Day", systemImage: "plus.circle")
+                    Label("Add Day", systemImage: "plus.circle")
                 }
             }
         }
         .sheet(isPresented: $splitDayService.editingSplit) {
             NavigationView {
                 VStack(spacing: 16) {
-                    Text("Name your new split day")
+                    Text("Name your new day")
                         .font(.headline)
                     
                     TextField("Name", text: $splitDayService.editingContent)
@@ -69,7 +60,7 @@ struct SplitDaysView: View {
                     Spacer()
                 }
                 .padding()
-                .navigationTitle("Create New Split Day")
+                .navigationTitle("Create New Day")
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") {

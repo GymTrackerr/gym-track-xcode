@@ -96,6 +96,43 @@ class ExerciseService : ServiceBase, ObservableObject {
         return exercises.filter { $0.name.localizedCaseInsensitiveContains(query) }
     }
     
+    func getUniquePrimaryMuscles() -> [String] {
+        var muscles = Set<String>()
+        for exercise in exercises {
+            if let primaryMuscles = exercise.primary_muscles {
+                for muscle in primaryMuscles {
+                    muscles.insert(muscle)
+                }
+            }
+        }
+        return Array(muscles).sorted()
+    }
+    
+    func getUniquePrimaryMuscles(searchQuery: String) -> [String] {
+        var muscles = Set<String>()
+        let filtered = exercises.filter { exercise in
+            guard !searchQuery.isEmpty else { return true }
+            return exercise.name.localizedCaseInsensitiveContains(searchQuery)
+        }
+        
+        for exercise in filtered {
+            if let primaryMuscles = exercise.primary_muscles {
+                for muscle in primaryMuscles {
+                    muscles.insert(muscle)
+                }
+            }
+        }
+        return Array(muscles).sorted()
+    }
+    
+    func filterByMuscle(_ muscle: String) -> [Exercise] {
+        guard !muscle.isEmpty else { return exercises }
+        return exercises.filter { exercise in
+            guard let primaryMuscles = exercise.primary_muscles else { return false }
+            return primaryMuscles.contains(where: { $0.lowercased() == muscle.lowercased() })
+        }
+    }
+    
     func addExercise() -> Exercise? {
         print("Adding")
         let trimmedName = editingContent.trimmingCharacters(in: .whitespaces)

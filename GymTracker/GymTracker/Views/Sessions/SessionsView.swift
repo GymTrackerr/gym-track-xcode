@@ -9,9 +9,14 @@ import SwiftUI
 
 // TODO: completion of sessions - similar to completion of sessionexercises
 struct SessionsView: View {
+    
     @EnvironmentObject var sessionService: SessionService
     @EnvironmentObject var splitDayService: SplitDayService
     @Binding var openedSession: Session?
+    
+    @Namespace private var transition
+//    @State private var newSession = false
+
 //    @State private var isEditing = false
 
     var body: some View {
@@ -54,6 +59,7 @@ struct SessionsView: View {
                 ForEach(sessionService.sessions.reversed(), id: \.self) { session in
                     NavigationLink {
                         SingleSessionView(session: session)
+                            .appBackground()
                     } label: {
                         SingleSessionLabelView(session: session)
                             .foregroundColor(.primary)
@@ -105,61 +111,31 @@ struct SessionsView: View {
 //            }
 //#endif
 //        }
-        .sheet(isPresented: $sessionService.creating_session) {
-            NavigationView {
-                VStack(spacing: 16) {
-                    SessionSelectSplit()
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Notes")
-                            .font(.headline)
-                            .foregroundStyle(.primary)
-                        
-                        TextField("e.g., Feeling strong today, focus on form.", text: $sessionService.create_notes)
-                        
-                            .padding()
-                            .frame(maxWidth: .infinity)
-                            .background(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .fill(Color(.systemBackground))
-                                    .shadow(color: .gray.opacity(0.2), radius: 4, y: 2)
-                            )
-                            .padding()
-                    }
-
-                    Button {
-                        openedSession = sessionService.addSession()
-                    } label: {
-                        Text("Start Session")
-                            .font(.headline)
-                    }
-                    
-                    .buttonStyle(.plain)
-                    .padding()
-                    .frame(maxWidth: .infinity)
-                    .background(Color.blue)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(Color(.systemBackground))
-                            .shadow(color: .gray.opacity(0.2), radius: 4, y: 2)
-                    )
-                    .padding(.horizontal)
-                    .padding(.vertical, 2)
-                    Spacer()
-                }
-                .padding()
-                .navigationTitle("New Session")
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") {
-                            sessionService.creating_session = false
-                            sessionService.create_notes = ""
-                            sessionService.selected_splitDay = nil
-                        }
-                    }
+        .toolbar {
+            ToolbarSpacer(placement: .automatic)
+            ToolbarItem(placement: .automatic) {
+                Button("New", systemImage: "plus") {
+                    sessionService.creating_session = true
                 }
             }
+            .matchedTransitionSource(
+                id: "new", in: transition
+            )
+        }
+        .sheet(isPresented: $sessionService.creating_session) {
+            CreateSessionSheetView(
+                openedSession: $openedSession,
+                isPresented: $sessionService.creating_session
+            )
+            .presentationDetents([.medium, .large])
+//            .presentationDragIndicator(.visible)
+            .navigationTransition(
+                .zoom(sourceID: "info", in: transition)
+            )
+        }
+        .navigationDestination(item: $openedSession) { session in
+            SingleSessionView(session: session)
+                .appBackground()
         }
     }
 }
@@ -263,6 +239,136 @@ struct SessionSelectSplit : View {
             }
             
         }
+    }
+}
+
+struct CreateSessionSheetView: View {
+    @EnvironmentObject var sessionService: SessionService
+    @EnvironmentObject var splitDayService: SplitDayService
+    @Binding var openedSession: Session?
+    @Binding var isPresented: Bool
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            VStack(alignment: .leading, spacing: 12) {
+                Text("New Session")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+//
+                Text("Select a split and add notes to get started")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
+            
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 16) {
+                    // Split Day Selection
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Workout Split")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                            .padding(.horizontal, 16)
+                        
+                        VStack(spacing: 8) {
+                            ForEach(splitDayService.splitDays, id: \.id) { splitDay in
+                                Button {
+                                    if sessionService.selected_splitDay == splitDay {
+                                        sessionService.selected_splitDay = nil
+                                    } else {
+                                        sessionService.selected_splitDay = splitDay
+                                    }
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: sessionService.selected_splitDay == splitDay
+                                              ? "checkmark.circle.fill"
+                                              : "circle")
+                                        .font(.title3)
+                                        .foregroundStyle(sessionService.selected_splitDay == splitDay ? .green : .gray.opacity(0.5))
+                                        
+                                        Text(splitDay.name)
+                                            .font(.body)
+                                            .fontWeight(.medium)
+                                            .foregroundColor(.primary)
+                                        
+                                        Spacer()
+                                    }
+                                    .padding(12)
+                                    .frame(maxWidth: .infinity)
+                                    .glassEffect(in: .rect(cornerRadius: 12.0))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                    }
+                    
+                    // Notes Section
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Notes")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                            .padding(.horizontal, 16)
+                        
+                        TextField("e.g., Feeling strong today, focus on form.", text: $sessionService.create_notes)
+                            .padding(12)
+                            .font(.body)
+                            .frame(height: 80, alignment: .topLeading)
+                            .glassEffect(in: .rect(cornerRadius: 12.0))
+                            .padding(.horizontal, 16)
+                    }
+                }
+                .padding(.vertical, 8)
+            }
+            
+            Spacer()
+            
+            // Start Session Button
+            VStack(spacing: 10) {
+                Button {
+                    openedSession = sessionService.addSession()
+                    isPresented = false
+                } label: {
+                    HStack {
+                        Image(systemName: "play.fill")
+                        Text("Start Session")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(14)
+                    .background(Color.blue)
+                    .cornerRadius(12)
+                }
+                .buttonStyle(.plain)
+                
+                Button {
+                    isPresented = false
+                    sessionService.create_notes = ""
+                    sessionService.selected_splitDay = nil
+                } label: {
+                    Text("Cancel")
+                        .font(.body)
+                        .fontWeight(.medium)
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(12)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(16)
+//        .navigationTitle("New Session")
+
+        }
+
+//        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+//        .glassEffect(in: .rect(cornerRadi´us: 20.0))
     }
 }
 
