@@ -111,9 +111,13 @@ struct SessionsView: View {
 //            }
 //#endif
 //        }
+        // https://nilcoalescing.com/blog/PresentingLiquidGlassSheetsInSwiftUI/
+        // https://nilcoalescing.com/blog/SwiftUISearchEnhancementsIniOSAndiPadOS26/
+
         .toolbar {
-            ToolbarSpacer(placement: .automatic)
-            ToolbarItem(placement: .automatic) {
+            DefaultToolbarItem(kind: .search, placement: .bottomBar)
+            ToolbarSpacer(.flexible, placement: .bottomBar)
+            ToolbarItem(placement: .bottomBar) {
                 Button("New", systemImage: "plus") {
                     sessionService.creating_session = true
                 }

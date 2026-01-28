@@ -292,7 +292,25 @@ struct DashboardModuleContent: View {
             TimerModuleView()
         case .fitnessWorkouts:
             FitnessWorkoutsModuleView()
+        case .fitsight:
+            FitSightModuleView(module: module)
         }
+    }
+}
+
+struct FitSightModuleView: View {
+    let module: DashboardModule
+    
+    var body: some View {
+        NavigationLink(destination: FitSightView().appBackground()) {
+            MetricCard(
+                title: module.type.displayName,
+                value: "View",
+                icon: module.type.iconName,
+                hasBackground: false
+            )
+        }
+       
     }
 }
 

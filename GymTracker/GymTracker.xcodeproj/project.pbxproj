@@ -558,6 +558,7 @@
 				INFOPLIST_FILE = GymTracker/Info.plist;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Importing previous workouts, and building graphs for daily steps and weight.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Workout Sessions created in GymTracker can be imported to the health app.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "We need access to save processed videos to show performance.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
@@ -619,6 +620,7 @@
 				INFOPLIST_FILE = GymTracker/Info.plist;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Importing previous workouts, and building graphs for daily steps and weight.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Workout Sessions created in GymTracker can be imported to the health app.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "We need access to save processed videos to show performance.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;

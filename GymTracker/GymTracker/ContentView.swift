@@ -45,14 +45,17 @@ struct ContentView: View {
                     SplitDaysView()
                 }
             }
-            
-            Tab("Search", systemImage: "magnifyingglass", value: 3, role: .search) {
-                NavigationStack {
-                    SearchView(query: $query)
-                        .searchable(text: $query)
-
+            /*
+            if (localSelected == 1) {
+                Tab("Search", systemImage: "magnifyingglass", value: 3, role: .search) {
+                    NavigationStack {
+                        SearchView(query: $query)
+                            .searchable(text: $query)
+                        
+                    }
                 }
             }
+             */
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
             timerService.appDidEnterBackground()
