@@ -1,5 +1,5 @@
 //
-//  SplitDayService.swift
+//  RoutineService.swift
 //  GymTracker
 //
 //  Created by Daniel Kravec on 2025-10-01.
@@ -10,8 +10,8 @@ import SwiftData
 import Combine
 internal import CoreData
 
-class SplitDayService : ServiceBase, ObservableObject {
-    @Published var splitDays: [SplitDay] = []
+class RoutineService : ServiceBase, ObservableObject {
+    @Published var routines: [Routine] = []
 
     @Published var editingContent: String = ""
     @Published var editingSplit: Bool = false
@@ -23,31 +23,32 @@ class SplitDayService : ServiceBase, ObservableObject {
     }
     
     func loadSplitDays() {
-        let descriptor = FetchDescriptor<SplitDay>(sortBy: [SortDescriptor(\.order)])
+        let descriptor = FetchDescriptor<Routine>(sortBy: [SortDescriptor(\.order)])
 
         do {
-            splitDays = try modelContext.fetch(descriptor)
+            routines = try modelContext.fetch(descriptor)
         } catch {
-            splitDays = []
+            routines = []
         }
     }
     
-    func search(query: String) -> [SplitDay] {
+    func search(query: String) -> [Routine] {
         print("searching split days \(query)")
 
-        guard !query.isEmpty else { return splitDays }
-        return splitDays.filter { $0.name.localizedCaseInsensitiveContains(query) }
+        guard !query.isEmpty else { return routines }
+        return routines.filter { $0.name.localizedCaseInsensitiveContains(query) }
     }
     
-    func addSplitDay() -> SplitDay? {
+    func addSplitDay() -> Routine? {
         let trimmedName = editingContent.trimmingCharacters(in: .whitespaces)
         guard !trimmedName.isEmpty else { return nil }
         guard let userId = currentUser?.id else { return nil }
         
-        let newItem = SplitDay(order: splitDays.count, name: trimmedName, user_id: userId)
+        let nextOrder = (routines.map { $0.order }.max() ?? -1) + 1
+        let newItem = Routine(order: nextOrder, name: trimmedName, user_id: userId)
         var failedAdd = false
         withAnimation {
-//            let newItem = SplitDay(order: splitDays.count, name: trimmedName)
+//            let newItem = Routine(order: routines.count, name: trimmedName)
             modelContext.insert(newItem)
             do {
                 try modelContext.save()
@@ -67,7 +68,7 @@ class SplitDayService : ServiceBase, ObservableObject {
     func removeSplitDay(offsets: IndexSet) {
         withAnimation {
             for index in offsets {
-                modelContext.delete(splitDays[index])
+                modelContext.delete(routines[index])
             }
             try? modelContext.save()
             loadSplitDays()
@@ -76,7 +77,7 @@ class SplitDayService : ServiceBase, ObservableObject {
     }
     
     func clearSplitDays() {
-        let descriptor = FetchDescriptor<SplitDay>()
+        let descriptor = FetchDescriptor<Routine>()
         if let items = try? modelContext.fetch(descriptor) {
             for item in items { modelContext.delete(item) }
             try? modelContext.save()
@@ -85,7 +86,7 @@ class SplitDayService : ServiceBase, ObservableObject {
     }
 
     func printSplitDays() {
-        let descriptor = FetchDescriptor<SplitDay>()
+        let descriptor = FetchDescriptor<Routine>()
         do {
             let items = try modelContext.fetch(descriptor)
             print("SplitDays count: \(items.count)")
@@ -99,13 +100,13 @@ class SplitDayService : ServiceBase, ObservableObject {
 
     func moveSplitDay(from source: IndexSet, to destination: Int) {
         withAnimation {
-            splitDays.move(fromOffsets: source, toOffset: destination)
+            routines.move(fromOffsets: source, toOffset: destination)
             renumberSplitDays()
         }
     }
     
     func renumberSplitDays() {
-        for (i, day) in splitDays.enumerated() {
+        for (i, day) in routines.enumerated() {
             day.order = i
         }
         try? modelContext.save()

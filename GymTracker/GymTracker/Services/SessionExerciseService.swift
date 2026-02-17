@@ -13,10 +13,10 @@ internal import CoreData
 class SessionExerciseService: ServiceBase, ObservableObject {
     @Published var addingExerciseSession: Bool = false
     @Published var addingExercises: [Exercise] = []
-    @Published var removingExercises: [SessionExercise] = []
+    @Published var removingExercises: [SessionEntry] = []
     
     func renumberExercises(session: Session) {
-        let exercises = session.sessionExercises.sorted { $0.order < $1.order }
+        let exercises = session.sessionEntries.sorted { $0.order < $1.order }
         
         for (i, exercise) in exercises.enumerated() {
             print("number \(i)")
@@ -26,20 +26,20 @@ class SessionExerciseService: ServiceBase, ObservableObject {
         try? modelContext.save()
     }
 
-    func toggleCompletion(sessionExercise: SessionExercise) {
+    func toggleCompletion(sessionEntry: SessionEntry) {
         withAnimation {
-            sessionExercise.isCompleted.toggle()
+            sessionEntry.isCompleted.toggle()
             try? modelContext.save()
         }
     }
     
     func amountAdded(session: Session, exercise: Exercise) -> Int {
         return (addingExercises.filter { $0.id == exercise.id }.count) +
-        (session.sessionExercises.filter { $0.exercise.id == exercise.id}.count)
+        (session.sessionEntries.filter { $0.exercise.id == exercise.id}.count)
         
     /*
         var count=0
-        for ex in session.sessionExercises where ex.exercise.id == exercise.id {
+        for ex in session.sessionEntries where ex.exercise.id == exercise.id {
             count += 1
         }
         return count*/
@@ -58,7 +58,7 @@ class SessionExerciseService: ServiceBase, ObservableObject {
     }
     
     func isInSession(session: Session, id: UUID) -> Bool {
-        return session.sessionExercises.contains(where: { $0.exercise.id == id })
+        return session.sessionEntries.contains(where: { $0.exercise.id == id })
     }
     
     func endEditing() {
@@ -74,8 +74,8 @@ class SessionExerciseService: ServiceBase, ObservableObject {
         }
         
         // removing exercises
-        for (_, sessionExercise) in removingExercises.enumerated() {
-            removeExercise(session: session, sessionExercise: sessionExercise)
+        for (_, sessionEntry) in removingExercises.enumerated() {
+            removeExercise(session: session, sessionEntry: sessionEntry)
         }
         
         endEditing()
@@ -93,22 +93,27 @@ class SessionExerciseService: ServiceBase, ObservableObject {
     
     func addExercise(session: Session, exercise: Exercise)  {
         // adds relations automatically
-        let newSessionExercise = SessionExercise(
-            order: (session.sessionExercises.last?.order ?? 0) + 1,
+        let newSessionEntry = SessionEntry(
+            order: session.sessionEntries.count,
             session: session,
             exercise: exercise
         )
         
-        modelContext.insert(newSessionExercise)
+        withAnimation {
+            modelContext.insert(newSessionEntry)
+            session.sessionEntries.append(newSessionEntry)
+            try? modelContext.save()
+        }
     }
     
-    func removeExercise(session: Session, sessionExercise: SessionExercise) {
-        print("session exercise \(sessionExercise.id)")
+    func removeExercise(session: Session, sessionEntry: SessionEntry) {
+        print("session exercise \(sessionEntry.id)")
         withAnimation {
-            if let esd = session.sessionExercises.first(where: { $0.id == sessionExercise.id }) {
+            if let esd = session.sessionEntries.first(where: { $0.id == sessionEntry.id }) {
                 // TODO: crashed here, EXC_BAD_ACESS
-                // this was     half solved by nullifying relationships in SessionExercise model
+                // this was     half solved by nullifying relationships in SessionEntry model
                 modelContext.delete(esd)
+                session.sessionEntries.removeAll { $0.id == esd.id }
                 try? modelContext.save()
                 self.renumberExercises(session: session)
                 self.loadFeature()
@@ -121,8 +126,12 @@ class SessionExerciseService: ServiceBase, ObservableObject {
         
         withAnimation {
             DispatchQueue.main.async {
+                let sortedEntries = session.sessionEntries.sorted { $0.order < $1.order }
                 for index in offsets {
-                    self.modelContext.delete(session.sessionExercises[index])
+                    guard sortedEntries.indices.contains(index) else { continue }
+                    let entry = sortedEntries[index]
+                    self.modelContext.delete(entry)
+                    session.sessionEntries.removeAll { $0.id == entry.id }
                 }
                 
                 try? self.modelContext.save()
@@ -132,7 +141,7 @@ class SessionExerciseService: ServiceBase, ObservableObject {
     }
     
     func moveExercise(session: Session, from source: IndexSet, to destination: Int) {
-        var exercises = session.sessionExercises.sorted { $0.order < $1.order }
+        var exercises = session.sessionEntries.sorted { $0.order < $1.order }
         
         exercises.move(fromOffsets: source, toOffset: destination)
         

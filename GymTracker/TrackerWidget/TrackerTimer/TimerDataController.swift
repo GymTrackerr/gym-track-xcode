@@ -10,13 +10,32 @@ import Foundation
 
 @MainActor
 struct TimerDataController {
+    private static let appGroupIdentifier = "group.net.novapro.GymTracker"
+
     static let container: ModelContainer = {
-        let c = SharedModelConfig.createSharedModelContainer()
-        return c
+        let schema = Schema([TrackerTimer.self])
+        let modelConfiguration = ModelConfiguration(
+            schema: schema,
+            url: containerURL()
+        )
+        
+        do {
+            let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            return container
+        } catch {
+            fatalError("Could not create shared ModelContainer: \(error)")
+        }
     }()
     
     static var context: ModelContext {
         container.mainContext
+    }
+
+    private static func containerURL() -> URL {
+        guard let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else {
+            fatalError("Could not get shared container URL for app group: \(appGroupIdentifier)")
+        }
+        return url.appendingPathComponent("gym_tracker.sqlite")
     }
     
     static func fetchTimer(byId id: String) -> TrackerTimer? {
@@ -29,7 +48,6 @@ struct TimerDataController {
                 predicate: #Predicate { $0.id == uuid }
             )
             let timers = try context.fetch(descriptor)
-            print("Fetched \(timers.count) timers with ID: \(id)")
             return timers.first
         } catch {
             print("Failed to fetch timer by ID: \(error)")

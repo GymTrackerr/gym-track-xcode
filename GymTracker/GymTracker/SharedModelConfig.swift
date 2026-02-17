@@ -16,10 +16,10 @@ struct SharedModelConfig {
             User.self,
             Exercise.self,
             Session.self,
-            SessionExercise.self,
+            SessionEntry.self,
             SessionSet.self,
             SessionRep.self,
-            SplitDay.self,
+            Routine.self,
             ExerciseSplitDay.self,
             TrackerTimer.self
         ])

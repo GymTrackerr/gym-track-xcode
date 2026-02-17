@@ -22,7 +22,7 @@ class SetService: ServiceBase, ObservableObject {
     //    @Published var ÷
     
     // dont load default
-    // sets are assessbilty through sessionexercise
+    // sets are assessbilty through session entry
 //    override func loadFeature() {
 ////        self.loadSets()
 //    }
@@ -51,13 +51,14 @@ class SetService: ServiceBase, ObservableObject {
         return Int(round(totalWorkload))
     }
     
-    func addSet(sessionExercise: SessionExercise) -> SessionSet? {
-        let newSet = SessionSet(order: (sessionExercise.sets.count), sessionExercise: sessionExercise, notes: create_notes)
+    func addSet(sessionEntry: SessionEntry) -> SessionSet? {
+        let newSet = SessionSet(order: sessionEntry.sets.count, sessionEntry: sessionEntry, notes: create_notes)
         var failed = false
         
         withAnimation {
             do {
                 modelContext.insert(newSet)
+                sessionEntry.sets.append(newSet)
                 try modelContext.save()
             } catch {
                 failed = true

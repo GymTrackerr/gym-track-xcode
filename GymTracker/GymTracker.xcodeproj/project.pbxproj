@@ -70,30 +70,15 @@
 				API/API_Base.swift,
 				API/API_Data.swift,
 				API/API_Helper.swift,
-				API/ExerciseApi.swift,
 				GymTracker.icon,
 				Manager/HealthKitManager.swift,
 				Manager/MediaCache.swift,
-				Models/Exercise.swift,
-				Models/ExerciseSplitDay.swift,
-				Models/Session.swift,
-				Models/SessionExercise.swift,
-				Models/SessionRep.swift,
-				Models/SessionSet.swift,
-				Models/SplitDay.swift,
 				Models/TrackerTimer.swift,
 				Models/User.swift,
-				Services/ExerciseService.swift,
-				Services/ExerciseSplitDayService.swift,
 				Services/ServiceBase.swift,
-				Services/SessionExerciseService.swift,
-				Services/SessionService.swift,
-				Services/SetService.swift,
-				Services/SplitDayService.swift,
 				Services/TimerService.swift,
 				Services/TimerServiceLiveActivity.swift,
 				Services/UserService.swift,
-				SharedModelConfig.swift,
 				Views/Home/StepBarGraph.swift,
 			);
 			target = 65B6FEB92EE5EF8500DB4EED /* GymTrackerWatch Watch App */;
@@ -130,19 +115,10 @@
 				API/API_Base.swift,
 				API/API_Data.swift,
 				API/API_Helper.swift,
-				API/ExerciseApi.swift,
-				Models/Exercise.swift,
-				Models/ExerciseSplitDay.swift,
-				Models/Session.swift,
-				Models/SessionExercise.swift,
-				Models/SessionRep.swift,
-				Models/SessionSet.swift,
-				Models/SplitDay.swift,
 				Models/TrackerTimer.swift,
 				Models/User.swift,
 				Services/ServiceBase.swift,
 				Services/UserService.swift,
-				SharedModelConfig.swift,
 			);
 			target = 65F66C192EE4FD780089B62E /* TrackerWidgetExtension */;
 		};
@@ -538,7 +514,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = GymTracker/GymTracker.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_TEAM = VHCWBN8GY3;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -600,7 +576,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = GymTracker/GymTracker.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_TEAM = VHCWBN8GY3;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;

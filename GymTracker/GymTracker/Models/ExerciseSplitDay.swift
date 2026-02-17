@@ -14,18 +14,16 @@ final class ExerciseSplitDay {
     var id: UUID = UUID()
     var order: Int
     
-    @Relationship(deleteRule: .cascade)
-    var splitDay: SplitDay
+    var routine: Routine
     
-    @Relationship(deleteRule: .cascade)
     var exercise: Exercise
 
-    var split_day_id: UUID { splitDay.id }
+    var routine_id: UUID { routine.id }
     var exercise_id: UUID { exercise.id }
 
-    init(order: Int, splitDay: SplitDay, exercise: Exercise) {
+    init(order: Int, routine: Routine, exercise: Exercise) {
         self.order = order
-        self.splitDay = splitDay
+        self.routine = routine
         self.exercise = exercise
     }
 }

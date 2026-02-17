@@ -20,6 +20,16 @@ class ExerciseService : ServiceBase, ObservableObject {
 
     @Published var apiExercises: [ExerciseDTO] = []
 
+    private let apiHelper: API_Helper
+    private let exerciseApi: ExerciseApi
+
+    override init(context: ModelContext) {
+        let apiHelper = API_Helper()
+        self.apiHelper = apiHelper
+        self.exerciseApi = ExerciseApi(apiHelper: apiHelper)
+        super.init(context: context)
+    }
+
     override func loadFeature() {
         self.loadExercises()
         
@@ -254,3 +264,9 @@ extension ExerciseService {
     }
 }
 
+extension API_Helper {
+    func fetchExercises() async throws -> [ExerciseDTO] {
+        let url = "\(baseAPIurl)/exercises"
+        return try await asyncRequestData(urlString: url)
+    }
+}

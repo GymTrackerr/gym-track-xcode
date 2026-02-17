@@ -15,7 +15,7 @@ class SessionService : ServiceBase, ObservableObject {
     
     @Published var create_notes: String = ""
     @Published var creating_session: Bool = false
-    @Published var selected_splitDay: SplitDay? = nil
+    @Published var selected_splitDay: Routine? = nil
     
     override func loadFeature() {
         self.loadSessions()
@@ -38,27 +38,27 @@ class SessionService : ServiceBase, ObservableObject {
             sessions = try modelContext.fetch(descriptor)
 
 
-//            let descript2 = FetchDescriptor<SplitDay>(sortBy: [SortDescriptor(\.order)])
-//            var splitDays:[SplitDay] = []
+//            let descript2 = FetchDescriptor<Routine>(sortBy: [SortDescriptor(\.order)])
+//            var routines:[Routine] = []
 //            do {
-//                splitDays = try modelContext.fetch(descript2)
+//                routines = try modelContext.fetch(descript2)
 //            } catch {
-//                splitDays = []
+//                routines = []
 //            }
 //
 //            for session in sessions {
-//                print(session.splitDay)
-//                if let splitDay = session.splitDay {
+//                print(session.routine)
+//                if let routine = session.routine {
 //                    
 //                } else {
 //                    var sesiosnEdit = session
-////                    sesiosnEdit.split_day_id = nil
+////                    sesiosnEdit.routine_id = nil
 //                    try? modelContext.save()
 //                }
-//                if (session.splitDay) {
-////                    if (session.splitDay.id)
+//                if (session.routine) {
+////                    if (session.routine.id)
 //                }
-//                if (session.splitDay == null) {
+//                if (session.routine == null) {
 //                    print("null")
 //                }
 //            }
@@ -75,8 +75,8 @@ class SessionService : ServiceBase, ObservableObject {
     
     func duplicateSession(session: Session) -> Session? {
         // duplicating exercises only
-//        let newSession = Session(timestamp: Date(), splitDay: session.splitDay, notes: session.notes)
-        selected_splitDay = session.splitDay
+//        let newSession = Session(timestamp: Date(), routine: session.routine, notes: session.notes)
+        selected_splitDay = session.routine
         let newSession = addSession()
         
         if let newSession = newSession {
@@ -93,15 +93,15 @@ class SessionService : ServiceBase, ObservableObject {
         let trimmedNotes = create_notes.trimmingCharacters(in: .whitespaces)
         guard let userId = currentUser?.id else { return nil }
         
-        let newItem = Session(timestamp: Date(), user_id: userId, splitDay: selected_splitDay, notes: trimmedNotes)
+        let newItem = Session(timestamp: Date(), user_id: userId, routine: selected_splitDay, notes: trimmedNotes)
         var failed = false
         
         withAnimation {
             modelContext.insert(newItem)
             try? modelContext.save()
 
-            if let splitDay = selected_splitDay {
-                createSessionExercise(session: newItem, splitDay: splitDay)
+            if let routine = selected_splitDay {
+                createSessionExercise(session: newItem, routine: routine)
             }
         
             do {
@@ -125,34 +125,35 @@ class SessionService : ServiceBase, ObservableObject {
     
     func updateSessionToSplitDay(session: Session) -> Session? {
 //        withAnimation {
-            session.splitDay = selected_splitDay
+            session.routine = selected_splitDay
             try? modelContext.save()
             loadSessions()
             return session
 //        }
     }
     
-    func updateSessionToSplitDay(session: Session, splitDay: SplitDay) {
+    func updateSessionToSplitDay(session: Session, routine: Routine) {
         withAnimation {
             print("updaiting session")
-            session.splitDay = splitDay
+            session.routine = routine
             try? modelContext.save()
             
-            createSessionExercise(session: session, splitDay: splitDay)
+            createSessionExercise(session: session, routine: routine)
             loadSessions()
         }
     }
     
     // create new session from split day
-    func createSessionExercise(session:Session, splitDay: SplitDay) {
-        // for each exercise in splitDay
-        for (_, exerciseSplit) in splitDay.exerciseSplits.enumerated() {
-            let newSessionExercise = SessionExercise(
+    func createSessionExercise(session: Session, routine: Routine) {
+        // for each exercise in routine
+        for (_, exerciseSplit) in routine.exerciseSplits.enumerated() {
+            let newSessionEntry = SessionEntry(
                 session: session,
                 exerciseSplitDay: exerciseSplit
             )
             
-            modelContext.insert(newSessionExercise)
+            modelContext.insert(newSessionEntry)
+            session.sessionEntries.append(newSessionEntry)
         }
     }
     

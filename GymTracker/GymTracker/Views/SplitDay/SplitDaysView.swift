@@ -8,22 +8,22 @@
 import SwiftUI
 
 struct SplitDaysView: View {
-    @EnvironmentObject var splitDayService: SplitDayService
+    @EnvironmentObject var splitDayService: RoutineService
     @State private var isAdding: Bool = false
     
     var body: some View {
         List {
-            ForEach(splitDayService.splitDays,  id: \.id) { splitDay in
+            ForEach(splitDayService.routines,  id: \.id) { routine in
                 NavigationLink {
-                    SingleDayView(splitDay: splitDay)
+                    SingleDayView(routine: routine)
                 } label: {
-                    SingleDayLabelView(splitDay: splitDay)
+                    SingleDayLabelView(routine: routine)
                 }
             }
             .onDelete(perform: splitDayService.removeSplitDay)
             .onMove(perform: splitDayService.moveSplitDay)
         }
-        .navigationTitle("Program")
+        .navigationTitle("Routines")
         .toolbar {
 #if os(iOS)
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -34,14 +34,14 @@ struct SplitDaysView: View {
                 Button {
                     splitDayService.editingSplit = true
                 } label: {
-                    Label("Add Day", systemImage: "plus.circle")
+                    Label("Add Routine", systemImage: "plus.circle")
                 }
             }
         }
         .sheet(isPresented: $splitDayService.editingSplit) {
             NavigationView {
                 VStack(spacing: 16) {
-                    Text("Name your new day")
+                    Text("Name your new routine")
                         .font(.headline)
                     
                     TextField("Name", text: $splitDayService.editingContent)
@@ -60,7 +60,7 @@ struct SplitDaysView: View {
                     Spacer()
                 }
                 .padding()
-                .navigationTitle("Create New Day")
+                .navigationTitle("Create New Routine")
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") {

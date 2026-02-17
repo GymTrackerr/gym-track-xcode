@@ -29,11 +29,11 @@ final class Exercise {
     var timestamp: Date
 
     // deletes the exerise split day
-    @Relationship(deleteRule: .cascade, inverse: \ExerciseSplitDay.exercise)
-    var splits: [ExerciseSplitDay] = []
+    @Relationship(deleteRule: .cascade)
+    var splits: [ExerciseSplitDay]
 
-    @Relationship(deleteRule: .nullify, inverse: \SessionExercise.exercise)
-    var sessionExercises: [SessionExercise] = []
+    @Relationship(deleteRule: .cascade)
+    var sessionEntries: [SessionEntry]
 
     var exerciseType: ExerciseType {
         ExerciseType(rawValue: type) ?? ExerciseType.weight
@@ -45,6 +45,8 @@ final class Exercise {
         self.user_id = user_id
         self.timestamp = Date()
         self.isUserCreated = isUserCreated
+        self.splits = []
+        self.sessionEntries = []
     }
     
     init(from api: ExerciseDTO) {
@@ -60,6 +62,8 @@ final class Exercise {
         self.instructions = api.instructions
         self.images = api.images
         self.timestamp = Date()
+        self.splits = []
+        self.sessionEntries = []
     }
 }
 

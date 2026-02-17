@@ -11,7 +11,7 @@ import SwiftData
 struct WatchContentView: View {
     @EnvironmentObject var userService: UserService
     @EnvironmentObject var timerService: TimerService
-    @EnvironmentObject var sessionService: SessionService
+//    @EnvironmentObject var sessionService: SessionService
     
     var body: some View {
         TabView {

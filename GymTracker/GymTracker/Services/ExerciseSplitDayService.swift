@@ -15,8 +15,8 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
     @Published var addingExercises: [Exercise] = []
     @Published var removingExercises: [Exercise] = []
     
-    func renumberExercises(splitDay: SplitDay) {
-        let exercises = splitDay.exerciseSplits.sorted { $0.order < $1.order }
+    func renumberExercises(routine: Routine) {
+        let exercises = routine.exerciseSplits.sorted { $0.order < $1.order }
         
         for (i, exercise) in exercises.enumerated() {
             print("number \(i)")
@@ -27,10 +27,10 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
     }
     
     // helpers
-    func showingMinusIcon(splitDay: SplitDay, id: UUID) -> Bool{
+    func showingMinusIcon(routine: Routine, id: UUID) -> Bool{
         // if in adding
         // if added and NOT in removing
-        return (isInAdding(id: id) || (!isInRemoving(id: id) && isInSplit(splitDay: splitDay, id: id)))
+        return (isInAdding(id: id) || (!isInRemoving(id: id) && isInSplit(routine: routine, id: id)))
     }
     
     func isInRemoving(id: UUID) -> Bool {
@@ -41,8 +41,8 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
         return addingExercises.contains(where: { $0.id == id})
     }
     
-    func isInSplit(splitDay: SplitDay, id: UUID) -> Bool {
-        return splitDay.exerciseSplits.contains(where: { $0.exercise.id == id })
+    func isInSplit(routine: Routine, id: UUID) -> Bool {
+        return routine.exerciseSplits.contains(where: { $0.exercise.id == id })
     }
     
     func endEditing() {
@@ -51,81 +51,88 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
         addingExerciseSplit = false
     }
     
-    func confirmEditing(splitDay: SplitDay) {
+    func confirmEditing(routine: Routine) {
         // adding exercises
         for (_, exercise) in addingExercises.enumerated() {
-            addExercise(splitDay: splitDay, exercise: exercise)
+            addExercise(routine: routine, exercise: exercise)
         }
         
         // removing exercises
         for (_, exercise) in removingExercises.enumerated() {
-            removeExercise(splitDay: splitDay, exercise: exercise)
+            removeExercise(routine: routine, exercise: exercise)
         }
-        
+        try? modelContext.save()
         endEditing()
         withAnimation {
-            renumberExercises(splitDay: splitDay)
+            renumberExercises(routine: routine)
         }
     }
     
-    func syncSplitWithSession(splitDay: SplitDay, session: Session) {
-        for (_, exerciseSplit) in splitDay.exerciseSplits.enumerated() {
-            removeExercise(splitDay: splitDay, exercise: exerciseSplit.exercise)
+    func syncSplitWithSession(routine: Routine, session: Session) {
+        for (_, exerciseSplit) in routine.exerciseSplits.enumerated() {
+            removeExercise(routine: routine, exercise: exerciseSplit.exercise)
         }
         
-        for (_, exercise) in session.sessionExercises.enumerated() {
+        for (_, exercise) in session.sessionEntries.enumerated() {
             // remove old exercises
-            addExercise(splitDay: splitDay, exercise: exercise.exercise)
+            addExercise(routine: routine, exercise: exercise.exercise)
         }
         loadFeature()
     }
     
-    func addExercises(splitDay: SplitDay) {
+    func addExercises(routine: Routine) {
         for (_, exercise) in addingExercises.enumerated() {
             // if it has relationship already, dont do?
-            addExercise(splitDay: splitDay, exercise: exercise)
+            addExercise(routine: routine, exercise: exercise)
         }
     }
     
-    func addExercise(splitDay: SplitDay, exercise: Exercise)  {
+    func addExercise(routine: Routine, exercise: Exercise)  {
         // adds relations automatically
         // TODO: why cant i just do the count? not order
+        guard !routine.exerciseSplits.contains(where: { $0.exercise.id == exercise.id }) else { return }
         let newESD = ExerciseSplitDay(
-            order: (splitDay.exerciseSplits.last?.order ?? 0) + 1,
-            splitDay: splitDay,
+            order: routine.exerciseSplits.count,
+            routine: routine,
             exercise: exercise
         )
         
         modelContext.insert(newESD)
+        routine.exerciseSplits.append(newESD)
     }
     
-    func removeExercise(splitDay:SplitDay, exercise: Exercise) {
+    func removeExercise(routine:Routine, exercise: Exercise) {
         withAnimation {
-            let esd = splitDay.exerciseSplits.first(where: { $0.exercise == exercise })
+            let esd = routine.exerciseSplits.first(where: { $0.exercise == exercise })
             if let esd = esd {
                 modelContext.delete(esd)
+                routine.exerciseSplits.removeAll { $0.id == esd.id }
             }
             try? modelContext.save()
         }
     }
     
-    func removeExercise(splitDay:SplitDay, offsets: IndexSet) {
+    func removeExercise(routine:Routine, offsets: IndexSet) {
         print("ofset \(offsets)")
         
         withAnimation {
             DispatchQueue.main.async {
+                let sortedSplits = routine.exerciseSplits.sorted { $0.order < $1.order }
                 for index in offsets {
-                    self.modelContext.delete(splitDay.exerciseSplits[index])
+                    guard sortedSplits.indices.contains(index) else { continue }
+                    let split = sortedSplits[index]
+                    self.modelContext.delete(split)
+                    routine.exerciseSplits.removeAll { $0.id == split.id }
                 }
                 
                 try? self.modelContext.save()
-                self.renumberExercises(splitDay: splitDay)
+                self.renumberExercises(routine: routine)
             }
         }
     }
     
-    func moveExercise(splitDay: SplitDay, from source: IndexSet, to destination: Int) {
-        var exercises = splitDay.exerciseSplits.sorted { $0.order < $1.order }
+    func moveExercise(routine: Routine, from source: IndexSet, to destination: Int) {
+        var exercises = routine.exerciseSplits.sorted { $0.order < $1.order }
         
         exercises.move(fromOffsets: source, toOffset: destination)
         
@@ -136,4 +143,3 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
         try? modelContext.save()
     }
 }
-

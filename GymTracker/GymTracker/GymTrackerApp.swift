@@ -16,7 +16,7 @@ struct GymTrackerApp: App {
     @StateObject var dashboardService: DashboardService
     @StateObject var timerService: TimerService
     @StateObject var exerciseService: ExerciseService
-    @StateObject var splitDayService: SplitDayService
+    @StateObject var splitDayService: RoutineService
     @StateObject var sessionService: SessionService
     @StateObject var setService: SetService
     @StateObject var exerciseSplitDayService: ExerciseSplitDayService
@@ -43,7 +43,7 @@ struct GymTrackerApp: App {
         let dashboardService = DashboardService(context: context)
         let timerService = TimerService(context: context)
         let exerciseService = ExerciseService(context: context)
-        let splitDayService = SplitDayService(context: context)
+        let splitDayService = RoutineService(context: context)
         let sessionService = SessionService(context: context)
         let setService = SetService(context: context)
         let exerciseSplitDayService = ExerciseSplitDayService(context: context)

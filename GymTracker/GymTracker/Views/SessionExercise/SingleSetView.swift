@@ -18,7 +18,7 @@ struct SingleSetView : View {
     
     var body: some View {
         VStack {
-            Text("Exercise: \(sessionSet.sessionExercise.exercise.name)")
+            Text("Exercise: \(sessionSet.sessionEntry.exercise.name)")
             Text("Set #\(sessionSet.order+1)")
             Text("Notes: \(sessionSet.notes ?? "")")
         }
@@ -48,7 +48,7 @@ struct SingleSetLabelView: View {
 
 struct CreateSetView: View {
     @EnvironmentObject var setService: SetService
-    @Bindable var sessionExercise: SessionExercise
+    @Bindable var sessionEntry: SessionEntry
     @Bindable var sessionSet: SessionSet
 //    @Binding var openedSet: Session? = nil
 

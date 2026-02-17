@@ -14,7 +14,7 @@ struct SingleSessionView: View {
     @EnvironmentObject var esdService: ExerciseSplitDayService
     @EnvironmentObject var sessionService: SessionService
     @EnvironmentObject var exerciseService: ExerciseService
-    @EnvironmentObject var splitDayService: SplitDayService
+    @EnvironmentObject var splitDayService: RoutineService
 
     @Bindable var session: Session
     @Environment(\.editMode) private var editMode
@@ -27,8 +27,8 @@ struct SingleSessionView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         // Day header
                         HStack {
-                            if let splitDay = session.splitDay {
-                                Text("Program Day: " + splitDay.name)
+                            if let routine = session.routine {
+                                Text("Routine: " + routine.name)
                                     .font(.title2)
                                     .fontWeight(.bold)
                             } else {
@@ -90,7 +90,7 @@ struct SingleSessionView: View {
 
 
                     
-                    if let splitDay = session.splitDay {
+                    if let routine = session.routine {
                         if syncingSplit==true {
                             VStack {
                                 Text("Are you sure? This action will replace all exercises with those in this session.")
@@ -103,7 +103,7 @@ struct SingleSessionView: View {
                                 }
                                 
                                 Button {
-                                    esdService.syncSplitWithSession(splitDay: splitDay, session: session)
+                                    esdService.syncSplitWithSession(routine: routine, session: session)
                                     syncingSplit = false
                                     
                                 } label: {
@@ -115,7 +115,7 @@ struct SingleSessionView: View {
                             Button {
                                 syncingSplit = true
                             } label: {
-                                Text("Sync Split with Session")
+                                Text("Sync Routine with Session")
                             }
                         }
                         // TODO: actually let eitehr
@@ -124,7 +124,7 @@ struct SingleSessionView: View {
                             Button {
                                 syncingSplit = true
                             } label: {
-                                Text("Create new Split Day")
+                                Text("Create new Routine")
                             }
                         } else {
                             VStack {
@@ -147,8 +147,8 @@ struct SingleSessionView: View {
                                 Button {
                                     let newSplit = splitDayService.addSplitDay()
                                     if let newSplit {
-                                        sessionService.updateSessionToSplitDay(session: session, splitDay: newSplit)
-                                        esdService.syncSplitWithSession(splitDay: newSplit, session: session)
+                                        sessionService.updateSessionToSplitDay(session: session, routine: newSplit)
+                                        esdService.syncSplitWithSession(routine: newSplit, session: session)
                                     }
                                     
                                     syncingSplit = false
@@ -164,12 +164,12 @@ struct SingleSessionView: View {
             .padding()
 
             List {
-                ForEach(session.sessionExercises.sorted { $0.order < $1.order }, id: \.id) { sessionExercise in
+                ForEach(session.sessionEntries.sorted { $0.order < $1.order }, id: \.id) { sessionEntry in
                     NavigationLink {
-                        SessionExerciseView(sessionExercise: sessionExercise)
+                        SessionExerciseView(sessionEntry: sessionEntry)
                     } label: {
                         HStack(spacing: 12) {
-                            if (sessionExercise.isCompleted) {
+                            if (sessionEntry.isCompleted) {
                                 Image(systemName: "checkmark.arrow.trianglehead.counterclockwise")
                                     .foregroundColor(.green)
                             } else {
@@ -177,8 +177,8 @@ struct SingleSessionView: View {
                                     .foregroundColor(.gray)
                             }
                             
-                            SingleExerciseLabelView(exercise: sessionExercise.exercise, orderInSplit: sessionExercise.order)
-                                .id(sessionExercise.order)
+                            SingleExerciseLabelView(exercise: sessionEntry.exercise, orderInSplit: sessionEntry.order)
+                                .id(sessionEntry.order)
                             
                             Spacer()
 //                            
@@ -199,18 +199,18 @@ struct SingleSessionView: View {
 
                     .swipeActions(edge: (editMode?.wrappedValue == .inactive) ? .leading : .trailing, allowsFullSwipe: (editMode?.wrappedValue == .inactive)) {
                         Button {
-                            seService.toggleCompletion(sessionExercise: sessionExercise)
+                            seService.toggleCompletion(sessionEntry: sessionEntry)
                         } label: {
                             Label(
-                                sessionExercise.isCompleted ? "Uncheck" : "Complete",
-                                systemImage: sessionExercise.isCompleted ? "pencil.slash" : "checkmark"
+                                sessionEntry.isCompleted ? "Uncheck" : "Complete",
+                                systemImage: sessionEntry.isCompleted ? "pencil.slash" : "checkmark"
                             )
                         }
-                        .tint(sessionExercise.isCompleted ? .orange : .green)
+                        .tint(sessionEntry.isCompleted ? .orange : .green)
                     }
                     .swipeActions(edge: .trailing, allowsFullSwipe: (editMode?.wrappedValue == .inactive)) {
                         Button {
-                            seService.removeExercise(session: session, sessionExercise: sessionExercise)
+                            seService.removeExercise(session: session, sessionEntry: sessionEntry)
                         } label: {
                             Label("Remove", systemImage: "trash")
                         }
@@ -237,7 +237,7 @@ struct SingleSessionView: View {
                     exerciseService.editingContent = ""
                     seService.addingExerciseSession = true
                 } label: {
-                    Label("Add Split Day", systemImage: "plus.circle")
+                    Label("Add Exercise", systemImage: "plus.circle")
                 }
             }
         }
@@ -267,13 +267,13 @@ struct SingleSessionLabelView: View {
                 
                 HStack {
                     HStack {
-                        Text("\(session.sessionExercises.count) Exercise\(session.sessionExercises.count > 1 || session.sessionExercises.count==0 ? "s" : "")")
+                        Text("\(session.sessionEntries.count) Exercise\(session.sessionEntries.count > 1 || session.sessionEntries.count==0 ? "s" : "")")
                             .font(.caption)
                             .foregroundColor(.secondary)
                         Spacer()
                         
-                        if let splitDay = session.splitDay {
-                            Text("Split: \(splitDay.name)")
+                        if let routine = session.routine {
+                            Text("Routine: \(routine.name)")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -384,4 +384,3 @@ struct addingExerciseSessionView : View {
         searchResults = exerciseService.search(query: exerciseService.editingContent)
     }
 }
-

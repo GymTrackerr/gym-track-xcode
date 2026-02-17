@@ -16,18 +16,18 @@ final class Session {
     var timestampDone: Date = Date() // temporary just saving as 
     var notes: String = ""
     
-    @Relationship(deleteRule: .nullify)
-    var splitDay: SplitDay?
-    var split_day_id: UUID? { splitDay?.id }
+    var routine: Routine?
+    var routine_id: UUID? { routine?.id }
     
-    @Relationship(deleteRule: .cascade, inverse: \SessionExercise.session)
-    var sessionExercises: [SessionExercise] = []
+    @Relationship(deleteRule: .cascade)
+    var sessionEntries: [SessionEntry]
 
-    init (timestamp: Date, user_id: UUID, splitDay: SplitDay?, notes: String) {
+    init (timestamp: Date, user_id: UUID, routine: Routine?, notes: String) {
         self.timestamp = timestamp
         self.user_id = user_id
         self.notes = notes
-        self.splitDay = splitDay
+        self.routine = routine
         self.timestampDone = timestamp
+        self.sessionEntries = []
     }
 }

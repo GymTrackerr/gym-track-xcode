@@ -651,7 +651,7 @@ struct AddModuleSheet: View {
 #Preview {
     NavigationStack {
         HomeView()
-            .modelContainer(for: SplitDay.self, inMemory: true)
+            .modelContainer(for: Routine.self, inMemory: true)
             .modelContainer(for: Exercise.self, inMemory: true)
     }
 }

@@ -7,7 +7,7 @@
 import SwiftUI
 
 struct SearchView : View {
-    @EnvironmentObject var splitDayService: SplitDayService
+    @EnvironmentObject var splitDayService: RoutineService
     @EnvironmentObject var exerciseService: ExerciseService
     @FocusState private var isFocused: Bool
     @Binding var query: String
@@ -19,8 +19,8 @@ struct SearchView : View {
                 switch result {
                 case .exercise(let e):
                     SingleExerciseLabelView(exercise: e)
-                case .splitDay(let s):
-                    SingleDayLabelView(splitDay: s)
+                case .routine(let s):
+                    SingleDayLabelView(routine: s)
                 }
             }
             .onAppear() {
@@ -39,10 +39,29 @@ struct SearchView : View {
         print("searching")
         // Fetch exercises matching query
         let exercises = exerciseService.search(query: query)
-        let splitDays = splitDayService.search(query: query)
+        let routines = splitDayService.search(query: query)
         
         // Map to unified type
         results = exercises.map { SearchResult.exercise($0) } +
-                  splitDays.map { SearchResult.splitDay($0) }
+                  routines.map { SearchResult.routine($0) }
+    }
+}
+
+enum SearchResult: Identifiable {
+    case exercise(Exercise)
+    case routine(Routine)
+    
+    var id: UUID {
+        switch self {
+            case .exercise(let e): return e.id
+            case .routine(let s): return s.id
+        }
+    }
+    
+    var title: String {
+        switch self {
+            case .exercise(let e): return e.name
+            case .routine(let s): return s.name
+        }
     }
 }

@@ -11,7 +11,7 @@ struct SessionExerciseView : View {
     @EnvironmentObject var setService: SetService
 //    @EnvironmentObject var exerciseService: ExerciseService
     
-    @Bindable var sessionExercise: SessionExercise
+    @Bindable var sessionEntry: SessionEntry
     @State var currentSessionSet: SessionSet?
     @State var latestRep: SessionRep?
     
@@ -20,7 +20,7 @@ struct SessionExerciseView : View {
         List {
             Section {
                 VStack {
-                    Text("Sets for " + sessionExercise.exercise.name)
+                    Text("Sets for " + sessionEntry.exercise.name)
                 }
                 HStack {
                     Button {
@@ -36,25 +36,24 @@ struct SessionExerciseView : View {
                 }
             }
             
-            ForEach(sessionExercise.sets.sorted { $0.order < $1.order }, id: \.id) { sessionSet in
+            ForEach(sessionEntry.sets.sorted { $0.order < $1.order }, id: \.id) { sessionSet in
                 VStack {
                     if (currentSessionSet == sessionSet) && (sessionSet.isCompleted == false) {
-                        CreateSetView(sessionExercise: sessionExercise, sessionSet: sessionSet)
+                        CreateSetView(sessionEntry: sessionEntry, sessionSet: sessionSet)
                     } else {
                         SingleSetLabelView(sessionSet: sessionSet)
                     }
                 }
             }
         }
-        .navigationTitle(Text(sessionExercise.exercise.name))
+        .navigationTitle(Text(sessionEntry.exercise.name))
     }
     
     func createSet() {
-        if let newSessionSet = setService.addSet(sessionExercise: sessionExercise) {
+        if let newSessionSet = setService.addSet(sessionEntry: sessionEntry) {
             currentSessionSet = newSessionSet
             latestRep = setService.createBlankRep(sessionSet: newSessionSet)
             
         }
     }
 }
-

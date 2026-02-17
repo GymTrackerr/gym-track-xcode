@@ -14,7 +14,7 @@ struct HomeView: View {
     @EnvironmentObject var timerService: TimerService
     @EnvironmentObject var hkManager: HealthKitManager
 
-    @State private var openedSession: Session? = nil
+//    @State private var openedSession: Session? = nil
     @State private var navigateToSession:Bool = false
     
     var body: some View {
@@ -86,11 +86,11 @@ struct HomeView: View {
         }
        .navigationDestination(isPresented: $navigateToSession) {
            Group {
-               if let openedSession {
+//               if let openedSession {
 //                   SingleSessionView(session: openedSession)
-               } else {
-                   EmptyView()
-               }
+//               } else {
+//                   EmptyView()
+//               }
            }
        }
        .navigationTitle(userService.currentUser != nil ? "Welcome \(userService.currentUser!.name)" : "Home" )

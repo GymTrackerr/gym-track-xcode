@@ -63,10 +63,3 @@ class API_Helper : Observable {
         }
     }
 }
-
-extension API_Helper {
-    func fetchExercises() async throws -> [ExerciseDTO] {
-        let url = "\(baseAPIurl)/exercises"
-        return try await asyncRequestData(urlString: url)
-    }
-}

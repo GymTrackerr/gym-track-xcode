@@ -1,5 +1,5 @@
 //
-//  SessionExercise.swift
+//  SessionEntry.swift
 //  GymTracker
 //
 //  Created by Daniel Kravec on 2025-10-04.
@@ -8,32 +8,30 @@
 import Foundation
 import SwiftData
 
-// join table
 @Model
-final class SessionExercise {
+final class SessionEntry {
 //    @Attribute(.unique)
     var id: UUID = UUID()
     var order: Int
     
     var isCompleted: Bool = false
     
-    @Relationship(deleteRule: .nullify)
     var exercise: Exercise
     
-    @Relationship(deleteRule: .nullify)
     var session: Session
     
-    @Relationship(deleteRule: .cascade, inverse: \SessionSet.sessionExercise)
-    var sets: [SessionSet] = []
+    @Relationship(deleteRule: .cascade)
+    var sets: [SessionSet]
     
     var exercise_id: UUID { exercise.id }
     var session_id: UUID { session.id }
     
     // construct without split day
     init(order: Int, session: Session, exercise: Exercise) {
-        self.order = order;
-        self.session = session;
+        self.order = order
+        self.session = session
         self.exercise = exercise
+        self.sets = []
     }
     
     // construct via exerciseSplitDay

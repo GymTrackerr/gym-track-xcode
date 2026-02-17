@@ -16,7 +16,7 @@ import SwiftUI
 struct SingleDayView: View {
     @EnvironmentObject var esdService: ExerciseSplitDayService
     @EnvironmentObject var exerciseService: ExerciseService
-    @Bindable var splitDay: SplitDay
+    @Bindable var routine: Routine
     
     @State var searchResults: [Exercise] = []
     @Environment(\.editMode) private var editMode
@@ -25,21 +25,21 @@ struct SingleDayView: View {
         VStack {
             if (editMode?.wrappedValue == .inactive){
                 VStack(alignment: .leading) {
-                    Text("SplitDay: \(splitDay.name)")
-                    Text("Order: \(splitDay.order)")
-                    Text("Date: \(splitDay.timestamp.formatted(date: .numeric, time: .omitted))")
+                    Text("Routine: \(routine.name)")
+                    Text("Order: \(routine.order)")
+                    Text("Date: \(routine.timestamp.formatted(date: .numeric, time: .omitted))")
                 }
                 .padding()
             } else {
                 VStack {
-                    TextField("SplitDay Name", text: $splitDay.name)
+                    TextField("Routine Name", text: $routine.name)
                         .textFieldStyle(.roundedBorder)
                         .padding(.horizontal)
                 }
             }
             
             List {
-                ForEach(splitDay.exerciseSplits.sorted { $0.order < $1.order }, id: \.id) { exerciseSplit in
+                ForEach(routine.exerciseSplits.sorted { $0.order < $1.order }, id: \.id) { exerciseSplit in
                     NavigationLink {
                         SingleExerciseView(exercise: exerciseSplit.exercise, orderInSplit: exerciseSplit.order)
                     } label: {
@@ -52,7 +52,7 @@ struct SingleDayView: View {
                 
                 /* */
                 Section {
-                    ForEach(splitDay.sessions.sorted { $0.timestamp < $1.timestamp }, id: \.id) { session in
+                    ForEach(routine.sessions.sorted { $0.timestamp < $1.timestamp }, id: \.id) { session in
                         NavigationLink {
                             SingleSessionView(session: session)
                         } label: {
@@ -63,7 +63,7 @@ struct SingleDayView: View {
                 }
             }
         }
-        .navigationTitle(splitDay.name)
+        .navigationTitle(routine.name)
         .toolbar {
         #if os(iOS)
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -76,7 +76,7 @@ struct SingleDayView: View {
                     performSearch()
                     esdService.addingExerciseSplit = true
                 } label: {
-                    Label("Add Split Day", systemImage: "plus.circle")
+                    Label("Add Exercise", systemImage: "plus.circle")
                 }
             }
         }
@@ -100,7 +100,7 @@ struct SingleDayView: View {
                             
                         }
                     } label: {
-                        Label("Save", systemImage: "plus.circle")
+                        Label("Add", systemImage: "plus.circle")
                             .font(.title2)
                             .padding()
                     }
@@ -108,7 +108,7 @@ struct SingleDayView: View {
                     List {
                         ForEach(searchResults, id: \.id) { exercise in
                             Button(action: {
-                                if esdService.showingMinusIcon(splitDay: splitDay, id: exercise.id) {
+                                if esdService.showingMinusIcon(routine: routine, id: exercise.id) {
                                     removeExerciseEditing(exercise: exercise)
                                 } else {
                                     addExerciseEditing(exercise: exercise)
@@ -118,7 +118,7 @@ struct SingleDayView: View {
                                     // if it is already added AND not in split
                                     // if it is adding
                                     // if it in removing
-                                    if esdService.showingMinusIcon(splitDay: splitDay, id:  exercise.id) {
+                                    if esdService.showingMinusIcon(routine: routine, id:  exercise.id) {
                                         Image(systemName: "minus")
                                     } else {
                                         Image(systemName: "plus")
@@ -136,8 +136,8 @@ struct SingleDayView: View {
                 .navigationTitle("Add Exercises")
                 .toolbar {
                     ToolbarItem(placement: .navigationBarTrailing) {
-                        Button("Done") {
-                            esdService.confirmEditing(splitDay: splitDay)
+                        Button("Save") {
+                            esdService.confirmEditing(routine: routine)
                             exerciseService.editingContent = ""
                         }
                     }
@@ -179,32 +179,32 @@ struct SingleDayView: View {
         searchResults = exerciseService.search(query: exerciseService.editingContent)
     }
     func removeExercise(offsets: IndexSet) {
-        esdService.removeExercise(splitDay: splitDay, offsets: offsets)
+        esdService.removeExercise(routine: routine, offsets: offsets)
     }
     
     func moveExercise(from source: IndexSet, to destination: Int) {
         withTransaction(Transaction(animation: .default)) {
-            esdService.moveExercise(splitDay: splitDay, from: source, to: destination)
+            esdService.moveExercise(routine: routine, from: source, to: destination)
         }
 
-//        esdService.moveExercise(splitDay: splitDay, from: source, to: destination)
+//        esdService.moveExercise(routine: routine, from: source, to: destination)
     }
 }
 
 struct SingleDayLabelView: View {
-    @Bindable var splitDay: SplitDay
+    @Bindable var routine: Routine
     
     var body : some View {
         ZStack {
             VStack(alignment: .leading) {
-                Text(splitDay.name)
+                Text(routine.name)
                 HStack {
-                    Text("Day #\(splitDay.order+1)")
+                    Text("Day #\(routine.order+1)")
                         .font(.caption)
                         .foregroundColor(.secondary)
 
                     Spacer()
-                    Text(splitDay.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+                    Text(routine.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -213,4 +213,3 @@ struct SingleDayLabelView: View {
         }
     }
 }
-

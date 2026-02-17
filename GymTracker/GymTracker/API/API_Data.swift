@@ -15,7 +15,7 @@ class API_Data {
             return "http://localhost:3002/v1"
         }
         else {
-            return "http://192.168.3.21:3002/v1"
+            return "https://api.trackerr.ca/v1"
         }
     }
 }

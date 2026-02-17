@@ -11,7 +11,7 @@ import SwiftUI
 struct SessionsView: View {
     
     @EnvironmentObject var sessionService: SessionService
-    @EnvironmentObject var splitDayService: SplitDayService
+    @EnvironmentObject var splitDayService: RoutineService
     @Binding var openedSession: Session?
     
     @Namespace private var transition
@@ -147,38 +147,38 @@ struct SessionsView: View {
 
 struct SessionSelectSplit2 : View {
     @EnvironmentObject var sessionService: SessionService
-    @EnvironmentObject var splitDayService: SplitDayService
+    @EnvironmentObject var splitDayService: RoutineService
     @Bindable var session: Session
 
     var body: some View {
         VStack {
-            ForEach(splitDayService.splitDays, id: \.id) { splitDay in
+            ForEach(splitDayService.routines, id: \.id) { routine in
                 Button {
                     print("updated splitday of session")
 
-                    if (session.splitDay == splitDay) {
-                        session.splitDay = nil
+                    if (session.routine == routine) {
+                        session.routine = nil
                     } else {
-                            session.splitDay = splitDay
+                            session.routine = routine
                     }
                 } label: {
                     HStack {
-                        Text(splitDay.name)
+                        Text(routine.name)
                             .font(.headline)
                             .foregroundColor(.primary)
                         Spacer()
 //                        if let currentSession = session {
-//                            Image(systemName: currentSession.splitDay == splitDay
+//                            Image(systemName: currentSession.routine == routine
 //                                  ? "checkmark.circle.fill"
 //                                  : "circle")
 //                            .font(.title3)
-//                            .foregroundStyle(currentSession.splitDay == splitDay ? .green : .gray.opacity(0.4))
+//                            .foregroundStyle(currentSession.routine == routine ? .green : .gray.opacity(0.4))
 //                        } else {
-                            Image(systemName: sessionService.selected_splitDay == splitDay
+                            Image(systemName: sessionService.selected_splitDay == routine
                                   ? "checkmark.circle.fill"
                                   : "circle")
                             .font(.title3)
-                            .foregroundStyle(sessionService.selected_splitDay == splitDay ? .green : .gray.opacity(0.4))
+                            .foregroundStyle(sessionService.selected_splitDay == routine ? .green : .gray.opacity(0.4))
 //                        }
                     }
                 }
@@ -201,32 +201,32 @@ struct SessionSelectSplit2 : View {
 
 struct SessionSelectSplit : View {
     @EnvironmentObject var sessionService: SessionService
-    @EnvironmentObject var splitDayService: SplitDayService
+    @EnvironmentObject var splitDayService: RoutineService
 //    @State var session: Session? = nil
 //    @State var changingCurrent: Bool = false
 //    @State var session: Session?
 //    @Binding
     var body: some View {
         VStack {
-            ForEach(splitDayService.splitDays, id: \.id) { splitDay in
+            ForEach(splitDayService.routines, id: \.id) { routine in
                 Button {
-                    if (sessionService.selected_splitDay == splitDay) {
+                    if (sessionService.selected_splitDay == routine) {
                         sessionService.selected_splitDay = nil
                     } else {
-                        sessionService.selected_splitDay = splitDay
+                        sessionService.selected_splitDay = routine
                     }
                 } label: {
                     HStack {
-                        Text(splitDay.name)
+                        Text(routine.name)
                             .font(.headline)
                             .foregroundColor(.primary)
                         Spacer()
 
-                        Image(systemName: sessionService.selected_splitDay == splitDay
+                        Image(systemName: sessionService.selected_splitDay == routine
                               ? "checkmark.circle.fill"
                               : "circle")
                         .font(.title3)
-                        .foregroundStyle(sessionService.selected_splitDay == splitDay ? .green : .gray.opacity(0.4))
+                        .foregroundStyle(sessionService.selected_splitDay == routine ? .green : .gray.opacity(0.4))
                     }
                 }
                 .buttonStyle(.plain)
@@ -248,7 +248,7 @@ struct SessionSelectSplit : View {
 
 struct CreateSessionSheetView: View {
     @EnvironmentObject var sessionService: SessionService
-    @EnvironmentObject var splitDayService: SplitDayService
+    @EnvironmentObject var splitDayService: RoutineService
     @Binding var openedSession: Session?
     @Binding var isPresented: Bool
     
@@ -279,22 +279,22 @@ struct CreateSessionSheetView: View {
                             .padding(.horizontal, 16)
                         
                         VStack(spacing: 8) {
-                            ForEach(splitDayService.splitDays, id: \.id) { splitDay in
+                            ForEach(splitDayService.routines, id: \.id) { routine in
                                 Button {
-                                    if sessionService.selected_splitDay == splitDay {
+                                    if sessionService.selected_splitDay == routine {
                                         sessionService.selected_splitDay = nil
                                     } else {
-                                        sessionService.selected_splitDay = splitDay
+                                        sessionService.selected_splitDay = routine
                                     }
                                 } label: {
                                     HStack(spacing: 12) {
-                                        Image(systemName: sessionService.selected_splitDay == splitDay
+                                        Image(systemName: sessionService.selected_splitDay == routine
                                               ? "checkmark.circle.fill"
                                               : "circle")
                                         .font(.title3)
-                                        .foregroundStyle(sessionService.selected_splitDay == splitDay ? .green : .gray.opacity(0.5))
+                                        .foregroundStyle(sessionService.selected_splitDay == routine ? .green : .gray.opacity(0.5))
                                         
-                                        Text(splitDay.name)
+                                        Text(routine.name)
                                             .font(.body)
                                             .fontWeight(.medium)
                                             .foregroundColor(.primary)

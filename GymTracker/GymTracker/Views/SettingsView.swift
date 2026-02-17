@@ -142,19 +142,19 @@ struct AboutView: View {
 struct TestDataShow : View {
     @Environment(\.modelContext) private var context
 
-    @State var splitDays: [SplitDay] = []
+    @State var routines: [Routine] = []
     @State var exercises: [Exercise] = []
     @State var ESD: [ExerciseSplitDay] = []
     @State var sessions: [Session] = []
     @State var sessionSets: [SessionSet] = []
     @State var sessionReps: [SessionRep] = []
-    @State var sessionExercises: [SessionExercise] = []
+    @State var sessionEntries: [SessionEntry] = []
     @State var users: [User] = []
 
     var body: some View {
         List {
             Section("Split Days") {
-                ForEach(splitDays, id: \.self) { item in
+                ForEach(routines, id: \.self) { item in
                     VStack {
                         Text("\(item.id)")
                         Text("\(item.name)")
@@ -173,7 +173,7 @@ struct TestDataShow : View {
                 ForEach(ESD, id: \.self) { item in
                     VStack {
                         Text("\(item.id)")
-                        Text("\(item.splitDay.name)")
+                        Text("\(item.routine.name)")
                     }
                 }
             }
@@ -198,8 +198,8 @@ struct TestDataShow : View {
                     }
                 }
             }
-            Section("Session Exercises") {
-                ForEach(sessionExercises, id: \.self) { item in
+            Section("Session Entries") {
+                ForEach(sessionEntries, id: \.self) { item in
                     VStack {
                         Text("\(item.id)")
                         Text("\(item.exercise.name)")
@@ -231,14 +231,14 @@ struct TestDataShow : View {
                         try context.delete(model: SessionSet.self)
 
                         
-                        try context.delete(model: SplitDay.self)
+                        try context.delete(model: Routine.self)
                         
                         try context.delete(model: Exercise.self)
                         
                         try context.delete(model: ExerciseSplitDay.self)
 
                         try context.delete(model: Session.self)
-                        try context.delete(model: SessionExercise.self)
+                        try context.delete(model: SessionEntry.self)
                         try context.delete(model: User.self)
 
                     } catch {
@@ -251,7 +251,7 @@ struct TestDataShow : View {
             }
         }
         .onAppear() {
-            splitDays = try! context.fetch(FetchDescriptor<SplitDay>(sortBy: [SortDescriptor(\.timestamp)]))
+            routines = try! context.fetch(FetchDescriptor<Routine>(sortBy: [SortDescriptor(\.timestamp)]))
             exercises = try! context.fetch(FetchDescriptor<Exercise>(sortBy: [SortDescriptor(\.timestamp)]))
             ESD = try! context.fetch(FetchDescriptor<ExerciseSplitDay>(sortBy: [SortDescriptor(\.id)]))
             
@@ -259,11 +259,10 @@ struct TestDataShow : View {
             sessionSets = try! context.fetch(FetchDescriptor<SessionSet>(sortBy: [SortDescriptor(\.timestamp)]))
             sessionReps = try! context.fetch(FetchDescriptor<SessionRep>(sortBy: [SortDescriptor(\.id)]))
             
-            sessionExercises = try! context.fetch(FetchDescriptor<SessionExercise>(sortBy: [SortDescriptor(\.id)]))
+            sessionEntries = try! context.fetch(FetchDescriptor<SessionEntry>(sortBy: [SortDescriptor(\.id)]))
             
             users = try! context.fetch(FetchDescriptor<User>(sortBy: [SortDescriptor(\.lastLogin)]))
 
         }
     }
 }
-
