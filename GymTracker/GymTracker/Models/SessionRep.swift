@@ -45,4 +45,15 @@ enum WeightUnit: Int, CaseIterable, Identifiable {
             return "kg"
         }
     }
+
+    func conversion(to target: WeightUnit) -> Double {
+        switch (self, target) {
+        case (.lb, .kg):
+            return 0.45359237
+        case (.kg, .lb):
+            return 2.20462262
+        default:
+            return 1
+        }
+    }
 }

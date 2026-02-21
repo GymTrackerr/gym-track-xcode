@@ -100,6 +100,10 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
         modelContext.insert(newESD)
         routine.exerciseSplits.append(newESD)
     }
+
+    func saveChanges() {
+        try? modelContext.save()
+    }
     
     func removeExercise(routine:Routine, exercise: Exercise) {
         withAnimation {

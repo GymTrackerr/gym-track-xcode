@@ -51,10 +51,11 @@ class SetService: ServiceBase, ObservableObject {
         return Int(round(totalWorkload))
     }
     
-    func addSet(sessionEntry: SessionEntry) -> SessionSet? {
-        let newSet = SessionSet(order: sessionEntry.sets.count, sessionEntry: sessionEntry, notes: create_notes)
+    func addSet(sessionEntry: SessionEntry, notes: String, isDropSet: Bool) -> SessionSet? {
+        let newSet = SessionSet(order: sessionEntry.sets.count, sessionEntry: sessionEntry, notes: notes)
+        newSet.isDropSet = isDropSet
         var failed = false
-        
+
         withAnimation {
             do {
                 modelContext.insert(newSet)
@@ -64,9 +65,9 @@ class SetService: ServiceBase, ObservableObject {
                 failed = true
             }
         }
-        
-        if (!failed) {return newSet}
-        else { return nil }
+
+        if (!failed) { return newSet }
+        return nil
     }
     
     func completeEditingSet(sessionSet: SessionSet) {
@@ -89,7 +90,7 @@ class SetService: ServiceBase, ObservableObject {
             weight_unit: WeightUnit.lb,
             count: 0
         )
-        
+
         var failedSave = false
         createReps.append(newRep)
         withAnimation {
@@ -100,9 +101,74 @@ class SetService: ServiceBase, ObservableObject {
                 failedSave = true
             }
         }
-        
+
         if (failedSave) { return nil }
-        return newRep;
+        return newRep
+    }
+
+    @discardableResult
+    func addRep(sessionSet: SessionSet, weight: Double, reps: Int, unit: WeightUnit) -> SessionRep? {
+        let newRep = SessionRep(
+            sessionSet: sessionSet,
+            weight: weight,
+            weight_unit: unit,
+            count: reps
+        )
+
+        withAnimation {
+            sessionSet.sessionReps.append(newRep)
+            try? modelContext.save()
+        }
+
+        return newRep
+    }
+
+    func deleteRep(sessionSet: SessionSet, rep: SessionRep) {
+        sessionSet.sessionReps.removeAll { $0.id == rep.id }
+        modelContext.delete(rep)
+        if sessionSet.sessionReps.count <= 1 {
+            sessionSet.isDropSet = false
+        }
+        withAnimation {
+            try? modelContext.save()
+        }
+    }
+
+    func deleteSet(sessionEntry: SessionEntry, sessionSet: SessionSet) {
+        sessionEntry.sets.removeAll { $0.id == sessionSet.id }
+        modelContext.delete(sessionSet)
+        reorderSets(sessionEntry: sessionEntry)
+        withAnimation {
+            try? modelContext.save()
+        }
+    }
+
+    func mostRecentRep(for exercise: Exercise) -> SessionRep? {
+        let descriptor = FetchDescriptor<SessionEntry>()
+        let allEntries = (try? modelContext.fetch(descriptor)) ?? []
+        let entries = allEntries
+            .filter { $0.exercise.id == exercise.id }
+            .sorted { $0.session.timestamp > $1.session.timestamp }
+
+        for entry in entries {
+            let sortedSets = entry.sets.sorted { $0.timestamp > $1.timestamp }
+            for sessionSet in sortedSets {
+                for rep in sessionSet.sessionReps.reversed() {
+                    if rep.weight > 0 || rep.count > 0 {
+                        return rep
+                    }
+                }
+            }
+        }
+
+        return nil
+    }
+
+    private func reorderSets(sessionEntry: SessionEntry) {
+        let sortedSets = sessionEntry.sets.sorted { $0.order < $1.order }
+        for (index, set) in sortedSets.enumerated() {
+            set.order = index
+        }
     }
     
     func addRep(sessionSet: SessionSet) {

@@ -41,7 +41,7 @@ struct SingleDayView: View {
             List {
                 ForEach(routine.exerciseSplits.sorted { $0.order < $1.order }, id: \.id) { exerciseSplit in
                     NavigationLink {
-                        SingleExerciseView(exercise: exerciseSplit.exercise, orderInSplit: exerciseSplit.order)
+                        SingleExerciseView(exercise: exerciseSplit.exercise)
                     } label: {
                         SingleExerciseLabelView(exercise: exerciseSplit.exercise, orderInSplit: exerciseSplit.order)
                             .id(exerciseSplit.order)

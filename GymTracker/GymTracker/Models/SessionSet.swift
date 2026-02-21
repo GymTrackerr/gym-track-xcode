@@ -18,6 +18,7 @@ final class SessionSet {
     var timestamp: Date
     
     var isCompleted: Bool = false
+    var isDropSet: Bool = false
     
     var sessionEntry: SessionEntry
     var session_entry_id: UUID { sessionEntry.id }

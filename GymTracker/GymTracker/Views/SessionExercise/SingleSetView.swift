@@ -7,23 +7,6 @@
 
 import SwiftUI
 
-// TODO: make sets moveable, editable, deletable
-// must also add ability to add drop sets
-// and for different types of sets - running, etc
-// sessionExercise? can hold unit weight rather than reps
-// have default unit weight from user
-
-struct SingleSetView : View {
-    @Bindable var sessionSet: SessionSet
-    
-    var body: some View {
-        VStack {
-            Text("Exercise: \(sessionSet.sessionEntry.exercise.name)")
-            Text("Set #\(sessionSet.order+1)")
-            Text("Notes: \(sessionSet.notes ?? "")")
-        }
-    }
-}
 struct SingleSetLabelView: View {
     @EnvironmentObject var setService: SetService
     @Bindable var sessionSet: SessionSet
@@ -50,7 +33,6 @@ struct CreateSetView: View {
     @EnvironmentObject var setService: SetService
     @Bindable var sessionEntry: SessionEntry
     @Bindable var sessionSet: SessionSet
-//    @Binding var openedSet: Session? = nil
 
     var body: some View {
         VStack(spacing: 16) {
@@ -137,20 +119,8 @@ struct CreateSingleRepView: View {
                     Label("\(sessionRep.weightUnit.name)", systemImage: "chevron.down")
                 }
             }
-
-            /*
-            Button(role: .destructive) {
-                if let index = sessionSet.sessionReps.firstIndex(where: { $0.id == sessionRep.id }) {
-                    setService.createReps.remove(at: index)
-                    setService.saveRepData(sessionRep:sessionRep)
-                }
-            } label: {
-                Image(systemName: "minus.circle.fill")
-                    .foregroundColor(.red)
-            }*/
         }
         .onChange(of: sessionRep) {
-            print("changed session rep")
             setService.saveRepData(sessionRep:sessionRep)
         }
     }

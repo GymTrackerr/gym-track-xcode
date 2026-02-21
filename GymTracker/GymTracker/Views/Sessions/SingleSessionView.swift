@@ -15,216 +15,89 @@ struct SingleSessionView: View {
     @EnvironmentObject var sessionService: SessionService
     @EnvironmentObject var exerciseService: ExerciseService
     @EnvironmentObject var splitDayService: RoutineService
+    @EnvironmentObject var timerService: TimerService
 
     @Bindable var session: Session
     @Environment(\.editMode) private var editMode
     @State var syncingSplit: Bool = false
 
+    private let cardCornerRadius: CGFloat = 16
+    private let accentGreen = Color.green
+    private let softGreen = Color.green.opacity(0.12)
+
     var body: some View {
-        VStack {
+        VStack(spacing: 12) {
+            VStack(spacing: 16) {
+                if editMode?.wrappedValue == .inactive {
+                    sessionSummaryCard
+                } else {
+                    sessionEditCard
+                }
+            }
+            .padding(.horizontal)
+            .padding(.top, 6)
+
             VStack(alignment: .leading, spacing: 8) {
-                if (editMode?.wrappedValue == .inactive){
-                    VStack(alignment: .leading, spacing: 4) {
-                        // Day header
-                        HStack {
-                            if let routine = session.routine {
-                                Text("Routine: " + routine.name)
-                                    .font(.title2)
-                                    .fontWeight(.bold)
-                            } else {
-                                Text("Day #1")
-                                    .font(.title2)
-                                    .fontWeight(.bold)
-                            }
-                            Spacer()
-                        }
-                        
-                        // Date and time
-                        HStack {
-                            Text(session.timestamp.formatted(date: .long, time: .shortened))
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                            Spacer()
-                        }
-                        
-                        // Notes if present
-                        if (session.notes != "") {
-                            HStack {
-                                Text("Notes: \(session.notes)")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                Text("Today's Exercises")
+                    .font(.headline)
+                    .padding(.horizontal)
+
+                List {
+                    ForEach(session.sessionEntries.sorted { $0.order < $1.order }, id: \.id) { sessionEntry in
+                        NavigationLink {
+                            SessionExerciseView(sessionEntry: sessionEntry).appBackground()
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: sessionEntry.isCompleted ? "checkmark.arrow.trianglehead.counterclockwise" : "square.and.pencil")
+                                    .foregroundColor(sessionEntry.isCompleted ? .green : .secondary)
+                                    .padding(.horizontal, 8)
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    SingleExerciseLabelView(exercise: sessionEntry.exercise, orderInSplit: sessionEntry.order)
+                                        .id(sessionEntry.order)
+                                }
+
                                 Spacer()
                             }
+                            .padding(.vertical, 8)
                         }
-                    }
-
-                } else {
-                    // TODO: work on the UI
-                    VStack {
-                        SessionSelectSplit()
-                            .padding()
-                            .onChange(of: sessionService.selected_splitDay?.id) { oldValue, newValue in
-                                _ = sessionService.updateSessionToSplitDay(session: session)
-                            }
-                    }
-                    VStack {
-                        TextField("Notes", text: $session.notes)
-                            .textFieldStyle(.roundedBorder)
-                            .padding(.horizontal)
-
-                        DatePicker("Date & Time", selection: $session.timestamp, displayedComponents: [.date, .hourAndMinute])
-                            .datePickerStyle(.compact)
-                            .labelsHidden()
-                            .onChange(of: session.timestamp) { oldValue, newValue in
-                                // change done timestamp in reference to start time 
-                                let duration = session.timestampDone.timeIntervalSince(oldValue)
-                                session.timestampDone = newValue.addingTimeInterval(duration)
-                            }
-
-                        Text("Until")
-
-                        DatePicker("Date & Time", selection: $session.timestampDone, displayedComponents: [.date, .hourAndMinute])
-                            .datePickerStyle(.compact)
-                            .labelsHidden()
-                    }
-
-
-                    
-                    if let routine = session.routine {
-                        if syncingSplit==true {
-                            VStack {
-                                Text("Are you sure? This action will replace all exercises with those in this session.")
-                            }
-                            HStack {
-                                Button {
-                                    syncingSplit = false
-                                } label: {
-                                    Text("Cancel")
-                                }
-                                
-                                Button {
-                                    esdService.syncSplitWithSession(routine: routine, session: session)
-                                    syncingSplit = false
-                                    
-                                } label: {
-                                    Text("Confirm")
-                                }
-                            }
-                        }
-                        else {
+                        .listRowInsets(EdgeInsets(top: 6, leading: 4, bottom: 6, trailing: 16))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.gray.opacity(0.1))
+                                .padding(.vertical, 4)
+                                .padding(.horizontal, 4)
+                        )
+                        .swipeActions(edge: (editMode?.wrappedValue == .inactive) ? .leading : .trailing, allowsFullSwipe: (editMode?.wrappedValue == .inactive)) {
                             Button {
-                                syncingSplit = true
+                                seService.toggleCompletion(sessionEntry: sessionEntry)
                             } label: {
-                                Text("Sync Routine with Session")
+                                Label(
+                                    sessionEntry.isCompleted ? "Uncheck" : "Complete",
+                                    systemImage: sessionEntry.isCompleted ? "pencil.slash" : "checkmark"
+                                )
                             }
+                            .tint(sessionEntry.isCompleted ? .orange : .green)
                         }
-                        // TODO: actually let eitehr
-                    } else {
-                        if syncingSplit==false {
+                        .swipeActions(edge: .trailing, allowsFullSwipe: (editMode?.wrappedValue == .inactive)) {
                             Button {
-                                syncingSplit = true
+                                seService.removeExercise(session: session, sessionEntry: sessionEntry)
                             } label: {
-                                Text("Create new Routine")
+                                Label("Remove", systemImage: "trash")
                             }
-                        } else {
-                            VStack {
-                                Text("Name your new split day")
-                                    .font(.headline)
-                                
-                                TextField("Name", text: $splitDayService.editingContent)
-                                    .textFieldStyle(.roundedBorder)
-                                    .padding(.horizontal)
-                            }
-                            HStack {
-                                Button {
-                                    syncingSplit=false
-                                    splitDayService.editingSplit = false
-                                    splitDayService.editingContent = ""
-                                } label: {
-                                    Text("Cancel")
-                                }
-                                
-                                Button {
-                                    let newSplit = splitDayService.addSplitDay()
-                                    if let newSplit {
-                                        sessionService.updateSessionToSplitDay(session: session, routine: newSplit)
-                                        esdService.syncSplitWithSession(routine: newSplit, session: session)
-                                    }
-                                    
-                                    syncingSplit = false
-                                } label: {
-                                    Text("Save")
-                                }
-                                .disabled(splitDayService.editingContent.trimmingCharacters(in: .whitespaces).isEmpty)
-                            }
+                            .tint(.red)
                         }
                     }
+                    .onDelete(perform: removeExercise)
+                    .onMove(perform: moveExercise)
                 }
+                .listStyle(.plain)
             }
-            .padding()
-
-            List {
-                ForEach(session.sessionEntries.sorted { $0.order < $1.order }, id: \.id) { sessionEntry in
-                    NavigationLink {
-                        SessionExerciseView(sessionEntry: sessionEntry)
-                    } label: {
-                        HStack(spacing: 12) {
-                            if (sessionEntry.isCompleted) {
-                                Image(systemName: "checkmark.arrow.trianglehead.counterclockwise")
-                                    .foregroundColor(.green)
-                            } else {
-                                Image(systemName: "square.and.pencil")
-                                    .foregroundColor(.gray)
-                            }
-                            
-                            SingleExerciseLabelView(exercise: sessionEntry.exercise, orderInSplit: sessionEntry.order)
-                                .id(sessionEntry.order)
-                            
-                            Spacer()
-//                            
-//                            Image(systemName: "chevron.right")
-//                                .foregroundColor(.gray)
-                        }
-                        .padding(.vertical, 4)
-                        .padding(.horizontal, 8)
-                    }
-                    .listRowInsets(EdgeInsets(top: 6, leading: 4, bottom: 6, trailing: 16))
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.gray.opacity(0.1))
-                            .padding(.vertical, 4)
-                            .padding(.horizontal, 4)
-                    )
-
-                    .swipeActions(edge: (editMode?.wrappedValue == .inactive) ? .leading : .trailing, allowsFullSwipe: (editMode?.wrappedValue == .inactive)) {
-                        Button {
-                            seService.toggleCompletion(sessionEntry: sessionEntry)
-                        } label: {
-                            Label(
-                                sessionEntry.isCompleted ? "Uncheck" : "Complete",
-                                systemImage: sessionEntry.isCompleted ? "pencil.slash" : "checkmark"
-                            )
-                        }
-                        .tint(sessionEntry.isCompleted ? .orange : .green)
-                    }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: (editMode?.wrappedValue == .inactive)) {
-                        Button {
-                            seService.removeExercise(session: session, sessionEntry: sessionEntry)
-                        } label: {
-                            Label("Remove", systemImage: "trash")
-                        }
-                        .tint(.red)
-                    }
-
-                }
-                .onDelete(perform: removeExercise)
-                .onMove(perform: moveExercise)
-            }
-            .listStyle(.plain)
         }
+        .foregroundStyle(.primary)
         
-        .navigationTitle("Session \(session.timestamp.formatted(date: .numeric, time: .omitted))")
+        .navigationTitle(sessionTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
         #if os(iOS)
@@ -232,6 +105,13 @@ struct SingleSessionView: View {
                 EditButton()
             }
         #endif
+            ToolbarItem(placement: .navigationBarTrailing) {
+                NavigationLink {
+                    TimerView().appBackground()
+                } label: {
+                    Label(timerButtonTitle, systemImage: "timer")
+                }
+            }
             ToolbarItem {
                 Button {
                     exerciseService.editingContent = ""
@@ -253,6 +133,219 @@ struct SingleSessionView: View {
     func moveExercise(from source: IndexSet, to destination: Int) {
         withTransaction(Transaction(animation: .default)) {
             seService.moveExercise(session: session, from: source, to: destination)
+        }
+    }
+
+    private var isSessionIncomplete: Bool {
+        session.timestampDone == session.timestamp
+    }
+
+    private var isSessionCompleted: Bool {
+        session.timestampDone != session.timestamp
+    }
+
+    private var sessionTitle: String {
+        let dateStyle = Date.FormatStyle(date: .numeric, time: .omitted)
+        return "Session \(session.timestamp.formatted(dateStyle))"
+    }
+
+    private var sessionTimeDetail: String {
+        let dateStyle = Date.FormatStyle(date: .long, time: .omitted)
+        let timeStyle = Date.FormatStyle(date: .omitted, time: .shortened)
+        let dateText = session.timestamp.formatted(dateStyle)
+        let startTime = session.timestamp.formatted(timeStyle)
+
+        if isSessionCompleted {
+            let endTime = session.timestampDone.formatted(timeStyle)
+            return "\(dateText) at \(startTime) - \(endTime)"
+        }
+
+        return "\(dateText) at \(startTime)"
+    }
+
+    private var timerButtonTitle: String {
+        if timerService.timer != nil {
+            return "Timer \(timerService.formatted)"
+        }
+
+        return "Timer"
+    }
+
+    private var sessionSummaryCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                if let routine = session.routine {
+                    Text(routine.name)
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                } else {
+                    Text("Day #1")
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                }
+                Spacer()
+            }
+
+            Text(sessionTimeDetail)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+
+            if isSessionIncomplete {
+                Button {
+                    session.timestampDone = Date()
+                } label: {
+                    Text("Finish Session")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(accentGreen)
+            }
+
+            if session.notes.trimmingCharacters(in: .whitespacesAndNewlines) != "" {
+                Text(session.notes)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(softGreen)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius))
+        .shadow(color: Color.black.opacity(0.05), radius: 12, x: 0, y: 6)
+    }
+
+    private var sessionEditCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Edit Session")
+                .font(.headline)
+
+            VStack(spacing: 12) {
+                SessionSelectSplit()
+                    .onChange(of: sessionService.selected_splitDay?.id) { _, _ in
+                        _ = sessionService.updateSessionToSplitDay(session: session)
+                    }
+
+                TextField("Add optional notes...", text: $session.notes)
+                    .textFieldStyle(.roundedBorder)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Start")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    DatePicker("Date & Time", selection: $session.timestamp, displayedComponents: [.date, .hourAndMinute])
+                        .datePickerStyle(.compact)
+                        .labelsHidden()
+                        .onChange(of: session.timestamp) { oldValue, newValue in
+                            // Keep end time aligned with start time change.
+                            let duration = session.timestampDone.timeIntervalSince(oldValue)
+                            session.timestampDone = newValue.addingTimeInterval(duration)
+                        }
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("End")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    DatePicker("Date & Time", selection: $session.timestampDone, displayedComponents: [.date, .hourAndMinute])
+                        .datePickerStyle(.compact)
+                        .labelsHidden()
+                }
+            }
+
+            sessionEditActionSection
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius))
+        .shadow(color: Color.black.opacity(0.05), radius: 12, x: 0, y: 6)
+    }
+
+    private var sessionEditActionSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let routine = session.routine {
+                if syncingSplit {
+                    Text("Are you sure? This action will replace all exercises with those in this session.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    HStack(spacing: 12) {
+                        Button {
+                            syncingSplit = false
+                        } label: {
+                            Text("Cancel")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button {
+                            esdService.syncSplitWithSession(routine: routine, session: session)
+                            syncingSplit = false
+                        } label: {
+                            Text("Confirm")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(accentGreen)
+                    }
+                } else {
+                    Button {
+                        syncingSplit = true
+                    } label: {
+                        Text("Sync Routine with Session")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                }
+            } else {
+                if !syncingSplit {
+                    Button {
+                        syncingSplit = true
+                    } label: {
+                        Text("Create new Routine")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Name your new split day")
+                            .font(.subheadline)
+                        TextField("Name", text: $splitDayService.editingContent)
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    HStack(spacing: 12) {
+                        Button {
+                            syncingSplit = false
+                            splitDayService.editingSplit = false
+                            splitDayService.editingContent = ""
+                        } label: {
+                            Text("Cancel")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button {
+                            let newSplit = splitDayService.addSplitDay()
+                            if let newSplit {
+                                sessionService.updateSessionToSplitDay(session: session, routine: newSplit)
+                                esdService.syncSplitWithSession(routine: newSplit, session: session)
+                            }
+                            syncingSplit = false
+                        } label: {
+                            Text("Save")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(accentGreen)
+                        .disabled(splitDayService.editingContent.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                }
+            }
         }
     }
 }
