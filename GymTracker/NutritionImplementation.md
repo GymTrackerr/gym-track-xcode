@@ -2356,6 +2356,163 @@ Import should either:
 
 “Implement strict npId-first resolver: when `exerciseNpId` exists, link by `Exercise.npId` and ignore payload `exerciseId`; only use id when npId is missing. Add preflight validation and remove placeholder/unresolved logic.”
 
+---
+## Phase 11 — Nutrition Charts Dashboard Module (Weekly Calories)
+
+### Goal
+
+Add a DashboardModule (like your Weekly Steps) that shows **daily calories over the last 7 days** in both `.medium` and `.large` formats. Pull data from existing Nutrition logs (FoodLogs + MealEntries + quick calories).
+
+No backend required.
+
+---
+
+# 11.0 Guardrails
+
+1. Do not change existing Nutrition schemas.
+2. Chart must be derived from existing stored logs (no cached totals tables).
+3. Respect `userId` filtering (only current user).
+4. Handle missing days as 0 kcal.
+5. Keep UI lightweight and consistent with your “Weekly Steps” module.
+
+---
+
+# 11.1 Data: Weekly calories series
+
+### Add to `NutritionService`
+
+Implement:
+
+* `func dailyCaloriesSeries(endingOn endDate: Date, days: Int = 7) throws -> [DailyKcalPoint]`
+
+Where `DailyKcalPoint`:
+
+* `date: Date` (startOfDay)
+* `kcal: Double`
+
+#### Calculation rule per day
+
+For each day:
+
+* Fetch all FoodLogs whose `timestamp` is in `[startOfDay, nextDayStart)`
+* Compute kcal for each log:
+
+  * If log is “quick calories” → use `quickCaloriesKcal`
+  * Else:
+
+    * `kcal = (log.grams / food.gramsPerReference) * food.caloriesPerReference`
+* Sum per day.
+
+**Important:** Don’t double-count meal totals. Meals should already be represented as FoodLogs (if your logging expands meals into logs).
+
+#### Performance
+
+Avoid 7 separate fetches if possible:
+
+* Fetch logs for the whole range once (7-day window) and group in memory by day.
+
+---
+
+# 11.2 Chart rendering component
+
+Create:
+
+`Views/Nutrition/NutritionWeeklyCaloriesChart.swift`
+
+Use Swift Charts (iOS 16+):
+
+* Bar chart or line chart (match Weekly Steps style; bars are easiest).
+* X-axis: day labels (Mon…Sun or short date)
+* Y-axis: kcal
+
+### Tooltip / selection (optional)
+
+* Tap a day to show kcal value.
+
+### Styling
+
+* Follow existing module style:
+
+  * rounded container
+  * compact header
+  * consistent spacing
+
+---
+
+# 11.3 Dashboard module wiring
+
+Create a new module type:
+
+* `NutritionWeeklyCaloriesModule`
+
+Conforms to your `DashboardModule` protocol.
+
+### `.medium` layout
+
+* Title: “Calories (7d)”
+* Chart: compact bars for 7 days
+* Footer: “Avg: X” and “Total: Y” (optional)
+
+### `.large` layout
+
+* Same chart but taller + add:
+
+  * “Today: …”
+  * “Weekly total”
+  * “Weekly average”
+  * (Optional) max day highlight
+
+---
+
+# 11.4 Data refresh behavior
+
+The module should update when:
+
+* Day changes
+* Nutrition logs change
+
+Implementation options:
+
+* simplest: recompute on `onAppear` and when app becomes active
+* better: add a `@Query` for FoodLogs in the 7-day range inside the module view and recompute in-memory when results change
+
+Pick the approach that matches how Weekly Steps module updates.
+
+---
+
+# 11.5 Empty / no data state
+
+If there are no logs in the last 7 days:
+
+* show chart baseline with all zeros
+* show text: “No logs yet” (subtle)
+
+---
+
+# 11.6 Acceptance Criteria
+
+* Dashboard shows daily kcal for last 7 days in `.medium` and `.large`.
+* Values match Nutrition day totals.
+* Missing days show as 0.
+* Works with both:
+
+  * individual FoodLog entries
+  * meals (as logs)
+  * quick calories logs
+* Respects current user.
+* No schema changes required.
+* Build succeeds.
+
+---
+
+### Phase 11.7 (if you want)
+
+Add a segmented toggle in `.large`:
+
+* Calories / Protein / Carbs / Fat
+  (using the same daily series function but different macro totals)
+
+If you want, tell me what your Weekly Steps module looks like structurally (file names / protocol), and I’ll match the exact DashboardModule API (init args, sizing enum, etc.).
 
 ---
 

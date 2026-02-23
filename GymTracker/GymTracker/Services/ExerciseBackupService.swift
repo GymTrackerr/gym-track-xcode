@@ -53,6 +53,10 @@ final class ExerciseBackupService {
         self.currentUserProvider = currentUserProvider
     }
 
+    // MARK: - Export
+
+    // MARK: - Export
+
     func exportExercisesJSON() throws -> URL {
         guard let userId = currentUserProvider()?.id else {
             throw BackupError.missingUser
@@ -208,13 +212,10 @@ final class ExerciseBackupService {
         }
     }
 
+    // MARK: - Import
+
     func importExercisesJSON(from url: URL, mode: ImportMode) throws -> ImportReport {
-        let data: Data
-        do {
-            data = try Data(contentsOf: url)
-        } catch {
-            throw BackupError.persistence("Could not read exercise backup file.")
-        }
+        let data = try readBackupData(from: url)
         return try importExercises(data: data, mode: mode)
     }
 
@@ -223,14 +224,7 @@ final class ExerciseBackupService {
             throw BackupError.missingUser
         }
 
-        let root: ExerciseBackupRootDTO
-        do {
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            root = try decoder.decode(ExerciseBackupRootDTO.self, from: data)
-        } catch {
-            throw BackupError.invalidBackup("Exercise backup file format is invalid.")
-        }
+        let root = try decodeBackupRoot(from: data)
 
         guard root.schemaVersion == 1 else {
             throw BackupError.invalidSchemaVersion(root.schemaVersion)
@@ -253,9 +247,7 @@ final class ExerciseBackupService {
         report.warnings = root.exportWarnings ?? []
 
         // Refresh lookups after potential replace delete.
-        let currentExercises = try fetchExercises(userId: userId)
-        var exercisesById = groupExercisesById(currentExercises)
-        var exercisesByNpId = groupExercisesByNpId(currentExercises)
+        var exerciseMaps = try buildCurrentExerciseMaps(userId: userId)
 
         // Upsert exercises from payload first so subsequent references can link locally.
         for dto in root.payload.exercises {
@@ -264,11 +256,11 @@ final class ExerciseBackupService {
 
             let existingByNpId: Exercise?
             if let key = normalizedNpId(dto.npId) {
-                existingByNpId = preferredExercise(from: exercisesByNpId[key], label: "npId=\(key)")
+                existingByNpId = preferredExercise(from: exerciseMaps.byNpId[key], label: "npId=\(key)")
             } else {
                 existingByNpId = nil
             }
-            let existingById = preferredExercise(from: exercisesById[exerciseId], label: "id=\(exerciseId.uuidString)")
+            let existingById = preferredExercise(from: exerciseMaps.byId[exerciseId], label: "id=\(exerciseId.uuidString)")
 
             let target: Exercise
             if let existingByNpId {
@@ -305,9 +297,9 @@ final class ExerciseBackupService {
             target.isUserCreated = dto.isUserCreated
             target.timestamp = dto.timestamp
 
-            register(target, inById: &exercisesById, byNpId: &exercisesByNpId)
+            register(target, inById: &exerciseMaps.byId, byNpId: &exerciseMaps.byNpId)
             if let key = normalizedNpId(dto.npId) {
-                exercisesByNpId[key] = dedupeExerciseList(exercisesByNpId[key], preferred: target)
+                exerciseMaps.byNpId[key] = dedupeExerciseList(exerciseMaps.byNpId[key], preferred: target)
             }
         }
 
@@ -388,8 +380,8 @@ final class ExerciseBackupService {
             let exercise = try resolveExercise(
                 exerciseIdString: dto.exerciseId,
                 exerciseNpId: dto.exerciseNpId,
-                exercisesById: exercisesById,
-                exercisesByNpId: exercisesByNpId
+                exercisesById: exerciseMaps.byId,
+                exercisesByNpId: exerciseMaps.byNpId
             )
 
             let entry: SessionEntry
@@ -500,8 +492,8 @@ final class ExerciseBackupService {
             let exercise = try resolveExercise(
                 exerciseIdString: dto.exerciseId,
                 exerciseNpId: dto.exerciseNpId,
-                exercisesById: exercisesById,
-                exercisesByNpId: exercisesByNpId
+                exercisesById: exerciseMaps.byId,
+                exercisesByNpId: exerciseMaps.byNpId
             )
 
             let splitDay: ExerciseSplitDay
@@ -533,6 +525,36 @@ final class ExerciseBackupService {
         }
     }
 
+    // MARK: - Data Loading
+
+    private func readBackupData(from url: URL) throws -> Data {
+        do {
+            return try Data(contentsOf: url)
+        } catch {
+            throw BackupError.persistence("Could not read exercise backup file.")
+        }
+    }
+
+    private func decodeBackupRoot(from data: Data) throws -> ExerciseBackupRootDTO {
+        do {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            return try decoder.decode(ExerciseBackupRootDTO.self, from: data)
+        } catch {
+            throw BackupError.invalidBackup("Exercise backup file format is invalid.")
+        }
+    }
+
+    private func buildCurrentExerciseMaps(userId: UUID) throws -> ExerciseLookupMaps {
+        let currentExercises = try fetchExercises(userId: userId)
+        return ExerciseLookupMaps(
+            byId: groupExercisesById(currentExercises),
+            byNpId: groupExercisesByNpId(currentExercises)
+        )
+    }
+
+    // MARK: - Queries
+
     private func fetchExercises(userId: UUID) throws -> [Exercise] {
         let descriptor = FetchDescriptor<Exercise>(
             predicate: #Predicate<Exercise> { item in
@@ -563,6 +585,8 @@ final class ExerciseBackupService {
         return try modelContext.fetch(descriptor)
     }
 
+    // MARK: - Delete Helpers
+
     private func deleteExerciseDataForCurrentUser(userId: UUID) throws {
         let reps = try modelContext.fetch(FetchDescriptor<SessionRep>()).filter { $0.sessionSet.sessionEntry.session.user_id == userId }
         for rep in reps { modelContext.delete(rep) }
@@ -582,6 +606,8 @@ final class ExerciseBackupService {
         let routines = try fetchRoutines(userId: userId)
         for routine in routines { modelContext.delete(routine) }
     }
+
+    // MARK: - Warning Helpers
 
     private func warningMessages(
         skippedSplitDays: Int,
@@ -604,6 +630,8 @@ final class ExerciseBackupService {
         }
         return warnings
     }
+
+    // MARK: - Preflight
 
     private func buildPreflightPlan(payload: ExercisePayloadDTO, existingExercises: [Exercise]) -> ExercisePreflightPlan {
         var plan = ExercisePreflightPlan()
@@ -684,6 +712,8 @@ final class ExerciseBackupService {
         plan.missingReferences.insert(referenceLabel(npId: exerciseNpId, id: exerciseIdString))
     }
 
+    // MARK: - Resolution
+
     private func referenceLabel(npId: String?, id: String?) -> String {
         let np = (npId?.isEmpty == false) ? "npId=\(npId!)" : "npId=nil"
         let sid = (id?.isEmpty == false) ? "id=\(id!)" : "id=nil"
@@ -718,6 +748,8 @@ final class ExerciseBackupService {
         throw BackupError.invalidBackup("Invalid UUID exercise reference: id=\(trimmedExerciseId)")
     }
 
+    // MARK: - Parsing & Map Building
+
     private func uuid(from value: String, label: String) throws -> UUID {
         guard let id = UUID(uuidString: value) else {
             throw BackupError.invalidBackup("Invalid UUID for \(label): \(value)")
@@ -741,6 +773,8 @@ final class ExerciseBackupService {
         }
         return grouped
     }
+
+    // MARK: - Lookup Helpers
 
     private func preferredExercise(from exercises: [Exercise]?, label: String) -> Exercise? {
         guard let exercises, !exercises.isEmpty else { return nil }
@@ -775,6 +809,8 @@ final class ExerciseBackupService {
             byNpId[key] = dedupeExerciseList(byNpId[key], preferred: exercise)
         }
     }
+
+    // MARK: - Debug Checks
 
     private func debugAssertPayloadReferenceScenario(payload: ExercisePayloadDTO, plan: ExercisePreflightPlan) {
 #if DEBUG
@@ -816,12 +852,16 @@ final class ExerciseBackupService {
 #endif
     }
 
+    // MARK: - Normalization
+
     private func normalizedNpId(_ value: String?) -> String? {
         guard let value else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         return trimmed.lowercased()
     }
+
+    // MARK: - File Output
 
     private func backupURL() -> URL {
         let formatter = ISO8601DateFormatter()
@@ -834,6 +874,11 @@ final class ExerciseBackupService {
         }
         return FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
     }
+}
+
+private struct ExerciseLookupMaps {
+    var byId: [UUID: [Exercise]]
+    var byNpId: [String: [Exercise]]
 }
 
 private struct ExercisePreflightPlan {

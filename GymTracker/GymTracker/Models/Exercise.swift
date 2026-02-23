@@ -66,6 +66,7 @@ final class Exercise {
         self.sessionEntries = []
     }
 
+    // WARNING: Do not use for persisted entities. Always prefer init(from:userId:)
     convenience init(from api: ExerciseDTO) {
         self.init(from: api, userId: UUID())
     }

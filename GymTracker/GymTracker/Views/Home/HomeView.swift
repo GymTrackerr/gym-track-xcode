@@ -320,14 +320,20 @@ struct NutritionModuleView: View {
     let module: DashboardModule
 
     var body: some View {
-        NavigationLink(destination: NutritionDayView().appBackground()) {
-            MetricCard(
-                title: module.type.displayName,
-                value: "Track",
-                icon: module.type.iconName,
-                pageNav: true,
-                hasBackground: false
-            )
+        if module.size == .medium || module.size == .large {
+            NutritionWeeklyCaloriesModule(module: module)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+        } else {
+            NavigationLink(destination: NutritionDayView().appBackground()) {
+                MetricCard(
+                    title: module.type.displayName,
+                    value: "Track",
+                    icon: module.type.iconName,
+                    pageNav: true,
+                    hasBackground: false
+                )
+            }
         }
     }
 }
@@ -351,8 +357,12 @@ struct WeeklyStepsModuleView: View {
     
     var body: some View {
         if module.size == .medium || module.size == .large {
-            StepBarGraph()
-                .padding()
+            StepBarGraph(
+                height: module.size == .large ? 165 : 120,
+                barColor: .blue
+            )
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
         } else {
             MetricCard(
                 title: "Weekly Steps",

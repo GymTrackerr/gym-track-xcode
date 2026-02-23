@@ -43,6 +43,8 @@ final class NutritionBackupService {
         self.currentUserProvider = currentUserProvider
     }
 
+    // MARK: - Export
+
     func exportNutritionJSON() throws -> URL {
         guard let userId = currentUserProvider()?.id else {
             throw BackupError.missingUser
@@ -87,26 +89,15 @@ final class NutritionBackupService {
         }
     }
 
+    // MARK: - Import
+
     func importNutritionJSON(from url: URL) throws -> ImportResult {
         guard let userId = currentUserProvider()?.id else {
             throw BackupError.missingUser
         }
 
-        let data: Data
-        do {
-            data = try Data(contentsOf: url)
-        } catch {
-            throw BackupError.persistence("Could not read backup file.")
-        }
-
-        let payload: NutritionBackupPayload
-        do {
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            payload = try decoder.decode(NutritionBackupPayload.self, from: data)
-        } catch {
-            throw BackupError.invalidBackup("Backup file format is invalid.")
-        }
+        let data = try readBackupData(from: url)
+        let payload = try decodeBackupPayload(from: data)
 
         guard payload.schemaVersion == 1 else {
             throw BackupError.invalidSchemaVersion(payload.schemaVersion)
@@ -117,24 +108,11 @@ final class NutritionBackupService {
 
         do {
             // All upsert maps are scoped to current user to prevent cross-user mutation on ID collisions.
-            var foodsById = mapFoodsById(try fetchFoods(userId: userId))
-            var mealsById = mapMealsById(try fetchMeals(userId: userId))
-            var entriesById = mapMealEntriesById(try fetchMealEntries(userId: userId))
-            var logsById = mapFoodLogsById(try fetchFoodLogs(userId: userId))
-            let allMealItems = try modelContext.fetch(FetchDescriptor<MealItem>())
-            var mealItemsById: [UUID: MealItem] = [:]
-            for item in allMealItems where item.meal?.userId == userId {
-                if mealItemsById[item.id] != nil {
-                    print("Duplicate meal item id detected for current user during import: \(item.id)")
-                    continue
-                }
-                mealItemsById[item.id] = item
-            }
-            var targetsById = mapTargetsById(try fetchTargets())
+            var maps = try buildImportMaps(userId: userId)
 
             for dto in payload.foods {
                 let food: Food
-                if let existing = foodsById[dto.id] {
+                if let existing = maps.foodsById[dto.id] {
                     food = existing
                 } else {
                     food = Food(
@@ -154,7 +132,7 @@ final class NutritionBackupService {
                     )
                     food.id = dto.id
                     modelContext.insert(food)
-                    foodsById[dto.id] = food
+                    maps.foodsById[dto.id] = food
                 }
 
                 food.userId = userId
@@ -176,7 +154,7 @@ final class NutritionBackupService {
 
             for dto in payload.meals {
                 let meal: Meal
-                if let existing = mealsById[dto.id] {
+                if let existing = maps.mealsById[dto.id] {
                     meal = existing
                 } else {
                     meal = Meal(
@@ -186,7 +164,7 @@ final class NutritionBackupService {
                     )
                     meal.id = dto.id
                     modelContext.insert(meal)
-                    mealsById[dto.id] = meal
+                    maps.mealsById[dto.id] = meal
                 }
 
                 meal.userId = userId
@@ -197,21 +175,21 @@ final class NutritionBackupService {
             }
 
             for dto in payload.mealItems {
-                guard let mealId = dto.mealId, let meal = mealsById[mealId] else {
+                guard let mealId = dto.mealId, let meal = maps.mealsById[mealId] else {
                     throw BackupError.invalidBackup("Meal item \(dto.id) has missing meal reference.")
                 }
-                guard let food = foodsById[dto.foodId] else {
+                guard let food = maps.foodsById[dto.foodId] else {
                     throw BackupError.invalidBackup("Meal item \(dto.id) has missing food reference.")
                 }
 
                 let item: MealItem
-                if let existing = mealItemsById[dto.id] {
+                if let existing = maps.mealItemsById[dto.id] {
                     item = existing
                 } else {
                     item = MealItem(order: dto.order, grams: dto.grams, meal: meal, food: food)
                     item.id = dto.id
                     modelContext.insert(item)
-                    mealItemsById[dto.id] = item
+                    maps.mealItemsById[dto.id] = item
                 }
 
                 item.order = dto.order
@@ -224,9 +202,9 @@ final class NutritionBackupService {
             }
 
             for dto in payload.mealEntries {
-                let templateMeal = dto.templateMealId.flatMap { mealsById[$0] }
+                let templateMeal = dto.templateMealId.flatMap { maps.mealsById[$0] }
                 let entry: MealEntry
-                if let existing = entriesById[dto.id] {
+                if let existing = maps.entriesById[dto.id] {
                     entry = existing
                 } else {
                     entry = MealEntry(
@@ -238,7 +216,7 @@ final class NutritionBackupService {
                     )
                     entry.id = dto.id
                     modelContext.insert(entry)
-                    entriesById[dto.id] = entry
+                    maps.entriesById[dto.id] = entry
                 }
 
                 entry.userId = userId
@@ -249,16 +227,16 @@ final class NutritionBackupService {
             }
 
             for dto in payload.foodLogs {
-                guard let food = foodsById[dto.foodId] else {
+                guard let food = maps.foodsById[dto.foodId] else {
                     throw BackupError.invalidBackup("Food log \(dto.id) has missing food reference.")
                 }
-                let mealEntry = dto.mealEntryId.flatMap { entriesById[$0] }
+                let mealEntry = dto.mealEntryId.flatMap { maps.entriesById[$0] }
                 if dto.mealEntryId != nil, mealEntry == nil {
                     throw BackupError.invalidBackup("Food log \(dto.id) has missing meal entry reference.")
                 }
 
                 let log: FoodLog
-                if let existing = logsById[dto.id] {
+                if let existing = maps.logsById[dto.id] {
                     log = existing
                 } else {
                     log = FoodLog(
@@ -273,7 +251,7 @@ final class NutritionBackupService {
                     )
                     log.id = dto.id
                     modelContext.insert(log)
-                    logsById[dto.id] = log
+                    maps.logsById[dto.id] = log
                 }
 
                 log.userId = userId
@@ -291,7 +269,7 @@ final class NutritionBackupService {
 
             for dto in payload.nutritionTargets {
                 let target: NutritionTarget
-                if let existing = targetsById[dto.id] {
+                if let existing = maps.targetsById[dto.id] {
                     target = existing
                 } else {
                     target = NutritionTarget(
@@ -303,7 +281,7 @@ final class NutritionBackupService {
                     )
                     target.id = dto.id
                     modelContext.insert(target)
-                    targetsById[dto.id] = target
+                    maps.targetsById[dto.id] = target
                 }
 
                 target.createdAt = dto.createdAt
@@ -331,6 +309,52 @@ final class NutritionBackupService {
             throw BackupError.persistence("Could not import nutrition backup.")
         }
     }
+
+    // MARK: - Data Loading
+
+    private func readBackupData(from url: URL) throws -> Data {
+        do {
+            return try Data(contentsOf: url)
+        } catch {
+            throw BackupError.persistence("Could not read backup file.")
+        }
+    }
+
+    private func decodeBackupPayload(from data: Data) throws -> NutritionBackupPayload {
+        do {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            return try decoder.decode(NutritionBackupPayload.self, from: data)
+        } catch {
+            throw BackupError.invalidBackup("Backup file format is invalid.")
+        }
+    }
+
+    private func buildImportMaps(userId: UUID) throws -> NutritionImportMaps {
+        NutritionImportMaps(
+            foodsById: mapFoodsById(try fetchFoods(userId: userId)),
+            mealsById: mapMealsById(try fetchMeals(userId: userId)),
+            entriesById: mapMealEntriesById(try fetchMealEntries(userId: userId)),
+            logsById: mapFoodLogsById(try fetchFoodLogs(userId: userId)),
+            mealItemsById: try mapMealItemsById(userId: userId),
+            targetsById: mapTargetsById(try fetchTargets())
+        )
+    }
+
+    private func mapMealItemsById(userId: UUID) throws -> [UUID: MealItem] {
+        let allMealItems = try modelContext.fetch(FetchDescriptor<MealItem>())
+        var mealItemsById: [UUID: MealItem] = [:]
+        for item in allMealItems where item.meal?.userId == userId {
+            if mealItemsById[item.id] != nil {
+                print("Duplicate meal item id detected for current user during import: \(item.id)")
+                continue
+            }
+            mealItemsById[item.id] = item
+        }
+        return mealItemsById
+    }
+
+    // MARK: - Queries
 
     private func fetchFoods(userId: UUID) throws -> [Food] {
         let descriptor = FetchDescriptor<Food>(
@@ -378,6 +402,8 @@ final class NutritionBackupService {
         )
         return try modelContext.fetch(descriptor)
     }
+
+    // MARK: - Map Builders
 
     private func mapFoodsById(_ foods: [Food]) -> [UUID: Food] {
         var map: [UUID: Food] = [:]
@@ -439,6 +465,8 @@ final class NutritionBackupService {
         return map
     }
 
+    // MARK: - File Output
+
     private func backupURL() -> URL {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withDashSeparatorInDate, .withColonSeparatorInTime]
@@ -450,6 +478,15 @@ final class NutritionBackupService {
         }
         return FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
     }
+}
+
+private struct NutritionImportMaps {
+    var foodsById: [UUID: Food]
+    var mealsById: [UUID: Meal]
+    var entriesById: [UUID: MealEntry]
+    var logsById: [UUID: FoodLog]
+    var mealItemsById: [UUID: MealItem]
+    var targetsById: [UUID: NutritionTarget]
 }
 
 private struct NutritionBackupPayload: Codable {

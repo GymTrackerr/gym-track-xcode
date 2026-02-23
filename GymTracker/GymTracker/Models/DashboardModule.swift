@@ -68,7 +68,7 @@ enum ModuleType: String, Codable, CaseIterable {
         case .fitsight:
             return [.small]
         case .nutrition:
-            return [.small]
+            return [.small, .medium, .large]
         }
         
     }

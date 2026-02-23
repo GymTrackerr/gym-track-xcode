@@ -153,6 +153,8 @@ struct MetricActivityRingCard: View {
 
 struct StepBarGraph: View {
     @EnvironmentObject var hkManager: HealthKitManager
+    var height: CGFloat = 140
+    var barColor: Color = .blue
     
     struct DayStep: Identifiable {
         let id = UUID()
@@ -176,12 +178,15 @@ struct StepBarGraph: View {
                 x: .value("Day", item.date, unit: .day),
                 y: .value("Steps", item.value)
             )
+            .foregroundStyle(barColor.gradient)
+            .cornerRadius(4)
         }
         .chartXAxis {
             AxisMarks(values: .stride(by: .day)) { value in
                 AxisValueLabel {
                     if let date = value.as(Date.self) {
                         Text(shortDay(from: date))
+                            .font(.caption2)
                     }
                 }
             }
@@ -199,9 +204,10 @@ struct StepBarGraph: View {
                         }
                     }
                 }
+                .offset(x: -2)
             }
         }
-        .frame(height: 140)
+        .frame(height: height)
     }
 
     private func shortDay(from date: Date) -> String {

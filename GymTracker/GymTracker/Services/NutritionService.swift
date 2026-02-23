@@ -33,6 +33,38 @@ class NutritionService: ServiceBase, ObservableObject {
         let grams: Double
     }
 
+    struct DailyKcalPoint: Identifiable {
+        let date: Date
+        let kcal: Double
+
+        var id: Date { date }
+    }
+
+    enum NutritionSeriesMetric: String, CaseIterable, Identifiable {
+        case calories
+        case protein
+        case carbs
+        case fat
+
+        var id: String { rawValue }
+
+        var displayName: String {
+            switch self {
+            case .calories: return "Calories"
+            case .protein: return "Protein"
+            case .carbs: return "Carbs"
+            case .fat: return "Fat"
+            }
+        }
+    }
+
+    struct DailyNutritionPoint: Identifiable {
+        let date: Date
+        let value: Double
+
+        var id: Date { date }
+    }
+
     @Published var foods: [Food] = []
     @Published var meals: [Meal] = []
     @Published var dayLogs: [FoodLog] = []
@@ -773,6 +805,60 @@ class NutritionService: ServiceBase, ObservableObject {
 
     func totalFat(for logs: [FoodLog]) -> Double {
         logs.reduce(0) { $0 + $1.fat }
+    }
+
+    func dailyCaloriesSeries(endingOn endDate: Date, days: Int = 7) throws -> [DailyKcalPoint] {
+        let points = try dailyNutritionSeries(endingOn: endDate, days: days, metric: .calories)
+        return points.map { DailyKcalPoint(date: $0.date, kcal: $0.value) }
+    }
+
+    func dailyNutritionSeries(
+        endingOn endDate: Date,
+        days: Int = 7,
+        metric: NutritionSeriesMetric
+    ) throws -> [DailyNutritionPoint] {
+        let userId = try requireUserId()
+        let calendar = Calendar.current
+        let clampedDays = max(days, 1)
+        let endDayStart = calendar.startOfDay(for: endDate)
+        let startDay = calendar.date(byAdding: .day, value: -(clampedDays - 1), to: endDayStart) ?? endDayStart
+        let rangeEnd = calendar.date(byAdding: .day, value: 1, to: endDayStart) ?? endDayStart
+
+        let descriptor = FetchDescriptor<FoodLog>(
+            predicate: #Predicate<FoodLog> { log in
+                log.userId == userId && log.timestamp >= startDay && log.timestamp < rangeEnd
+            },
+            sortBy: [SortDescriptor(\.timestamp)]
+        )
+
+        let fetchedLogs: [FoodLog]
+        do {
+            fetchedLogs = try modelContext.fetch(descriptor)
+        } catch {
+            throw NutritionError.persistence("Could not load nutrition series data.")
+        }
+
+        let groupedByDay = Dictionary(grouping: fetchedLogs) { log in
+            calendar.startOfDay(for: log.timestamp)
+        }
+
+        return (0..<clampedDays).map { offset in
+            let date = calendar.date(byAdding: .day, value: offset, to: startDay) ?? startDay
+            let dayLogs = groupedByDay[date] ?? []
+            let value: Double = dayLogs.reduce(0) { partial, log in
+                switch metric {
+                case .calories:
+                    return partial + log.kcal
+                case .protein:
+                    return partial + log.protein
+                case .carbs:
+                    return partial + log.carbs
+                case .fat:
+                    return partial + log.fat
+                }
+            }
+            return DailyNutritionPoint(date: date, value: value)
+        }
     }
 
     func defaultCategory(for date: Date) -> FoodLogCategory {
