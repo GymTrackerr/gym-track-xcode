@@ -50,6 +50,13 @@ class NutritionService: ServiceBase, ObservableObject {
         }
     }
 
+    func requireUserId() throws -> UUID {
+        guard let userId = currentUser?.id else {
+            throw NutritionError.missingUser
+        }
+        return userId
+    }
+
     func loadFoods() {
         guard let userId = currentUser?.id else {
             foods = []
@@ -139,7 +146,7 @@ class NutritionService: ServiceBase, ObservableObject {
         kind: FoodKind = .food,
         unit: FoodUnit = .grams
     ) -> Food? {
-        guard let userId = currentUser?.id else { return nil }
+        guard let userId = try? requireUserId() else { return nil }
 
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return nil }
@@ -214,6 +221,9 @@ class NutritionService: ServiceBase, ObservableObject {
         kind: FoodKind? = nil,
         unit: FoodUnit? = nil
     ) -> Bool {
+        guard let userId = try? requireUserId() else { return false }
+        guard food.userId == userId else { return false }
+
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return false }
         guard gramsPerReference > 0 else { return false }
@@ -350,13 +360,14 @@ class NutritionService: ServiceBase, ObservableObject {
         items: [MealInputItem],
         defaultCategory: FoodLogCategory = .other
     ) -> Meal? {
-        guard let userId = currentUser?.id else { return nil }
+        guard let userId = try? requireUserId() else { return nil }
 
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return nil }
 
         let validItems = items.compactMap { item -> MealInputItem? in
             guard item.grams > 0 else { return nil }
+            guard item.food.userId == userId else { return nil }
             return MealInputItem(food: item.food, grams: item.grams)
         }
 
@@ -397,11 +408,15 @@ class NutritionService: ServiceBase, ObservableObject {
         items: [MealInputItem],
         defaultCategory: FoodLogCategory = .other
     ) -> Bool {
+        guard let userId = try? requireUserId() else { return false }
+        guard meal.userId == userId else { return false }
+
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return false }
 
         let validItems = items.compactMap { item -> MealInputItem? in
             guard item.grams > 0 else { return nil }
+            guard item.food.userId == userId else { return nil }
             return MealInputItem(food: item.food, grams: item.grams)
         }
 
@@ -432,6 +447,7 @@ class NutritionService: ServiceBase, ObservableObject {
     }
 
     func deleteMeal(_ meal: Meal) {
+        guard let userId = try? requireUserId(), meal.userId == userId else { return }
         modelContext.delete(meal)
 
         do {
@@ -449,9 +465,8 @@ class NutritionService: ServiceBase, ObservableObject {
         category: FoodLogCategory,
         note: String?
     ) throws -> MealEntry {
-        guard let userId = currentUser?.id else {
-            throw NutritionError.missingUser
-        }
+        let userId = try requireUserId()
+        try validateMealOwnership(template, expectedUserId: userId)
 
         let sortedItems = template.items.sorted { $0.order < $1.order }
         guard !sortedItems.isEmpty else {
@@ -469,6 +484,7 @@ class NutritionService: ServiceBase, ObservableObject {
 
         for item in sortedItems {
             guard item.grams > 0 else { continue }
+            try validateFoodOwnership(item.food, expectedUserId: userId)
 
             let log = FoodLog(
                 userId: userId,
@@ -481,7 +497,9 @@ class NutritionService: ServiceBase, ObservableObject {
             )
             mealEntry.logs.append(log)
             modelContext.insert(log)
+            try validateFoodLogOwnership(log, expectedUserId: userId)
         }
+        try validateMealEntryOwnership(mealEntry, expectedUserId: userId)
 
         do {
             try modelContext.save()
@@ -556,12 +574,11 @@ class NutritionService: ServiceBase, ObservableObject {
         category: FoodLogCategory,
         note: String?
     ) throws -> FoodLog {
-        guard let userId = currentUser?.id else {
-            throw NutritionError.missingUser
-        }
+        let userId = try requireUserId()
         guard grams > 0 else {
             throw NutritionError.validation("Grams must be greater than 0.")
         }
+        try validateFoodOwnership(food, expectedUserId: userId)
 
         let log = FoodLog(
             userId: userId,
@@ -575,6 +592,7 @@ class NutritionService: ServiceBase, ObservableObject {
         )
 
         modelContext.insert(log)
+        try validateFoodLogOwnership(log, expectedUserId: userId)
 
         do {
             try modelContext.save()
@@ -595,9 +613,7 @@ class NutritionService: ServiceBase, ObservableObject {
         guard calories > 0 else {
             throw NutritionError.validation("Calories must be greater than 0.")
         }
-        guard let userId = currentUser?.id else {
-            throw NutritionError.missingUser
-        }
+        let userId = try requireUserId()
 
         let quickFood = try getOrCreateQuickCaloriesFood()
         let log = FoodLog(
@@ -612,6 +628,7 @@ class NutritionService: ServiceBase, ObservableObject {
         )
 
         modelContext.insert(log)
+        try validateFoodLogOwnership(log, expectedUserId: userId)
 
         do {
             try modelContext.save()
@@ -679,9 +696,7 @@ class NutritionService: ServiceBase, ObservableObject {
     }
 
     func copyStandaloneLogs(from sourceDate: Date, to targetDate: Date) throws -> Int {
-        guard let userId = currentUser?.id else {
-            throw NutritionError.missingUser
-        }
+        let userId = try requireUserId()
 
         let (sourceStart, sourceEnd) = dayRange(for: sourceDate)
         let descriptor = FetchDescriptor<FoodLog>(
@@ -710,6 +725,8 @@ class NutritionService: ServiceBase, ObservableObject {
                     food: sourceLog.food,
                     mealEntry: nil
                 )
+                try validateFoodOwnership(sourceLog.food, expectedUserId: userId)
+                try validateFoodLogOwnership(newLog, expectedUserId: userId)
                 modelContext.insert(newLog)
             }
 
@@ -801,9 +818,7 @@ class NutritionService: ServiceBase, ObservableObject {
     }
 
     private func getOrCreateQuickCaloriesFood() throws -> Food {
-        guard let userId = currentUser?.id else {
-            throw NutritionError.missingUser
-        }
+        let userId = try requireUserId()
 
         if let existing = foods.first(where: { $0.userId == userId && $0.name == "Quick Calories" }) {
             return existing
@@ -818,6 +833,7 @@ class NutritionService: ServiceBase, ObservableObject {
 
         do {
             if let existing = try modelContext.fetch(descriptor).first {
+                try validateFoodOwnership(existing, expectedUserId: userId)
                 return existing
             }
 
@@ -836,9 +852,41 @@ class NutritionService: ServiceBase, ObservableObject {
             modelContext.insert(quickFood)
             try modelContext.save()
             loadFoods()
+            try validateFoodOwnership(quickFood, expectedUserId: userId)
             return quickFood
         } catch {
             throw NutritionError.persistence("Could not create quick calories helper food.")
+        }
+    }
+
+    private func validateFoodOwnership(_ food: Food, expectedUserId: UUID) throws {
+        guard food.userId == expectedUserId else {
+            throw NutritionError.validation("Food ownership mismatch. Please re-create this food under your active account.")
+        }
+    }
+
+    private func validateMealOwnership(_ meal: Meal, expectedUserId: UUID) throws {
+        guard meal.userId == expectedUserId else {
+            throw NutritionError.validation("Meal ownership mismatch. Please re-create this meal template under your active account.")
+        }
+    }
+
+    private func validateMealEntryOwnership(_ entry: MealEntry, expectedUserId: UUID) throws {
+        guard entry.userId == expectedUserId else {
+            throw NutritionError.validation("Meal entry ownership mismatch.")
+        }
+        if let templateMeal = entry.templateMeal {
+            try validateMealOwnership(templateMeal, expectedUserId: expectedUserId)
+        }
+    }
+
+    private func validateFoodLogOwnership(_ log: FoodLog, expectedUserId: UUID) throws {
+        guard log.userId == expectedUserId else {
+            throw NutritionError.validation("Food log ownership mismatch.")
+        }
+        try validateFoodOwnership(log.food, expectedUserId: expectedUserId)
+        if let mealEntry = log.mealEntry {
+            try validateMealEntryOwnership(mealEntry, expectedUserId: expectedUserId)
         }
     }
 }

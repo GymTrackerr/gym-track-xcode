@@ -285,6 +285,7 @@ struct NutritionLogSheet: View {
     }
 
     private func persistSave() throws {
+        let currentUserId = try nutritionService.requireUserId()
         let timestamp = nutritionService.dateByPinning(selectedTime, to: selectedDate)
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -292,6 +293,9 @@ struct NutritionLogSheet: View {
         case .food:
             guard let selectedFood else {
                 throw NutritionService.NutritionError.validation("Select a food before saving.")
+            }
+            guard selectedFood.userId == currentUserId else {
+                throw NutritionService.NutritionError.validation("Selected food does not belong to the active user.")
             }
             let gramsValue = Double(grams.replacingOccurrences(of: ",", with: ".")) ?? 0
             _ = try nutritionService.addFoodLog(
@@ -305,6 +309,9 @@ struct NutritionLogSheet: View {
             guard let selectedFood else {
                 throw NutritionService.NutritionError.validation("Select a drink before saving.")
             }
+            guard selectedFood.userId == currentUserId else {
+                throw NutritionService.NutritionError.validation("Selected drink does not belong to the active user.")
+            }
             let gramsValue = Double(grams.replacingOccurrences(of: ",", with: ".")) ?? 0
             _ = try nutritionService.addFoodLog(
                 food: selectedFood,
@@ -316,6 +323,9 @@ struct NutritionLogSheet: View {
         case .meal:
             guard let selectedMeal else {
                 throw NutritionService.NutritionError.validation("Select a meal template before saving.")
+            }
+            guard selectedMeal.userId == currentUserId else {
+                throw NutritionService.NutritionError.validation("Selected meal template does not belong to the active user.")
             }
             _ = try nutritionService.logMeal(
                 template: selectedMeal,

@@ -22,6 +22,16 @@ class ExerciseService : ServiceBase, ObservableObject {
 
     private let apiHelper: API_Helper
     private let exerciseApi: ExerciseApi
+    private var isLoadingApiExercises = false
+    private var apiSyncedUserId: UUID?
+    
+    private struct ExerciseRelationshipCounts {
+        let splitDays: Int
+        let sessionEntries: Int
+
+        var total: Int { splitDays + sessionEntries }
+        var allZero: Bool { splitDays == 0 && sessionEntries == 0 }
+    }
 
     override init(context: ModelContext) {
         let apiHelper = API_Helper()
@@ -32,14 +42,25 @@ class ExerciseService : ServiceBase, ObservableObject {
 
     override func loadFeature() {
         self.loadExercises()
-        
+        guard let userId = currentUser?.id else { return }
+        guard apiSyncedUserId != userId else { return }
         Task {
-           await self.loadApiExercises()
-       }
+            await self.loadApiExercises()
+        }
     }
     
     func loadExercises() {
-        let descriptor = FetchDescriptor<Exercise>(sortBy: [SortDescriptor(\.name)])
+        guard let userId = currentUser?.id else {
+            exercises = []
+            return
+        }
+
+        let descriptor = FetchDescriptor<Exercise>(
+            predicate: #Predicate<Exercise> { exercise in
+                exercise.user_id == userId
+            },
+            sortBy: [SortDescriptor(\.name)]
+        )
 
         do {
             exercises = try modelContext.fetch(descriptor)
@@ -51,53 +72,237 @@ class ExerciseService : ServiceBase, ObservableObject {
             exercises = []
         }
     }
-    
+
     func loadApiExercises() async {
+        let userId: UUID
+        guard let startedUserId = await MainActor.run(body: { () -> UUID? in
+            guard !self.isLoadingApiExercises else { return nil }
+            guard let userId = self.currentUser?.id else { return nil }
+            self.isLoadingApiExercises = true
+            return userId
+        }) else {
+            return
+        }
+        userId = startedUserId
+
+        defer {
+            Task { @MainActor in
+                self.isLoadingApiExercises = false
+            }
+        }
+
         do {
             let data = try await exerciseApi.getExercises()
-
-            // Preload all current IDs once
-            let existing = Set(exercises.compactMap { $0.npId?.lowercased() })
-            var inserted = 0
-
-            // Insert only missing exercises
-            for exercise in data where !existing.contains(exercise.id.lowercased()) {
-                modelContext.insert(Exercise(from: exercise))
-                inserted += 1
+            let result = try await MainActor.run {
+                try self.applyApiExercises(data, userId: userId)
+            }
+            await MainActor.run {
+                self.loadExercises()
+                self.apiSyncedUserId = userId
             }
 
-            // Save once at the end
-            if inserted > 0 {
-                try modelContext.save()
-                await MainActor.run { self.loadExercises() }
-            }
-
-            
             // TODO, only cache on launch
-            
-            Task {
-            // Prefetch media in background
-//            Task.detached(priority: .background) { [weak self] in
-//                guard let self else { return }
-
-                for exercise in self.exercises {
-                    if (exercise.images == nil) {continue}
-                    if (exercise.cachedMedia == true) {continue}
-                    
-                    async let thumb = self.cacheThumbnail(for: exercise)
-                    async let gif = self.cacheGIF(for: exercise)
-                    _ = await (thumb, gif)
-                    
-                    exercise.cachedMedia = true
-                    try? self.modelContext.save()
-                }
-                
-                print("Cached all non-user exercise thumbnails and GIFs.")
-            }
-            print("Loaded \(data.count) exercises from API (\(inserted) new)")
+            await cacheMediaForUserExercises(userId: userId)
+            print("Cached all non-user exercise thumbnails and GIFs.")
+            print("Loaded \(data.count) exercises from API (\(result.inserted) new, \(result.updated) updated, \(result.removed) deduped)")
         } catch {
             print("Error loading API exercises: \(error)")
         }
+    }
+
+    @MainActor
+    private func applyApiExercises(_ data: [ExerciseDTO], userId: UUID) throws -> (inserted: Int, updated: Int, removed: Int) {
+        let descriptor = FetchDescriptor<Exercise>(
+            predicate: #Predicate<Exercise> { exercise in
+                exercise.user_id == userId
+            }
+        )
+        let existingForUser = try modelContext.fetch(descriptor)
+        var existingByNpId: [String: [Exercise]] = [:]
+        for exercise in existingForUser {
+            guard let key = normalizedNpId(exercise.npId) else { continue }
+            existingByNpId[key, default: []].append(exercise)
+        }
+
+        var inserted = 0
+        var updated = 0
+        var removed = 0
+
+        for apiExercise in data {
+            let npIdKey = normalizedNpId(apiExercise.id) ?? apiExercise.id.lowercased()
+            let matches = existingByNpId[npIdKey] ?? []
+
+            if matches.isEmpty {
+                modelContext.insert(Exercise(from: apiExercise, userId: userId))
+                inserted += 1
+                continue
+            }
+
+            let selection = preferredExercise(from: matches)
+            if selection.isAmbiguous {
+                print("Exercise dedupe skipped for npId=\(npIdKey): ambiguous primary exercise selection.")
+                for exercise in matches where exercise.user_id == userId {
+                    applyApiPayload(apiExercise, to: exercise)
+                    updated += 1
+                }
+                existingByNpId[npIdKey] = matches
+                continue
+            }
+            guard let primary = selection.primary else {
+                print("Exercise dedupe skipped for npId=\(npIdKey): no valid primary candidate.")
+                continue
+            }
+            guard primary.user_id == userId else {
+                print("Exercise dedupe skipped for npId=\(npIdKey): primary owner mismatch.")
+                continue
+            }
+
+            applyApiPayload(apiExercise, to: primary)
+            updated += 1
+
+            var retained: [Exercise] = [primary]
+            for duplicate in matches where duplicate.id != primary.id {
+                guard duplicate.user_id == userId else {
+                    print("Exercise dedupe skipped for \(duplicate.id): duplicate owner mismatch.")
+                    retained.append(duplicate)
+                    continue
+                }
+
+                mergeExerciseReferences(from: duplicate, to: primary, currentUserId: userId)
+                let relationshipCounts = exerciseRelationshipCounts(duplicate)
+                if relationshipCounts.allZero {
+                    modelContext.delete(duplicate)
+                    removed += 1
+                } else {
+                    print("Exercise dedupe skipped for \(duplicate.id): still linked (splits=\(relationshipCounts.splitDays), entries=\(relationshipCounts.sessionEntries)).")
+                    retained.append(duplicate)
+                }
+            }
+            existingByNpId[npIdKey] = retained
+        }
+
+        if inserted > 0 || updated > 0 || removed > 0 {
+            try modelContext.save()
+        }
+        return (inserted, updated, removed)
+    }
+
+    @MainActor
+    private func applyApiPayload(_ apiExercise: ExerciseDTO, to exercise: Exercise) {
+        exercise.npId = apiExercise.id
+        exercise.isUserCreated = false
+        exercise.name = apiExercise.name
+        exercise.primary_muscles = apiExercise.primaryMuscles
+        exercise.secondary_muscles = apiExercise.secondaryMuscles
+        exercise.equipment = apiExercise.equipment
+        exercise.category = apiExercise.category
+        exercise.instructions = apiExercise.instructions
+        exercise.images = apiExercise.images
+    }
+
+    @MainActor
+    private func mergeExerciseReferences(from duplicate: Exercise, to primary: Exercise, currentUserId: UUID) {
+        guard duplicate.id != primary.id else { return }
+        guard duplicate.user_id == currentUserId, primary.user_id == currentUserId else {
+            print("Skipped cross-user merge attempt for exercise \(duplicate.id).")
+            return
+        }
+
+        // Exercise has two inverse relationships today: splits and sessionEntries.
+        for split in duplicate.splits where split.exercise.id == duplicate.id {
+            split.exercise = primary
+            if !primary.splits.contains(where: { $0.id == split.id }) {
+                primary.splits.append(split)
+            }
+        }
+
+        for entry in duplicate.sessionEntries where entry.exercise.id == duplicate.id {
+            entry.exercise = primary
+            if !primary.sessionEntries.contains(where: { $0.id == entry.id }) {
+                primary.sessionEntries.append(entry)
+            }
+        }
+    }
+
+    @MainActor
+    private func exerciseRelationshipCounts(_ exercise: Exercise) -> ExerciseRelationshipCounts {
+        ExerciseRelationshipCounts(
+            splitDays: exercise.splits.count,
+            sessionEntries: exercise.sessionEntries.count
+        )
+    }
+
+    @MainActor
+    private func preferredExercise(from exercises: [Exercise]) -> (primary: Exercise?, isAmbiguous: Bool) {
+        guard !exercises.isEmpty else { return (nil, false) }
+
+        // Deterministic selection:
+        // 1) Most total relationships (splitDays + sessionEntries)
+        // 2) Oldest timestamp
+        // 3) Lexicographically smallest UUID string
+        let sorted = exercises.sorted { lhs, rhs in
+            let lhsCounts = exerciseRelationshipCounts(lhs)
+            let rhsCounts = exerciseRelationshipCounts(rhs)
+            if lhsCounts.total != rhsCounts.total {
+                return lhsCounts.total > rhsCounts.total
+            }
+            if lhs.timestamp != rhs.timestamp {
+                return lhs.timestamp < rhs.timestamp
+            }
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
+
+        guard let first = sorted.first else { return (nil, false) }
+        let topCounts = exerciseRelationshipCounts(first)
+        let topBucket = sorted.filter {
+            let counts = exerciseRelationshipCounts($0)
+            return counts.total == topCounts.total && $0.timestamp == first.timestamp
+        }
+        if topBucket.count > 1 {
+            let distinctIds = Set(topBucket.map(\.id))
+            if distinctIds.count == 1 {
+                return (nil, true)
+            }
+        }
+        return (first, false)
+    }
+
+    @MainActor
+    private func cacheMediaForUserExercises(userId: UUID) async {
+        do {
+            let cacheCandidates = try fetchExercisesForUser(userId: userId)
+            for exercise in cacheCandidates {
+                if (exercise.images == nil) { continue }
+                if (exercise.cachedMedia == true) { continue }
+
+                async let thumb = self.cacheThumbnail(for: exercise)
+                async let gif = self.cacheGIF(for: exercise)
+                _ = await (thumb, gif)
+
+                exercise.cachedMedia = true
+                try? self.modelContext.save()
+            }
+        } catch {
+            print("Failed to load exercises for media caching: \(error)")
+        }
+    }
+
+    private func normalizedNpId(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return trimmed.lowercased()
+    }
+
+    @MainActor
+    private func fetchExercisesForUser(userId: UUID) throws -> [Exercise] {
+        let descriptor = FetchDescriptor<Exercise>(
+            predicate: #Predicate<Exercise> { exercise in
+                exercise.user_id == userId
+            },
+            sortBy: [SortDescriptor(\.name)]
+        )
+        return try modelContext.fetch(descriptor)
     }
     
     func search(query: String) -> [Exercise] {

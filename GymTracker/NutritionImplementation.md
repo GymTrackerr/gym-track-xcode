@@ -1343,6 +1343,215 @@ Do not add a Drink model or a new logging pipeline. This is purely:
 * two new fields on Food,
 * UI labeling for ml,
 * and list filters.
+---
+
+## Phase 9 — Start Real Logging Safely (UserID + Data Integrity + Backup-lite)
+
+### Goal
+
+Make Nutrition safe for daily use on-device without losing logs when you iterate on the app. This phase focuses on:
+
+* re-enabling `userId` filtering safely
+* guaranteeing every write sets `userId`
+* preventing “invisible data” bugs
+* adding a minimal one-way backup export (Nutrition-only) as a safety net
+
+This phase must not refactor existing Nutrition UI flows (LogSheet/Manage) or change core schemas beyond additive safe fields.
+
+---
+
+# 9.0 Guardrails
+
+1. Keep Phase 5 unified flow intact (DayView → LogSheet; Menu → Manage).
+2. Do not rename models/properties.
+3. Only additive schema changes allowed (new fields with defaults).
+4. All write operations must either succeed or show a user-facing error (no silent failures).
+5. With `userId` filtering enabled, **no object may be saved with missing/incorrect userId**.
+
+---
+
+# 9.1 Re-enable userId filtering (and make it consistent)
+
+## Task A — Turn filtering back on
+
+* Re-enable `userId == currentUser.id` predicates in all Nutrition fetches:
+
+  * foods list (manage/picker)
+  * meal templates list
+  * meal entries for day
+  * food logs for day
+  * recent foods query (based on logs)
+
+## Task B — Audit every write path sets userId
+
+For every creation/upsert, ensure `userId` is always set to `currentUser.id`:
+
+* createFood
+* updateFood (must not clear userId)
+* addFoodLog
+* addQuickCaloriesLog
+* createMealTemplate
+* addMealItem
+* logMeal (MealEntry + FoodLogs)
+* any “copy yesterday” or “save meal as template” if present
+
+Add a central helper in `NutritionService`:
+
+* `func requireUserId() throws -> UUID`
+  Use it in every write entry point.
+
+If `currentUser` is nil:
+
+* throw `NutritionError.missingUser`
+* UI must show an alert (“You must be signed in to log nutrition”)
+
+**No temporary fallback IDs in Phase 9** (since you want userId on).
+
+---
+
+# 9.2 Add integrity checks (prevents phantom/invisible data)
+
+Add lightweight validation functions in `NutritionService`:
+
+### Validate required invariants (throw on failure)
+
+* `Food.userId` exists and equals current userId when writing
+* `FoodLog.userId` exists and equals current userId when writing
+* `Meal.userId` exists and equals current userId when writing
+* `MealEntry.userId` exists and equals current userId when writing
+* Relationship integrity:
+
+  * `FoodLog.food.userId` must equal `FoodLog.userId`
+  * If `FoodLog.mealEntry != nil`, mealEntry.userId must equal foodLog.userId
+
+Run validation at save time in:
+
+* LogSheet persistSave
+* Meal logging function
+
+---
+
+# 9.3 Prevent junk data (strongly recommended before daily logging)
+
+Enforce:
+
+* Food reference grams must be > 0
+* FoodLog grams must be > 0 (and quick calories must be > 0)
+* MealItem grams must be > 0
+* Nutrition values must be >= 0
+
+UI should block Save with a clear error message (alert) rather than silently clamping to 0.
+
+---
+
+# 9.4 Add “Backup Nutrition” (export-only, no DTO system yet)
+
+You don’t want full export/import yet—so do a minimal, safe export-only.
+
+## Output
+
+Create a single JSON file containing:
+
+* foods
+* meals
+* mealItems
+* mealEntries
+* foodLogs
+* nutritionTargets (optional)
+
+Include:
+
+* `schemaVersion: 1`
+* `exportedAt`
+* `userId` (currentUser.id)
+
+**Important:** Use a simple Codable export struct (DTOs), but only for Nutrition and only for export. No import.
+
+## Service
+
+Create:
+
+* `Services/NutritionBackupService.swift`
+
+Methods:
+
+* `func exportNutritionJSON() throws -> URL`
+
+  * fetch all Nutrition records for current user
+  * map to export DTO structs
+  * write file to Documents (or temp) with a timestamp name
+  * return file URL
+
+## UI entry point
+
+Add a debug-only (or settings) button:
+
+* “Export Nutrition Backup”
+* Presents ShareSheet for the generated JSON file
+
+---
+
+# 9.5 Device logging readiness checklist (Phase 9 acceptance)
+
+* userId filtering is enabled everywhere and works consistently.
+* Creating/logging foods/meals never produces records with missing userId.
+* If not signed in, logging actions fail with a clear alert (no silent fail).
+* No 0-gram logs/items can be saved.
+* MealEntry and its FoodLogs always share the same userId.
+* Export Nutrition Backup produces a JSON file and ShareSheet opens.
+* Build succeeds and basic manual smoke test passes on device:
+
+  * create food, log it
+  * create meal template, log it
+  * archive/unarchive food
+  * export backup
+
+---
+
+# 9B — Nutrition Import (Merge/Upsert, Safety-first)
+
+## Goal
+
+Allow restoring Nutrition data from an exported backup JSON without replacing unrelated app data.
+
+## Scope
+
+* Add import support to `NutritionBackupService`:
+
+  * `func importNutritionJSON(from: URL) throws -> ImportResult`
+* Import is **merge/upsert** (by model `id`), not destructive replace.
+* Validate:
+
+  * `schemaVersion == 1`
+  * backup `userId` matches active `currentUser.id`
+  * referenced relationships exist (meal->food, log->food, log->mealEntry)
+* Keep user ownership strict:
+
+  * imported nutrition records are assigned/validated to active `userId`
+* Save in one transactional flow and return counts.
+
+## UI entry
+
+* Add Settings action:
+
+  * “Import Nutrition Backup”
+* Use `fileImporter` for `.json`.
+* Show clear success/failure alert.
+* On success, refresh `NutritionService` in-memory lists.
+
+## Guardrails
+
+* No full-wipe replace in this phase.
+* No import for non-nutrition entities.
+* No schema migrations beyond already-supported Phase 9 backup schema.
+
+---
+
+### Notes for the agent
+
+* Keep this phase minimal and safety-focused.
+* Do not add import yet.
+* Do not refactor view navigation; only add the export button and enforce validation.
 
 ---
 
@@ -1361,6 +1570,792 @@ If you want me to sanity-check the result after Phase 7, paste the grep results 
 If you want one-liner to give the agent:
 
 > “Make `logMeal` throw/optional like other creates, remove/override older checklists, add ‘Show archived’ toggle with unarchive actions in FoodPicker + Manage Foods, block saving if selected food is archived (offer Unarchive), and add MealTemplateEditor empty-state that guides user to create a food first.”
+
+---
+## Phase 9C — Exercise Export/Import (npId-first Linking + Skip API Exercises)
+
+Implement an export/import system for all exercise-related models, similar to Nutrition backup, with full import support. **When exporting, do NOT include exercises that came from the API**.
+
+> **Rule:** If an Exercise has `isUserCreated == true` (flag for API-provided items), **exclude it from export**.
+> (Only export exercises that are not API-provided.)
+
+### Scope
+
+Include:
+
+* Exercise
+* ExerciseSplitDay
+* Routine
+* Session
+* SessionEntry
+* SessionSet
+* SessionRep (if applicable)
+
+Do not modify existing model structures except where required for safe import.
+
+---
+
+## Phase 9D — Exercise Log Backup That Works Without Exporting Exercises
+
+### Goal
+
+Export and import workout logs (sessions, session entries, sets, reps, routines, split days) **even when exercises are not exported**. During import, exercises must be linked using **npId if present**, otherwise **id**. If an exercise cannot be resolved locally, import still succeeds and the log is preserved in a **pending/unresolved** state (no data loss).
+
+This phase fixes the current issue where logs are being skipped because exercises are excluded.
+
+---
+
+# 9D.0 Guardrails
+
+1. It is OK for `"payload.exercises"` to be empty.
+2. Export must never skip `SessionEntry/SessionSet/SessionRep` just because an exercise is excluded.
+3. Import must never drop logs; unresolved exercise references must be preserved for later relinking.
+4. All new fields must have safe defaults (no migration break).
+5. No silent failures: user-visible error on export/import failure.
+
+---
+
+# 9D.1 Data Model Change (minimal, required)
+
+To preserve logs when exercise can’t be resolved, add **one optional string field** to `SessionEntry` (or whatever model holds the exercise reference in your app):
+
+### Add to `SessionEntry`:
+
+* `exerciseNpId: String?` (default nil)  **OR**
+* `unresolvedExerciseKey: String?` (default nil)
+
+**Recommended design (best):**
+Add both:
+
+* `exerciseNpId: String?` (for stable external linking)
+* `unresolvedExerciseId: UUID?` (optional, if you want to store original id too)
+
+If you want the absolute minimum:
+
+* Add `exerciseKey: String?` where you store either npId or UUID string.
+
+This prevents data loss and lets you relink later.
+
+---
+
+# 9D.2 Export Format Updates (DTO changes)
+
+In your export DTOs:
+
+### SessionEntryDTO must include:
+
+* `exerciseId: String?`  (UUID string if you have it)
+* `exerciseNpId: String?` (if the exercise has it)
+
+Even if you skip exporting exercises, you still export these keys.
+
+**Do not skip SessionEntryDTO if exerciseNpId is missing.**
+Export it anyway with `exerciseId` populated.
+
+### SessionSetDTO / SessionRepDTO remain the same
+
+They reference their parent IDs (`entryId`, `setId`) and should export as long as the parent exists.
+
+---
+
+# 9D.3 Export Rules (the fix)
+
+## A) Keep skipping exercises
+
+You can keep:
+
+* `payload.exercises = []` (or only export user-created, whatever)
+
+## B) Never skip workout logs due to exercise exclusion
+
+Remove the current behavior that does:
+
+* “Skipped session entries due to excluded exercises without npId”
+* and the cascading skips for sets/reps.
+
+### New logic:
+
+* Export Sessions
+* Export SessionEntries (always, as long as session exists)
+* Export SessionSets (always, as long as entry exists)
+* Export SessionReps (always, as long as set exists)
+
+The only valid skip reasons are:
+
+* missing parent record (data already corrupted)
+* entry has neither `exerciseId` nor `exerciseNpId` (true invalid record)
+
+If you skip, log a warning like:
+
+* “Skipped X entries missing both exerciseId and exerciseNpId.”
+
+---
+
+# 9D.4 Import Rules (npId-first, otherwise id, otherwise unresolved)
+
+When importing a `SessionEntryDTO`:
+
+### Resolve the exercise reference in this order:
+
+1. If `exerciseNpId` present:
+
+   * find existing Exercise with matching npId
+   * if found: link normally
+2. Else if `exerciseId` present:
+
+   * find existing Exercise with matching id
+   * if found: link normally
+3. If not found:
+
+   * import the SessionEntry anyway, but mark it unresolved:
+
+     * set `sessionEntry.exercise = nil` **if your relationship allows optional**
+     * store `sessionEntry.exerciseNpId = dto.exerciseNpId` and/or `sessionEntry.unresolvedExerciseKey`
+     * store `sessionEntry.unresolvedExerciseId = UUID(dto.exerciseId)` if you added it
+
+### Important: if your SessionEntry currently requires `exercise` non-optional
+
+To avoid a breaking relationship change, implement one of these:
+
+**Option 1 (recommended if possible):** make `exercise` optional in SessionEntry
+(Additive migration is usually okay; but this can be risky if you already have lots of data.)
+
+**Option 2 (no schema change to relationship):** create a single placeholder Exercise:
+
+* id fixed: a constant UUID
+* name: “Unresolved Exercise”
+* npId nil
+  Then link unresolved entries to this placeholder, and store the real key in `exerciseNpId/unresolvedExerciseKey`.
+
+This keeps the model stable and preserves logs.
+
+---
+
+# 9D.5 Relinking tool (small but important)
+
+Add a service method to fix unresolved entries later:
+
+* `func relinkUnresolvedSessionEntries() throws -> Int`
+
+Behavior:
+
+* For each session entry with unresolved key:
+
+  * try to resolve again using same npId/id rules
+  * if resolved: replace placeholder/nil with real exercise and clear unresolved fields
+
+Optional UI:
+
+* In Manage/Debug: “Fix Unresolved Exercises”
+
+Also in UI:
+
+* If an entry is unresolved, show a warning badge and display:
+
+  * “Unknown exercise” or placeholder name
+  * (optional) show stored npId/id
+
+---
+
+# 9D.6 Acceptance Criteria
+
+* Export JSON contains:
+
+  * sessions, sessionEntries, sessionSets, sessionReps (not empty when data exists)
+  * exercises can be empty
+* No warnings about skipping entries because exercises were excluded.
+* Import works even if exercises don’t exist on target device:
+
+  * sessions + sets + reps are still imported
+  * unresolved entries are preserved (placeholder or nil + stored key)
+* If exercises exist (same npId or id), entries link correctly.
+* Relink tool successfully converts unresolved entries once exercises become available.
+
+---
+
+# Export Requirements
+
+Create:
+
+`Services/ExerciseBackupService.swift`
+
+### Method:
+
+* `func exportExercisesJSON() throws -> URL`
+
+### Output JSON Structure:
+
+```json
+{
+  "schemaVersion": 1,
+  "exportedAt": "ISO8601",
+  "userId": "UUID",
+  "payload": {
+    "exercises": [],
+    "routines": [],
+    "splitDays": [],
+    "sessions": [],
+    "sessionEntries": [],
+    "sessionSets": [],
+    "sessionReps": []
+  }
+}
+```
+
+### DTO Rules
+
+* Use Codable DTO structs (do NOT make `@Model` types Codable).
+* All relationships stored as foreign keys.
+* Dates encoded ISO8601.
+* IDs exported as String.
+* Include `npId` and `isUserCreated` in ExerciseDTO.
+
+### **Export filter rule (critical)**
+
+When exporting exercises:
+
+* **Exclude** exercises where `isUserCreated == true` (API-provided)
+* Export only exercises where `isUserCreated == false`
+
+### Relationship handling when excluded exercises exist
+
+If you exclude API exercises, you must ensure exported payload doesn’t contain orphan references:
+
+* When exporting `SessionEntry` / `ExerciseSplitDay` / anything referencing `Exercise`:
+
+  * If the referenced exercise is excluded because `isUserCreated == true`, still export the referencing record **but store the exercise link using `npId` if available**.
+  * If no `npId` exists for that excluded exercise, then that referencing record cannot be safely re-linked on import; handle as:
+
+    * Either **skip exporting that referencing record**, OR
+    * Export it with `exerciseId = null` and mark it “needs relink”.
+
+**Choose one approach and implement consistently. Recommended:**
+
+* If exercise is excluded AND has no `npId`, skip exporting the dependent record and record it in an `exportWarnings` array.
+
+Add optional:
+
+* `exportWarnings: [String]` at root to list skipped items counts.
+---
+
+Phase 10 — Strict Import (npId-first) + Correct Parent Linking (No Model Changes)
+
+Goal
+
+Import workout logs so that:
+    •    SessionEntry.exercise links to the correct local Exercise using npId first (then id)
+    •    sets/reps import under the right entry/set
+    •    import fails if any referenced exercise cannot be resolved
+    •    do not edit model relationships / @Relationship annotations
+
+⸻
+
+10.0 Guardrails
+    1.    Do not change any SwiftData models (no relationship edits).
+    2.    No placeholder exercises, no unresolved fields.
+    3.    Import must be transactional: fail early if missing exercises.
+    4.    Import must not silently skip entries/sets/reps.
+    5.    Exercise resolution is npId-first, then id.
+
+⸻
+
+10.1 Export Requirements (verify/keep)
+
+Your export format is correct if:
+    •    SessionEntryDTO includes both:
+    •    exerciseNpId: String?
+    •    exerciseId: String? (UUID string)
+    •    SessionSetDTO includes:
+    •    sessionEntryId: String
+    •    SessionRepDTO includes:
+    •    sessionSetId: String
+
+If split days are included, they must also have exerciseNpId + exerciseId.
+
+No further export changes required.
+
+⸻
+
+10.2 Strict preflight validation (must)
+
+Before creating anything in SwiftData, do a preflight pass:
+    1.    Decode JSON.
+    2.    Gather all unique exercise references from sessionEntries and splitDays:
+    •    prefer exerciseNpId if present
+    •    else use exerciseId
+    3.    For each reference, attempt to resolve:
+    •    if exerciseNpId exists:
+    •    fetch Exercise where npId == exerciseNpId
+    •    else if exerciseId exists:
+    •    fetch Exercise where id == UUID(exerciseId)
+    4.    If any are missing:
+    •    throw one error listing missing keys (npId and/or id)
+    •    abort import (no partial writes)
+
+This ensures import never “half works”.
+
+⸻
+
+10.3 Import algorithm (no relationship edits)
+
+Implement import with explicit object linking by setting parent references at creation time.
+
+Recommended import order
+    1.    Routines
+    2.    Sessions
+    3.    SessionEntries (must resolve exercise first)
+    4.    SessionSets (must link to SessionEntry object)
+    5.    SessionReps (must link to SessionSet object)
+    6.    SplitDays (resolve exercise, link)
+
+Key requirement: build maps by ID
+
+During import, build dictionaries so children link to the correct already-created parent object:
+    •    sessionsById: [UUID: Session]
+    •    entriesById: [UUID: SessionEntry]
+    •    setsById: [UUID: SessionSet]
+    •    optionally routinesById
+
+SessionEntries linking (the main fix)
+
+When creating/importing a SessionEntry:
+    •    Resolve exercise:
+    •    If dto.exerciseNpId exists → query Exercise by npId
+    •    Else query by dto.exerciseId
+    •    Then init/create entry with:
+    •    sessionEntry.exercise = resolvedExercise
+    •    sessionEntry.session = parentSession
+    •    Store in entriesById[entryId] = entry
+
+This is what makes “open session” show exercises correctly.
+
+Sets linking
+
+For each SessionSetDTO:
+    •    find parent entry from entriesById[dto.sessionEntryId]
+    •    create set and set:
+    •    sessionSet.sessionEntry = parentEntry
+    •    store in setsById[setId] = set
+
+Reps linking
+
+For each SessionRepDTO:
+    •    find parent set from setsById[dto.sessionSetId]
+    •    create rep and set:
+    •    rep.sessionSet = parentSet
+
+Do not rely on inferred inverse arrays.
+Just setting the parent reference is enough for proper fetches/UI if your UI queries by relationships.
+
+⸻
+
+10.4 Ensure your UI fetch matches the model (common cause of “sets missing”)
+
+If your Session detail screen shows sets/reps by reading arrays like:
+    •    entry.sets
+    •    set.sessionReps
+
+…and those arrays aren’t automatically populated in your current model style, then during import you may also need to append after creating the child:
+    •    after creating SessionSet, do:
+    •    parentEntry.sets.append(set) only if sets array exists
+    •    after creating SessionRep, do:
+    •    parentSet.sessionReps.append(rep) only if array exists
+
+This is NOT a schema change. It’s just making sure the in-memory relationship graph matches what your UI expects.
+
+(If your UI fetches sets via queries instead of arrays, you can skip appending.)
+
+⸻
+
+10.5 Merge vs Replace
+
+Implement both modes:
+
+Replace
+    •    delete existing imported data in dependency order (reps → sets → entries → sessions → routines → split days) for this user
+    •    then import
+
+Merge
+    •    Upsert by id for sessions/routines (and entries/sets/reps if you want)
+    •    For MVP, simplest is:
+    •    if id exists, skip (or update)
+    •    else insert
+
+⸻
+
+10.6 Acceptance Criteria
+    •    Import fails with clear error if any referenced exercise cannot be resolved by npId/id.
+    •    Successful import: opening a session shows:
+    •    entries have correct exercise names (resolved via npId)
+    •    sets and reps appear under correct entries/sets
+    •    No model files were changed.
+    •    No placeholder/unresolved fields remain.
+    •    Build succeeds.
+
+⸻
+
+One-liner to give the agent
+
+“Do strict import: preflight resolve all SessionEntry.exercise using exerciseNpId first, else id; fail import if any missing. During import create entries/sets/reps by assigning the correct parent object references (sessionEntry.session, sessionEntry.exercise, sessionSet.sessionEntry, rep.sessionSet). No model relationship changes.”
+
+If you paste the session detail view code that displays sets/reps, I can tell you whether you need the optional .append() step or whether your queries will pick them up automatically.
+
+---
+
+# Import Requirements
+
+### Method:
+
+* `func importExercises(data: Data, mode: ImportMode) throws -> ImportReport`
+
+Where:
+
+* `ImportMode = .merge | .replace`
+* `ImportReport` contains inserted/updated/skipped counts per model.
+
+---
+
+# Critical Linking Rule (npId-first)
+
+When importing Exercises:
+
+1. If DTO has `npId`:
+
+   * Try to find existing Exercise with same `npId`.
+   * If found → update that record.
+2. If not found by `npId`, then:
+
+   * Try to find existing Exercise by `id`.
+3. If neither exists:
+
+   * Insert new Exercise.
+
+When importing any record that references an Exercise (SessionEntry, ExerciseSplitDay, etc.):
+
+* Prefer linking by `npId` if present
+* Otherwise link by `exerciseId` (UUID string)
+
+---
+
+# Dependency Order for Import
+
+Replace mode:
+
+1. Delete in reverse dependency order:
+
+   * SessionReps
+   * SessionSets
+   * SessionEntries
+   * Sessions
+   * ExerciseSplitDays
+   * Routines
+   * Exercises (only those that are user-created/exported)
+
+2. Insert in forward order:
+
+   * Exercises (exported only)
+   * Routines
+   * ExerciseSplitDays
+   * Sessions
+   * SessionEntries
+   * SessionSets
+   * SessionReps
+
+Merge mode:
+
+* Build lookup dictionaries for existing models.
+* Upsert using linking rules.
+* Never duplicate if npId matches.
+
+---
+
+# Data Integrity Rules
+
+* SessionEntry.exercise must link using:
+
+  * `exerciseNpId` if present
+  * otherwise `exerciseId`
+* SplitDay.exercise must use the same rule.
+* Validate all foreign keys before commit.
+* Perform entire import inside a single SwiftData transaction.
+* If validation fails, abort import and throw error.
+
+---
+
+# Safety Requirements
+
+* Do not generate new IDs if DTO provides one.
+* Do not overwrite userId.
+* All imported records must retain original IDs.
+* Validate referential integrity before saving.
+
+---
+
+# Acceptance Criteria
+
+* Export produces valid JSON containing all exercise data **except** exercises where `isUserCreated == true`.
+* Export does not produce orphan references; any skipped dependent records are reported via warnings.
+* Merge import does not duplicate exercises if npId matches.
+* Replace import recreates identical dataset (within the exported subset).
+* SessionEntries correctly link to Exercises via npId priority.
+* No orphan records after import.
+* Build succeeds.
+
+---
+
+If you want, tell me whether your naming is reversed (because “isUserCreated” usually means user-made, but you said it indicates API items). I used your definition exactly: **true = API-provided = exclude**.
+
+---
+Yep — you can make that a tiny follow-up phase, but if it already removed them, you can just treat Phase 10B as a verification + cleanup pass.
+
+Phase 10B — Remove Unresolved Tracking (Verification + Cleanup)
+
+Goal
+
+Ensure the codebase has no unresolved/placeholder tracking left, and import behaves strictly:
+    •    resolve exercises by npId (then id)
+    •    if missing → fail import (no partial import)
+
+Tasks
+    1.    Remove leftover model fields (if any)
+
+    •    In SessionEntry delete:
+    •    unresolvedExerciseNpId
+    •    unresolvedExerciseId
+    •    In ExerciseSplitDay delete any unresolved fields if they were added.
+
+    2.    Remove placeholder logic
+
+    •    In ExerciseBackupService delete:
+    •    placeholder “Unresolved Exercise” creation/lookup
+    •    any branches that assign placeholder
+    •    any relink methods (relinkUnresolvedSessionEntries() etc.)
+
+    3.    Remove Settings UI
+
+    •    Delete “Fix Unresolved Exercises” button/action in SettingsView.
+
+    4.    Strict import preflight
+
+    •    Before writing anything:
+    •    collect all exerciseNpId (preferred) / exerciseId references from sessionEntries (and splitDays if imported)
+    •    verify each resolves to a local Exercise
+    •    If any missing:
+    •    throw a single error listing missing keys
+    •    abort import (no partial changes)
+
+    5.    Ensure linking is npId-first
+During import of each SessionEntry:
+
+    •    if exerciseNpId exists → query by Exercise.npId
+    •    else → query by Exercise.id
+
+Acceptance
+    •    No unresolved fields exist in models.
+    •    No placeholder exercise logic exists.
+    •    Import fails with a clear error if any exercise cannot be resolved.
+    •    A successful import shows exercises + sets/reps correctly.
+    •    Build succeeds.
+
+---
+
+## Phase 10B — Remove Unresolved Tracking (Verification + Cleanup)
+
+### Goal
+
+Ensure the codebase has **no unresolved/placeholder tracking** left, and import behaves strictly:
+
+* resolve exercises by `npId` (then `id`)
+* if missing → **fail import** (no partial import)
+
+### Tasks
+
+1. **Remove leftover model fields (if any)**
+
+* In `SessionEntry` delete:
+
+  * `unresolvedExerciseNpId`
+  * `unresolvedExerciseId`
+* In `ExerciseSplitDay` delete any unresolved fields if they were added.
+
+2. **Remove placeholder logic**
+
+* In `ExerciseBackupService` delete:
+
+  * placeholder “Unresolved Exercise” creation/lookup
+  * any branches that assign placeholder
+  * any relink methods (`relinkUnresolvedSessionEntries()` etc.)
+
+3. **Remove Settings UI**
+
+* Delete “Fix Unresolved Exercises” button/action in `SettingsView`.
+
+4. **Strict import preflight**
+
+* Before writing anything:
+
+  * collect all `exerciseNpId` (preferred) / `exerciseId` references from `sessionEntries` (and splitDays if imported)
+  * verify each resolves to a local `Exercise`
+* If any missing:
+
+  * throw a single error listing missing keys
+  * abort import (no partial changes)
+
+5. **Ensure linking is npId-first**
+   During import of each `SessionEntry`:
+
+* if `exerciseNpId` exists → query by `Exercise.npId`
+* else → query by `Exercise.id`
+
+### Acceptance
+
+* No unresolved fields exist in models.
+* No placeholder exercise logic exists.
+* Import fails with a clear error if any exercise cannot be resolved.
+* A successful import shows exercises + sets/reps correctly.
+* Build succeeds.
+
+---
+
+## Phase 10C — Import Linking Rule: npId-first (id ignored when npId exists)
+
+### Goal
+
+During **exercise backup import**, link `SessionEntry.exercise` (and any other exercise references like `ExerciseSplitDay.exercise`) using this rule:
+
+1. If `exerciseNpId` exists in the payload → **find local Exercise by `npId` and use that**
+
+   * The payload’s `exerciseId` must be ignored in this case (it will not match across devices).
+2. Only if `exerciseNpId` is missing/empty → use `exerciseId` to find Exercise by UUID (for user-created/no-npId exercises).
+
+Import must **fail** if an exercise reference cannot be resolved by these rules.
+
+No placeholder exercise, no unresolved tracking.
+
+---
+
+# 10C.0 Guardrails
+
+1. Do not create placeholder/unresolved exercises.
+2. Do not store unresolved keys on models.
+3. The import must be transactional: if any required exercise cannot be resolved, abort with a clear error listing missing refs.
+4. Never use payload `exerciseId` when `exerciseNpId` is present.
+5. Keep exporting exercises optional; import assumes exercises already exist locally when referenced by npId.
+
+---
+
+# 10C.1 Update DTO contract (if not already)
+
+Ensure your DTOs include both:
+
+* `exerciseNpId: String?`
+* `exerciseId: String?` (UUID string)
+
+For any record that references an exercise:
+
+* `SessionEntryDTO` (required)
+* `ExerciseSplitDayDTO` (if importing split days)
+
+---
+
+# 10C.2 Implement a single resolver (centralize the rule)
+
+In `ExerciseBackupService.swift`, create one helper:
+
+### `resolveExercise(exerciseNpId: String?, exerciseId: String?) throws -> Exercise`
+
+Resolution logic (exact):
+
+1. If `exerciseNpId` is non-empty after trimming:
+
+   * fetch local Exercise where `npId == exerciseNpId`
+   * if found, return it
+   * if not found, throw MissingExercise error **identified by npId**
+2. Else:
+
+   * parse `exerciseId` as UUID
+   * fetch local Exercise where `id == uuid`
+   * if found, return it
+   * else throw MissingExercise error **identified by id**
+
+**Important:** Do NOT attempt id lookup if npId was provided (even as fallback). That defeats the rule.
+
+---
+
+# 10C.3 Preflight validation (fail before writing anything)
+
+Before inserting any Sessions/Entries/Sets/Reps:
+
+1. Decode JSON.
+2. Collect required exercise references from:
+
+   * all `sessionEntries` (and `splitDays` if applicable)
+3. For each reference:
+
+   * If npId present → must resolve by npId
+   * Else → must resolve by id
+4. If any missing:
+
+   * throw one error listing unique missing references:
+
+     * `npId=...`
+     * `id=...`
+
+No database writes should happen if missing refs exist.
+
+---
+
+# 10C.4 Import flow (after preflight passes)
+
+Proceed with your existing object creation order.
+
+### When creating SessionEntry
+
+Use resolver:
+
+* `let exercise = try resolveExercise(dto.exerciseNpId, dto.exerciseId)`
+* set `entry.exercise = exercise`
+
+### When importing split days (if applicable)
+
+Same resolver rule:
+
+* `splitDay.exercise = try resolveExercise(dto.exerciseNpId, dto.exerciseId)`
+
+---
+
+# 10C.5 Remove conflicting placeholder/unresolved logic
+
+Delete from import/export code:
+
+* any placeholder exercise creation/lookup
+* any `unresolvedExerciseNpId` / `unresolvedExerciseId` usage
+* any relink functions (“Fix Unresolved Exercises”)
+* any warnings about linking to placeholder
+
+Import should either:
+
+* succeed with correctly linked exercises, or
+* fail with “Missing exercise references…”
+
+---
+
+# 10C.6 Acceptance Criteria
+
+* Import succeeds on a device where all referenced `npId`s exist locally.
+* If a session entry has `exerciseNpId`, the imported entry links to the local exercise with the same `npId`, regardless of payload UUID.
+* Payload UUIDs may differ across devices and do not matter when `npId` exists.
+* If `exerciseNpId` is missing, import links by UUID id (for user-created exercises).
+* Import fails with a clear list if any referenced exercise cannot be resolved.
+* No placeholder/unresolved tracking remains in codebase.
+* Build succeeds.
+
+---
+
+### One-line summary for the agent
+
+“Implement strict npId-first resolver: when `exerciseNpId` exists, link by `Exercise.npId` and ignore payload `exerciseId`; only use id when npId is missing. Add preflight validation and remove placeholder/unresolved logic.”
+
 
 ---
 

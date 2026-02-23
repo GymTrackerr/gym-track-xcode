@@ -6,9 +6,32 @@
 //
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
+#if os(iOS)
+import UIKit
+#endif
 
 struct SettingsView: View {
+    private enum BackupImportTarget {
+        case nutrition
+        case exercise
+    }
+
+    @Environment(\.modelContext) private var context
     @EnvironmentObject var userService: UserService
+    @EnvironmentObject var nutritionService: NutritionService
+    @EnvironmentObject var exerciseService: ExerciseService
+    @EnvironmentObject var splitDayService: RoutineService
+    @EnvironmentObject var sessionService: SessionService
+    @EnvironmentObject var exerciseSplitDayService: ExerciseSplitDayService
+    @EnvironmentObject var sessionExerciseService: SessionExerciseService
+    @State private var shareItem: BackupShareItem?
+    @State private var showImportPicker = false
+    @State private var importTarget: BackupImportTarget = .nutrition
+    @State private var exerciseImportMode: ExerciseBackupService.ImportMode = .merge
+    @State private var showExportErrorAlert = false
+    @State private var backupAlertTitle = "Backup"
+    @State private var exportErrorMessage = ""
 
     var body: some View {
         VStack {
@@ -46,9 +69,86 @@ struct SettingsView: View {
                         Text("Debug Data")
                     }
                 }
+
+                Section("Nutrition") {
+                    Button {
+                        exportNutritionBackup()
+                    } label: {
+                        HStack {
+                            Image(systemName: "square.and.arrow.up")
+                            Text("Export Nutrition Backup")
+                        }
+                    }
+
+                    Button {
+                        importTarget = .nutrition
+                        showImportPicker = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "square.and.arrow.down")
+                            Text("Import Nutrition Backup")
+                        }
+                    }
+                }
+
+                Section("Exercises") {
+                    Button {
+                        exportExerciseBackup()
+                    } label: {
+                        HStack {
+                            Image(systemName: "square.and.arrow.up")
+                            Text("Export Exercise Backup")
+                        }
+                    }
+
+                    Button {
+                        exerciseImportMode = .merge
+                        importTarget = .exercise
+                        showImportPicker = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "square.and.arrow.down")
+                            Text("Import Exercise Backup (Merge)")
+                        }
+                    }
+
+                    Button {
+                        exerciseImportMode = .replace
+                        importTarget = .exercise
+                        showImportPicker = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                            Text("Import Exercise Backup (Replace)")
+                        }
+                    }
+
+                }
             }
         }
         .navigationTitle("Settings")
+        .alert(backupAlertTitle, isPresented: $showExportErrorAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(exportErrorMessage)
+        }
+#if os(iOS)
+        .sheet(item: $shareItem) { item in
+            ActivityShareSheet(activityItems: [item.url])
+        }
+#endif
+        .fileImporter(
+            isPresented: $showImportPicker,
+            allowedContentTypes: [.json],
+            allowsMultipleSelection: false
+        ) { result in
+            switch importTarget {
+            case .nutrition:
+                handleNutritionImport(result)
+            case .exercise:
+                handleExerciseImport(result)
+            }
+        }
 //        .toolbar {
 //            ToolbarItem(placement: .navigationBarTrailing) {
 //                Button {
@@ -59,7 +159,145 @@ struct SettingsView: View {
 //            }
 //        }
     }
+
+    private func exportNutritionBackup() {
+        let backupService = NutritionBackupService(
+            context: context,
+            currentUserProvider: { userService.currentUser }
+        )
+
+        do {
+            let url = try backupService.exportNutritionJSON()
+#if os(iOS)
+            shareItem = BackupShareItem(url: url)
+#else
+            backupAlertTitle = "Export Complete"
+            exportErrorMessage = "Backup created at: \(url.path)"
+            showExportErrorAlert = true
+#endif
+        } catch {
+            backupAlertTitle = "Couldn’t Export"
+            exportErrorMessage = error.localizedDescription
+            showExportErrorAlert = true
+        }
+    }
+
+    private func exportExerciseBackup() {
+        let backupService = ExerciseBackupService(
+            context: context,
+            currentUserProvider: { userService.currentUser }
+        )
+
+        do {
+            let url = try backupService.exportExercisesJSON()
+#if os(iOS)
+            shareItem = BackupShareItem(url: url)
+#else
+            backupAlertTitle = "Export Complete"
+            exportErrorMessage = "Backup created at: \(url.path)"
+            showExportErrorAlert = true
+#endif
+        } catch {
+            backupAlertTitle = "Couldn’t Export"
+            exportErrorMessage = error.localizedDescription
+            showExportErrorAlert = true
+        }
+    }
+
+    private func handleNutritionImport(_ result: Result<[URL], any Error>) {
+        switch result {
+        case .failure(let error):
+            backupAlertTitle = "Couldn’t Import"
+            exportErrorMessage = error.localizedDescription
+            showExportErrorAlert = true
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            let hasSecurityScope = url.startAccessingSecurityScopedResource()
+            defer {
+                if hasSecurityScope {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            let backupService = NutritionBackupService(
+                context: context,
+                currentUserProvider: { userService.currentUser }
+            )
+
+            do {
+                let imported = try backupService.importNutritionJSON(from: url)
+                nutritionService.loadFeature()
+                backupAlertTitle = "Import Complete"
+                exportErrorMessage = "Imported \(imported.foods) foods, \(imported.meals) meals, \(imported.foodLogs) logs."
+                showExportErrorAlert = true
+            } catch {
+                backupAlertTitle = "Couldn’t Import"
+                exportErrorMessage = error.localizedDescription
+                showExportErrorAlert = true
+            }
+        }
+    }
+
+    private func handleExerciseImport(_ result: Result<[URL], any Error>) {
+        switch result {
+        case .failure(let error):
+            backupAlertTitle = "Couldn’t Import"
+            exportErrorMessage = error.localizedDescription
+            showExportErrorAlert = true
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            let hasSecurityScope = url.startAccessingSecurityScopedResource()
+            defer {
+                if hasSecurityScope {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            let backupService = ExerciseBackupService(
+                context: context,
+                currentUserProvider: { userService.currentUser }
+            )
+
+            do {
+                let report = try backupService.importExercisesJSON(from: url, mode: exerciseImportMode)
+                exerciseService.loadExercises()
+                splitDayService.loadSplitDays()
+                sessionService.loadSessions()
+                exerciseSplitDayService.loadFeature()
+                sessionExerciseService.loadFeature()
+                backupAlertTitle = "Import Complete"
+                exportErrorMessage = """
+                Imported exercises \(report.exercises.inserted + report.exercises.updated), \
+                routines \(report.routines.inserted + report.routines.updated), \
+                sessions \(report.sessions.inserted + report.sessions.updated).
+                """
+                showExportErrorAlert = true
+            } catch {
+                backupAlertTitle = "Couldn’t Import"
+                exportErrorMessage = error.localizedDescription
+                showExportErrorAlert = true
+            }
+        }
+    }
+
 }
+
+private struct BackupShareItem: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+#if os(iOS)
+private struct ActivityShareSheet: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) { }
+}
+#endif
 
 struct AboutView: View {
     var body: some View {

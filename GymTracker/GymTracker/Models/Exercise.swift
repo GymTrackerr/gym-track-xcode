@@ -49,10 +49,10 @@ final class Exercise {
         self.sessionEntries = []
     }
     
-    init(from api: ExerciseDTO) {
+    init(from api: ExerciseDTO, userId: UUID) {
         self.npId = api.id
         self.isUserCreated = false
-        self.user_id = UUID() // API exercises get a new UUID, will be associated with user creating them
+        self.user_id = userId
 
         self.name = api.name
         self.primary_muscles = api.primaryMuscles
@@ -64,6 +64,10 @@ final class Exercise {
         self.timestamp = Date()
         self.splits = []
         self.sessionEntries = []
+    }
+
+    convenience init(from api: ExerciseDTO) {
+        self.init(from: api, userId: UUID())
     }
 }
 
