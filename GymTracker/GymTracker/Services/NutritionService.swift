@@ -37,11 +37,17 @@ class NutritionService: ServiceBase, ObservableObject {
     @Published var meals: [Meal] = []
     @Published var dayLogs: [FoodLog] = []
     @Published var dayMealEntries: [MealEntry] = []
+    @Published var nutritionTarget: NutritionTarget?
 
     override func loadFeature() {
         loadFoods()
         loadMeals()
         loadDayData(for: Date())
+        do {
+            nutritionTarget = try getOrCreateTarget()
+        } catch {
+            nutritionTarget = nil
+        }
     }
 
     func loadFoods() {
@@ -65,11 +71,15 @@ class NutritionService: ServiceBase, ObservableObject {
         }
     }
 
-    func fetchFoods(search: String? = nil, includeArchived: Bool = false) -> [Food] {
+    func fetchFoods(search: String? = nil, includeArchived: Bool = false, kind: FoodKind? = nil) -> [Food] {
         let query = search?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
         return foods
             .filter { includeArchived || !$0.isArchived }
+            .filter { food in
+                guard let kind else { return true }
+                return food.kind == kind
+            }
             .filter { food in
                 guard !query.isEmpty else { return true }
                 return food.name.localizedCaseInsensitiveContains(query)
@@ -78,12 +88,12 @@ class NutritionService: ServiceBase, ObservableObject {
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
-    func fetchFavoriteFoods(includeArchived: Bool = false) -> [Food] {
-        fetchFoods(search: nil, includeArchived: includeArchived)
+    func fetchFavoriteFoods(includeArchived: Bool = false, kind: FoodKind? = nil) -> [Food] {
+        fetchFoods(search: nil, includeArchived: includeArchived, kind: kind)
             .filter { $0.isFavorite }
     }
 
-    func fetchRecentFoods(days: Int = 14, includeArchived: Bool = false) -> [Food] {
+    func fetchRecentFoods(days: Int = 14, includeArchived: Bool = false, kind: FoodKind? = nil) -> [Food] {
         guard let userId = currentUser?.id else { return [] }
         let now = Date()
         let start = Calendar.current.date(byAdding: .day, value: -max(days, 1), to: now) ?? now
@@ -103,6 +113,7 @@ class NutritionService: ServiceBase, ObservableObject {
             for log in logs {
                 let food = log.food
                 if !includeArchived && food.isArchived { continue }
+                if let kind, food.kind != kind { continue }
                 if seen.contains(food.id) { continue }
                 seen.insert(food.id)
                 ordered.append(food)
@@ -115,10 +126,6 @@ class NutritionService: ServiceBase, ObservableObject {
         }
     }
 
-    func searchFoods(query: String) -> [Food] {
-        fetchFoods(search: query)
-    }
-
     @discardableResult
     func createFood(
         name: String,
@@ -128,7 +135,9 @@ class NutritionService: ServiceBase, ObservableObject {
         kcalPerReference: Double,
         proteinPerReference: Double,
         carbPerReference: Double,
-        fatPerReference: Double
+        fatPerReference: Double,
+        kind: FoodKind = .food,
+        unit: FoodUnit = .grams
     ) -> Food? {
         guard let userId = currentUser?.id else { return nil }
 
@@ -148,7 +157,9 @@ class NutritionService: ServiceBase, ObservableObject {
             kcalPerReference: kcalPerReference,
             proteinPerReference: proteinPerReference,
             carbPerReference: carbPerReference,
-            fatPerReference: fatPerReference
+            fatPerReference: fatPerReference,
+            kind: kind,
+            unit: unit
         )
 
         modelContext.insert(food)
@@ -172,7 +183,9 @@ class NutritionService: ServiceBase, ObservableObject {
         kcalPerReference: Double,
         proteinPerReference: Double,
         carbPerReference: Double,
-        fatPerReference: Double
+        fatPerReference: Double,
+        kind: FoodKind = .food,
+        unit: FoodUnit = .grams
     ) -> Food? {
         createFood(
             name: name,
@@ -182,7 +195,9 @@ class NutritionService: ServiceBase, ObservableObject {
             kcalPerReference: kcalPerReference,
             proteinPerReference: proteinPerReference,
             carbPerReference: carbPerReference,
-            fatPerReference: fatPerReference
+            fatPerReference: fatPerReference,
+            kind: kind,
+            unit: unit
         )
     }
 
@@ -195,7 +210,9 @@ class NutritionService: ServiceBase, ObservableObject {
         kcalPerReference: Double,
         proteinPerReference: Double,
         carbPerReference: Double,
-        fatPerReference: Double
+        fatPerReference: Double,
+        kind: FoodKind? = nil,
+        unit: FoodUnit? = nil
     ) -> Bool {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return false }
@@ -212,7 +229,9 @@ class NutritionService: ServiceBase, ObservableObject {
             kcalPerReference: kcalPerReference,
             proteinPerReference: proteinPerReference,
             carbPerReference: carbPerReference,
-            fatPerReference: fatPerReference
+            fatPerReference: fatPerReference,
+            kind: kind,
+            unit: unit
         )
 
         do {
@@ -261,16 +280,6 @@ class NutritionService: ServiceBase, ObservableObject {
         }
     }
 
-    // Legacy compatibility: foods are never hard-deleted.
-    func deleteFood(_ food: Food) -> Bool {
-        do {
-            try archiveFood(food: food)
-            return true
-        } catch {
-            return false
-        }
-    }
-
     func loadMeals() {
         guard let userId = currentUser?.id else {
             meals = []
@@ -292,8 +301,55 @@ class NutritionService: ServiceBase, ObservableObject {
         }
     }
 
+    func getOrCreateTarget() throws -> NutritionTarget {
+        let descriptor = FetchDescriptor<NutritionTarget>(
+            sortBy: [SortDescriptor(\.createdAt)]
+        )
+
+        do {
+            let targets = try modelContext.fetch(descriptor)
+            if let first = targets.first {
+                nutritionTarget = first
+                return first
+            }
+
+            let target = NutritionTarget()
+            modelContext.insert(target)
+            try modelContext.save()
+            nutritionTarget = target
+            return target
+        } catch {
+            throw NutritionError.persistence("Could not load nutrition targets. Please try again.")
+        }
+    }
+
+    func updateTarget(calories: Double, protein: Double, carbs: Double, fat: Double, enabled: Bool) throws {
+        guard calories >= 0, protein >= 0, carbs >= 0, fat >= 0 else {
+            throw NutritionError.validation("Targets cannot be negative.")
+        }
+
+        let target = try getOrCreateTarget()
+        target.calorieTarget = calories
+        target.proteinTarget = protein
+        target.carbTarget = carbs
+        target.fatTarget = fat
+        target.isEnabled = enabled
+        target.updatedAt = Date()
+
+        do {
+            try modelContext.save()
+            nutritionTarget = target
+        } catch {
+            throw NutritionError.persistence("Could not save nutrition targets. Please try again.")
+        }
+    }
+
     @discardableResult
-    func createMealTemplate(name: String, items: [MealInputItem]) -> Meal? {
+    func createMealTemplate(
+        name: String,
+        items: [MealInputItem],
+        defaultCategory: FoodLogCategory = .other
+    ) -> Meal? {
         guard let userId = currentUser?.id else { return nil }
 
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -306,7 +362,7 @@ class NutritionService: ServiceBase, ObservableObject {
 
         guard !validItems.isEmpty else { return nil }
 
-        let meal = Meal(userId: userId, name: trimmedName)
+        let meal = Meal(userId: userId, name: trimmedName, defaultCategory: defaultCategory)
 
         for (index, item) in validItems.enumerated() {
             let mealItem = MealItem(order: index, grams: item.grams, meal: meal, food: item.food)
@@ -325,12 +381,22 @@ class NutritionService: ServiceBase, ObservableObject {
         }
     }
 
-    @discardableResult
-    func addMeal(name: String, items: [MealInputItem]) -> Meal? {
-        createMealTemplate(name: name, items: items)
+    func fetchMeals(search: String? = nil) -> [Meal] {
+        let query = search?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return meals
+            .filter { meal in
+                guard !query.isEmpty else { return true }
+                return meal.name.localizedCaseInsensitiveContains(query)
+            }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
-    func updateMeal(_ meal: Meal, name: String, items: [MealInputItem]) -> Bool {
+    func updateMeal(
+        _ meal: Meal,
+        name: String,
+        items: [MealInputItem],
+        defaultCategory: FoodLogCategory = .other
+    ) -> Bool {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return false }
 
@@ -342,6 +408,7 @@ class NutritionService: ServiceBase, ObservableObject {
         guard !validItems.isEmpty else { return false }
 
         meal.name = trimmedName
+        meal.defaultCategory = defaultCategory
         meal.updatedAt = Date()
 
         for existingItem in meal.items {
@@ -502,6 +569,7 @@ class NutritionService: ServiceBase, ObservableObject {
             category: category,
             grams: grams,
             note: normalizedOptionalText(note),
+            quickCaloriesKcal: nil,
             food: food,
             mealEntry: nil
         )
@@ -515,6 +583,43 @@ class NutritionService: ServiceBase, ObservableObject {
             return log
         } catch {
             throw NutritionError.persistence("Could not save this food log. Please try again.")
+        }
+    }
+
+    func addQuickCaloriesLog(
+        calories: Double,
+        timestamp: Date,
+        category: FoodLogCategory,
+        note: String?
+    ) throws -> FoodLog {
+        guard calories > 0 else {
+            throw NutritionError.validation("Calories must be greater than 0.")
+        }
+        guard let userId = currentUser?.id else {
+            throw NutritionError.missingUser
+        }
+
+        let quickFood = try getOrCreateQuickCaloriesFood()
+        let log = FoodLog(
+            userId: userId,
+            timestamp: timestamp,
+            category: category,
+            grams: calories,
+            note: normalizedOptionalText(note),
+            quickCaloriesKcal: calories,
+            food: quickFood,
+            mealEntry: nil
+        )
+
+        modelContext.insert(log)
+
+        do {
+            try modelContext.save()
+            loadDayData(for: timestamp)
+            loadFoods()
+            return log
+        } catch {
+            throw NutritionError.persistence("Could not save quick calories. Please try again.")
         }
     }
 
@@ -573,6 +678,70 @@ class NutritionService: ServiceBase, ObservableObject {
         }
     }
 
+    func copyStandaloneLogs(from sourceDate: Date, to targetDate: Date) throws -> Int {
+        guard let userId = currentUser?.id else {
+            throw NutritionError.missingUser
+        }
+
+        let (sourceStart, sourceEnd) = dayRange(for: sourceDate)
+        let descriptor = FetchDescriptor<FoodLog>(
+            predicate: #Predicate<FoodLog> { log in
+                log.userId == userId
+                    && log.timestamp >= sourceStart
+                    && log.timestamp < sourceEnd
+                    && log.mealEntry == nil
+            },
+            sortBy: [SortDescriptor(\.timestamp)]
+        )
+
+        do {
+            let sourceLogs = try modelContext.fetch(descriptor)
+            guard !sourceLogs.isEmpty else { return 0 }
+
+            for sourceLog in sourceLogs {
+                let targetTimestamp = dateByPinning(sourceLog.timestamp, to: targetDate)
+                let newLog = FoodLog(
+                    userId: userId,
+                    timestamp: targetTimestamp,
+                    category: sourceLog.category,
+                    grams: sourceLog.grams,
+                    note: sourceLog.note,
+                    quickCaloriesKcal: sourceLog.quickCaloriesKcal,
+                    food: sourceLog.food,
+                    mealEntry: nil
+                )
+                modelContext.insert(newLog)
+            }
+
+            try modelContext.save()
+            loadDayData(for: targetDate)
+            loadFoods()
+            return sourceLogs.count
+        } catch {
+            throw NutritionError.persistence("Could not copy yesterday's standalone logs. Please try again.")
+        }
+    }
+
+    func createMealTemplate(from entry: MealEntry, name: String) throws -> Meal {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            throw NutritionError.validation("Template name is required.")
+        }
+
+        let items = entry.logs
+            .sorted { $0.timestamp < $1.timestamp }
+            .map { MealInputItem(food: $0.food, grams: $0.grams) }
+
+        guard !items.isEmpty else {
+            throw NutritionError.validation("This meal entry has no items to save.")
+        }
+
+        guard let meal = createMealTemplate(name: trimmedName, items: items, defaultCategory: entry.category) else {
+            throw NutritionError.persistence("Could not save meal template. Please try again.")
+        }
+        return meal
+    }
+
     func totalKcal(for logs: [FoodLog]) -> Double {
         logs.reduce(0) { $0 + $1.kcal }
     }
@@ -629,5 +798,47 @@ class NutritionService: ServiceBase, ObservableObject {
         guard let value else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func getOrCreateQuickCaloriesFood() throws -> Food {
+        guard let userId = currentUser?.id else {
+            throw NutritionError.missingUser
+        }
+
+        if let existing = foods.first(where: { $0.userId == userId && $0.name == "Quick Calories" }) {
+            return existing
+        }
+
+        let descriptor = FetchDescriptor<Food>(
+            predicate: #Predicate<Food> { food in
+                food.userId == userId && food.name == "Quick Calories"
+            },
+            sortBy: [SortDescriptor(\.createdAt)]
+        )
+
+        do {
+            if let existing = try modelContext.fetch(descriptor).first {
+                return existing
+            }
+
+            let quickFood = Food(
+                userId: userId,
+                name: "Quick Calories",
+                brand: nil,
+                referenceLabel: "1 kcal",
+                gramsPerReference: 1,
+                kcalPerReference: 1,
+                proteinPerReference: 0,
+                carbPerReference: 0,
+                fatPerReference: 0
+            )
+
+            modelContext.insert(quickFood)
+            try modelContext.save()
+            loadFoods()
+            return quickFood
+        } catch {
+            throw NutritionError.persistence("Could not create quick calories helper food.")
+        }
     }
 }

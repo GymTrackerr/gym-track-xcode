@@ -31,6 +31,7 @@ final class FoodLog {
     var categoryRaw: Int
     var grams: Double
     var note: String?
+    var quickCaloriesKcal: Double?
 
     var food: Food
     var mealEntry: MealEntry?
@@ -41,19 +42,31 @@ final class FoodLog {
     }
 
     var kcal: Double {
-        grams * food.kcalPerGram
+        if let quickCaloriesKcal {
+            return quickCaloriesKcal
+        }
+        return grams * food.kcalPerGram
     }
 
     var protein: Double {
-        grams * food.proteinPerGram
+        if quickCaloriesKcal != nil {
+            return 0
+        }
+        return grams * food.proteinPerGram
     }
 
     var carbs: Double {
-        grams * food.carbPerGram
+        if quickCaloriesKcal != nil {
+            return 0
+        }
+        return grams * food.carbPerGram
     }
 
     var fat: Double {
-        grams * food.fatPerGram
+        if quickCaloriesKcal != nil {
+            return 0
+        }
+        return grams * food.fatPerGram
     }
 
     init(
@@ -62,6 +75,7 @@ final class FoodLog {
         category: FoodLogCategory,
         grams: Double,
         note: String? = nil,
+        quickCaloriesKcal: Double? = nil,
         food: Food,
         mealEntry: MealEntry? = nil
     ) {
@@ -70,6 +84,7 @@ final class FoodLog {
         self.categoryRaw = category.rawValue
         self.grams = max(grams, 0)
         self.note = note
+        self.quickCaloriesKcal = quickCaloriesKcal.map { max(0, $0) }
         self.food = food
         self.mealEntry = mealEntry
     }

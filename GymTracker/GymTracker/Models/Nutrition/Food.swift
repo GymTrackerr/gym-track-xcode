@@ -1,6 +1,38 @@
 import Foundation
 import SwiftData
 
+enum FoodKind: Int, Codable, CaseIterable, Identifiable {
+    case food = 0
+    case drink = 1
+
+    var id: Int { rawValue }
+}
+
+enum FoodUnit: Int, Codable, CaseIterable, Identifiable {
+    case grams = 0
+    case milliliters = 1
+
+    var id: Int { rawValue }
+
+    var shortLabel: String {
+        switch self {
+        case .grams:
+            return "g"
+        case .milliliters:
+            return "ml"
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .grams:
+            return "Grams"
+        case .milliliters:
+            return "Milliliters"
+        }
+    }
+}
+
 @Model
 final class Food {
     var id: UUID = UUID()
@@ -15,6 +47,8 @@ final class Food {
     var fatPerReference: Double
     var isArchived: Bool
     var isFavorite: Bool
+    var kindRaw: Int
+    var unitRaw: Int
     var createdAt: Date
     var updatedAt: Date
 
@@ -41,6 +75,16 @@ final class Food {
         return fatPerReference / gramsPerReference
     }
 
+    var kind: FoodKind {
+        get { FoodKind(rawValue: kindRaw) ?? .food }
+        set { kindRaw = newValue.rawValue }
+    }
+
+    var unit: FoodUnit {
+        get { FoodUnit(rawValue: unitRaw) ?? .grams }
+        set { unitRaw = newValue.rawValue }
+    }
+
     init(
         userId: UUID,
         name: String,
@@ -52,7 +96,9 @@ final class Food {
         carbPerReference: Double,
         fatPerReference: Double,
         isArchived: Bool = false,
-        isFavorite: Bool = false
+        isFavorite: Bool = false,
+        kind: FoodKind = .food,
+        unit: FoodUnit = .grams
     ) {
         self.userId = userId
         self.name = name
@@ -65,6 +111,8 @@ final class Food {
         self.fatPerReference = max(fatPerReference, 0)
         self.isArchived = isArchived
         self.isFavorite = isFavorite
+        self.kindRaw = kind.rawValue
+        self.unitRaw = unit.rawValue
         self.createdAt = Date()
         self.updatedAt = Date()
         self.logs = []
@@ -78,7 +126,9 @@ final class Food {
         kcalPerReference: Double,
         proteinPerReference: Double,
         carbPerReference: Double,
-        fatPerReference: Double
+        fatPerReference: Double,
+        kind: FoodKind? = nil,
+        unit: FoodUnit? = nil
     ) {
         self.name = name
         self.brand = brand
@@ -88,6 +138,12 @@ final class Food {
         self.proteinPerReference = max(proteinPerReference, 0)
         self.carbPerReference = max(carbPerReference, 0)
         self.fatPerReference = max(fatPerReference, 0)
+        if let kind {
+            self.kind = kind
+        }
+        if let unit {
+            self.unit = unit
+        }
         self.updatedAt = Date()
     }
 }

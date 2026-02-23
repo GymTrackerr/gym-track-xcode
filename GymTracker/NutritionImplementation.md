@@ -707,70 +707,646 @@ Cool — the agent hasn’t actually done the Phase 7 “remove legacy flow” y
 Copy/paste this to the agent as **Phase 7 instructions** (direct and unambiguous):
 
 ---
+## Phase 6 — Nutrition Power Features (Non-breaking Additions Only)
 
-## Phase 7 — Remove legacy Nutrition meal flow (single source of truth)
+This phase must **not** refactor or rename existing Nutrition models, relationships, screens, or service methods. It may only **add**:
 
-### Goal
+* new models/fields (with safe defaults),
+* new service methods,
+* new UI views/sheets,
+* small UI affordances on existing screens.
 
-There must be **one** way to manage meal templates and **one** way to log meals: the unified Phase 5 flow (`ManageNutritionSheet` + `LogSheet`).
+Do **not** change the unified Phase 5 Log/Manage flow.
 
-### Tasks
+---
 
-1. **Find and remove all navigation to legacy views**
+# 6.0 Guardrails (must follow)
 
-* Search entire project for:
+1. **No changes** to:
 
-  * `NutritionMealsView`
-  * `NutritionLogMealView`
-  * `NutritionMealEditorView`
-* For every reference:
+   * `Food`, `FoodLog`, `Meal`, `MealItem`, `MealEntry` schemas (except adding optional fields or safe-default fields)
+   * existing fetch methods signatures (you may add overloads/new methods)
+   * the unified `LogSheet` structure (you may add a “Quick Add” mode inside it, but don’t split flows)
+2. All new persistence writes must be **throws** and show user-visible errors (reuse Phase 5 error alert pattern).
+3. History integrity rules remain:
 
-  * Replace with unified equivalents (Manage sheet → Meals tab; LogSheet in Meal mode)
-  * If it’s not referenced anywhere (dead code), remove it.
+   * Foods are archived/unarchived only; never hard delete.
+   * `grams` remains canonical for FoodLogs and MealItems.
+4. If a feature cannot be implemented without restructuring, **skip it** for Phase 6.
 
-2. **Delete or explicitly deprecate legacy files**
-   Do one of these:
+---
 
-**Preferred:** delete these files if no longer used:
+# 6.1 Daily Targets (simple)
+
+## Purpose
+
+Allow users to set daily calorie + macro targets and show “remaining” in the day summary.
+
+## Data model (new)
+
+Create `@Model final class NutritionTarget` in `Models/Nutrition/`:
+
+Fields:
+
+* `id: UUID`
+* `createdAt: Date`
+* `updatedAt: Date`
+* `calorieTarget: Double` (default 0)
+* `proteinTarget: Double` (default 0)
+* `carbTarget: Double` (default 0)
+* `fatTarget: Double` (default 0)
+* Optional future-proof (safe default):
+
+  * `isEnabled: Bool` (default false)
+
+Rules:
+
+* Values must be `>= 0`
+* Treat `0` as “unset” for that macro
+* Only one active target record (use first-or-create pattern)
+
+## Service (add-only)
+
+In `NutritionService` add:
+
+* `func getOrCreateTarget() throws -> NutritionTarget`
+* `func updateTarget(calories: Double, protein: Double, carbs: Double, fat: Double, enabled: Bool) throws`
+
+## UI
+
+### Nutrition day summary card
+
+* If target `isEnabled == true`:
+
+  * show `Remaining Calories = max(0, calorieTarget - totalCalories)`
+  * show macro remaining similarly if those targets > 0
+* If disabled:
+
+  * show current totals only (no remaining)
+
+### Targets edit UI
+
+Add a sheet: `NutritionTargetsView`
+
+* fields: calories, protein, carbs, fat
+* toggle: enable targets
+* Save calls `updateTarget(...)`
+
+Entry point:
+
+* Add a small “Target” button/icon in summary card or navigation bar (non-intrusive).
+
+---
+
+# 6.2 Quick Add Calories (no food creation required)
+
+## Purpose
+
+Log calories fast when user doesn’t want to define a food.
+
+## Implementation (non-breaking)
+
+Add a new optional field to `FoodLog` (safe defaults):
+
+* `quickCaloriesKcal: Double?` (nil by default)
+
+Rules:
+
+* If `quickCaloriesKcal != nil`:
+
+  * This log represents calories-only.
+  * macros for this log are treated as 0.
+  * The UI displays label “Quick Calories” (or “Quick Add”)
+  * `food` relationship may be nil OR set to a special internal food
+
+    * Choose ONE approach and be consistent:
+
+      * **Preferred (less model churn): allow `food` to be optional in FoodLog.**
+
+        * If changing relationship optionality is risky in SwiftData for your setup, use the “special food” option below.
+      * **Alternative (no relationship change): create a special Food** named “Quick Calories” once and reuse it.
+
+### Safer option (recommended if you don’t want schema churn)
+
+**Special Food approach (no FoodLog relationship changes):**
+
+* On first Quick Add, create/find Food:
+
+  * `name = "Quick Calories"`
+  * `gramsPerReference = 1`
+  * `kcalPerReference = 1`
+  * macros = 0
+* For a Quick Add of X kcal:
+
+  * create FoodLog with that Food and set `grams = X`
+  * display logic: if `food.name == "Quick Calories"` treat grams as kcal
+
+This keeps FoodLog schema unchanged and avoids SwiftData migration pain.
+
+## UI
+
+In `LogSheet`:
+
+* Add a third mode or a button:
+
+  * Segment: `Food | Meal | Quick Add`
+  * Quick Add shows:
+
+    * calories input only
+    * category + time + note
+* Save creates the quick-add log using the chosen approach.
+
+---
+
+# 6.3 Copy Yesterday (standalone logs only)
+
+## Purpose
+
+Fast repeat of common daily intake.
+
+## Rules (keep simple, avoid messing grouping)
+
+* Copy ONLY FoodLogs where `mealEntry == nil` from previous day.
+* Do not copy MealEntries in Phase 6.
+* New logs:
+
+  * same food + grams + category + note
+  * timestamp:
+
+    * keep the same time-of-day, but on selectedDate
+    * if that causes ordering issues, set to noon + incremental minutes
+
+## Service (add-only)
+
+Add:
+
+* `func copyStandaloneLogs(from sourceDate: Date, to targetDate: Date) throws -> Int`
+  Returns number of logs created.
+
+## UI
+
+On Nutrition day view:
+
+* Add a small button near the date header or in an overflow menu:
+
+  * “Copy Yesterday”
+* Confirmation dialog:
+
+  * “Copy yesterday’s standalone items into today?”
+
+---
+
+# 6.4 Save Meal From Logged MealEntry
+
+## Purpose
+
+Let user turn a logged meal into a reusable template.
+
+## Rules
+
+* Works from a `MealEntry` shown on the day view.
+* Creates a new `Meal` template with name:
+
+  * default: existing template name (if available) or “Saved Meal”
+  * allow user to edit name before save
+* Create `MealItem`s from that entry’s child FoodLogs:
+
+  * keep grams
+  * set order based on existing display order
+
+## Service (add-only)
+
+Add:
+
+* `func createMealTemplate(from entry: MealEntry, name: String) throws -> Meal`
+
+## UI
+
+* On MealEntry header: add action “Save as Template”
+* Tap opens small prompt to name it then saves
+* After saving, optional toast: “Saved”
+
+---
+
+# 6.5 Phase 6 Acceptance Criteria
+
+* No existing Nutrition screens were removed or split; unified Phase 5 Log/Manage flow still works.
+* Targets:
+
+  * user can enable/disable
+  * remaining calories/macros display correctly
+* Quick Add:
+
+  * logs calories with minimal steps
+  * totals include quick-add calories
+  * no crashes or broken relationships
+* Copy Yesterday:
+
+  * copies only standalone logs (no MealEntry duplication)
+* Save Meal From Entry:
+
+  * creates a template from a logged MealEntry
+  * logging that new template works normally
+
+---
+
+## Notes to the implementer
+
+* Prefer “add-only” changes.
+* If any step requires changing SwiftData relationship optionality or migrations that risk breaking existing store, choose the safer alternative (special “Quick Calories” food).
+* All new save actions must use the existing error alert pattern; no silent failures.
+
+If you want, tell me whether you’re okay adding an optional `food` relationship on `FoodLog` (migration risk), and I’ll lock the Quick Add spec to the best option for your setup.
+
+---
+## Phase 7 — Remove Legacy Nutrition Meal Flow (Non-breaking Cleanup)
+
+This phase is **cleanup only**. It must not change Nutrition data models, persistence behavior, or user-visible features. The goal is to eliminate duplicate/legacy screens and consolidate shared UI logic to reduce redundancy and maintenance risk.
+
+---
+
+# 7.0 Guardrails
+
+1. Do **not** change existing Nutrition models or relationships:
+
+   * `Food`, `FoodLog`, `Meal`, `MealItem`, `MealEntry`, plus any Phase 5 additions.
+2. Do **not** change existing service method signatures (you may remove unused legacy wrappers only after all callers are migrated).
+3. The unified Phase 5 flow remains the only supported UX:
+
+   * `NutritionDayView` → **LogSheet** (Food/Meal)
+   * Menu → **ManageNutritionSheet** (Foods/Meals)
+4. No timing-based navigation/dismiss logic may be reintroduced.
+5. Prefer deletion over keeping deprecated code—**unless** something is still referenced.
+
+---
+
+# 7.1 Eliminate legacy navigation entry points
+
+## Task
+
+Search the codebase for legacy view usage and remove all routes to them.
+
+### Required search targets
+
+* `NutritionMealsView`
+* `NutritionLogMealView`
+* `NutritionMealEditorView`
+* Any additional “old flow” names related to meals/logging that aren’t used by Phase 5.
+
+### Actions
+
+* If a legacy screen is referenced from navigation, replace the destination with the unified equivalents:
+
+  * Meal template listing/editing → **ManageNutritionSheet**, default tab = Meals
+  * Logging a meal → **LogSheet** with mode preset to `.meal`
+
+---
+
+# 7.2 Remove or retire legacy files
+
+## Preferred outcome: delete
+
+If a legacy file is not referenced anywhere after 7.1, delete it:
 
 * `Views/Nutrition/NutritionMealsView.swift`
-* any legacy log-meal/editor files
+* `Views/Nutrition/NutritionLogMealView.swift` (if present)
+* `Views/Nutrition/NutritionMealEditorView.swift` (if present)
 
-**If deletion causes routing pain:** keep temporarily but make them wrappers:
+## If a file cannot be deleted immediately
 
-* Rename to `LegacyNutritionMealsView`
-* Add “DEPRECATED” comment
-* Internally they should only present the unified Manage Meals UI (no separate list/editor/log logic)
+Temporarily convert it into a **thin wrapper**:
 
-3. **Remove legacy service API shims**
+* Rename type to `Legacy...` (e.g., `LegacyNutritionMealsView`)
+* Add a prominent comment at top: “Deprecated — do not use; scheduled for removal.”
+* Implementation must simply present the unified UI:
 
-* After updating callers, remove any “legacy compatibility” methods you added (example: `deleteFood(_:)` that returns Bool).
-* Keep only the `throws` APIs:
+  * `ManageNutritionSheet` with Meals selected, or
+  * the shared meal list/editor subview used by Manage
+* No separate logging/editor logic is allowed in legacy wrappers.
 
-  * `archiveFood`, `unarchiveFood`
-  * `addFoodLog`, `logMeal`
-  * fetch functions
+---
 
-4. **Ensure there is exactly one implementation of each core UI**
-   There should be only one of each (no duplicates with different names):
+# 7.3 Consolidate redundant code (minimize duplicate UI logic)
+
+## Goal
+
+There should be exactly one canonical implementation for each concept. Where redundancy exists, extract shared components rather than maintaining parallel logic.
+
+### Canonical concepts (must be single-source)
 
 * Meal template list UI
 * Meal template editor UI
 * Meal picker UI
-* LogSheet
+* LogSheet UI (food/meal/quick add if present)
+* Foods list UI (Manage + Picker reuse patterns)
 
-If you need reuse, extract shared subviews instead of parallel screens.
+### Actions
 
-### Acceptance (Phase 7)
+1. Identify duplicate list implementations (same rows/search/filter repeated).
+2. Extract shared subviews into small reusable components, for example:
 
-* No remaining references to legacy view types in the codebase (search returns none), OR they exist only as `Legacy*` wrappers and are not reachable from UI.
+   * `FoodRowView(food: ...)`
+   * `MealRowView(meal: ...)`
+   * `SearchHeaderView(text: ..., showArchivedToggle: ...)`
+3. Extract shared filtering/sorting into helper methods (preferably in `NutritionService` or a small `NutritionQueryHelpers.swift` under `Views/Nutrition/` if it’s UI-specific).
+4. Ensure the picker vs manage lists differ only by **behavior** (selection vs edit), not by duplicated data logic.
+
+**Explicit rule:** Do not copy/paste the same filtering logic across views. If you see the same filtering/sorting code twice, consolidate it.
+
+---
+
+# 7.4 Remove legacy service API shims (only after callers migrated)
+
+## Task
+
+After legacy views are removed and all call sites use the new throwing APIs:
+
+* Delete any compatibility methods that exist only to keep old screens compiling, such as:
+
+  * `deleteFood(_:) -> Bool` (if it’s just a wrapper)
+  * any “old signature” `logMeal(...)` overloads
+
+Keep only the canonical throwing APIs:
+
+* `archiveFood`, `unarchiveFood`
+* `addFoodLog`, `logMeal`
+* fetch methods
+
+---
+
+# 7.5 Acceptance Criteria (Phase 7)
+
+* Searching the codebase shows **no references** to:
+
+  * `NutritionMealsView`, `NutritionLogMealView`, `NutritionMealEditorView`
+  * (or they exist only as `Legacy*` wrappers and are not reachable from any navigation)
+* There is only **one** active UX path for:
+
+  * managing meal templates
+  * logging meals
+* No duplicate filtering/sorting logic for foods/meals lists exists across multiple files (extracted into shared helpers/subviews).
+* Build succeeds.
+* Manual smoke test:
+
+  * Create meal template
+  * Log it
+  * Edit it
+  * Delete template (history unaffected)
+
+---
+
+# 7.6 Deliverables
+
+* Deleted or wrapped legacy nutrition meal flow files
+* Updated navigation to point exclusively at unified Phase 5 screens
+* Extracted shared list row + search header components where redundancy existed
+* Removed service shims that are now unused
+* Build + smoke test passes
+
+---
+
+## Phase 7.7 — Final Cleanup Pass (No Behavior Changes)
+
+### 1) Reduce redundant code (must-do)
+
+* Scan `Views/Nutrition/` for repeated UI patterns and extract small reusable subviews:
+
+  * `NutritionSectionHeaderView(title: String, totalText: String?)`
+  * `FoodLogRowView(log: FoodLog, totals: …)`
+  * `MealEntryRowView(entry: MealEntry, childLogs: [FoodLog])`
+  * `FoodRowView(food: Food, subtitle: …, trailing: …)`
+  * `MealRowView(meal: Meal, subtitle: …)`
+* Scan for repeated filtering/sorting code across views and consolidate into:
+
+  * `NutritionService` helpers (preferred for data logic), or
+  * `NutritionViewHelpers.swift` (UI-only helpers) under `Views/Nutrition/`
+
+**Rule:** any non-trivial filter/sort should exist in one place only.
+
+### 2) Tighten file organization (nice-to-have)
+
+* Ensure all nutrition views are in `Views/Nutrition/` and named consistently:
+
+  * `NutritionDayView`
+  * `NutritionLogSheet`
+  * `ManageNutritionSheet`
+  * `FoodPickerView`
+  * `MealPickerView`
+  * `AddFoodView`
+  * `MealTemplateEditorView`
+  * `NutritionTargetsView` (if Phase 6 exists)
+* If `NutritionLogManageViews.swift` is huge, split it into multiple files by feature:
+
+  * `NutritionLogSheet.swift`
+  * `ManageNutritionSheet.swift`
+  * `FoodPickerView.swift`
+  * `MealPickerView.swift`
+  * `SharedRows.swift`
+    No logic changes, just separation.
+
+### 3) Consistent error handling (must-do)
+
+* Confirm every `try` in views has a `catch` that surfaces an alert (no `try?` unless it’s truly optional).
+* Ensure errors use consistent titles/messages (e.g., “Couldn’t Save”, “Couldn’t Archive”)
+
+### 4) Consistent labels + terminology (must-do)
+
+* UI uses “Nutrition” consistently.
+* Buttons:
+
+  * Primary: “Log”
+  * Manage: “Manage”
+  * Foods: “Add Food”
+  * Meals: “Add Meal”
+  * Archive: “Archive” / “Unarchive”
+    No “Log Food / Log Meal” leftover labels.
+
+### 5) Dead code removal
+
+* Remove any unused structs, preview-only wrappers, or unused helper functions left behind after Phase 7.
+* Run “Find unused” where possible.
+
+### 6) Final verification
+
 * Build succeeds.
 * Manual smoke:
 
-  * Create meal template
-  * Log meal
-  * Edit template
-  * Delete template (history unaffected)
+  * Log food
+  * Log meal template
+  * Archive/unarchive food
+  * Show archived toggle works
+  * Date navigation still correct
+
+---
+## Phase 8 — Drinks (FoodKind + Unit + UI Filters) — Non-breaking
+
+### Goal
+
+Support drinks cleanly without a new Drink model. Drinks are just Foods with a kind + preferred unit (ml). Add UI filtering so places that currently say “Foods” can filter **Foods/Drinks/All** (and rename the section label accordingly).
+
+No mixed-drink logic in Phase 8.
+
+---
+
+# 8.0 Guardrails
+
+1. No new `Drink` model, no new log type. Drinks are still `Food` + `FoodLog`.
+2. Don’t change totals math or canonical storage (`FoodLog.grams` stays canonical).
+3. New fields must have safe defaults so existing data migrates.
+4. Keep Phase 5 unified Log/Manage flows intact.
+5. No density conversions. For drinks, **ml is displayed**, but stored as grams (1 ml ≈ 1 g).
+
+---
+
+# 8.1 Data Model additions (FoodKind + Unit)
+
+## Add enums
+
+Create under `Models/Nutrition/`:
+
+* `enum FoodKind: Int, Codable { case food = 0, drink = 1 }`
+* `enum FoodUnit: Int, Codable { case grams = 0, milliliters = 1 }`
+
+## Add fields to `Food` (safe defaults)
+
+Add stored raw ints with defaults:
+
+* `kindRaw: Int = 0`  // default Food
+* `unitRaw: Int = 0`  // default grams
+
+Add computed properties:
+
+* `var kind: FoodKind { get/set }`
+* `var unit: FoodUnit { get/set }`
+
+### Default rules
+
+* Existing rows become `.food` + `.grams`.
+* When user sets kind to `.drink`, set unit default to `.milliliters` (but don’t override if user explicitly changed it).
+
+---
+
+# 8.2 Add/Edit Food UI changes
+
+In `AddFoodView` (and edit view if you have one):
+
+1. Add a toggle:
+
+   * Label: “This is a drink”
+   * If ON: set `food.kind = .drink`
+   * If OFF: set `food.kind = .food`
+
+2. Unit behavior:
+
+   * If kind toggled ON and unit is still default `.grams`, switch to `.milliliters`
+   * If toggled OFF and unit is `.milliliters`, switch to `.grams` (optional; acceptable either way)
+
+3. Provide defaults for new drinks (only when fields are empty/zero):
+
+   * `referenceLabel = "1 cup"` (optional)
+   * `gramsPerReference = 250`
+     (Do not overwrite if user has already entered values.)
+
+---
+
+# 8.3 Logging UI changes (ml display only)
+
+In `LogSheet` food mode:
+
+* If selectedFood.unit == `.milliliters`:
+
+  * show input label as “ml”
+  * store the numeric input into `FoodLog.grams` unchanged
+* Else show “g”.
+
+In history rows:
+
+* If log.food.unit == `.milliliters`:
+
+  * display amount as “X ml”
+* Else “X g”.
+
+No conversion or density logic beyond labeling.
+
+---
+
+# 8.4 Filters (Foods / Drinks / All) across lists
+
+## Add filter enum (UI-only)
+
+* `enum FoodFilterKind { case all, foods, drinks }` (or Int-backed for state)
+
+Default: `.all`
+
+## Where to add filters
+
+### A) Manage Foods list
+
+Near top (beside search / above list):
+
+* Segmented: **All | Foods | Drinks**
+* Applies after archive toggle.
+* Archive toggle remains separate and default OFF.
+
+### B) FoodPickerView (for logging)
+
+Same segmented filter at top:
+
+* All | Foods | Drinks
+* Default All
+* Archived toggle stays available, default OFF.
+
+### C) Meal Template Editor (your screenshot)
+
+In the “Foods” section of MealTemplateEditor:
+
+1. Rename the section title from **Foods** to **Items** (or **Ingredients**)
+   (This prevents confusion once Drinks exist.)
+2. Add filter control above the item list:
+
+   * Segmented: **All | Foods | Drinks**
+3. Filter affects which items appear/selectable when choosing a Food for a MealItem.
+4. Keep “Show archived” toggle as-is; it composes with the filter.
+
+**Note:** You can keep the underlying model as `MealItem` referencing `Food`—no change required.
+
+---
+
+# 8.5 Service changes (minimal, add-only)
+
+If your view already filters in-memory, service changes are optional.
+
+If you prefer centralized filtering, add add-only fetch helpers:
+
+* `fetchFoods(search: String?, includeArchived: Bool, kind: FoodKind?) -> [Food]`
+
+And for picker sections (favorites/recent/all), ensure kind filter is applied consistently.
+
+---
+
+# 8.6 Acceptance Criteria (Phase 8)
+
+* Existing foods/logs/meals still work without changes.
+* User can mark a Food as a drink.
+* Drinks default to unit = ml and gramsPerReference defaults to 250 for new drinks (only when unset).
+* LogSheet displays ml for drinks and saves to `FoodLog.grams`.
+* Manage Foods and FoodPicker have filter: All/Foods/Drinks + archived toggle.
+* MealTemplateEditor section is renamed to “Items” (or “Ingredients”) and includes All/Foods/Drinks filter + archived toggle.
+* Build succeeds, no crashes, and totals are unchanged.
+
+---
+
+### Implementation note for the agent
+
+Do not add a Drink model or a new logging pipeline. This is purely:
+
+* two new fields on Food,
+* UI labeling for ml,
+* and list filters.
+
+---
+
+If it does that pass, your Nutrition codebase will stay maintainable while you add Phase 6 features (targets/quick add/copy yesterday) without it turning into spaghetti.
 
 ---
 

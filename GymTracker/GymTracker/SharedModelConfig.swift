@@ -26,7 +26,8 @@ struct SharedModelConfig {
             FoodLog.self,
             Meal.self,
             MealItem.self,
-            MealEntry.self
+            MealEntry.self,
+            NutritionTarget.self
         ])
         
         let modelConfiguration = ModelConfiguration(
