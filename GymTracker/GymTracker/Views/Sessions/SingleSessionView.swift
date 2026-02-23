@@ -93,6 +93,7 @@ struct SingleSessionView: View {
                     .onMove(perform: moveExercise)
                 }
                 .listStyle(.plain)
+                .scrollContentBackground(.hidden)
             }
         }
         .foregroundStyle(.primary)

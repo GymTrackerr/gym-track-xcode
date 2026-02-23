@@ -296,6 +296,8 @@ struct DashboardModuleContent: View {
             FitSightModuleView(module: module)
         case .nutrition:
             NutritionModuleView(module: module)
+        case .sessionVolume:
+            SessionVolumeModuleView(module: module)
         }
     }
 }
@@ -502,6 +504,7 @@ struct DashboardEditView: View {
                         }
                     }
                     .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
                     .environment(\.editMode, .constant(.active))
                 }
                 
@@ -663,6 +666,7 @@ struct AddModuleSheet: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
             .navigationTitle("Add Module")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -125,4 +125,11 @@ class UserService: ServiceBase, ObservableObject {
             try? modelContext.save()
         }
     }
+
+    func setShowNutritionTab(_ isVisible: Bool) {
+        withAnimation {
+            currentUser?.showNutritionTab = isVisible
+            try? modelContext.save()
+        }
+    }
 }

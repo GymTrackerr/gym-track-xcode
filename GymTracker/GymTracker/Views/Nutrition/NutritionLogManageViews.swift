@@ -430,6 +430,7 @@ struct NutritionFoodPickerView: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
         .searchable(text: $searchText)
         .navigationTitle(pickerTitle)
         .onAppear {
@@ -530,6 +531,7 @@ struct NutritionMealPickerView: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
         .searchable(text: $searchText)
         .navigationTitle("Select Meal")
         .toolbar {
@@ -675,6 +677,7 @@ private struct ManageFoodsView: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
         .searchable(text: $searchText)
         .sheet(isPresented: $showCreateFood) {
             NavigationStack {
@@ -737,6 +740,7 @@ private struct ManageMealsView: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
         .searchable(text: $searchText)
         .onAppear {
             nutritionService.loadMeals()
@@ -1078,6 +1082,7 @@ struct NutritionMealTemplateEditorView: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
         .navigationTitle(meal == nil ? "Create Meal Template" : "Edit Meal Template")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {

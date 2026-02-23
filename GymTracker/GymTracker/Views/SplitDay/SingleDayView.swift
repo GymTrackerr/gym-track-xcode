@@ -62,6 +62,7 @@ struct SingleDayView: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
         }
         .navigationTitle(routine.name)
         .toolbar {
@@ -130,6 +131,7 @@ struct SingleDayView: View {
                         }
                     }
                     .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
                     Spacer()
                 }
                 .padding()

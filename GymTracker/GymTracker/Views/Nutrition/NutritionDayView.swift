@@ -158,6 +158,7 @@ struct NutritionDayView: View {
                     }
                 }
                 .listStyle(.insetGrouped)
+                .scrollContentBackground(.hidden)
             }
         }
         .padding(.top, 8)
@@ -176,7 +177,7 @@ struct NutritionDayView: View {
             actionBar
                 .padding(.horizontal)
                 .padding(.top, 8)
-                .background(.ultraThinMaterial)
+//                .background(.ultraThinMaterial)
         }
         .onAppear {
             nutritionService.loadFoods()
@@ -202,7 +203,7 @@ struct NutritionDayView: View {
                 .presentationDetents([.large])
         }
         .navigationDestination(isPresented: $showManagePage) {
-            ManageNutritionView()
+            ManageNutritionView().appBackground()
         }
         .sheet(isPresented: $showTargetsSheet) {
             NutritionTargetsView()

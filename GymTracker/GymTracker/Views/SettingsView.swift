@@ -70,6 +70,15 @@ struct SettingsView: View {
                     }
                 }
 
+                Section("Preferences") {
+                    Toggle("Show Nutrition Tab", isOn: Binding(
+                        get: { userService.currentUser?.showNutritionTab ?? true },
+                        set: { newValue in
+                            userService.setShowNutritionTab(newValue)
+                        }
+                    ))
+                }
+
                 Section("Nutrition") {
                     Button {
                         exportNutritionBackup()
@@ -125,6 +134,7 @@ struct SettingsView: View {
 
                 }
             }
+            .scrollContentBackground(.hidden)
         }
         .navigationTitle("Settings")
         .alert(backupAlertTitle, isPresented: $showExportErrorAlert) {
@@ -488,6 +498,7 @@ struct TestDataShow : View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
         .onAppear() {
             routines = try! context.fetch(FetchDescriptor<Routine>(sortBy: [SortDescriptor(\.timestamp)]))
             exercises = try! context.fetch(FetchDescriptor<Exercise>(sortBy: [SortDescriptor(\.timestamp)]))

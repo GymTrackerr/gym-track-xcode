@@ -10,6 +10,7 @@ import SwiftData
 
 struct ContentView: View {
     @EnvironmentObject var timerService: TimerService
+    @EnvironmentObject var userService: UserService
     
     @State var query: String = ""
     @State var localSelected:Int = 0
@@ -39,8 +40,15 @@ struct ContentView: View {
                 }
             }
             
-            
-            Tab("Program", systemImage: "figure.walk.motion", value: 2) {
+            if userService.currentUser?.showNutritionTab ?? true {
+                Tab("Nutrition", systemImage: "fork.knife", value: 2) {
+                    NavigationStack {
+                        NutritionDayView().appBackground()
+                    }
+                }
+            }
+
+            Tab("Program", systemImage: "figure.walk.motion", value: 3) {
                 NavigationStack {
                     SplitDaysView()
                 }
@@ -62,6 +70,11 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             timerService.appDidBecomeActive()
+        }
+        .onChange(of: userService.currentUser?.showNutritionTab ?? true) {
+            if !(userService.currentUser?.showNutritionTab ?? true), localSelected == 2 {
+                localSelected = 0
+            }
         }
 
         //.searchable(text: $query)

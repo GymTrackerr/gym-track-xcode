@@ -31,6 +31,7 @@ struct SearchView : View {
                 performSearch()
             }
             .listStyle(.plain)
+            .scrollContentBackground(.hidden)
             .navigationTitle("Search")
         }
     }

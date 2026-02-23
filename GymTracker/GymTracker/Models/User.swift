@@ -18,6 +18,7 @@ final class User {
     var allowHealthAccess: Bool = false
     
     var defaultTimer: Int = 90
+    var showNutritionTab: Bool = true
     
     init(name: String) {
         self.name = name

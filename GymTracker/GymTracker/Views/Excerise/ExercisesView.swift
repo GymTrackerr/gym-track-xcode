@@ -130,6 +130,7 @@ struct ExercisesView: View {
                     .onDelete(perform: exerciseService.removeExercise)
                 }
                 .listStyle(.plain)
+                .scrollContentBackground(.hidden)
             }
         }
         .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search exercises")

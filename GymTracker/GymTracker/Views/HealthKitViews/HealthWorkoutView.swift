@@ -108,6 +108,7 @@ struct HealthWorkoutView: View {
                     }
                 }
                 .listStyle(.plain)
+                .scrollContentBackground(.hidden)
             }
         }
 //        .task {

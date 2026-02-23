@@ -23,6 +23,7 @@ struct SplitDaysView: View {
             .onDelete(perform: splitDayService.removeSplitDay)
             .onMove(perform: splitDayService.moveSplitDay)
         }
+        .scrollContentBackground(.hidden)
         .navigationTitle("Routines")
         .toolbar {
 #if os(iOS)
