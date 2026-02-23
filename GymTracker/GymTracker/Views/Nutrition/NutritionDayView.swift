@@ -1,0 +1,481 @@
+import SwiftUI
+
+struct NutritionDayView: View {
+    @EnvironmentObject var nutritionService: NutritionService
+
+    @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
+    @State private var showDatePickerSheet = false
+    @State private var showLogSheet = false
+    @State private var showManageSheet = false
+    @State private var expandedMealEntryIDs: Set<UUID> = []
+    @State private var editingLog: FoodLog?
+
+    private var dayLogs: [FoodLog] {
+        nutritionService.dayLogs.sorted { $0.timestamp < $1.timestamp }
+    }
+
+    private var dayMealEntries: [MealEntry] {
+        nutritionService.dayMealEntries.sorted { $0.timestamp < $1.timestamp }
+    }
+
+    private var totalKcal: Double {
+        nutritionService.totalKcal(for: dayLogs)
+    }
+
+    private var totalProtein: Double {
+        nutritionService.totalProtein(for: dayLogs)
+    }
+
+    private var totalCarbs: Double {
+        nutritionService.totalCarbs(for: dayLogs)
+    }
+
+    private var totalFat: Double {
+        nutritionService.totalFat(for: dayLogs)
+    }
+
+    var body: some View {
+        VStack(spacing: 12) {
+            dayHeader
+
+            dailySummary
+
+            if dayLogs.isEmpty {
+                ContentUnavailableView("No logs for this day", systemImage: "fork.knife")
+                    .frame(maxHeight: .infinity)
+            } else {
+                List {
+                    ForEach(FoodLogCategory.displayOrder) { category in
+                        let standaloneLogs = standaloneLogs(for: category)
+                        let categoryMealEntries = mealEntries(for: category)
+
+                        if !standaloneLogs.isEmpty || !categoryMealEntries.isEmpty {
+                            Section(category.displayName) {
+                                ForEach(standaloneLogs, id: \.id) { log in
+                                    NutritionLogRow(log: log)
+                                        .contentShape(Rectangle())
+                                        .onTapGesture {
+                                            editingLog = log
+                                        }
+                                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                            Button(role: .destructive) {
+                                                nutritionService.deleteFoodLog(log, selectedDate: selectedDate)
+                                            } label: {
+                                                Label("Delete", systemImage: "trash")
+                                            }
+                                        }
+                                }
+
+                                ForEach(categoryMealEntries, id: \.id) { entry in
+                                    let isExpanded = expandedMealEntryIDs.contains(entry.id)
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        NutritionMealEntryHeaderRow(entry: entry, logs: logs(for: entry), isExpanded: isExpanded)
+                                            .contentShape(Rectangle())
+                                            .onTapGesture {
+                                                toggleMealEntry(entry.id)
+                                            }
+                                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                                Button(role: .destructive) {
+                                                    nutritionService.deleteMealEntry(entry, selectedDate: selectedDate)
+                                                    expandedMealEntryIDs.remove(entry.id)
+                                                } label: {
+                                                    Label("Delete", systemImage: "trash")
+                                                }
+                                            }
+
+                                        if isExpanded {
+                                            VStack(spacing: 4) {
+                                                ForEach(logs(for: entry), id: \.id) { log in
+                                                    NutritionLogRow(log: log)
+                                                        .padding(.leading, 12)
+                                                        .contentShape(Rectangle())
+                                                        .onTapGesture {
+                                                            editingLog = log
+                                                        }
+                                                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                                            Button(role: .destructive) {
+                                                                nutritionService.deleteFoodLog(log, selectedDate: selectedDate)
+                                                            } label: {
+                                                                Label("Delete", systemImage: "trash")
+                                                            }
+                                                        }
+                                                }
+                                            }
+                                            .padding(8)
+                                            .background(Color(.tertiarySystemBackground))
+                                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                            .transition(.opacity.combined(with: .move(edge: .top)))
+                                        }
+                                    }
+                                    .padding(.vertical, 2)
+                                }
+                            }
+                        }
+                    }
+                }
+                .listStyle(.insetGrouped)
+            }
+        }
+        .padding(.top, 8)
+        .navigationTitle("Nutrition")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showManageSheet = true
+                } label: {
+                    Label("Manage", systemImage: "line.3.horizontal")
+                }
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            actionBar
+                .padding(.horizontal)
+                .padding(.top, 8)
+                .background(.ultraThinMaterial)
+        }
+        .onAppear {
+            nutritionService.loadFoods()
+            nutritionService.loadMeals()
+            nutritionService.loadDayData(for: selectedDate)
+        }
+        .onChange(of: selectedDate) {
+            selectedDate = Calendar.current.startOfDay(for: selectedDate)
+            nutritionService.loadDayData(for: selectedDate)
+        }
+        .sheet(isPresented: $showDatePickerSheet) {
+            NutritionDatePickerSheet(selectedDate: $selectedDate)
+                .presentationDetents([.medium])
+        }
+        .sheet(isPresented: $showLogSheet) {
+            NutritionLogSheet(selectedDate: selectedDate)
+                .presentationDetents([.large])
+        }
+        .sheet(isPresented: $showManageSheet) {
+            ManageNutritionSheet()
+                .presentationDetents([.large])
+        }
+        .sheet(item: $editingLog) { log in
+            EditFoodLogView(log: log, selectedDate: selectedDate)
+                .presentationDetents([.medium, .large])
+        }
+    }
+
+    private var dayHeader: some View {
+        HStack(spacing: 12) {
+            Button {
+                selectedDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.headline)
+                    .frame(width: 32, height: 32)
+            }
+
+            Spacer()
+
+            Text(selectedDate, format: .dateTime.month(.abbreviated).day().year())
+                .font(.headline)
+
+            Spacer()
+
+            Button {
+                selectedDate = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate) ?? selectedDate
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.headline)
+                    .frame(width: 32, height: 32)
+            }
+
+            Button {
+                showDatePickerSheet = true
+            } label: {
+                Image(systemName: "calendar")
+                    .font(.headline)
+                    .frame(width: 32, height: 32)
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    private var dailySummary: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("\(Int(totalKcal.rounded())) kcal")
+                .font(.title3)
+                .fontWeight(.semibold)
+
+            HStack(spacing: 12) {
+                NutritionMacroChip(title: "Protein", value: totalProtein)
+                NutritionMacroChip(title: "Carbs", value: totalCarbs)
+                NutritionMacroChip(title: "Fat", value: totalFat)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color(.secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.horizontal)
+    }
+
+    private var actionBar: some View {
+        Button {
+            showLogSheet = true
+        } label: {
+            Label("Log", systemImage: "plus.circle.fill")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+    }
+
+    private func standaloneLogs(for category: FoodLogCategory) -> [FoodLog] {
+        dayLogs
+            .filter { $0.category == category && $0.mealEntry == nil }
+            .sorted { $0.timestamp < $1.timestamp }
+    }
+
+    private func mealEntries(for category: FoodLogCategory) -> [MealEntry] {
+        dayMealEntries
+            .filter { $0.category == category }
+            .sorted { $0.timestamp < $1.timestamp }
+    }
+
+    private func logs(for entry: MealEntry) -> [FoodLog] {
+        dayLogs
+            .filter { $0.mealEntry?.id == entry.id }
+            .sorted { $0.timestamp < $1.timestamp }
+    }
+
+    private func toggleMealEntry(_ id: UUID) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            if expandedMealEntryIDs.contains(id) {
+                expandedMealEntryIDs.remove(id)
+            } else {
+                expandedMealEntryIDs.insert(id)
+            }
+        }
+    }
+}
+
+private struct NutritionMacroChip: View {
+    let title: String
+    let value: Double
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Text("\(Int(value.rounded())) g")
+                .font(.subheadline)
+                .fontWeight(.medium)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(Color(.tertiarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+}
+
+private struct NutritionMealEntryHeaderRow: View {
+    let entry: MealEntry
+    let logs: [FoodLog]
+    let isExpanded: Bool
+
+    private var totalKcal: Int {
+        Int(logs.reduce(0) { $0 + $1.kcal }.rounded())
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: isExpanded ? "chevron.down.circle.fill" : "chevron.right.circle")
+                .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(entry.templateMeal?.name ?? "Meal")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+
+                    Text("Meal")
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color(.systemGray5))
+                        .clipShape(Capsule())
+                }
+
+                Text(entry.timestamp, format: .dateTime.hour().minute())
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if let note = entry.note, !note.isEmpty {
+                    Text(note)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("\(totalKcal) kcal")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+
+                Text("\(logs.count) item\(logs.count == 1 ? "" : "s")")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+private struct NutritionLogRow: View {
+    let log: FoodLog
+
+    var body: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(log.food.name)
+                    .font(.body)
+                    .fontWeight(.medium)
+
+                Text(log.timestamp, format: .dateTime.hour().minute())
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if let note = log.note, !note.isEmpty {
+                    Text(note)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("\(Int(log.kcal.rounded())) kcal")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+
+                Text("\(Int(log.grams.rounded())) g")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+private struct NutritionDatePickerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var selectedDate: Date
+
+    var body: some View {
+        NavigationStack {
+            VStack {
+                DatePicker(
+                    "Date",
+                    selection: $selectedDate,
+                    displayedComponents: .date
+                )
+                .datePickerStyle(.graphical)
+                .labelsHidden()
+                .padding()
+
+                Spacer()
+            }
+            .navigationTitle("Select Date")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct EditFoodLogView: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var nutritionService: NutritionService
+
+    let log: FoodLog
+    let selectedDate: Date
+
+    @State private var grams = ""
+    @State private var note = ""
+    @State private var category: FoodLogCategory = .other
+    @State private var selectedTime: Date = Date()
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Food") {
+                    Text(log.food.name)
+                }
+
+                Section("Edit") {
+                    TextField("Grams", text: $grams)
+                        .keyboardType(.decimalPad)
+
+                    Picker("Category", selection: $category) {
+                        ForEach(FoodLogCategory.displayOrder) { item in
+                            Text(item.displayName).tag(item)
+                        }
+                    }
+
+                    DatePicker("Time", selection: $selectedTime, displayedComponents: .hourAndMinute)
+
+                    TextField("Note (optional)", text: $note)
+                }
+            }
+            .navigationTitle("Edit Log")
+            .onAppear {
+                grams = String(format: "%.0f", log.grams)
+                note = log.note ?? ""
+                category = log.category
+                selectedTime = log.timestamp
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Save") {
+                        save()
+                    }
+                    .disabled(!canSave)
+                }
+            }
+        }
+    }
+
+    private var canSave: Bool {
+        (Double(grams.replacingOccurrences(of: ",", with: ".")) ?? 0) > 0
+    }
+
+    private func save() {
+        let gramsValue = Double(grams.replacingOccurrences(of: ",", with: ".")) ?? 0
+        let pinnedTimestamp = nutritionService.dateByPinning(selectedTime, to: selectedDate)
+
+        let didSave = nutritionService.updateFoodLog(
+            log,
+            grams: gramsValue,
+            timestamp: pinnedTimestamp,
+            category: category,
+            note: note
+        )
+
+        if didSave {
+            dismiss()
+        }
+    }
+}

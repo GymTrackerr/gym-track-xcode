@@ -21,7 +21,12 @@ struct SharedModelConfig {
             SessionRep.self,
             Routine.self,
             ExerciseSplitDay.self,
-            TrackerTimer.self
+            TrackerTimer.self,
+            Food.self,
+            FoodLog.self,
+            Meal.self,
+            MealItem.self,
+            MealEntry.self
         ])
         
         let modelConfiguration = ModelConfiguration(

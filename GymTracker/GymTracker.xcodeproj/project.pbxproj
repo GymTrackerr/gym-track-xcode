@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		65B6FEC42EE5EF8700DB4EED /* GymTrackerWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 65B6FEBA2EE5EF8500DB4EED /* GymTrackerWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		65EEEBCA2F4CA74600C0CE4C /* NutritionImplementation.md in Resources */ = {isa = PBXBuildFile; fileRef = 65EEEBC92F4CA73900C0CE4C /* NutritionImplementation.md */; };
 		65F66C1D2EE4FD780089B62E /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 65F66C1C2EE4FD780089B62E /* WidgetKit.framework */; };
 		65F66C1F2EE4FD780089B62E /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 65F66C1E2EE4FD780089B62E /* SwiftUI.framework */; };
 		65F66C302EE4FD790089B62E /* TrackerWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 65F66C1A2EE4FD780089B62E /* TrackerWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -58,6 +59,7 @@
 /* Begin PBXFileReference section */
 		651FCBAD2E8D3B9C00AC42F6 /* GymTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GymTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		65B6FEBA2EE5EF8500DB4EED /* GymTrackerWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "GymTrackerWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		65EEEBC92F4CA73900C0CE4C /* NutritionImplementation.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = NutritionImplementation.md; sourceTree = "<group>"; };
 		65F66C1A2EE4FD780089B62E /* TrackerWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TrackerWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		65F66C1C2EE4FD780089B62E /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		65F66C1E2EE4FD780089B62E /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
@@ -181,6 +183,7 @@
 		651FCBA42E8D3B9B00AC42F6 = {
 			isa = PBXGroup;
 			children = (
+				65EEEBC92F4CA73900C0CE4C /* NutritionImplementation.md */,
 				651FCBAF2E8D3B9C00AC42F6 /* GymTracker */,
 				65F66C202EE4FD780089B62E /* TrackerWidget */,
 				65B6FEBB2EE5EF8500DB4EED /* GymTrackerWatch Watch App */,
@@ -328,6 +331,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				65EEEBCA2F4CA74600C0CE4C /* NutritionImplementation.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

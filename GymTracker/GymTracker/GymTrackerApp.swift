@@ -21,6 +21,7 @@ struct GymTrackerApp: App {
     @StateObject var setService: SetService
     @StateObject var exerciseSplitDayService: ExerciseSplitDayService
     @StateObject var sessionExerciseService: SessionExerciseService
+    @StateObject var nutritionService: NutritionService
     
     @StateObject var watchSessionManager: WatchSessionManager
     @StateObject var healthKitManager = HealthKitManager()
@@ -48,6 +49,7 @@ struct GymTrackerApp: App {
         let setService = SetService(context: context)
         let exerciseSplitDayService = ExerciseSplitDayService(context: context)
         let sessionExerciseService = SessionExerciseService(context: context)
+        let nutritionService = NutritionService(context: context)
 
         // Bind AFTER creation
         dashboardService.bind(to: userService)
@@ -58,6 +60,7 @@ struct GymTrackerApp: App {
         setService.bind(to: userService)
         exerciseSplitDayService.bind(to: userService)
         sessionExerciseService.bind(to: userService)
+        nutritionService.bind(to: userService)
 
         self._dashboardService = StateObject(wrappedValue: dashboardService)
         self._userService = StateObject(wrappedValue: userService)
@@ -68,6 +71,7 @@ struct GymTrackerApp: App {
         self._setService = StateObject(wrappedValue: setService)
         self._exerciseSplitDayService = StateObject(wrappedValue: exerciseSplitDayService)
         self._sessionExerciseService = StateObject(wrappedValue: sessionExerciseService)
+        self._nutritionService = StateObject(wrappedValue: nutritionService)
 
         self._watchSessionManager = StateObject(
             wrappedValue: WatchSessionManager(
@@ -92,6 +96,7 @@ struct GymTrackerApp: App {
                 .environmentObject(sessionExerciseService)
                 .environmentObject(setService)
                 .environmentObject(timerService)
+                .environmentObject(nutritionService)
         }
         .modelContainer(sharedModelContainer)
     }

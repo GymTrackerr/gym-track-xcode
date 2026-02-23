@@ -294,6 +294,8 @@ struct DashboardModuleContent: View {
             FitnessWorkoutsModuleView()
         case .fitsight:
             FitSightModuleView(module: module)
+        case .nutrition:
+            NutritionModuleView(module: module)
         }
     }
 }
@@ -311,6 +313,22 @@ struct FitSightModuleView: View {
             )
         }
        
+    }
+}
+
+struct NutritionModuleView: View {
+    let module: DashboardModule
+
+    var body: some View {
+        NavigationLink(destination: NutritionDayView().appBackground()) {
+            MetricCard(
+                title: module.type.displayName,
+                value: "Track",
+                icon: module.type.iconName,
+                pageNav: true,
+                hasBackground: false
+            )
+        }
     }
 }
 

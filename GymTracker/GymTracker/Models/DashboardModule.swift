@@ -23,6 +23,7 @@ enum ModuleType: String, Codable, CaseIterable {
     case timer = "timer"
     case fitnessWorkouts = "fitnessWorkouts"
     case fitsight = "fitsight"
+    case nutrition = "nutrition"
     
     var displayName: String {
         switch self {
@@ -33,6 +34,7 @@ enum ModuleType: String, Codable, CaseIterable {
         case .timer: return "Timer"
         case .fitnessWorkouts: return "Fitness Workouts"
         case .fitsight: return "FitSight"
+        case .nutrition: return "Nutrition"
         }
     }
     
@@ -45,6 +47,7 @@ enum ModuleType: String, Codable, CaseIterable {
         case .timer: return "timer"
         case .fitnessWorkouts: return "figure.strengthtraining.traditional"
         case .fitsight: return "video"
+        case .nutrition: return "fork.knife"
         }
     }
     
@@ -63,6 +66,8 @@ enum ModuleType: String, Codable, CaseIterable {
         case .activityRings:
             return [.medium, .large]
         case .fitsight:
+            return [.small]
+        case .nutrition:
             return [.small]
         }
         
