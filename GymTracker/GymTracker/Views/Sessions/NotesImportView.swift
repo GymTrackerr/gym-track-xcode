@@ -284,6 +284,12 @@ struct NotesImportView: View {
                             Text("Matched: \(viewModel.selectedExercise(for: rawName)?.name ?? "Unknown")")
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
+                            if let matchedExercise = viewModel.selectedExercise(for: rawName) {
+                                NavigationLink("View Exercise Details") {
+                                    SingleExerciseView(exercise: matchedExercise)
+                                }
+                                .font(.footnote)
+                            }
                         case .existing:
                             Button("Choose Exercise…") {
                                 exercisePickerRawName = rawName
@@ -293,6 +299,12 @@ struct NotesImportView: View {
                             Text("Selected: \(viewModel.selectedExercise(for: rawName)?.name ?? "None")")
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
+                            if let selectedExercise = viewModel.selectedExercise(for: rawName) {
+                                NavigationLink("View Exercise Details") {
+                                    SingleExerciseView(exercise: selectedExercise)
+                                }
+                                .font(.footnote)
+                            }
 
                             Toggle(
                                 "Remember alias for this exercise",
@@ -328,11 +340,46 @@ struct NotesImportView: View {
             ForEach(Array(draft.items.enumerated()), id: \.offset) { index, item in
                 switch item {
                 case .strength(let strength):
-                    Text("\(index + 1). Strength: \(strength.exerciseNameRaw) (\(strength.sets.count) sets)")
-                        .font(.footnote)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("\(index + 1). Strength: \(strength.exerciseNameRaw)")
+                            .font(.footnote)
+                            .fontWeight(.semibold)
+
+                        ForEach(Array(strength.sets.enumerated()), id: \.offset) { setIndex, set in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Set \(setIndex + 1): \(setDescription(set))")
+                                    .font(.footnote)
+                                if let details = perSideDescription(set) {
+                                    Text(details)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+
+                        if let notes = strength.notes, !notes.isEmpty {
+                            Text("Note: \(notes)")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    }
                 case .cardio(let cardio):
-                    Text("\(index + 1). Cardio: \(cardio.exerciseNameRaw) (\(cardio.sets.count) sets)")
-                        .font(.footnote)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("\(index + 1). Cardio: \(cardio.exerciseNameRaw)")
+                            .font(.footnote)
+                            .fontWeight(.semibold)
+
+                        ForEach(Array(cardio.sets.enumerated()), id: \.offset) { setIndex, set in
+                            Text("Set \(setIndex + 1): \(cardioSetDescription(set))")
+                                .font(.footnote)
+                        }
+
+                        if let notes = cardio.notes, !notes.isEmpty {
+                            Text("Telemetry: \(notes)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
             }
         }
@@ -428,6 +475,51 @@ struct NotesImportView: View {
         }
 
         return [.existing, .createNew]
+    }
+
+    private func setDescription(_ set: ParsedStrengthSet) -> String {
+        let weightText: String
+        if let weight = set.weight {
+            weightText = "\(formattedNumber(weight)) \(set.weightUnit.name)"
+        } else {
+            weightText = "bodyweight"
+        }
+
+        var parts: [String] = ["\(set.reps)x @ \(weightText)"]
+        if let restSeconds = set.restSeconds {
+            parts.append("rest \(restSeconds)s")
+        }
+        return parts.joined(separator: ", ")
+    }
+
+    private func perSideDescription(_ set: ParsedStrengthSet) -> String? {
+        guard set.isPerSide else { return nil }
+        guard let base = set.baseWeight, let perSide = set.perSideWeight else { return nil }
+        return "Base \(formattedNumber(base)) + per-side \(formattedNumber(perSide))"
+    }
+
+    private func cardioSetDescription(_ set: ParsedCardioSet) -> String {
+        var parts: [String] = []
+        if let duration = set.durationSeconds {
+            parts.append("duration \(duration)s")
+        }
+        if let distance = set.distance {
+            parts.append("distance \(formattedNumber(distance)) \(set.distanceUnit.rawValue)")
+        }
+        if let pace = set.paceSeconds {
+            parts.append("pace \(pace)s")
+        }
+        if parts.isEmpty {
+            return "no cardio metrics parsed"
+        }
+        return parts.joined(separator: ", ")
+    }
+
+    private func formattedNumber(_ value: Double) -> String {
+        if value.rounded() == value {
+            return String(Int(value))
+        }
+        return String(format: "%.2f", value)
     }
 
     private var currentDraftDecision: DraftDecision? {

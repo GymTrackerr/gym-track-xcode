@@ -18,7 +18,8 @@ final class NotesImportParserDebug {
             test5_BatchSplitAndCrossMidnight(),
             test6_UnknownLinesPreserved(),
             test7_CardioTelemetrySample(),
-            test8_HeaderNormalizationFormats()
+            test8_HeaderNormalizationFormats(),
+            test9_AMPMTimeRanges()
         ]
 
         let passCount = results.filter { $0 }.count
@@ -258,6 +259,60 @@ final class NotesImportParserDebug {
         ok = ok && check("test8", sample3.routineNameRaw == "Back and bicep", "Expected routine extraction for suffix header")
 
         print("[test8] \(ok ? "PASS" : "FAIL")")
+        return ok
+    }
+
+    @discardableResult
+    private static func test9_AMPMTimeRanges() -> Bool {
+        let parser = NotesImportParser()
+
+        let sameDay = parser.parseSingleSession(
+            from: """
+            February 20, 2025, Pull
+            8:10am-9:00am
+            Deadlift, 3x5, 180kg
+            """,
+            defaultWeightUnit: .kg
+        )
+
+        let crossMidnight = parser.parseSingleSession(
+            from: """
+            February 20, 2025, Pull
+            11:30pm-12:10am
+            Deadlift, 3x5, 180kg
+            """,
+            defaultWeightUnit: .kg
+        )
+
+        printDraftSummary("test9-1", sameDay)
+        printDraftSummary("test9-2", crossMidnight)
+
+        var ok = true
+
+        if let start = sameDay.startTime, let end = sameDay.endTime {
+            let calendar = Calendar.current
+            let startHour = calendar.component(.hour, from: start)
+            let endHour = calendar.component(.hour, from: end)
+            ok = ok && check("test9", startHour == 8, "Expected AM start hour 8, got \(startHour)")
+            ok = ok && check("test9", endHour == 9, "Expected AM end hour 9, got \(endHour)")
+        } else {
+            ok = false
+            print("[test9] FAIL: Expected AM time range parse")
+        }
+
+        if let start = crossMidnight.startTime, let end = crossMidnight.endTime {
+            let calendar = Calendar.current
+            let startHour = calendar.component(.hour, from: start)
+            let endHour = calendar.component(.hour, from: end)
+            ok = ok && check("test9", startHour == 23, "Expected PM start hour 23, got \(startHour)")
+            ok = ok && check("test9", endHour == 0, "Expected AM end hour 0, got \(endHour)")
+            ok = ok && check("test9", end > start, "Expected cross-midnight end > start")
+        } else {
+            ok = false
+            print("[test9] FAIL: Expected cross-midnight AM/PM parse")
+        }
+
+        print("[test9] \(ok ? "PASS" : "FAIL")")
         return ok
     }
 
