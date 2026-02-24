@@ -18,6 +18,9 @@ final class NotesImportResolver {
         userId: UUID,
         context: ModelContext
     ) throws -> ResolutionResult {
+#if DEBUG
+        print("[NotesImportResolver] resolve called for user \(userId)")
+#endif
         let routine = try resolveRoutine(
             routineNameRaw: draft.routineNameRaw,
             userId: userId,
@@ -54,6 +57,9 @@ final class NotesImportResolver {
         userId: UUID,
         context: ModelContext
     ) throws -> Routine? {
+#if DEBUG
+        print("[NotesImportResolver] resolveRoutine called with routineNameRaw=\(routineNameRaw ?? "nil")")
+#endif
         guard let routineNameRaw else { return nil }
         let normalizedTarget = normalize(routineNameRaw)
         guard !normalizedTarget.isEmpty else { return nil }
@@ -82,6 +88,9 @@ final class NotesImportResolver {
         userId: UUID,
         context: ModelContext
     ) throws -> [String: ExerciseResolution] {
+#if DEBUG
+        print("[NotesImportResolver] resolveExercises called for \(rawNames.count) raw names")
+#endif
         let targets = deduplicatedNonEmpty(rawNames)
         guard !targets.isEmpty else { return [:] }
 
@@ -123,6 +132,9 @@ final class NotesImportResolver {
         aliasRaw: String,
         rememberAlias: Bool
     ) -> Bool {
+#if DEBUG
+        print("[NotesImportResolver] addRoutineAliasIfNeeded called for alias=\(aliasRaw), rememberAlias=\(rememberAlias)")
+#endif
         guard rememberAlias else { return false }
 
         let normalizedAlias = normalize(aliasRaw)
@@ -146,6 +158,9 @@ final class NotesImportResolver {
         aliasRaw: String,
         rememberAlias: Bool
     ) -> Bool {
+#if DEBUG
+        print("[NotesImportResolver] addExerciseAliasIfNeeded called for exercise=\(exercise.name), alias=\(aliasRaw), rememberAlias=\(rememberAlias)")
+#endif
         guard rememberAlias else { return false }
 
         let normalizedAlias = normalize(aliasRaw)

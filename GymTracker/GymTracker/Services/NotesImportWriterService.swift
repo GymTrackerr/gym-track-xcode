@@ -21,6 +21,9 @@ final class NotesImportWriterService {
         userId: UUID,
         context: ModelContext
     ) throws -> Bool {
+#if DEBUG
+        print("[NotesImportWriterService] duplicateExists called for user \(userId), hash=\(draft.importHash)")
+#endif
         let importHash = draft.importHash.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !importHash.isEmpty else { return false }
 
@@ -30,7 +33,11 @@ final class NotesImportWriterService {
             }
         )
 
-        return try !context.fetch(descriptor).isEmpty
+        let exists = try !context.fetch(descriptor).isEmpty
+#if DEBUG
+        print("[NotesImportWriterService] duplicateExists result=\(exists)")
+#endif
+        return exists
     }
 
     func commit(
@@ -40,6 +47,9 @@ final class NotesImportWriterService {
         context: ModelContext,
         defaultWeightUnit: WeightUnit
     ) throws -> Session {
+#if DEBUG
+        print("[NotesImportWriterService] commit called for user \(userId), items=\(draft.items.count), hash=\(draft.importHash)")
+#endif
         guard draft.parsedDate != nil else {
             throw NotesImportWriterError.missingDate
         }
@@ -137,8 +147,14 @@ final class NotesImportWriterService {
             }
 
             try context.save()
+#if DEBUG
+            print("[NotesImportWriterService] commit save succeeded")
+#endif
             return session
         } catch {
+#if DEBUG
+            print("[NotesImportWriterService] commit failed, rolling back: \(error)")
+#endif
             context.rollback()
             throw error
         }

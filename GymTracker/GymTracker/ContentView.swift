@@ -18,6 +18,9 @@ struct ContentView: View {
     
     @State var linkActive = false
     @State var selectedLink = -1
+#if DEBUG
+    @State private var showingDebugNotesImport = false
+#endif
 
     var body: some View {
         TabView (selection: $localSelected) {
@@ -89,6 +92,27 @@ struct ContentView: View {
             NotesImportDebugHarness.runAll()
 #endif
         }
+#if DEBUG
+        .safeAreaInset(edge: .bottom) {
+            HStack {
+                Spacer()
+                Button {
+                    showingDebugNotesImport = true
+                } label: {
+                    Label("Debug Notes Import", systemImage: "doc.text")
+                        .font(.caption)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+        }
+        .sheet(isPresented: $showingDebugNotesImport) {
+            NotesImportView(currentUserId: userService.currentUser?.id)
+        }
+#endif
         // 4.
 
     }
