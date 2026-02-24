@@ -15,6 +15,7 @@ final class Session {
     var timestamp: Date
     var timestampDone: Date = Date() // temporary just saving as 
     var notes: String = ""
+    var importHash: String? = nil
     
     var routine: Routine?
     var routine_id: UUID? { routine?.id }

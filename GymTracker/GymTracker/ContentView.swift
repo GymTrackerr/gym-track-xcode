@@ -84,6 +84,11 @@ struct ContentView: View {
             print("Received deep link: \(url)")
             linkActive = true
         }
+        .onAppear {
+#if DEBUG
+            NotesImportParserDebug.runSamples()
+#endif
+        }
         // 4.
 
     }

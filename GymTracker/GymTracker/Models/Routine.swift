@@ -15,6 +15,7 @@ final class Routine {
     var order: Int
     var name: String
     var timestamp: Date
+    var aliases: [String] = []
     
     @Relationship(deleteRule: .cascade)
     var exerciseSplits: [ExerciseSplitDay]

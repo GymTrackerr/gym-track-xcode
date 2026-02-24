@@ -16,6 +16,12 @@ final class SessionSet {
 //    var type: Set_Types
     var notes: String?
     var timestamp: Date
+
+    var durationSeconds: Int? = nil
+    var distance: Double? = nil
+    var paceSeconds: Int? = nil
+    var distanceUnitRaw: String? = nil
+    var restSeconds: Int? = nil
     
     var isCompleted: Bool = false
     var isDropSet: Bool = false
@@ -34,4 +40,14 @@ final class SessionSet {
         self.sessionEntry = sessionEntry
         self.sessionReps = []
     }
+
+    var distanceUnit: DistanceUnit {
+        get { DistanceUnit(rawValue: distanceUnitRaw ?? "km") ?? .km }
+        set { distanceUnitRaw = newValue.rawValue }
+    }
+}
+
+enum DistanceUnit: String, Codable {
+    case km
+    case mi
 }

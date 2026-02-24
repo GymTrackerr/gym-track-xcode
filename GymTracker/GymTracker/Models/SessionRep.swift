@@ -15,6 +15,9 @@ final class SessionRep {
     var weight_unit: Int
     var count: Int
     var notes: String?
+    var baseWeight: Double? = nil
+    var perSideWeight: Double? = nil
+    var isPerSide: Bool = false
     
     var sessionSet: SessionSet
     var sessionSet_id: UUID { sessionSet.id }
@@ -29,6 +32,11 @@ final class SessionRep {
         self.weight_unit = weight_unit.rawValue
         self.count = count
         self.notes = notes
+    }
+
+    var derivedTotalWeight: Double? {
+        guard isPerSide, let base = baseWeight, let side = perSideWeight else { return nil }
+        return base + (side * 2)
     }
 }
 
