@@ -159,6 +159,10 @@ class RoutineService : ServiceBase, ObservableObject {
         try modelContext.save()
     }
 
+    func willArchiveOnDelete(_ routine: Routine) -> Bool {
+        !routine.sessions.isEmpty
+    }
+
     func restore(_ routine: Routine) throws {
         routine.isArchived = false
         try modelContext.save()

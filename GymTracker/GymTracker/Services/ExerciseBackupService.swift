@@ -137,7 +137,12 @@ final class ExerciseBackupService {
                 timestamp: sessionSet.timestamp,
                 isCompleted: sessionSet.isCompleted,
                 isDropSet: sessionSet.isDropSet,
-                sessionEntryId: sessionSet.sessionEntry.id.uuidString
+                sessionEntryId: sessionSet.sessionEntry.id.uuidString,
+                durationSeconds: sessionSet.durationSeconds,
+                distance: sessionSet.distance,
+                paceSeconds: sessionSet.paceSeconds,
+                distanceUnitRaw: sessionSet.distanceUnitRaw,
+                restSeconds: sessionSet.restSeconds
             )
         }
         let exportedSetIds = Set(setDTOs.compactMap { UUID(uuidString: $0.id) })
@@ -153,7 +158,10 @@ final class ExerciseBackupService {
                 weightUnitRaw: rep.weight_unit,
                 count: rep.count,
                 notes: rep.notes,
-                sessionSetId: rep.sessionSet.id.uuidString
+                sessionSetId: rep.sessionSet.id.uuidString,
+                baseWeight: rep.baseWeight,
+                perSideWeight: rep.perSideWeight,
+                isPerSide: rep.isPerSide
             )
         }
 
@@ -163,7 +171,8 @@ final class ExerciseBackupService {
                 userId: $0.user_id.uuidString,
                 order: $0.order,
                 name: $0.name,
-                timestamp: $0.timestamp
+                timestamp: $0.timestamp,
+                aliases: $0.aliases
             )
         }
 
@@ -174,12 +183,13 @@ final class ExerciseBackupService {
                 timestamp: $0.timestamp,
                 timestampDone: $0.timestampDone,
                 notes: $0.notes,
-                routineId: $0.routine.map { routinesById[$0.id] != nil ? $0.id.uuidString : nil } ?? nil
+                routineId: $0.routine.map { routinesById[$0.id] != nil ? $0.id.uuidString : nil } ?? nil,
+                importHash: $0.importHash
             )
         }
 
         let payload = ExerciseBackupRootDTO(
-            schemaVersion: 1,
+            schemaVersion: 2,
             exportedAt: Date(),
             userId: userId.uuidString,
             payload: ExercisePayloadDTO(
@@ -226,7 +236,7 @@ final class ExerciseBackupService {
 
         let root = try decodeBackupRoot(from: data)
 
-        guard root.schemaVersion == 1 else {
+        guard root.schemaVersion == 1 || root.schemaVersion == 2 else {
             throw BackupError.invalidSchemaVersion(root.schemaVersion)
         }
 
@@ -326,6 +336,7 @@ final class ExerciseBackupService {
             routine.order = dto.order
             routine.name = dto.name
             routine.timestamp = dto.timestamp
+            routine.aliases = dto.aliases ?? []
             routinesById[routineId] = routine
         }
 
@@ -364,6 +375,7 @@ final class ExerciseBackupService {
             session.timestampDone = dto.timestampDone
             session.notes = dto.notes
             session.routine = routine
+            session.importHash = dto.importHash
             sessionsById[sessionId] = session
         }
 
@@ -433,6 +445,11 @@ final class ExerciseBackupService {
             sessionSet.timestamp = dto.timestamp
             sessionSet.isCompleted = dto.isCompleted
             sessionSet.isDropSet = dto.isDropSet
+            sessionSet.durationSeconds = dto.durationSeconds
+            sessionSet.distance = dto.distance
+            sessionSet.paceSeconds = dto.paceSeconds
+            sessionSet.distanceUnitRaw = dto.distanceUnitRaw
+            sessionSet.restSeconds = dto.restSeconds
             sessionSet.sessionEntry = entry
             if !entry.sets.contains(where: { $0.id == sessionSet.id }) {
                 entry.sets.append(sessionSet)
@@ -472,6 +489,9 @@ final class ExerciseBackupService {
             rep.weight_unit = dto.weightUnitRaw
             rep.count = dto.count
             rep.notes = dto.notes
+            rep.baseWeight = dto.baseWeight
+            rep.perSideWeight = dto.perSideWeight
+            rep.isPerSide = dto.isPerSide ?? false
             rep.sessionSet = sessionSet
             if !sessionSet.sessionReps.contains(where: { $0.id == rep.id }) {
                 sessionSet.sessionReps.append(rep)
@@ -949,6 +969,7 @@ private struct RoutineBackupDTO: Codable {
     let order: Int
     let name: String
     let timestamp: Date
+    let aliases: [String]?
 }
 
 private struct ExerciseSplitDayBackupDTO: Codable {
@@ -966,6 +987,7 @@ private struct SessionBackupDTO: Codable {
     let timestampDone: Date
     let notes: String
     let routineId: String?
+    let importHash: String?
 }
 
 private struct SessionEntryBackupDTO: Codable {
@@ -985,6 +1007,11 @@ private struct SessionSetBackupDTO: Codable {
     let isCompleted: Bool
     let isDropSet: Bool
     let sessionEntryId: String
+    let durationSeconds: Int?
+    let distance: Double?
+    let paceSeconds: Int?
+    let distanceUnitRaw: String?
+    let restSeconds: Int?
 }
 
 private struct SessionRepBackupDTO: Codable {
@@ -994,4 +1021,7 @@ private struct SessionRepBackupDTO: Codable {
     let count: Int
     let notes: String?
     let sessionSetId: String
+    let baseWeight: Double?
+    let perSideWeight: Double?
+    let isPerSide: Bool?
 }

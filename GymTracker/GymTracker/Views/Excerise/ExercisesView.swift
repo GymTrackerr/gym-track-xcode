@@ -160,6 +160,14 @@ struct ExercisesView: View {
                                 .padding(.vertical, 4)
                                 .padding(.horizontal, 4)
                         )
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                deleteExercise(exercise)
+                            } label: {
+                                let isArchive = exerciseService.willArchiveOnDelete(exercise)
+                                Label(isArchive ? "Archive" : "Delete", systemImage: isArchive ? "archivebox" : "trash")
+                            }
+                        }
                     }
                     .onDelete(perform: deleteFilteredExercises)
                 }
@@ -238,6 +246,10 @@ struct ExercisesView: View {
             filteredExercises.indices.contains(index) ? filteredExercises[index] : nil
         }
         exerciseService.removeExercises(toDelete)
+    }
+
+    private func deleteExercise(_ exercise: Exercise) {
+        exerciseService.removeExercises([exercise])
     }
 
 }

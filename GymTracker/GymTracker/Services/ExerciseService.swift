@@ -447,6 +447,11 @@ class ExerciseService : ServiceBase, ObservableObject {
         try modelContext.save()
     }
 
+    func willArchiveOnDelete(_ exercise: Exercise) -> Bool {
+        let hasPersistedHistory = (try? hasSessionHistory(exerciseID: exercise.id)) ?? false
+        return !exercise.sessionEntries.isEmpty || hasPersistedHistory
+    }
+
     func restore(_ exercise: Exercise) throws {
         exercise.isArchived = false
         try modelContext.save()

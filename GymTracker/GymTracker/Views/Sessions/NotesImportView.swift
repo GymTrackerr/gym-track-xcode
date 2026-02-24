@@ -1,5 +1,10 @@
 import SwiftUI
 import SwiftData
+#if os(iOS)
+import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 struct NotesImportView: View {
     @Environment(\.modelContext) private var modelContext
@@ -72,6 +77,14 @@ struct NotesImportView: View {
                     RoundedRectangle(cornerRadius: 10)
                         .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
                 )
+
+            Button {
+                pasteFromClipboard()
+            } label: {
+                Label("Paste", systemImage: "doc.on.clipboard")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
 
             Button {
                 viewModel.parseInput(text: viewModel.rawInput)
@@ -505,6 +518,18 @@ struct NotesImportView: View {
     private func dateText(_ date: Date?) -> String {
         guard let date else { return "(missing)" }
         return date.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    private func pasteFromClipboard() {
+#if os(iOS)
+        if let clipboardText = UIPasteboard.general.string {
+            viewModel.rawInput = clipboardText
+        }
+#elseif os(macOS)
+        if let clipboardText = NSPasteboard.general.string(forType: .string) {
+            viewModel.rawInput = clipboardText
+        }
+#endif
     }
 
     private func exerciseNames(from draft: NotesImportDraft) -> [String] {

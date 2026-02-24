@@ -20,6 +20,14 @@ struct SplitDaysView: View {
                 } label: {
                     SingleDayLabelView(routine: routine)
                 }
+                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    Button(role: .destructive) {
+                        deleteRoutine(routine)
+                    } label: {
+                        let isArchive = splitDayService.willArchiveOnDelete(routine)
+                        Label(isArchive ? "Archive" : "Delete", systemImage: isArchive ? "archivebox" : "trash")
+                    }
+                }
             }
             .onDelete(perform: splitDayService.removeSplitDay)
             .onMove(perform: splitDayService.moveSplitDay)
@@ -77,6 +85,11 @@ struct SplitDaysView: View {
                 }
             }
         }
+    }
+
+    private func deleteRoutine(_ routine: Routine) {
+        guard let index = splitDayService.routines.firstIndex(where: { $0.id == routine.id }) else { return }
+        splitDayService.removeSplitDay(offsets: IndexSet(integer: index))
     }
 
 }
