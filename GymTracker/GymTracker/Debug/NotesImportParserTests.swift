@@ -19,7 +19,7 @@ final class NotesImportParserDebug {
             test6_UnknownLinesPreserved(),
             test7_CardioTelemetrySample(),
             test8_HeaderNormalizationFormats(),
-            test9_AMPMTimeRanges()
+            test9_StrictTimeRangeFormats()
         ]
 
         let passCount = results.filter { $0 }.count
@@ -263,54 +263,97 @@ final class NotesImportParserDebug {
     }
 
     @discardableResult
-    private static func test9_AMPMTimeRanges() -> Bool {
+    private static func test9_StrictTimeRangeFormats() -> Bool {
         let parser = NotesImportParser()
-
-        let sameDay = parser.parseSingleSession(
-            from: """
-            February 20, 2025, Pull
-            8:10am-9:00am
-            Deadlift, 3x5, 180kg
-            """,
-            defaultWeightUnit: .kg
-        )
-
-        let crossMidnight = parser.parseSingleSession(
-            from: """
-            February 20, 2025, Pull
-            11:30pm-12:10am
-            Deadlift, 3x5, 180kg
-            """,
-            defaultWeightUnit: .kg
-        )
-
-        printDraftSummary("test9-1", sameDay)
-        printDraftSummary("test9-2", crossMidnight)
-
         var ok = true
+        let accepted12 = parser.parseSingleSession(
+            from: """
+            February 20, 2025, Pull
+            11:40am-1:00pm
+            Deadlift, 3x5, 180kg
+            """,
+            defaultWeightUnit: .kg
+        )
+        let accepted12CrossMidnight = parser.parseSingleSession(
+            from: """
+            February 20, 2025, Pull
+            11:40 PM - 1:00 AM
+            Deadlift, 3x5, 180kg
+            """,
+            defaultWeightUnit: .kg
+        )
+        let accepted24CrossMidnight = parser.parseSingleSession(
+            from: """
+            February 20, 2025, Pull
+            23:10-00:40
+            Deadlift, 3x5, 180kg
+            """,
+            defaultWeightUnit: .kg
+        )
 
-        if let start = sameDay.startTime, let end = sameDay.endTime {
-            let calendar = Calendar.current
-            let startHour = calendar.component(.hour, from: start)
-            let endHour = calendar.component(.hour, from: end)
-            ok = ok && check("test9", startHour == 8, "Expected AM start hour 8, got \(startHour)")
-            ok = ok && check("test9", endHour == 9, "Expected AM end hour 9, got \(endHour)")
+        let rejectedMissingMeridiemLeft = parser.parseSingleSession(
+            from: """
+            February 20, 2025, Pull
+            11:40-1:00pm
+            Deadlift, 3x5, 180kg
+            """,
+            defaultWeightUnit: .kg
+        )
+        let rejectedMissingMeridiemRight = parser.parseSingleSession(
+            from: """
+            February 20, 2025, Pull
+            11:40am-1:00
+            Deadlift, 3x5, 180kg
+            """,
+            defaultWeightUnit: .kg
+        )
+        let rejectedNoMeridiem = parser.parseSingleSession(
+            from: """
+            February 20, 2025, Pull
+            11:40-1:00
+            Deadlift, 3x5, 180kg
+            """,
+            defaultWeightUnit: .kg
+        )
+        let rejectedMixed = parser.parseSingleSession(
+            from: """
+            February 20, 2025, Pull
+            23:10-1:00pm
+            Deadlift, 3x5, 180kg
+            """,
+            defaultWeightUnit: .kg
+        )
+
+        printDraftSummary("test9-accepted12", accepted12)
+        printDraftSummary("test9-accepted12-xm", accepted12CrossMidnight)
+        printDraftSummary("test9-accepted24-xm", accepted24CrossMidnight)
+        printDraftSummary("test9-reject-left", rejectedMissingMeridiemLeft)
+        printDraftSummary("test9-reject-right", rejectedMissingMeridiemRight)
+        printDraftSummary("test9-reject-none", rejectedNoMeridiem)
+        printDraftSummary("test9-reject-mixed", rejectedMixed)
+
+        ok = ok && check("test9", accepted12.startTime != nil && accepted12.endTime != nil, "Expected 12-hour format to parse")
+        ok = ok && check("test9", accepted12CrossMidnight.startTime != nil && accepted12CrossMidnight.endTime != nil, "Expected AM/PM cross-midnight to parse")
+        ok = ok && check("test9", accepted24CrossMidnight.startTime != nil && accepted24CrossMidnight.endTime != nil, "Expected 24-hour cross-midnight to parse")
+
+        if let start = accepted12CrossMidnight.startTime, let end = accepted12CrossMidnight.endTime {
+            ok = ok && check("test9", end > start, "Expected AM/PM cross-midnight end > start")
         } else {
             ok = false
-            print("[test9] FAIL: Expected AM time range parse")
+            print("[test9] FAIL: Missing parsed times for AM/PM cross-midnight")
         }
 
-        if let start = crossMidnight.startTime, let end = crossMidnight.endTime {
-            let calendar = Calendar.current
-            let startHour = calendar.component(.hour, from: start)
-            let endHour = calendar.component(.hour, from: end)
-            ok = ok && check("test9", startHour == 23, "Expected PM start hour 23, got \(startHour)")
-            ok = ok && check("test9", endHour == 0, "Expected AM end hour 0, got \(endHour)")
-            ok = ok && check("test9", end > start, "Expected cross-midnight end > start")
+        if let start = accepted24CrossMidnight.startTime, let end = accepted24CrossMidnight.endTime {
+            ok = ok && check("test9", end > start, "Expected 24-hour cross-midnight end > start")
         } else {
             ok = false
-            print("[test9] FAIL: Expected cross-midnight AM/PM parse")
+            print("[test9] FAIL: Missing parsed times for 24-hour cross-midnight")
         }
+
+        ok = ok && check("test9", rejectedMissingMeridiemLeft.startTime == nil && rejectedMissingMeridiemLeft.endTime == nil, "Expected reject for missing AM/PM on left side")
+        ok = ok && check("test9", rejectedMissingMeridiemRight.startTime == nil && rejectedMissingMeridiemRight.endTime == nil, "Expected reject for missing AM/PM on right side")
+        ok = ok && check("test9", rejectedNoMeridiem.startTime == nil && rejectedNoMeridiem.endTime == nil, "Expected reject for missing AM/PM on both sides")
+        ok = ok && check("test9", rejectedMixed.startTime == nil && rejectedMixed.endTime == nil, "Expected reject for mixed 24h + AM/PM format")
 
         print("[test9] \(ok ? "PASS" : "FAIL")")
         return ok

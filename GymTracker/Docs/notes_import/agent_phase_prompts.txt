@@ -25,14 +25,20 @@ Hard constraints:
 - Do NOT make SessionRep.weight/count optional.
 - Cardio is ExerciseType.run | .bike | .swim via ExerciseType.isCardio (no .cardio case).
 - SessionRep.weight remains TOTAL weight used for workload (rep.weight * rep.count stays).
-- Import must NOT mutate Routine template exercises/order/state (only assign routine to sessions; optional alias add).
+- Existing routines must NOT have template exercises/order/state mutated by import.
+- If a routine is newly created during the same import commit, template population is allowed for that newly created routine only.
 - All resolver/duplicate/writer logic MUST be scoped to currentUserId; no global queries.
 
 Behavior constraints:
 - Parsing/preview is allowed without userId, but commit is blocked until currentUserId exists.
 - Batch import: per draft all-or-nothing. One draft failure does not block other drafts.
 - Writer transaction: create objects → try context.save(); on failure context.rollback(); keep draft editable with suggestions.
-- Time parsing: only HH:mm-HH:mm; device timezone; if end < start then +1 day; if missing end then timestampDone = timestamp + 60m (warn).
+- Time parsing: strict formats only:
+  - 24-hour `HH:mm-HH:mm` (two-digit hour/minute both sides)
+  - 12-hour with AM/PM on both sides (case-insensitive, spaces optional)
+  - reject mixed/ambiguous formats
+- Device timezone; if end < start then +1 day.
+- No silent commit-time date/time defaults; unresolved date/time must be explicitly resolved before commit.
 - Weightless sets persistence: weight=0, unit=defaultWeightUnit (fallback .lb), add rep note.
 
 UI constraints:
@@ -146,7 +152,7 @@ Tasks:
 Parsing requirements:
 - Batch splitting by date header lines.
 - Date formats: “December 15, 2025” and “Nov 15, 2022”; handle optional “, legs” routine suffix.
-- Time range parsing: HH:mm-HH:mm (cross-midnight supported).
+- Time range parsing: strict 24h `HH:mm-HH:mm` OR strict 12h with AM/PM on both sides (cross-midnight supported).
 - Strength lines:
   - numbered prefix “1.” optional
   - parse multiple set segments: “2x10, 205lbs, 1x10, 225lbs”
@@ -207,7 +213,8 @@ Rules:
 - Use dedicated NotesImportWriterService (do not rely on SessionService UI state methods).
 - One transaction per draft. try save; on failure rollback.
 - Must require userId.
-- Must block commit if parsedDate is nil (require user to pick date in UI later).
+- Must block commit if date/time are unresolved.
+- Require explicit user resolution for missing date and missing time-range in UI before commit.
 
 Tasks:
 - Create NotesImportWriterService.swift with:

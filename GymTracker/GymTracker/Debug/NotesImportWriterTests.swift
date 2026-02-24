@@ -82,12 +82,13 @@ final class NotesImportWriterDebug {
 
             let date = Date()
             let start = Calendar.current.date(bySettingHour: 9, minute: 30, second: 0, of: date) ?? date
+            let end = Calendar.current.date(byAdding: .minute, value: 75, to: start) ?? start
 
             let draft = NotesImportDraft(
                 originalText: "sample",
                 parsedDate: date,
                 startTime: start,
-                endTime: nil,
+                endTime: end,
                 routineNameRaw: "Push",
                 items: [
                     .strength(
@@ -160,7 +161,6 @@ final class NotesImportWriterDebug {
             ok = ok && check("writer-test2", session.sessionEntries.count == 2, "Expected two entries (strength + cardio)")
             ok = ok && check("writer-test2", session.notes.contains("Import warnings:"), "Expected warnings section in notes")
             ok = ok && check("writer-test2", session.notes.contains("Unparsed lines:"), "Expected unknown-lines section in notes")
-            ok = ok && check("writer-test2", session.notes.contains("Missing end time; estimated end time used."), "Expected missing-end warning in notes")
 
             if let strengthEntry = session.sessionEntries.first(where: { $0.exercise.id == bench.id }) {
                 ok = ok && check("writer-test2", strengthEntry.sets.count == 2, "Expected two strength sets")
@@ -262,12 +262,14 @@ final class NotesImportWriterDebug {
 
             let userId = UUID()
             let date = Date()
+            let start = Calendar.current.date(bySettingHour: 8, minute: 0, second: 0, of: date) ?? date
+            let end = Calendar.current.date(byAdding: .minute, value: 45, to: start) ?? start
 
             let draft = NotesImportDraft(
                 originalText: "sample",
                 parsedDate: date,
-                startTime: nil,
-                endTime: nil,
+                startTime: start,
+                endTime: end,
                 routineNameRaw: nil,
                 items: [
                     .strength(
@@ -342,8 +344,8 @@ final class NotesImportWriterDebug {
             let draft = NotesImportDraft(
                 originalText: "sample",
                 parsedDate: Date(),
-                startTime: nil,
-                endTime: nil,
+                startTime: Date(),
+                endTime: Date().addingTimeInterval(3600),
                 routineNameRaw: "Leg Day",
                 items: [
                     .strength(
@@ -390,7 +392,7 @@ final class NotesImportWriterDebug {
                     "Indoor cycle": bike
                 ],
                 unresolvedExercises: [],
-                shouldPopulateRoutineTemplate: true
+                createdRoutineId: createdRoutine.id
             )
 
             _ = try writer.commit(
@@ -434,8 +436,8 @@ final class NotesImportWriterDebug {
             let draft = NotesImportDraft(
                 originalText: "sample",
                 parsedDate: Date(),
-                startTime: nil,
-                endTime: nil,
+                startTime: Date(),
+                endTime: Date().addingTimeInterval(3600),
                 routineNameRaw: "Push",
                 items: [
                     .strength(
@@ -481,8 +483,7 @@ final class NotesImportWriterDebug {
                     "Bench Press": bench,
                     "Run": run
                 ],
-                unresolvedExercises: [],
-                shouldPopulateRoutineTemplate: false
+                unresolvedExercises: []
             )
 
             _ = try writer.commit(
@@ -520,8 +521,8 @@ final class NotesImportWriterDebug {
             let draft = NotesImportDraft(
                 originalText: "sample",
                 parsedDate: Date(),
-                startTime: nil,
-                endTime: nil,
+                startTime: Date(),
+                endTime: Date().addingTimeInterval(3600),
                 routineNameRaw: nil,
                 items: [
                     .cardio(
@@ -549,8 +550,7 @@ final class NotesImportWriterDebug {
                 resolvedExercises: [
                     "Bike": bike
                 ],
-                unresolvedExercises: [],
-                shouldPopulateRoutineTemplate: false
+                unresolvedExercises: []
             )
 
             let session = try writer.commit(

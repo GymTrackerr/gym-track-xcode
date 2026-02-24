@@ -72,6 +72,13 @@ final class NotesImportViewModel: ObservableObject {
         static let empty = ResolutionState()
     }
 
+    struct DraftDateTimeResolution {
+        var resolvedStart: Date?
+        var resolvedEnd: Date?
+        var userResolvedDate: Bool
+        var userResolvedTimeRange: Bool
+    }
+
     @Published var rawInput: String = ""
     @Published var defaultWeightUnit: WeightUnit = .lb
 
@@ -81,6 +88,9 @@ final class NotesImportViewModel: ObservableObject {
     @Published var allUserExercises: [Exercise] = []
 
     @Published var selectedDateForCurrentDraft: Date = Date()
+    @Published var selectedStartForCurrentDraft: Date = Date()
+    @Published var selectedEndForCurrentDraft: Date = Date().addingTimeInterval(3600)
+    @Published private(set) var dateTimeResolutions: [Int: DraftDateTimeResolution] = [:]
 
     @Published var showDuplicatePrompt: Bool = false
     @Published var isCommitting: Bool = false
@@ -92,6 +102,18 @@ final class NotesImportViewModel: ObservableObject {
     var currentDraft: NotesImportDraft? {
         guard batch.drafts.indices.contains(currentDraftIndex) else { return nil }
         return batch.drafts[currentDraftIndex]
+    }
+
+    var canConfirmCurrentDraft: Bool {
+        guard let draft = currentDraft else { return false }
+        guard let resolution = dateTimeResolutions[currentDraftIndex] else { return false }
+        guard let start = resolution.resolvedStart, let end = resolution.resolvedEnd, end >= start else {
+            return false
+        }
+
+        let dateSatisfied = draft.parsedDate != nil || resolution.userResolvedDate
+        let timeSatisfied = (draft.startTime != nil && draft.endTime != nil) || resolution.userResolvedTimeRange
+        return dateSatisfied && timeSatisfied
     }
 
     private var modelContext: ModelContext?
@@ -116,9 +138,8 @@ final class NotesImportViewModel: ObservableObject {
         resolutionState = .empty
         showDuplicatePrompt = false
 
-        if let draft = currentDraft {
-            selectedDateForCurrentDraft = draft.parsedDate ?? Date()
-        }
+        initializeDateTimeResolutions()
+        syncCurrentDraftDateTimeSelection()
 
         resolveRoutine()
         resolveExercise()
@@ -145,9 +166,21 @@ final class NotesImportViewModel: ObservableObject {
     }
 
     func applySelectedDateToCurrentDraft() {
-        guard var draft = currentDraft else { return }
-        draft.parsedDate = selectedDateForCurrentDraft
-        batch.drafts[currentDraftIndex] = draft
+        guard var resolution = dateTimeResolutions[currentDraftIndex] else { return }
+        guard let start = resolution.resolvedStart, let end = resolution.resolvedEnd else { return }
+
+        let adjustedStart = mergeDate(selectedDateForCurrentDraft, into: start)
+        let adjustedEnd = mergeDate(selectedDateForCurrentDraft, into: end)
+        let normalizedEnd = adjustedEnd < adjustedStart
+            ? Calendar.current.date(byAdding: .day, value: 1, to: adjustedEnd) ?? adjustedEnd
+            : adjustedEnd
+
+        resolution.resolvedStart = adjustedStart
+        resolution.resolvedEnd = normalizedEnd
+        resolution.userResolvedDate = true
+        dateTimeResolutions[currentDraftIndex] = resolution
+        selectedStartForCurrentDraft = adjustedStart
+        selectedEndForCurrentDraft = normalizedEnd
         resolutionState.errorMessage = nil
     }
 
@@ -289,6 +322,71 @@ final class NotesImportViewModel: ObservableObject {
         }
     }
 
+    func setResolvedStart(_ newStart: Date) {
+        guard var resolution = dateTimeResolutions[currentDraftIndex] else { return }
+        let oldStart = resolution.resolvedStart ?? newStart
+        let oldEnd = resolution.resolvedEnd ?? newStart.addingTimeInterval(3600)
+        let delta = newStart.timeIntervalSince(oldStart)
+        let shiftedEnd = oldEnd.addingTimeInterval(delta)
+
+        resolution.resolvedStart = newStart
+        resolution.resolvedEnd = shiftedEnd
+        resolution.userResolvedTimeRange = true
+
+        dateTimeResolutions[currentDraftIndex] = resolution
+        selectedStartForCurrentDraft = newStart
+        selectedEndForCurrentDraft = shiftedEnd
+        resolutionState.errorMessage = nil
+    }
+
+    func setResolvedEnd(_ newEnd: Date) {
+        guard var resolution = dateTimeResolutions[currentDraftIndex] else { return }
+        let currentStart = resolution.resolvedStart ?? newEnd
+
+        if newEnd < currentStart {
+            resolution.resolvedStart = newEnd
+            selectedStartForCurrentDraft = newEnd
+        }
+
+        resolution.resolvedEnd = newEnd
+        resolution.userResolvedTimeRange = true
+        dateTimeResolutions[currentDraftIndex] = resolution
+        selectedEndForCurrentDraft = newEnd
+        resolutionState.errorMessage = nil
+    }
+
+    func useSuggestedTimeRangeForCurrentDraft() {
+        guard var resolution = dateTimeResolutions[currentDraftIndex] else { return }
+        resolution.userResolvedTimeRange = true
+        dateTimeResolutions[currentDraftIndex] = resolution
+        resolutionState.errorMessage = nil
+    }
+
+    func dateTimeValidationMessage(for index: Int) -> String? {
+        guard let draft = batch.drafts[safe: index],
+              let resolution = dateTimeResolutions[index] else {
+            return "Date and time range are required."
+        }
+
+        guard let start = resolution.resolvedStart, let end = resolution.resolvedEnd else {
+            return "Start and end time are required."
+        }
+
+        if end < start {
+            return "End time must be the same as or after start time."
+        }
+
+        if draft.parsedDate == nil && !resolution.userResolvedDate {
+            return "Select a session date and tap Use This Date."
+        }
+
+        if (draft.startTime == nil || draft.endTime == nil) && !resolution.userResolvedTimeRange {
+            return "Review the time range and tap Use Suggested Time Range or adjust start/end."
+        }
+
+        return nil
+    }
+
     @discardableResult
     func confirmImport() -> Bool {
         guard let context = modelContext else {
@@ -301,29 +399,29 @@ final class NotesImportViewModel: ObservableObject {
             return false
         }
 
-        guard var draft = currentDraft else {
+        guard let draft = currentDraft else {
             resolutionState.errorMessage = "No draft selected."
             return false
         }
 
-        if draft.parsedDate == nil {
-            draft.parsedDate = selectedDateForCurrentDraft
-            batch.drafts[currentDraftIndex] = draft
+        guard let draftForCommit = resolvedDraftForCommit(currentDraftIndex) else {
+            resolutionState.errorMessage = dateTimeValidationMessage(for: currentDraftIndex) ?? "Date/time must be resolved before import."
+            return false
         }
 
         do {
-            if try writer.duplicateExists(draft: draft, userId: userId, context: context), !resolutionState.allowDuplicateImport {
+            if try writer.duplicateExists(draft: draftForCommit, userId: userId, context: context), !resolutionState.allowDuplicateImport {
                 resolutionState.duplicateExists = true
                 showDuplicatePrompt = true
                 return false
             }
 
-            let resolved = try buildResolutionResult(for: draft, userId: userId, context: context)
+            let resolved = try buildResolutionResult(for: draftForCommit, userId: userId, context: context)
             isCommitting = true
             defer { isCommitting = false }
 
             _ = try writer.commit(
-                draft: draft,
+                draft: draftForCommit,
                 resolution: resolved,
                 userId: userId,
                 context: context,
@@ -355,9 +453,7 @@ final class NotesImportViewModel: ObservableObject {
 
 private extension NotesImportViewModel {
     func onCurrentDraftChanged() {
-        if let draft = currentDraft {
-            selectedDateForCurrentDraft = draft.parsedDate ?? Date()
-        }
+        syncCurrentDraftDateTimeSelection()
 
         resolutionState.errorMessage = nil
         resolutionState.statusMessage = nil
@@ -368,6 +464,96 @@ private extension NotesImportViewModel {
         resolveExercise()
         loadAllUserExercises()
         refreshDuplicateState()
+    }
+
+    func initializeDateTimeResolutions() {
+        var built: [Int: DraftDateTimeResolution] = [:]
+        for index in batch.drafts.indices {
+            let draft = batch.drafts[index]
+            built[index] = seedDateTimeResolution(for: draft)
+        }
+        dateTimeResolutions = built
+    }
+
+    func seedDateTimeResolution(for draft: NotesImportDraft) -> DraftDateTimeResolution {
+        let calendar = Calendar.current
+
+        if let start = draft.startTime, let end = draft.endTime {
+            return DraftDateTimeResolution(
+                resolvedStart: start,
+                resolvedEnd: end,
+                userResolvedDate: draft.parsedDate != nil,
+                userResolvedTimeRange: true
+            )
+        }
+
+        let baseDate = draft.parsedDate ?? Date()
+        var baseComponents = calendar.dateComponents(in: TimeZone.current, from: baseDate)
+        baseComponents.hour = 12
+        baseComponents.minute = 0
+        baseComponents.second = 0
+        let defaultStart = calendar.date(from: baseComponents) ?? baseDate
+        let defaultEnd = calendar.date(byAdding: .minute, value: 60, to: defaultStart) ?? defaultStart
+
+        return DraftDateTimeResolution(
+            resolvedStart: defaultStart,
+            resolvedEnd: defaultEnd,
+            userResolvedDate: draft.parsedDate != nil,
+            userResolvedTimeRange: false
+        )
+    }
+
+    func syncCurrentDraftDateTimeSelection() {
+        let draft = currentDraft
+        selectedDateForCurrentDraft = draft?.parsedDate ?? Date()
+
+        if let resolution = dateTimeResolutions[currentDraftIndex] {
+            selectedStartForCurrentDraft = resolution.resolvedStart ?? Date()
+            selectedEndForCurrentDraft = resolution.resolvedEnd ?? selectedStartForCurrentDraft.addingTimeInterval(3600)
+        } else {
+            selectedStartForCurrentDraft = Date()
+            selectedEndForCurrentDraft = Date().addingTimeInterval(3600)
+        }
+    }
+
+    func resolvedDraftForCommit(_ index: Int) -> NotesImportDraft? {
+        guard var draft = batch.drafts[safe: index],
+              let resolution = dateTimeResolutions[index],
+              let start = resolution.resolvedStart,
+              let end = resolution.resolvedEnd else {
+            return nil
+        }
+
+        guard end >= start else { return nil }
+
+        if draft.parsedDate == nil && !resolution.userResolvedDate {
+            return nil
+        }
+
+        if (draft.startTime == nil || draft.endTime == nil) && !resolution.userResolvedTimeRange {
+            return nil
+        }
+
+        draft.parsedDate = start
+        draft.startTime = start
+        draft.endTime = end
+        return draft
+    }
+
+    func mergeDate(_ sourceDate: Date, into targetDateTime: Date) -> Date {
+        let calendar = Calendar.current
+        let source = calendar.dateComponents([.year, .month, .day], from: sourceDate)
+        let targetTime = calendar.dateComponents([.hour, .minute, .second], from: targetDateTime)
+        var merged = DateComponents()
+        merged.calendar = calendar
+        merged.timeZone = TimeZone.current
+        merged.year = source.year
+        merged.month = source.month
+        merged.day = source.day
+        merged.hour = targetTime.hour
+        merged.minute = targetTime.minute
+        merged.second = targetTime.second
+        return calendar.date(from: merged) ?? targetDateTime
     }
 
     func loadAllUserExercises() {
@@ -442,7 +628,7 @@ private extension NotesImportViewModel {
         context: ModelContext
     ) throws -> ResolutionResult {
         var resolvedRoutine: Routine?
-        var shouldPopulateRoutineTemplate = false
+        var createdRoutineId: UUID?
 
         switch resolutionState.routineMode {
         case .none:
@@ -451,6 +637,14 @@ private extension NotesImportViewModel {
         case .matched, .existing:
             if let routineId = resolutionState.selectedRoutineId {
                 resolvedRoutine = resolutionState.routineCandidates.first(where: { $0.id == routineId })
+                if let resolvedRoutine,
+                   let alias = draft.routineNameRaw {
+                    _ = resolver.addRoutineAliasIfNeeded(
+                        routine: resolvedRoutine,
+                        aliasRaw: alias,
+                        rememberAlias: resolutionState.rememberRoutineAlias
+                    )
+                }
             }
 
         case .createNew:
@@ -470,7 +664,7 @@ private extension NotesImportViewModel {
 
             context.insert(newRoutine)
             resolvedRoutine = newRoutine
-            shouldPopulateRoutineTemplate = true
+            createdRoutineId = newRoutine.id
         }
 
         var resolvedExercises: [String: Exercise] = [:]
@@ -524,7 +718,7 @@ private extension NotesImportViewModel {
             resolvedRoutine: resolvedRoutine,
             resolvedExercises: resolvedExercises,
             unresolvedExercises: unresolvedExercises,
-            shouldPopulateRoutineTemplate: shouldPopulateRoutineTemplate
+            createdRoutineId: createdRoutineId
         )
     }
 
@@ -574,3 +768,10 @@ private extension NotesImportViewModel {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
+private extension Array {
+    subscript(safe index: Int) -> Element? {
+        guard indices.contains(index) else { return nil }
+        return self[index]
+    }
+}
+

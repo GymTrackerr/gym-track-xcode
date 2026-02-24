@@ -19,6 +19,7 @@ struct SessionsView: View {
     
     @Namespace private var transition
     @State private var showingNotesImport = false
+    @State private var showingCreateSession = false
 //    @State private var newSession = false
 
 //    @State private var isEditing = false
@@ -27,7 +28,7 @@ struct SessionsView: View {
         VStack {
             HStack {
                 Button {
-                    sessionService.creating_session = true
+                    showingCreateSession = true
                 } label: {
                     HStack {
                         Image(systemName: "plus")
@@ -129,7 +130,7 @@ struct SessionsView: View {
                 }
                 ToolbarItem(placement: .bottomBar) {
                     Button("New", systemImage: "plus") {
-                        sessionService.creating_session = true
+                        showingCreateSession = true
                     }
                 }
                 .matchedTransitionSource(
@@ -137,10 +138,10 @@ struct SessionsView: View {
                 )
             }
         }*/
-        .sheet(isPresented: $sessionService.creating_session) {
+        .sheet(isPresented: $showingCreateSession) {
             CreateSessionSheetView(
                 openedSession: $openedSession,
-                isPresented: $sessionService.creating_session
+                isPresented: $showingCreateSession
             )
             .presentationDetents([.medium, .large])
 //            .presentationDragIndicator(.visible)

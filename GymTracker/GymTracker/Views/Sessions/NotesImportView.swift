@@ -146,7 +146,11 @@ struct NotesImportView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(currentDraftDecision != nil || viewModel.isCommitting)
+                .disabled(
+                    currentDraftDecision != nil
+                    || viewModel.isCommitting
+                    || !viewModel.canConfirmCurrentDraft
+                )
 
                 Button("Deny This Import", role: .destructive) {
                     denyCurrentDraft()
@@ -177,19 +181,7 @@ struct NotesImportView: View {
             Text("Start: \(dateText(draft.startTime))")
             Text("End: \(dateText(draft.endTime))")
 
-            if draft.parsedDate == nil {
-                DatePicker(
-                    "Select Session Date",
-                    selection: $viewModel.selectedDateForCurrentDraft,
-                    displayedComponents: .date
-                )
-                .datePickerStyle(.compact)
-
-                Button("Apply Selected Date") {
-                    viewModel.applySelectedDateToCurrentDraft()
-                }
-                .buttonStyle(.bordered)
-            }
+            dateTimeResolverSection(draft)
 
             if viewModel.resolutionState.duplicateExists {
                 Text("Potential duplicate detected for this user.")
@@ -224,6 +216,13 @@ struct NotesImportView: View {
                     ForEach(viewModel.resolutionState.routineCandidates, id: \.id) { routine in
                         Text(routine.name).tag(Optional(routine.id))
                     }
+                }
+
+                if viewModel.resolutionState.routineMode == .existing, draft.routineNameRaw != nil {
+                    Toggle(
+                        "Remember header as routine alias",
+                        isOn: $viewModel.resolutionState.rememberRoutineAlias
+                    )
                 }
 
             case .createNew:
@@ -438,6 +437,68 @@ struct NotesImportView: View {
                 draftDecisions = [:]
             }
             .buttonStyle(.bordered)
+        }
+    }
+
+    @ViewBuilder
+    private func dateTimeResolverSection(_ draft: NotesImportDraft) -> some View {
+        let validationMessage = viewModel.dateTimeValidationMessage(for: viewModel.currentDraftIndex)
+        let needsDateResolution = draft.parsedDate == nil
+        let needsTimeResolution = draft.startTime == nil || draft.endTime == nil
+
+        if needsDateResolution || needsTimeResolution {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Resolve Date & Time")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+
+                if needsDateResolution {
+                    DatePicker(
+                        "Session Date",
+                        selection: $viewModel.selectedDateForCurrentDraft,
+                        displayedComponents: .date
+                    )
+                    .datePickerStyle(.compact)
+
+                    Button("Use This Date") {
+                        viewModel.applySelectedDateToCurrentDraft()
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                DatePicker(
+                    "Start",
+                    selection: Binding(
+                        get: { viewModel.selectedStartForCurrentDraft },
+                        set: { viewModel.setResolvedStart($0) }
+                    ),
+                    displayedComponents: [.date, .hourAndMinute]
+                )
+                .datePickerStyle(.compact)
+
+                DatePicker(
+                    "End",
+                    selection: Binding(
+                        get: { viewModel.selectedEndForCurrentDraft },
+                        set: { viewModel.setResolvedEnd($0) }
+                    ),
+                    displayedComponents: [.date, .hourAndMinute]
+                )
+                .datePickerStyle(.compact)
+
+                if needsTimeResolution {
+                    Button("Use Suggested Time Range") {
+                        viewModel.useSuggestedTimeRangeForCurrentDraft()
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                if let validationMessage {
+                    Text(validationMessage)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                }
+            }
         }
     }
 

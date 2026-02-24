@@ -64,30 +64,45 @@ final class NotesImportParser {
                 consumedLineIndices.insert(fallback.index)
             }
 
-            if let date = parsedDate {
-                if let timeRange = parseTimeRange(in: headerLine) {
-                    consumedLineIndices.insert(headerIndex)
-                    let mappedTimes = mapTimeRangeToDate(timeRange, on: date)
+            let baseDateForTimeMapping = parsedDate ?? Date()
+            if let timeRange = parseTimeRange(in: headerLine) {
+                consumedLineIndices.insert(headerIndex)
+                let mappedTimes = mapTimeRangeToDate(timeRange, on: baseDateForTimeMapping)
+                startTime = mappedTimes.start
+                endTime = mappedTimes.end
+            } else {
+                let searchUpperBound = min(rawLines.count, headerIndex + 4)
+                for index in (headerIndex + 1)..<searchUpperBound {
+                    let line = rawLines[index].trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !line.isEmpty else { continue }
+                    if let timeRange = parseTimeRange(in: line) {
+                        consumedLineIndices.insert(index)
+                        let mappedTimes = mapTimeRangeToDate(timeRange, on: baseDateForTimeMapping)
+                        startTime = mappedTimes.start
+                        endTime = mappedTimes.end
+                        break
+                    }
+                    if likelyTimeRangeText(line) {
+                        warnings.append("Time range could not be parsed: \(line)")
+                        consumedLineIndices.insert(index)
+                        break
+                    }
+                }
+            }
+        }
+
+        if startTime == nil || endTime == nil {
+            let fallbackUpperBound = min(rawLines.count, 4)
+            for index in 0..<fallbackUpperBound {
+                if consumedLineIndices.contains(index) { continue }
+                let line = rawLines[index].trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !line.isEmpty else { continue }
+                if let timeRange = parseTimeRange(in: line) {
+                    let mappedTimes = mapTimeRangeToDate(timeRange, on: parsedDate ?? Date())
                     startTime = mappedTimes.start
                     endTime = mappedTimes.end
-                } else {
-                    let searchUpperBound = min(rawLines.count, headerIndex + 4)
-                    for index in (headerIndex + 1)..<searchUpperBound {
-                        let line = rawLines[index].trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !line.isEmpty else { continue }
-                        if let timeRange = parseTimeRange(in: line) {
-                            consumedLineIndices.insert(index)
-                            let mappedTimes = mapTimeRangeToDate(timeRange, on: date)
-                            startTime = mappedTimes.start
-                            endTime = mappedTimes.end
-                            break
-                        }
-                        if likelyTimeRangeText(line) {
-                            warnings.append("Time range could not be parsed: \(line)")
-                            consumedLineIndices.insert(index)
-                            break
-                        }
-                    }
+                    consumedLineIndices.insert(index)
+                    break
                 }
             }
         }
@@ -159,8 +174,13 @@ private extension NotesImportParser {
         return try! NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
     }
 
-    var timeRangeRegex: NSRegularExpression {
-        let pattern = "\\b(\\d{1,2}):([0-5]\\d)\\s*(am|pm)?\\s*-\\s*(\\d{1,2}):([0-5]\\d)\\s*(am|pm)?\\b"
+    var timeRange24Regex: NSRegularExpression {
+        let pattern = "\\b([01]\\d|2[0-3]):([0-5]\\d)\\s*-\\s*([01]\\d|2[0-3]):([0-5]\\d)\\b(?!\\s*(am|pm))"
+        return try! NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+    }
+
+    var timeRange12Regex: NSRegularExpression {
+        let pattern = "\\b(1[0-2]|0?[1-9]):([0-5]\\d)\\s*(am|pm)\\s*-\\s*(1[0-2]|0?[1-9]):([0-5]\\d)\\s*(am|pm)\\b"
         return try! NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
     }
 
@@ -314,11 +334,25 @@ private extension NotesImportParser {
     }
 
     func parseTimeRange(in text: String) -> (startHour: Int, startMinute: Int, endHour: Int, endMinute: Int)? {
-        guard let match = timeRangeMatch(in: text),
+        if let match = firstMatch(using: timeRange24Regex, in: text),
+           let shRange = Range(match.range(at: 1), in: text),
+           let smRange = Range(match.range(at: 2), in: text),
+           let ehRange = Range(match.range(at: 3), in: text),
+           let emRange = Range(match.range(at: 4), in: text),
+           let startHour = Int(text[shRange]),
+           let startMinute = Int(text[smRange]),
+           let endHour = Int(text[ehRange]),
+           let endMinute = Int(text[emRange]) {
+            return (startHour, startMinute, endHour, endMinute)
+        }
+
+        guard let match = firstMatch(using: timeRange12Regex, in: text),
               let shRange = Range(match.range(at: 1), in: text),
               let smRange = Range(match.range(at: 2), in: text),
+              let samRange = Range(match.range(at: 3), in: text),
               let ehRange = Range(match.range(at: 4), in: text),
               let emRange = Range(match.range(at: 5), in: text),
+              let eamRange = Range(match.range(at: 6), in: text),
               let rawStartHour = Int(text[shRange]),
               let startMinute = Int(text[smRange]),
               let rawEndHour = Int(text[ehRange]),
@@ -326,13 +360,10 @@ private extension NotesImportParser {
             return nil
         }
 
-        let startMeridiem = textCapture(match: match, index: 3, in: text)?.lowercased()
-        let endMeridiem = textCapture(match: match, index: 6, in: text)?.lowercased()
-        let inferredStartMeridiem = startMeridiem ?? endMeridiem
-        let inferredEndMeridiem = endMeridiem ?? startMeridiem
-
-        guard let startHour = normalizeParsedHour(rawStartHour, meridiem: inferredStartMeridiem),
-              let endHour = normalizeParsedHour(rawEndHour, meridiem: inferredEndMeridiem) else {
+        let startMeridiem = String(text[samRange]).lowercased()
+        let endMeridiem = String(text[eamRange]).lowercased()
+        guard let startHour = convertTo24Hour(rawHour: rawStartHour, meridiem: startMeridiem),
+              let endHour = convertTo24Hour(rawHour: rawEndHour, meridiem: endMeridiem) else {
             return nil
         }
 
@@ -363,20 +394,14 @@ private extension NotesImportParser {
     }
 
     func likelyTimeRangeText(_ line: String) -> Bool {
-        line.range(of: #"\d{1,2}:\d{2}\s*(am|pm)?\s*-\s*\d{1,2}:\d{2}\s*(am|pm)?"#, options: .regularExpression) != nil
+        line.range(of: #"\d{1,2}:\d{2}\s*(am|pm)?\s*-\s*\d{1,2}:\d{2}\s*(am|pm)?"#, options: [.regularExpression, .caseInsensitive]) != nil
     }
 
     func timeRangeMatch(in text: String) -> NSTextCheckingResult? {
-        let range = NSRange(location: 0, length: text.utf16.count)
-        return timeRangeRegex.firstMatch(in: text, options: [], range: range)
+        firstMatch(using: timeRange24Regex, in: text) ?? firstMatch(using: timeRange12Regex, in: text)
     }
 
-    func normalizeParsedHour(_ rawHour: Int, meridiem: String?) -> Int? {
-        guard let meridiem else {
-            guard (0...23).contains(rawHour) else { return nil }
-            return rawHour
-        }
-
+    func convertTo24Hour(rawHour: Int, meridiem: String) -> Int? {
         guard (1...12).contains(rawHour) else { return nil }
         switch meridiem {
         case "am":
@@ -775,6 +800,11 @@ private extension NotesImportParser {
     func matches(for regex: NSRegularExpression, in text: String) -> [NSTextCheckingResult] {
         let nsRange = NSRange(location: 0, length: text.utf16.count)
         return regex.matches(in: text, options: [], range: nsRange)
+    }
+
+    func firstMatch(using regex: NSRegularExpression, in text: String) -> NSTextCheckingResult? {
+        let range = NSRange(location: 0, length: text.utf16.count)
+        return regex.firstMatch(in: text, options: [], range: range)
     }
 
     func firstMatch(of pattern: String, in text: String, options: NSRegularExpression.Options = []) -> NSTextCheckingResult? {

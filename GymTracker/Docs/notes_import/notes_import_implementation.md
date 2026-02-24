@@ -283,7 +283,12 @@ func parsePace(_ string: String) -> Int?
 - Convert to seconds
 
 3.7 Time Range Parsing + Timezone Rules
-- Parse time ranges only in `HH:mm-HH:mm` 24-hour format.
+- Parse time ranges in strict formats only:
+  - 24-hour: `HH:mm-HH:mm` (two-digit hour + two-digit minute on both sides)
+  - 12-hour: `h:mmam-h:mmpm` (AM/PM required on both sides; spaces optional; case-insensitive)
+- Reject mixed/ambiguous formats:
+  - missing AM/PM on either side in 12-hour style
+  - mixed 24-hour + AM/PM
 - Use device current timezone.
 - If `endTime < startTime`, treat as cross-midnight and add +1 day to `endTime`.
 - If time parsing fails, keep time values nil and append a draft warning.
@@ -345,7 +350,8 @@ Resolver API requirement:
 
 Routine mutation rules:
 - Assigning routine to session is allowed.
-- Import must not mutate routine exercise list/order/template state.
+- Existing routine templates must not be mutated.
+- Newly created routine templates (created in the same import commit) may be populated from imported exercise order.
 - Only allowed routine mutation: add alias when user approves "remember alias".
 
 ------------------------------------------------------------------------
@@ -378,9 +384,15 @@ Default weight unit source:
 - Do not use global app settings or HealthKit as the source.
 
 Timestamp prep rules in preview:
-- If `parsedDate == nil`, draft cannot commit until user selects a date.
-- If date exists and no time range, prefill start at 12:00 local time and show warning.
-- If end time is missing and `timestampDone` is non-optional, preview warning must state: `Missing end time; estimated end time will be used.`
+- Parsing/preview may contain missing date/time values.
+- Commit must be blocked until date/time are explicitly resolved by user interaction.
+- No silent commit-time fallback to `Date()` / “now”.
+- Resolver UI requirements:
+  - Start DateTime picker + End DateTime picker
+  - explicit user confirmation flags for missing date and missing time-range
+- Resolver coupling behavior:
+  - start edit shifts end by same delta (preserve duration)
+  - end edit earlier than start snaps start to end (duration 0)
 
 ------------------------------------------------------------------------
 
@@ -408,8 +420,8 @@ Write rules per draft:
 4. Attach resolved routine if any
 5. Map timestamps:
 - if `parsedDate == nil`: block commit
-- if date + start/end exist: set `timestamp` and `timestampDone`
-- if date exists but time missing: set `timestamp` to 12:00 local, set `timestampDone = timestamp + 60 minutes`, add warning `Missing end time; estimated end time used.`
+- if start/end are unresolved: block commit
+- if date + start/end exist (or are explicitly resolved by user): set `timestamp` and `timestampDone`
 6. For each parsed item:
 - create `SessionEntry`
 - strength: create sets + reps

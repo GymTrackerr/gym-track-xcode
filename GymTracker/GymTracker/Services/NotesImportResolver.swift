@@ -5,7 +5,7 @@ struct ResolutionResult {
     var resolvedRoutine: Routine?
     var resolvedExercises: [String: Exercise]
     var unresolvedExercises: [String]
-    var shouldPopulateRoutineTemplate: Bool = false
+    var createdRoutineId: UUID? = nil
 }
 
 struct ExerciseResolution {

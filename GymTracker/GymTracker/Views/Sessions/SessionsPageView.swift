@@ -8,6 +8,7 @@ struct SessionsPageView: View {
 
     @State private var openedSession: Session?
     @State private var showingNotesImport = false
+    @State private var showingCreateSession = false
 
     private var sortedSessions: [Session] {
         sessionService.sessions.sorted { $0.timestamp > $1.timestamp }
@@ -73,17 +74,17 @@ struct SessionsPageView: View {
 
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Add Log", systemImage: "plus") {
-                    sessionService.creating_session = true
+                    showingCreateSession = true
                 }
             }
         }
         .onAppear {
             sessionService.loadSessions()
         }
-        .sheet(isPresented: $sessionService.creating_session) {
+        .sheet(isPresented: $showingCreateSession) {
             CreateSessionSheetView(
                 openedSession: $openedSession,
-                isPresented: $sessionService.creating_session
+                isPresented: $showingCreateSession
             )
             .presentationDetents([.medium, .large])
         }

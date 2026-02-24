@@ -24,7 +24,10 @@ Global decisions:
 - Cardio is `ExerciseType.run`, `ExerciseType.bike`, or `ExerciseType.swim`.
 - `SessionRep.weight` remains TOTAL working weight for workload calculations.
 - `Session.importHash` is optional and computed per split session block.
-- Import may assign a routine, but must not mutate routine template exercises/order.
+- Import may assign a routine.
+- Routine template mutation safety:
+  - Existing routines must not be mutated by import.
+  - If a routine is newly created during the same import commit, template population is allowed for that newly created routine only.
 - Commit behavior is all-or-nothing per draft/session block.
 - All matching, duplicate detection, and writes are scoped to `currentUserId` only.
 - No global queries and no cross-user matching.
@@ -267,7 +270,12 @@ Pattern: `1:30m rest` -> `90 seconds`
 ## 3.5 Time Range Parsing + Timezone Rules
 
 Deterministic rules:
-- Parse time ranges only in `HH:mm-HH:mm` (24-hour) format.
+- Parse time ranges in strict formats only:
+  - 24-hour: `HH:mm-HH:mm` (two-digit hour + two-digit minute on both sides)
+  - 12-hour: `h:mmam-h:mmpm` (AM/PM required on both sides; spaces optional; case-insensitive)
+- Reject mixed/ambiguous formats:
+  - Missing AM/PM on either side in 12-hour style
+  - Mixed 24-hour with AM/PM
 - Use device current timezone.
 - If `endTime < startTime`, treat as cross-midnight and add +1 day to `endTime`.
 - If time parsing fails, leave time values nil and add a draft warning.
@@ -324,7 +332,8 @@ If exercise not found:
 Routine mutation constraints:
 - Import may assign a routine to a session.
 - Import may add routine alias only with user approval.
-- Import must not add/remove/reorder routine template exercises.
+- Existing routine templates must not be mutated.
+- Newly created routine templates (created in the same import commit) may be populated from imported exercise order.
 - Import must not change routine current/template status.
 
 ------------------------------------------------------------------------
@@ -348,11 +357,18 @@ Default weight unit source:
 - Parser assigns `weightUnit = defaultWeightUnit` when unit is missing.
 - Do not depend on global app settings or HealthKit for this value.
 
-Timestamp mapping rules:
-- If date is missing: `parsedDate = nil`; block commit until user picks a date.
-- If date exists but time missing: default session start to 12:00 local time and add warning.
-- If start/end exist: map to `Session.timestamp` and `Session.timestampDone`.
-- If end missing and `Session.timestampDone` is non-optional: set `timestampDone = timestamp + 60 minutes` and add warning `Missing end time; estimated end time used.`.
+Timestamp mapping + resolution rules:
+- Parsing/preview may contain missing date/time values.
+- Commit is blocked until date/time are explicitly resolved.
+- No silent commit-time fallback to `Date()` / “now”.
+- Import UI must provide a date/time resolver with:
+  - Start DateTime picker
+  - End DateTime picker
+  - Explicit user confirmation for date and time-range when they were missing from parsed notes
+- Resolver coupling behavior:
+  - If start changes, end shifts by the same delta (preserve duration).
+  - If end changes earlier than start, start snaps to end (duration 0).
+- If start/end exist after resolution: map to `Session.timestamp` and `Session.timestampDone`.
 
 ------------------------------------------------------------------------
 

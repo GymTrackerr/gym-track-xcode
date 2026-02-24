@@ -3,12 +3,15 @@ import SwiftData
 
 enum NotesImportWriterError: LocalizedError {
     case missingDate
+    case missingTimeRange
     case unresolvedExercises([String])
 
     var errorDescription: String? {
         switch self {
         case .missingDate:
             return "Cannot import session without a date."
+        case .missingTimeRange:
+            return "Cannot import session without a resolved time range."
         case .unresolvedExercises(let names):
             return "Cannot import unresolved exercises: \(names.joined(separator: ", "))."
         }
@@ -52,6 +55,9 @@ final class NotesImportWriterService {
 #endif
         guard draft.parsedDate != nil else {
             throw NotesImportWriterError.missingDate
+        }
+        guard draft.startTime != nil, draft.endTime != nil else {
+            throw NotesImportWriterError.missingTimeRange
         }
 
         let unresolved = unresolvedExerciseNames(in: draft, resolution: resolution)
@@ -146,8 +152,8 @@ final class NotesImportWriterService {
                 }
             }
 
-            if resolution.shouldPopulateRoutineTemplate,
-               let routine = resolution.resolvedRoutine {
+            if let routine = resolution.resolvedRoutine,
+               resolution.createdRoutineId == routine.id {
                 populateRoutineTemplateIfNeeded(
                     routine: routine,
                     draft: draft,
@@ -208,29 +214,9 @@ private extension NotesImportWriterService {
     }
 
     func resolveTimestamps(for draft: NotesImportDraft) -> (start: Date, end: Date, warnings: [String]) {
-        let calendar = Calendar.current
-
-        guard let parsedDate = draft.parsedDate else {
-            return (Date(), Date(), [])
-        }
-
-        let start: Date
-        if let providedStart = draft.startTime {
-            start = providedStart
-        } else {
-            var components = calendar.dateComponents(in: TimeZone.current, from: parsedDate)
-            components.hour = 12
-            components.minute = 0
-            components.second = 0
-            start = calendar.date(from: components) ?? parsedDate
-        }
-
-        if let providedEnd = draft.endTime {
-            return (start, providedEnd, [])
-        }
-
-        let fallbackEnd = calendar.date(byAdding: .minute, value: 60, to: start) ?? start
-        return (start, fallbackEnd, ["Missing end time; estimated end time used."])
+        let start = draft.startTime ?? draft.parsedDate ?? Date()
+        let end = draft.endTime ?? start
+        return (start, end, [])
     }
 
     func buildSessionNotes(
@@ -310,4 +296,5 @@ private extension NotesImportWriterService {
 
         return names
     }
+
 }
