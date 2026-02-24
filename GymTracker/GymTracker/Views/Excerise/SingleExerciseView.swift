@@ -18,25 +18,36 @@ enum ProgressRange: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum ProgressMetric: String, CaseIterable, Identifiable {
+    case maxWeight
+    case averageWeight
+    case totalVolume
+    case totalReps
+    case averageReps
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .maxWeight:
+            return "Max Weight"
+        case .averageWeight:
+            return "Average Weight"
+        case .totalVolume:
+            return "Total Volume"
+        case .totalReps:
+            return "Total Reps"
+        case .averageReps:
+            return "Average Reps"
+        }
+    }
+}
+
 struct SingleExerciseView: View {
     @Bindable var exercise: Exercise
     
     var body: some View {
-        VStack {
-            if (exercise.isUserCreated) {
-                VStack(alignment: .leading) {
-                    Text("Exercise: \(exercise.name)")
-                    Text("Alises: \(exercise.aliases?.joined(separator: ", ") ?? "")")
-                    Text("Muscle Groups: \(exercise.primary_muscles?.joined(separator: ", ") ?? "")")
-                    Text("Date: \(exercise.timestamp.formatted(date: .numeric, time: .omitted))")
-                    Text("Exercise Type: \(exercise.exerciseType.name)")
-                }
-                .padding()
-                Spacer()
-            } else {
-                ExerciseDetailView(exercise: exercise)
-            }
-        }
+        ExerciseDetailView(exercise: exercise)
         .navigationTitle(exercise.name)
     }
 }
@@ -48,8 +59,9 @@ struct ExerciseDetailView: View {
     @EnvironmentObject var seService: SessionExerciseService
 
     @State private var showHowToPerform = true
+    @State private var showExerciseData = true
     @State private var showProgress = true
-    @State private var selectedTab = "Max Weight"
+    @State private var selectedTab: ProgressMetric = .maxWeight
     @State private var selectedRange: ProgressRange = .months
     @State private var selectedDisplayUnit: WeightUnit? = nil
     @State private var showingLogExerciseSheet = false
@@ -79,36 +91,121 @@ struct ExerciseDetailView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .padding(.horizontal)
                 }
+
+                if hasExerciseInfo {
+                    DisclosureGroup(isExpanded: $showExerciseData) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            detailRow("Exercise Type", exercise.exerciseType.name)
+
+                            if let category = cleanedString(exercise.category) {
+                                detailRow("Category", category)
+                            }
+
+                            if let equipment = cleanedString(exercise.equipment) {
+                                detailRow("Equipment", equipment)
+                            }
+
+                            if isCardioExercise {
+                                detailRow("Cardio", "Yes")
+                                if let totalDistance = cardioTotalDistanceLabel {
+                                    detailRow("Total Distance", totalDistance)
+                                }
+                                if let totalDuration = cardioTotalDurationLabel {
+                                    detailRow("Total Duration", totalDuration)
+                                }
+                                if let avgPace = cardioAveragePaceLabel {
+                                    detailRow("Avg Pace", avgPace)
+                                }
+                            }
+
+                            if !aliases.isEmpty {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Aliases")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                    ScrollView(.horizontal, showsIndicators: false) {
+                                        HStack(spacing: 8) {
+                                            ForEach(aliases, id: \.self) { alias in
+                                                MuscleChip(text: alias)
+                                            }
+                                        }
+                                        .padding(.vertical, 2)
+                                    }
+                                }
+                            }
+
+                            if !primaryMuscles.isEmpty {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Primary Muscles")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                    ScrollView(.horizontal, showsIndicators: false) {
+                                        HStack(spacing: 8) {
+                                            ForEach(primaryMuscles, id: \.self) { muscle in
+                                                MuscleChip(text: muscle)
+                                            }
+                                        }
+                                        .padding(.vertical, 2)
+                                    }
+                                }
+                            }
+
+                            if !secondaryMuscles.isEmpty {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Secondary Muscles")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                    ScrollView(.horizontal, showsIndicators: false) {
+                                        HStack(spacing: 8) {
+                                            ForEach(secondaryMuscles, id: \.self) { muscle in
+                                                MuscleChip(text: muscle)
+                                            }
+                                        }
+                                        .padding(.vertical, 2)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.top, 4)
+                    } label: {
+                        Text("Exercise Data")
+                            .font(.headline)
+                    }
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(12)
+                    .padding(.horizontal)
+                }
                 
-                DisclosureGroup(isExpanded: $showHowToPerform) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        if let instructions = exercise.instructions {
+                if !instructions.isEmpty {
+                    DisclosureGroup(isExpanded: $showHowToPerform) {
+                        VStack(alignment: .leading, spacing: 8) {
                             ForEach(Array(instructions.enumerated()), id: \.offset) { i, step in
                                 Text("\(i + 1). \(step)")
                                     .foregroundColor(.secondary)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
                         }
+                        .padding(.top, 4)
+                    } label: {
+                        Text("How to Perform")
+                            .font(.headline)
                     }
-                    .padding(.top, 4)
-                } label: {
-                    Text("How to Perform")
-                        .font(.headline)
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(12)
+                    .padding(.horizontal)
                 }
-                .padding()
-                .background(Color(.systemGray6))
-                .cornerRadius(12)
-                .padding(.horizontal)
                 
                 DisclosureGroup(isExpanded: $showProgress) {
                     VStack(alignment: .leading, spacing: 10) {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
-                                ForEach(["Max Weight", "Average Weight", "Total Volume", "Total Reps", "Average Reps"], id: \.self) { tab in
+                                ForEach(ProgressMetric.allCases) { tab in
                                     Button {
                                         selectedTab = tab
                                     } label: {
-                                        Text(tab)
+                                        Text(tab.title)
                                             .font(.subheadline)
                                             .padding(.vertical, 6)
                                             .padding(.horizontal, 12)
@@ -195,7 +292,7 @@ struct ExerciseDetailView: View {
                 } label: {
                     Text("Your Progress")
                         .font(.headline)
-                        .foregroundColor(.blue)
+                        .foregroundStyle(.tint)
                 }
                 .padding()
                 .background(Color(.systemGray6))
@@ -213,7 +310,7 @@ struct ExerciseDetailView: View {
                     .foregroundStyle(Color.primary)
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color(.blue))
+                    .background(Color.accentColor)
                     .cornerRadius(14)
                 }
                 .padding(.horizontal)
@@ -229,7 +326,7 @@ struct ExerciseDetailView: View {
                     .foregroundStyle(Color.primary)
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color(.blue))
+                    .background(Color.accentColor)
                     .cornerRadius(14)
                 }
                 .padding(.horizontal)
@@ -330,6 +427,97 @@ struct ExerciseDetailView: View {
             .filter { $0.exercise.id == exercise.id }
     }
 
+    private var primaryMuscles: [String] {
+        normalizedList(exercise.primary_muscles)
+    }
+
+    private var secondaryMuscles: [String] {
+        normalizedList(exercise.secondary_muscles)
+    }
+
+    private var aliases: [String] {
+        normalizedList(exercise.aliases)
+    }
+
+    private var instructions: [String] {
+        normalizedList(exercise.instructions)
+    }
+
+    private var hasExerciseInfo: Bool {
+        cleanedString(exercise.category) != nil ||
+        cleanedString(exercise.equipment) != nil ||
+        !aliases.isEmpty ||
+        !primaryMuscles.isEmpty ||
+        !secondaryMuscles.isEmpty ||
+        !cardioSets.isEmpty
+    }
+
+    private var isCardioExercise: Bool {
+        if let category = cleanedString(exercise.category),
+           category.lowercased().contains("cardio") {
+            return true
+        }
+
+        switch exercise.exerciseType {
+        case .run, .bike, .swim:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private var cardioSets: [SessionSet] {
+        matchingEntries
+            .flatMap(\.sets)
+            .filter { set in
+                set.durationSeconds != nil || set.distance != nil || set.paceSeconds != nil
+            }
+    }
+
+    private var cardioTotalDistanceLabel: String? {
+        let samples = cardioSets.compactMap { set -> (distance: Double, unit: DistanceUnit)? in
+            guard let distance = set.distance else { return nil }
+            return (distance, set.distanceUnit)
+        }
+        guard !samples.isEmpty else { return nil }
+
+        let units = Set(samples.map(\.unit))
+        if units.count == 1, let unit = units.first {
+            let total = samples.reduce(0.0) { $0 + $1.distance }
+            return "\(formatDecimal(total)) \(unit.rawValue)"
+        }
+
+        let totalKilometers = samples.reduce(0.0) { result, sample in
+            result + (sample.unit == .km ? sample.distance : sample.distance * 1.60934)
+        }
+        return "\(formatDecimal(totalKilometers)) km (mixed units)"
+    }
+
+    private var cardioTotalDurationLabel: String? {
+        let totalSeconds = cardioSets.compactMap(\.durationSeconds).reduce(0, +)
+        guard totalSeconds > 0 else { return nil }
+        return formattedDuration(totalSeconds)
+    }
+
+    private var cardioAveragePaceLabel: String? {
+        let paces = cardioSets.compactMap(\.paceSeconds)
+        guard !paces.isEmpty, let paceUnit = cardioPaceUnitLabel else { return nil }
+        let average = paces.reduce(0, +) / paces.count
+        return "\(formattedDuration(average))/\(paceUnit)"
+    }
+
+    private var cardioPaceUnitLabel: String? {
+        let units = cardioSets.map(\.distanceUnit)
+        guard !units.isEmpty else { return nil }
+
+        var counts: [DistanceUnit: Int] = [:]
+        for unit in units {
+            counts[unit, default: 0] += 1
+        }
+
+        return counts.max(by: { $0.value < $1.value })?.key.rawValue
+    }
+
     private var displayUnit: WeightUnit {
         selectedDisplayUnit ?? dominantUnit
     }
@@ -424,27 +612,25 @@ struct ExerciseDetailView: View {
             let value: Double
 
             switch selectedTab {
-            case "Max Weight":
+            case .maxWeight:
                 value = items.map { sample in
                     convertWeight(sample.weight, from: sample.unit, to: displayUnit)
                 }.max() ?? 0
-            case "Average Weight":
+            case .averageWeight:
                 let totalWeight = items.reduce(0.0) { result, sample in
                     result + convertWeight(sample.weight, from: sample.unit, to: displayUnit)
                 }
                 value = items.isEmpty ? 0 : totalWeight / Double(items.count)
-            case "Total Volume":
+            case .totalVolume:
                 value = items.reduce(0) { result, sample in
                     let weight = convertWeight(sample.weight, from: sample.unit, to: displayUnit)
                     return result + (weight * Double(sample.reps))
                 }
-            case "Total Reps":
+            case .totalReps:
                 value = Double(items.reduce(0) { $0 + $1.reps })
-            case "Average Reps":
+            case .averageReps:
                 let totalReps = items.reduce(0) { $0 + $1.reps }
                 value = items.isEmpty ? 0 : Double(totalReps) / Double(items.count)
-            default:
-                value = 0
             }
 
             return ProgressPoint(date: bucketStart, value: value)
@@ -490,6 +676,48 @@ struct ExerciseDetailView: View {
 
     private func convertWeight(_ value: Double, from source: WeightUnit, to target: WeightUnit) -> Double {
         value * source.conversion(to: target)
+    }
+
+    private func normalizedList(_ values: [String]?) -> [String] {
+        guard let values else { return [] }
+        return values
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private func cleanedString(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func formatDecimal(_ value: Double) -> String {
+        if value.rounded() == value {
+            return String(Int(value))
+        }
+        return String(format: "%.2f", value)
+    }
+
+    private func formattedDuration(_ seconds: Int) -> String {
+        let formatter = DateComponentsFormatter()
+        formatter.unitsStyle = .abbreviated
+        formatter.allowedUnits = seconds >= 3600 ? [.hour, .minute, .second] : [.minute, .second]
+        formatter.zeroFormattingBehavior = [.pad]
+        return formatter.string(from: TimeInterval(seconds)) ?? "\(seconds)s"
+    }
+
+    @ViewBuilder
+    private func detailRow(_ title: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(title)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            Spacer(minLength: 8)
+            Text(value)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .multilineTextAlignment(.trailing)
+        }
     }
 
     private var horizontalScrollHints: some View {
@@ -544,6 +772,19 @@ struct ExerciseDetailView: View {
         }
 
         return result
+    }
+}
+
+private struct MuscleChip: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.caption)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 10)
+            .background(Color.gray.opacity(0.15))
+            .clipShape(Capsule())
     }
 }
 

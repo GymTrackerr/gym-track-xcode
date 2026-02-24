@@ -133,7 +133,7 @@ struct ExercisesView: View {
                 .scrollContentBackground(.hidden)
             }
         }
-        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search exercises")
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search exercises")
         .navigationTitle("Exercises")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

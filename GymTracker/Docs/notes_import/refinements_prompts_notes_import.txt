@@ -1,0 +1,142 @@
+GymTracker Notes Import — Refinement Prompts (R1–R5)
+===========================================================
+
+Use these after Phase 7 is complete. Each refinement is a small, reviewable change set.
+Run ONE refinement per agent run.
+
+Prereqs
+-------
+Your repo includes:
+- /Docs/notes_import/notes_import_architecture.md
+- /Docs/notes_import/notes_import_implementation.md
+- /Docs/notes_import/agent_phase_prompts.txt
+- /Docs/notes_import/refinements_prompts.txt   (this file)
+
+Global rules (inherited)
+------------------------
+Follow the global constraints in agent_phase_prompts.txt.
+Do not refactor unrelated code.
+Return only files changed/created for the refinement.
+App must compile after each refinement.
+
+===========================================================
+R1 — UX Defaults + Presentation (full-screen import, no auto-pick)
+===========================================================
+Goal:
+- Import from Notes should open as a page/full-screen, not a small slide-over.
+- Routine resolution must NOT auto-select the first existing routine when no match exists.
+- Exercise resolution must NOT auto-select an existing exercise when no match exists.
+
+Tasks:
+1) Present import UI as `fullScreenCover` (preferred) or a navigation push, not a small sheet.
+2) Routine resolution default:
+   - If matched routine exists: show Matched
+   - Else default mode should be Create (prefilled with parsed name) OR None
+   - Must never silently pick first existing routine
+3) Exercise resolution default:
+   - If matched exercise exists: show Matched
+   - Else default mode should be Create (prefilled with raw name)
+   - Must never silently pick an existing exercise
+
+Acceptance:
+- Opening Import from Notes shows a full-screen experience.
+- Unmatched routine/exercise never auto-picks an existing item.
+
+===========================================================
+R2 — Better Exercise Picker (searchable selection view)
+===========================================================
+Goal:
+Replace the inline “Existing” picker with a proper searchable exercise list selection.
+
+Tasks:
+1) When exercise resolution mode is “Existing”, show a button “Choose Exercise…”.
+2) Tapping opens a sheet/push view with:
+   - Search field
+   - List of exercises (scoped to currentUserId)
+   - Search matches name + aliases (normalized)
+3) Selecting an exercise:
+   - Sets the resolution for that raw exercise
+   - Dismisses picker
+4) Keep Create flow unchanged.
+
+Acceptance:
+- You can quickly search and select an existing exercise for each unresolved line.
+- No cross-user exercises appear.
+
+===========================================================
+R3 — Parser Hardening (headers, bar default, sequential reps)
+===========================================================
+Goal:
+Improve parsing for real-world note formats.
+
+Tasks:
+1) Header parsing:
+   Support these header styles:
+   - “Pull, February 20, 2025”
+   - “September 30, 2025 - Back and bicep”
+   Rule: detect date anywhere in header line; routine name is leftover text around it.
+2) “bar” token:
+   - If “bar” appears without explicit weight:
+     - default bar weight depends on defaultWeightUnit:
+       - kg => 20
+       - lb => 45
+   - Store baseWeight and compute total rep.weight accordingly.
+   - Still keep rep.weight as TOTAL used for workload.
+3) Sequential reps / fractional reps:
+   Example: “1x6.5”
+   - Since SessionRep.count is Int, floor non-integer reps and add a warning/rep note.
+4) Chained segments:
+   Example:
+   “Chest press, 1x5, 130 pounds, 1x6.5, 2x5, 110pounds (1:30m rest)”
+   - Implement robust token grouping so NxR pairs get the nearest following weight token.
+   - Rest applies to all sets in that line unless a different rest appears later.
+5) Update/extend the existing DEBUG harness (or add one) with at least 5 regression samples from your notes.
+   Print parsed output and ensure no crash.
+
+Acceptance:
+- The provided header examples parse date + routine correctly.
+- “bar” results in baseWeight set and total weight correct.
+- Chained segments produce the correct number of sets and weights.
+- Fractional reps do not crash and produce a warning.
+
+===========================================================
+R4 — Preview shows parsed sets (read-only, like session view)
+===========================================================
+Goal:
+Let the user see what will be imported (sets/reps/cardio) before confirming.
+
+Tasks:
+1) Under “Parsed Items”, expand each item:
+   - Strength: list each set as “NxR @ W unit” and show base/per-side if present.
+   - Cardio: list each set as duration/distance/pace.
+2) Keep it read-only for now (no editing required).
+3) Show warnings close to the relevant exercise if feasible; otherwise keep global warnings.
+
+Acceptance:
+- User can visually confirm sets/reps for each exercise before import.
+- Cardio sets display meaningful fields.
+
+===========================================================
+R5 — Cardio UI in SessionExerciseView (no reps, different add-set)
+===========================================================
+Goal:
+Fix cardio display/editing in the normal session exercise UI.
+
+Tasks:
+1) In SessionExerciseView (or equivalent):
+   - If exercise.exerciseType.isCardio:
+     - Render cardio set rows (duration/distance/pace)
+     - Hide rep/weight inputs
+     - “Add set” creates a cardio SessionSet with no reps
+   - Else keep existing strength UI unchanged
+2) Ensure import-created cardio exercises get the right ExerciseType (.run/.bike/.swim).
+   - Use parser classification keywords (run/bike/swim/treadmill/indoor run) consistently.
+   - Do not change existing exercises’ type unless user explicitly edits later.
+
+Acceptance:
+- Cardio exercises no longer show “no reps” as a broken strength view.
+- Cardio add-set works without creating reps.
+
+===========================================================
+END
+===========================================================
