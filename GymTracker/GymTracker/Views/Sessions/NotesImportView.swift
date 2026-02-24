@@ -6,34 +6,47 @@ struct NotesImportView: View {
     @Environment(\.dismiss) private var dismiss
 
     @StateObject private var viewModel = NotesImportViewModel()
+    @State private var exercisePickerRawName: String?
 
     let currentUserId: UUID?
     var onImportCompleted: (() -> Void)? = nil
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if viewModel.hasDrafts {
-                    previewScreen
-                } else {
-                    pasteScreen
+        Group {
+            if viewModel.hasDrafts {
+                previewScreen
+            } else {
+                pasteScreen
+            }
+        }
+        .navigationTitle("Import from Notes")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            viewModel.configure(context: modelContext, currentUserId: currentUserId)
+        }
+        .alert("Duplicate Session Detected", isPresented: $viewModel.showDuplicatePrompt) {
+            Button("Cancel", role: .cancel) { }
+            Button("Import Anyway") {
+                if viewModel.importDuplicateAnyway() {
+                    onImportCompleted?()
+                    dismiss()
                 }
             }
-            .navigationTitle("Import from Notes")
-            .navigationBarTitleDisplayMode(.inline)
-            .onAppear {
-                viewModel.configure(context: modelContext, currentUserId: currentUserId)
-            }
-            .alert("Duplicate Session Detected", isPresented: $viewModel.showDuplicatePrompt) {
-                Button("Cancel", role: .cancel) { }
-                Button("Import Anyway") {
-                    if viewModel.importDuplicateAnyway() {
-                        onImportCompleted?()
-                        dismiss()
+        } message: {
+            Text("Seems like this session was already imported. Import anyway?")
+        }
+        .sheet(
+            isPresented: Binding(
+                get: { exercisePickerRawName != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        exercisePickerRawName = nil
                     }
                 }
-            } message: {
-                Text("Seems like this session was already imported. Import anyway?")
+            )
+        ) {
+            if let rawName = exercisePickerRawName {
+                NotesImportExercisePickerView(viewModel: viewModel, rawName: rawName)
             }
         }
     }
@@ -230,25 +243,26 @@ struct NotesImportView: View {
                                 set: { viewModel.resolutionState.exerciseSelections[rawName]?.mode = $0 }
                             )
                         ) {
-                            ForEach(NotesImportViewModel.ExerciseResolutionMode.allCases) { mode in
+                            ForEach(availableExerciseModes(for: rawName, selection: selection)) { mode in
                                 Text(mode.title).tag(mode)
                             }
                         }
                         .pickerStyle(.segmented)
 
-                        if selection.mode == .existing {
-                            Picker(
-                                "Existing Exercise",
-                                selection: Binding(
-                                    get: { viewModel.resolutionState.exerciseSelections[rawName]?.selectedExerciseId },
-                                    set: { viewModel.resolutionState.exerciseSelections[rawName]?.selectedExerciseId = $0 }
-                                )
-                            ) {
-                                Text("Select").tag(UUID?.none)
-                                ForEach(viewModel.resolutionState.exerciseCandidates[rawName] ?? [], id: \.id) { candidate in
-                                    Text(candidate.name).tag(Optional(candidate.id))
-                                }
+                        switch selection.mode {
+                        case .matched:
+                            Text("Matched: \(viewModel.selectedExercise(for: rawName)?.name ?? "Unknown")")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        case .existing:
+                            Button("Choose Exercise…") {
+                                exercisePickerRawName = rawName
                             }
+                            .buttonStyle(.bordered)
+
+                            Text("Selected: \(viewModel.selectedExercise(for: rawName)?.name ?? "None")")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
 
                             Toggle(
                                 "Remember alias for this exercise",
@@ -257,7 +271,7 @@ struct NotesImportView: View {
                                     set: { viewModel.resolutionState.exerciseSelections[rawName]?.rememberAlias = $0 }
                                 )
                             )
-                        } else {
+                        case .createNew:
                             TextField(
                                 "Create exercise name",
                                 text: Binding(
@@ -385,5 +399,19 @@ struct NotesImportView: View {
             }
         }
         return names
+    }
+
+    private func availableExerciseModes(
+        for rawName: String,
+        selection: NotesImportViewModel.ExerciseSelection
+    ) -> [NotesImportViewModel.ExerciseResolutionMode] {
+        let hasMatchedSelection = (selection.selectedExerciseId != nil)
+            && (viewModel.resolutionState.exerciseCandidates[rawName]?.contains(where: { $0.id == selection.selectedExerciseId }) ?? false)
+
+        if hasMatchedSelection {
+            return NotesImportViewModel.ExerciseResolutionMode.allCases
+        }
+
+        return [.existing, .createNew]
     }
 }

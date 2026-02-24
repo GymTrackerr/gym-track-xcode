@@ -27,6 +27,7 @@ final class NotesImportViewModel: ObservableObject {
     }
 
     enum ExerciseResolutionMode: String, CaseIterable, Identifiable {
+        case matched
         case existing
         case createNew
 
@@ -34,6 +35,8 @@ final class NotesImportViewModel: ObservableObject {
 
         var title: String {
             switch self {
+            case .matched:
+                return "Matched"
             case .existing:
                 return "Existing"
             case .createNew:
@@ -43,7 +46,7 @@ final class NotesImportViewModel: ObservableObject {
     }
 
     struct ExerciseSelection {
-        var mode: ExerciseResolutionMode = .existing
+        var mode: ExerciseResolutionMode = .createNew
         var selectedExerciseId: UUID?
         var newExerciseName: String = ""
         var rememberAlias: Bool = false
@@ -75,6 +78,7 @@ final class NotesImportViewModel: ObservableObject {
     @Published var batch: NotesImportBatch = NotesImportBatch(drafts: [])
     @Published var currentDraftIndex: Int = 0
     @Published var resolutionState: ResolutionState = .empty
+    @Published var allUserExercises: [Exercise] = []
 
     @Published var selectedDateForCurrentDraft: Date = Date()
 
@@ -118,6 +122,7 @@ final class NotesImportViewModel: ObservableObject {
 
         resolveRoutine()
         resolveExercise()
+        loadAllUserExercises()
         refreshDuplicateState()
     }
 
@@ -176,12 +181,10 @@ final class NotesImportViewModel: ObservableObject {
             if let matched {
                 resolutionState.routineMode = .matched
                 resolutionState.selectedRoutineId = matched.id
-            } else if let first = routines.first {
-                resolutionState.routineMode = .existing
-                resolutionState.selectedRoutineId = first.id
             } else {
-                resolutionState.routineMode = .none
+                resolutionState.routineMode = .createNew
                 resolutionState.selectedRoutineId = nil
+                resolutionState.newRoutineName = (currentDraft?.routineNameRaw ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             }
         } catch {
             resolutionState.errorMessage = "Routine resolution failed: \(error.localizedDescription)"
@@ -196,6 +199,7 @@ final class NotesImportViewModel: ObservableObject {
 
         guard let userId = currentUserId else {
             resolutionState.exerciseCandidates = [:]
+            allUserExercises = []
             return
         }
 
@@ -224,7 +228,7 @@ final class NotesImportViewModel: ObservableObject {
 
                 if let matched = entry?.resolved {
                     selections[rawName] = ExerciseSelection(
-                        mode: .existing,
+                        mode: .matched,
                         selectedExerciseId: matched.id,
                         newExerciseName: rawName,
                         rememberAlias: false
@@ -233,7 +237,7 @@ final class NotesImportViewModel: ObservableObject {
                     unresolved.append(rawName)
                     selections[rawName] = ExerciseSelection(
                         mode: .createNew,
-                        selectedExerciseId: entryCandidates.first?.id,
+                        selectedExerciseId: nil,
                         newExerciseName: rawName,
                         rememberAlias: false
                     )
@@ -246,6 +250,39 @@ final class NotesImportViewModel: ObservableObject {
             resolutionState.errorMessage = nil
         } catch {
             resolutionState.errorMessage = "Exercise resolution failed: \(error.localizedDescription)"
+        }
+    }
+
+    func chooseExistingExercise(rawName: String, exercise: Exercise) {
+        guard exercise.user_id == currentUserId else { return }
+        guard var selection = resolutionState.exerciseSelections[rawName] else { return }
+
+        selection.mode = .existing
+        selection.selectedExerciseId = exercise.id
+        resolutionState.exerciseSelections[rawName] = selection
+    }
+
+    func selectedExercise(for rawName: String) -> Exercise? {
+        guard let selectedId = resolutionState.exerciseSelections[rawName]?.selectedExerciseId else {
+            return nil
+        }
+
+        return allUserExercises.first(where: { $0.id == selectedId })
+    }
+
+    func filteredUserExercises(searchText: String) -> [Exercise] {
+        let query = normalize(searchText)
+        if query.isEmpty {
+            return allUserExercises
+        }
+
+        return allUserExercises.filter { exercise in
+            if normalize(exercise.name).contains(query) {
+                return true
+            }
+
+            let aliases = exercise.aliases ?? []
+            return aliases.contains(where: { normalize($0).contains(query) })
         }
     }
 
@@ -322,7 +359,33 @@ private extension NotesImportViewModel {
 
         resolveRoutine()
         resolveExercise()
+        loadAllUserExercises()
         refreshDuplicateState()
+    }
+
+    func loadAllUserExercises() {
+        guard let context = modelContext else {
+            allUserExercises = []
+            return
+        }
+
+        guard let userId = currentUserId else {
+            allUserExercises = []
+            return
+        }
+
+        do {
+            let descriptor = FetchDescriptor<Exercise>(
+                predicate: #Predicate<Exercise> { exercise in
+                    exercise.user_id == userId
+                },
+                sortBy: [SortDescriptor(\.name)]
+            )
+            allUserExercises = try context.fetch(descriptor)
+        } catch {
+            allUserExercises = []
+            resolutionState.errorMessage = "Exercise list load failed: \(error.localizedDescription)"
+        }
     }
 
     func refreshDuplicateState() {
@@ -411,9 +474,16 @@ private extension NotesImportViewModel {
             }
 
             switch selection.mode {
-            case .existing:
-                guard let selectedId = selection.selectedExerciseId,
-                      let selected = resolutionState.exerciseCandidates[rawName]?.first(where: { $0.id == selectedId }) else {
+            case .matched, .existing:
+                guard let selectedId = selection.selectedExerciseId else {
+                    unresolvedExercises.append(rawName)
+                    continue
+                }
+
+                let selected = resolutionState.exerciseCandidates[rawName]?.first(where: { $0.id == selectedId })
+                    ?? allUserExercises.first(where: { $0.id == selectedId })
+
+                guard let selected else {
                     unresolvedExercises.append(rawName)
                     continue
                 }

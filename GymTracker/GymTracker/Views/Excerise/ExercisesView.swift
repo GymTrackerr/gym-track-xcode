@@ -13,27 +13,51 @@ import SwiftUI
 
 struct ExercisesView: View {
     @EnvironmentObject var exerciseService: ExerciseService
+    @Environment(\.editMode) private var editMode
     @State private var searchText: String = ""
     @State private var selectedMuscle: String = ""
-    
-    var filteredExercises: [Exercise] {
-        var result = exerciseService.exercises
-        
-        // Apply muscle filter
-        if !selectedMuscle.isEmpty {
-            result = exerciseService.filterByMuscle(selectedMuscle)
+    @State private var showUserExercisesOnly: Bool = false
+
+    private var scopeFilteredExercises: [Exercise] {
+        if showUserExercisesOnly {
+            return exerciseService.exercises.filter { $0.isUserCreated }
         }
-        
-        // Apply search filter
+        return exerciseService.exercises
+    }
+
+    var filteredExercises: [Exercise] {
+        var result = scopeFilteredExercises
+
+        if !selectedMuscle.isEmpty {
+            result = result.filter { exercise in
+                guard let primaryMuscles = exercise.primary_muscles else { return false }
+                return primaryMuscles.contains(where: { $0.lowercased() == selectedMuscle.lowercased() })
+            }
+        }
+
         if !searchText.isEmpty {
             result = result.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
         }
-        
+
         return result
     }
-    
+
     var uniqueMuscles: [String] {
-        exerciseService.getUniquePrimaryMuscles(searchQuery: searchText)
+        var muscles = Set<String>()
+        let filteredBySearch = scopeFilteredExercises.filter { exercise in
+            guard !searchText.isEmpty else { return true }
+            return exercise.name.localizedCaseInsensitiveContains(searchText)
+        }
+
+        for exercise in filteredBySearch {
+            if let primaryMuscles = exercise.primary_muscles {
+                for muscle in primaryMuscles {
+                    muscles.insert(muscle)
+                }
+            }
+        }
+
+        return Array(muscles).sorted()
     }
 
     var body : some View {
@@ -57,12 +81,22 @@ struct ExercisesView: View {
                     // All filter
                     FilterPill(
                         title: "All",
-                        isSelected: selectedMuscle.isEmpty
+                        isSelected: selectedMuscle.isEmpty && !showUserExercisesOnly
                     )
                     .onTapGesture {
                         selectedMuscle = ""
+                        showUserExercisesOnly = false
                     }
-                    
+
+                    FilterPill(
+                        title: "Mine",
+                        isSelected: showUserExercisesOnly
+                    )
+                    .onTapGesture {
+                        showUserExercisesOnly.toggle()
+                        selectedMuscle = ""
+                    }
+
                     // Muscle filters
                     ForEach(uniqueMuscles, id: \.self) { muscle in
                         FilterPill(
@@ -127,7 +161,7 @@ struct ExercisesView: View {
                                 .padding(.horizontal, 4)
                         )
                     }
-                    .onDelete(perform: exerciseService.removeExercise)
+                    .onDelete(perform: deleteFilteredExercises)
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
@@ -138,8 +172,10 @@ struct ExercisesView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
 #if os(iOS)
-            ToolbarItem(placement: .navigationBarTrailing) {
-                EditButton()
+            if !exerciseService.exercises.isEmpty {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    EditButton()
+                }
             }
 #endif
             ToolbarItem {
@@ -150,12 +186,17 @@ struct ExercisesView: View {
                 }
             }
         }
+        .onChange(of: exerciseService.exercises.isEmpty) {
+            if exerciseService.exercises.isEmpty {
+                editMode?.wrappedValue = .inactive
+            }
+        }
         .sheet(isPresented: $exerciseService.editingExercise) {
             NavigationView {
                 VStack(spacing: 16) {
                     Text("Name your new exercise")
                         .font(.headline)
-                    
+
                     TextField("Name", text: $exerciseService.editingContent)
                         .textFieldStyle(.roundedBorder)
                         .padding(.horizontal)
@@ -166,7 +207,7 @@ struct ExercisesView: View {
                    } label: {
                        Label("Exercise Type: \(exerciseService.selectedExerciseType.name)", systemImage: "chevron.down")
                    }
-                    
+
                     Button {
                         _ = exerciseService.addExercise()
                     } label: {
@@ -175,7 +216,7 @@ struct ExercisesView: View {
                             .padding()
                     }
                     .disabled(exerciseService.editingContent.trimmingCharacters(in: .whitespaces).isEmpty)
-                    
+
                     Spacer()
                 }
                 .padding()
@@ -190,6 +231,13 @@ struct ExercisesView: View {
                 }
             }
         }
+    }
+
+    private func deleteFilteredExercises(offsets: IndexSet) {
+        let toDelete = offsets.compactMap { index in
+            filteredExercises.indices.contains(index) ? filteredExercises[index] : nil
+        }
+        exerciseService.removeExercises(toDelete)
     }
 }
 //

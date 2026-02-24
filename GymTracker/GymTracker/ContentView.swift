@@ -42,16 +42,23 @@ struct ContentView: View {
                         .appBackground()
                 }
             }
-            
+
+            Tab("Sessions", systemImage: "list.bullet.rectangle", value: 2) {
+                NavigationStack {
+                    SessionsPageView()
+                        .appBackground()
+                }
+            }
+
             if userService.currentUser?.showNutritionTab ?? true {
-                Tab("Nutrition", systemImage: "fork.knife", value: 2) {
+                Tab("Nutrition", systemImage: "fork.knife", value: 3) {
                     NavigationStack {
                         NutritionDayView().appBackground()
                     }
                 }
             }
 
-            Tab("Program", systemImage: "figure.walk.motion", value: 3) {
+            Tab("Program", systemImage: "figure.walk.motion", value: 4) {
                 NavigationStack {
                     SplitDaysView()
                 }
@@ -75,7 +82,7 @@ struct ContentView: View {
             timerService.appDidBecomeActive()
         }
         .onChange(of: userService.currentUser?.showNutritionTab ?? true) {
-            if !(userService.currentUser?.showNutritionTab ?? true), localSelected == 2 {
+            if !(userService.currentUser?.showNutritionTab ?? true), localSelected == 3 {
                 localSelected = 0
             }
         }
@@ -92,7 +99,7 @@ struct ContentView: View {
             NotesImportDebugHarness.runAll()
 #endif
         }
-#if DEBUG
+#if false
         .safeAreaInset(edge: .bottom) {
             HStack {
                 Spacer()

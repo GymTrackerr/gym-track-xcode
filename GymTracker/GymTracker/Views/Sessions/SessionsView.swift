@@ -144,7 +144,7 @@ struct SessionsView: View {
                 .zoom(sourceID: "info", in: transition)
             )
         }
-        .sheet(isPresented: $showingNotesImport) {
+        .navigationDestination(isPresented: $showingNotesImport) {
             NotesImportView(currentUserId: userService.currentUser?.id) {
                 sessionService.loadSessions()
                 showingNotesImport = false

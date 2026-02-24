@@ -382,19 +382,29 @@ class ExerciseService : ServiceBase, ObservableObject {
     
     func removeExercise(offsets: IndexSet) {
         print("not activating")
-        withAnimation {
-            for index in offsets {
-                // TODO: crashed here, EXC_BAD_ACESS
-                modelContext.delete(exercises[index])
-            }
+        for index in offsets {
+            // Only safe when offsets map directly to the full exercises array.
+            modelContext.delete(exercises[index])
+        }
 
-            do {
-                try modelContext.save()
-                loadExercises()
-                
-            } catch {
-                print("Failed to save after deletion: \(error)")
-            }
+        do {
+            try modelContext.save()
+            loadExercises()
+        } catch {
+            print("Failed to save after deletion: \(error)")
+        }
+    }
+
+    func removeExercises(_ exercisesToDelete: [Exercise]) {
+        for exercise in exercisesToDelete {
+            modelContext.delete(exercise)
+        }
+
+        do {
+            try modelContext.save()
+            loadExercises()
+        } catch {
+            print("Failed to save after deletion: \(error)")
         }
     }
 }
