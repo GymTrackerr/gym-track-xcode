@@ -115,8 +115,9 @@ final class NotesImportParser {
                 continue
             }
 
-            if let strength = parseStrength(name: name, tail: tail, defaultWeightUnit: defaultWeightUnit) {
-                items.append(.strength(strength))
+            if let strengthResult = parseStrength(name: name, tail: tail, defaultWeightUnit: defaultWeightUnit) {
+                items.append(.strength(strengthResult.strength))
+                warnings.append(contentsOf: strengthResult.warnings)
                 continue
             }
 
@@ -147,13 +148,8 @@ private extension NotesImportParser {
         "(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
     }
 
-    var dateHeaderRegex: NSRegularExpression {
-        let pattern = "^\\s*\\b\(monthNamePattern)\\b\\s+\\d{1,2},\\s*\\d{4}(?:\\s*,\\s*.*)?$"
-        return try! NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
-    }
-
     var dateExtractorRegex: NSRegularExpression {
-        let pattern = "^\\s*(\(monthNamePattern))\\s+(\\d{1,2}),\\s*(\\d{4})(.*)$"
+        let pattern = "\\b(\(monthNamePattern))\\s+(\\d{1,2}),\\s*(\\d{4})\\b"
         return try! NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
     }
 
@@ -163,7 +159,7 @@ private extension NotesImportParser {
     }
 
     var nxrRegex: NSRegularExpression {
-        let pattern = "\\b(\\d+)\\s*x\\s*(\\d+)\\b"
+        let pattern = "\\b(\\d+)\\s*x\\s*(\\d+(?:\\.\\d+)?)\\b"
         return try! NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
     }
 
@@ -210,7 +206,7 @@ private extension NotesImportParser {
 
     func isDateHeaderLine(_ line: String) -> Bool {
         let range = NSRange(location: 0, length: line.utf16.count)
-        return dateHeaderRegex.firstMatch(in: line, options: [], range: range) != nil
+        return dateExtractorRegex.firstMatch(in: line, options: [], range: range) != nil
     }
 
     func parseDateHeader(_ headerLine: String) -> (date: Date?, routineNameRaw: String?) {
@@ -219,7 +215,6 @@ private extension NotesImportParser {
               let monthRange = Range(match.range(at: 1), in: headerLine),
               let dayRange = Range(match.range(at: 2), in: headerLine),
               let yearRange = Range(match.range(at: 3), in: headerLine),
-              let suffixRange = Range(match.range(at: 4), in: headerLine),
               let day = Int(headerLine[dayRange]),
               let year = Int(headerLine[yearRange]) else {
             return (nil, nil)
@@ -241,22 +236,25 @@ private extension NotesImportParser {
             date = components.date
         }
 
-        var suffix = String(headerLine[suffixRange]).trimmingCharacters(in: .whitespacesAndNewlines)
-        if suffix.hasPrefix(",") {
-            suffix.removeFirst()
-            suffix = suffix.trimmingCharacters(in: .whitespacesAndNewlines)
+        let matchRange = match.range
+        let prefix = (headerLine as NSString).substring(to: matchRange.location)
+        let suffixStart = matchRange.location + matchRange.length
+        let suffix = (headerLine as NSString).substring(from: suffixStart)
+
+        var routine = "\(prefix) \(suffix)"
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: ",-:|"))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let timeRange = parseTimeRange(in: routine),
+           let range = routine.range(of: "\(twoDigit(timeRange.startHour)):\(twoDigit(timeRange.startMinute))-\(twoDigit(timeRange.endHour)):\(twoDigit(timeRange.endMinute))") {
+            routine.removeSubrange(range)
+            routine = routine.trimmingCharacters(in: CharacterSet(charactersIn: ",-:| "))
         }
 
-        if let timeRange = parseTimeRange(in: suffix),
-           let range = suffix.range(of: "\(twoDigit(timeRange.startHour)):\(twoDigit(timeRange.startMinute))" +
-                        "-\(twoDigit(timeRange.endHour)):\(twoDigit(timeRange.endMinute))") {
-            suffix.removeSubrange(range)
-            suffix = suffix.replacingOccurrences(of: " ,", with: ",")
-                .trimmingCharacters(in: CharacterSet(charactersIn: ", "))
-        }
-
-        let routine = suffix.isEmpty ? nil : suffix
-        return (date, routine)
+        let routineNameRaw = routine.isEmpty ? nil : routine
+        return (date, routineNameRaw)
     }
 
     func monthNumber(from month: String) -> Int? {
@@ -325,49 +323,108 @@ private extension NotesImportParser {
         line.replacingOccurrences(of: #"^\s*\d+\.\s*"#, with: "", options: .regularExpression)
     }
 
-    func parseStrength(name: String, tail: String, defaultWeightUnit: WeightUnit) -> ParsedStrength? {
-        let perSide = parsePerSideWeight(in: tail)
-        let base = parseBaseWeight(in: tail)
-        let restSeconds = parseRestSeconds(in: tail)
+    struct ParsedStrengthResult {
+        var strength: ParsedStrength
+        var warnings: [String]
+    }
 
-        let descriptorMatches = allSetDescriptors(in: tail)
-        guard !descriptorMatches.isEmpty else {
-            return nil
+    struct DescriptorToken {
+        var setCount: Int
+        var reps: Int
+        var warning: String?
+    }
+
+    struct StrengthSetTemplate {
+        var reps: Int
+        var weight: (value: Double, unit: WeightUnit)?
+        var restSeconds: Int?
+    }
+
+    func parseStrength(name: String, tail: String, defaultWeightUnit: WeightUnit) -> ParsedStrengthResult? {
+        let perSide = parsePerSideWeight(in: tail)
+        let base = parseBaseWeight(in: tail, defaultWeightUnit: defaultWeightUnit)
+
+        let tokenParts = tail
+            .split(separator: ",", omittingEmptySubsequences: false)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+        var templates: [StrengthSetTemplate] = []
+        var pendingTemplateIndices: [Int] = []
+        var currentRestSeconds: Int? = nil
+        var descriptorWarnings: [String] = []
+
+        for part in tokenParts {
+            if let rest = parseRestSeconds(in: part) {
+                currentRestSeconds = rest
+                for index in templates.indices where templates[index].restSeconds == nil {
+                    templates[index].restSeconds = rest
+                }
+            }
+
+            let descriptors = allSetDescriptors(in: part)
+            for descriptor in descriptors {
+                if let warning = descriptor.warning {
+                    descriptorWarnings.append("\(name): \(warning)")
+                }
+                for _ in 0..<descriptor.setCount {
+                    templates.append(
+                        StrengthSetTemplate(
+                            reps: descriptor.reps,
+                            weight: nil,
+                            restSeconds: currentRestSeconds
+                        )
+                    )
+                    pendingTemplateIndices.append(templates.count - 1)
+                }
+            }
+
+            if let weight = parseWeight(in: part), !pendingTemplateIndices.isEmpty {
+                for index in pendingTemplateIndices where templates[index].weight == nil {
+                    templates[index].weight = weight
+                }
+                pendingTemplateIndices.removeAll()
+            }
         }
 
+        guard !templates.isEmpty else { return nil }
+
         var parsedSets: [ParsedStrengthSet] = []
-
-        for (index, descriptor) in descriptorMatches.enumerated() {
-            let nextLocation = index + 1 < descriptorMatches.count ? descriptorMatches[index + 1].range.location : (tail as NSString).length
-            let segmentRange = NSRange(location: descriptor.range.location + descriptor.range.length, length: max(0, nextLocation - (descriptor.range.location + descriptor.range.length)))
-            let segment = (tail as NSString).substring(with: segmentRange)
-
-            let localWeight = parseWeight(in: segment)
-            let chosenUnit = localWeight?.unit ?? perSide?.unit ?? base?.unit ?? defaultWeightUnit
+        for template in templates {
+            let chosenUnit = template.weight?.unit ?? perSide?.unit ?? base?.unit ?? defaultWeightUnit
 
             let totalWeight: Double?
             if let perSideValue = perSide?.value, let baseValue = base?.value {
                 totalWeight = baseValue + (perSideValue * 2)
+            } else if let templateWeight = template.weight {
+                totalWeight = templateWeight.value
+            } else if let baseValue = base?.value {
+                totalWeight = baseValue
             } else {
-                totalWeight = localWeight?.value
+                totalWeight = nil
             }
 
-            for _ in 0..<descriptor.setCount {
-                parsedSets.append(
-                    ParsedStrengthSet(
-                        reps: descriptor.reps,
-                        weight: totalWeight,
-                        weightUnit: chosenUnit,
-                        perSideWeight: perSide?.value,
-                        baseWeight: base?.value,
-                        isPerSide: perSide != nil && base != nil,
-                        restSeconds: restSeconds
-                    )
+            parsedSets.append(
+                ParsedStrengthSet(
+                    reps: template.reps,
+                    weight: totalWeight,
+                    weightUnit: chosenUnit,
+                    perSideWeight: perSide?.value,
+                    baseWeight: base?.value,
+                    isPerSide: perSide != nil && base != nil,
+                    restSeconds: template.restSeconds
                 )
-            }
+            )
         }
 
-        return parsedSets.isEmpty ? nil : ParsedStrength(exerciseNameRaw: name, sets: parsedSets, notes: nil)
+        guard !parsedSets.isEmpty else { return nil }
+        return ParsedStrengthResult(
+            strength: ParsedStrength(
+                exerciseNameRaw: name,
+                sets: parsedSets,
+                notes: descriptorWarnings.isEmpty ? nil : descriptorWarnings.joined(separator: " ")
+            ),
+            warnings: descriptorWarnings
+        )
     }
 
     func parseCardio(name: String, tail: String) -> ParsedCardio? {
@@ -396,14 +453,26 @@ private extension NotesImportParser {
         return ParsedCardio(exerciseNameRaw: name, sets: [cardioSet], notes: nil)
     }
 
-    func allSetDescriptors(in text: String) -> [(range: NSRange, setCount: Int, reps: Int)] {
-        var descriptors: [(range: NSRange, setCount: Int, reps: Int)] = []
+    func allSetDescriptors(in text: String) -> [DescriptorToken] {
+        var descriptors: [(range: NSRange, token: DescriptorToken)] = []
         descriptors += matches(for: nxrRegex, in: text).compactMap { match in
             guard let setCount = intCapture(match: match, index: 1, in: text),
-                  let reps = intCapture(match: match, index: 2, in: text) else {
+                  let repsRaw = doubleCapture(match: match, index: 2, in: text) else {
                 return nil
             }
-            return (range: match.range, setCount: setCount, reps: reps)
+
+            let flooredReps = Int(floor(repsRaw))
+            let reps = max(1, flooredReps)
+            let warning: String? = repsRaw == Double(reps) ? nil : "Fractional reps \(repsRaw) were floored to \(reps)."
+
+            return (
+                range: match.range,
+                token: DescriptorToken(
+                    setCount: setCount,
+                    reps: reps,
+                    warning: warning
+                )
+            )
         }
 
         descriptors += matches(for: setsOfRegex, in: text).compactMap { match in
@@ -411,10 +480,19 @@ private extension NotesImportParser {
                   let reps = intCapture(match: match, index: 2, in: text) else {
                 return nil
             }
-            return (range: match.range, setCount: setCount, reps: reps)
+            return (
+                range: match.range,
+                token: DescriptorToken(
+                    setCount: setCount,
+                    reps: reps,
+                    warning: nil
+                )
+            )
         }
 
-        return descriptors.sorted { $0.range.location < $1.range.location }
+        return descriptors
+            .sorted { $0.range.location < $1.range.location }
+            .map(\.token)
     }
 
     func parsePerSideWeight(in text: String) -> (value: Double, unit: WeightUnit)? {
@@ -427,14 +505,21 @@ private extension NotesImportParser {
         return (value, unit)
     }
 
-    func parseBaseWeight(in text: String) -> (value: Double, unit: WeightUnit)? {
+    func parseBaseWeight(in text: String, defaultWeightUnit: WeightUnit) -> (value: Double, unit: WeightUnit)? {
         let pattern = #"(\d+(?:\.\d+)?)\s*(kg|kgs|kilogram|kilograms|lb|lbs|pound|pounds)\s*bar"#
         guard let match = firstMatch(of: pattern, in: text, options: .caseInsensitive),
               let value = doubleCapture(match: match, index: 1, in: text),
               let unit = weightUnitCapture(match: match, index: 2, in: text) else {
+            if containsBarToken(in: text) {
+                return defaultWeightUnit == .kg ? (20, .kg) : (45, .lb)
+            }
             return nil
         }
         return (value, unit)
+    }
+
+    func containsBarToken(in text: String) -> Bool {
+        firstMatch(of: #"\bbar\b"#, in: text, options: .caseInsensitive) != nil
     }
 
     func parseWeight(in text: String) -> (value: Double, unit: WeightUnit)? {

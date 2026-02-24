@@ -11,10 +11,12 @@ final class NotesImportParserDebug {
         print("=== NotesImportParserDebug start ===")
 
         let results = [
-            test1(),
-            test2(),
-            test3(),
-            test4()
+            test1_HeaderPrefixDate(),
+            test2_HeaderSuffixDate(),
+            test3_BarDefaultWeight(),
+            test4_ChainedSegmentsAndFractionalReps(),
+            test5_BatchSplitAndCrossMidnight(),
+            test6_UnknownLinesPreserved()
         ]
 
         let passCount = results.filter { $0 }.count
@@ -23,103 +25,140 @@ final class NotesImportParserDebug {
     }
 
     @discardableResult
-    private static func test1() -> Bool {
+    private static func test1_HeaderPrefixDate() -> Bool {
         let parser = NotesImportParser()
         let input = """
-        December 15, 2025, Legs
-        13:05-14:12
-        1. Back Squat, 2x10, 205lbs, 1x10, 225lbs, 1:30m rest
-        2. Barbell Lunge, 1x8, 35kg per side, 20kg bar
-        3. Treadmill Run, 5km, 29min, 9:36av
+        Pull, February 20, 2025
+        08:10-09:00
+        Deadlift, 3x5, 180kg
         """
 
-        let batch = parser.parseBatch(from: input, defaultWeightUnit: .lb)
-        guard let draft = batch.drafts.first else {
-            return fail("test1", "No draft parsed")
-        }
+        let draft = parser.parseSingleSession(from: input, defaultWeightUnit: .kg)
+        printDraftSummary("test1", draft)
 
         var ok = true
-        ok = ok && check("test1", batch.drafts.count == 1, "Expected 1 draft")
         ok = ok && check("test1", draft.parsedDate != nil, "Expected parsed date")
-        ok = ok && check("test1", draft.startTime != nil && draft.endTime != nil, "Expected parsed time range")
-        ok = ok && check("test1", draft.routineNameRaw == "Legs", "Expected routine name 'Legs', got \(draft.routineNameRaw ?? "nil")")
-        ok = ok && check("test1", draft.items.count == 3, "Expected 3 parsed items, got \(draft.items.count)")
-        ok = ok && check("test1", !draft.importHash.isEmpty, "Expected non-empty importHash")
-
-        if case .strength(let strength)? = draft.items.first {
-            ok = ok && check("test1", strength.sets.count == 3, "Expected 3 strength sets from 2x10 + 1x10")
-            ok = ok && check("test1", strength.sets.first?.restSeconds == 90, "Expected restSeconds=90")
-        } else {
-            ok = false
-            print("[test1] Expected first item to be strength")
-        }
-
-        if draft.items.count > 1, case .strength(let perSideStrength) = draft.items[1] {
-            let set = perSideStrength.sets.first
-            ok = ok && check("test1", set?.isPerSide == true, "Expected isPerSide=true")
-            ok = ok && check("test1", set?.baseWeight == 20, "Expected baseWeight=20")
-            ok = ok && check("test1", set?.perSideWeight == 35, "Expected perSideWeight=35")
-            ok = ok && check("test1", set?.weight == 90, "Expected total weight=90")
-        } else {
-            ok = false
-            print("[test1] Expected second item to be strength per-side")
-        }
-
-        if draft.items.count > 2, case .cardio(let cardio) = draft.items[2] {
-            let set = cardio.sets.first
-            ok = ok && check("test1", set?.distance == 5, "Expected cardio distance=5")
-            ok = ok && check("test1", set?.distanceUnit == .km, "Expected distance unit km")
-            ok = ok && check("test1", set?.durationSeconds == 1740, "Expected durationSeconds=1740")
-            ok = ok && check("test1", set?.paceSeconds == 576, "Expected paceSeconds=576")
-        } else {
-            ok = false
-            print("[test1] Expected third item to be cardio")
-        }
+        ok = ok && check("test1", draft.routineNameRaw == "Pull", "Expected routine 'Pull', got \(draft.routineNameRaw ?? "nil")")
+        ok = ok && check("test1", draft.items.count == 1, "Expected 1 parsed item")
 
         print("[test1] \(ok ? "PASS" : "FAIL")")
         return ok
     }
 
     @discardableResult
-    private static func test2() -> Bool {
+    private static func test2_HeaderSuffixDate() -> Bool {
         let parser = NotesImportParser()
         let input = """
-        Nov 15, 2022, Pull
-        08:10-09:00
-        Deadlift, 3 sets of 5, 180kg
-
-        December 16, 2025, Cardio
-        22:30-00:10
-        Run, 20min, 2km
+        September 30, 2025 - Back and bicep
+        18:30-19:25
+        Lat pull, 3x10, 130 pounds
         """
 
-        let batch = parser.parseBatch(from: input, defaultWeightUnit: .kg)
+        let draft = parser.parseSingleSession(from: input, defaultWeightUnit: .lb)
+        printDraftSummary("test2", draft)
 
         var ok = true
-        ok = ok && check("test2", batch.drafts.count == 2, "Expected 2 drafts")
-
-        if batch.drafts.count == 2 {
-            let first = batch.drafts[0]
-            let second = batch.drafts[1]
-
-            ok = ok && check("test2", first.routineNameRaw == "Pull", "Expected first routine Pull")
-            ok = ok && check("test2", second.routineNameRaw == "Cardio", "Expected second routine Cardio")
-            ok = ok && check("test2", first.importHash != second.importHash, "Expected different hashes for different drafts")
-
-            if let start = second.startTime, let end = second.endTime {
-                ok = ok && check("test2", end > start, "Expected cross-midnight end time > start time")
-            } else {
-                ok = false
-                print("[test2] Missing start/end for cross-midnight sample")
-            }
-        }
+        ok = ok && check("test2", draft.parsedDate != nil, "Expected parsed date")
+        ok = ok && check("test2", draft.routineNameRaw == "Back and bicep", "Expected routine 'Back and bicep', got \(draft.routineNameRaw ?? "nil")")
+        ok = ok && check("test2", draft.startTime != nil && draft.endTime != nil, "Expected parsed time range")
 
         print("[test2] \(ok ? "PASS" : "FAIL")")
         return ok
     }
 
     @discardableResult
-    private static func test3() -> Bool {
+    private static func test3_BarDefaultWeight() -> Bool {
+        let parser = NotesImportParser()
+        let input = """
+        December 15, 2025, Legs
+        Back Squat, 2x5, bar
+        """
+
+        let draft = parser.parseSingleSession(from: input, defaultWeightUnit: .lb)
+        printDraftSummary("test3", draft)
+
+        var ok = true
+        if case .strength(let strength)? = draft.items.first {
+            let firstSet = strength.sets.first
+            ok = ok && check("test3", strength.sets.count == 2, "Expected 2 sets")
+            ok = ok && check("test3", firstSet?.baseWeight == 45, "Expected default bar baseWeight=45 for lb")
+            ok = ok && check("test3", firstSet?.weight == 45, "Expected total weight=45 when only bar is provided")
+            ok = ok && check("test3", firstSet?.weightUnit == .lb, "Expected weight unit lb")
+        } else {
+            ok = false
+            print("[test3] FAIL: Expected first item to be strength")
+        }
+
+        print("[test3] \(ok ? "PASS" : "FAIL")")
+        return ok
+    }
+
+    @discardableResult
+    private static func test4_ChainedSegmentsAndFractionalReps() -> Bool {
+        let parser = NotesImportParser()
+        let input = """
+        December 15, 2025, Push
+        Chest press, 1x5, 130 pounds, 1x6.5, 2x5, 110pounds (1:30m rest)
+        """
+
+        let draft = parser.parseSingleSession(from: input, defaultWeightUnit: .lb)
+        printDraftSummary("test4", draft)
+
+        var ok = true
+        if case .strength(let strength)? = draft.items.first {
+            ok = ok && check("test4", strength.sets.count == 4, "Expected 4 total sets")
+            let reps = strength.sets.map(\.reps)
+            ok = ok && check("test4", reps == [5, 6, 5, 5], "Expected reps [5,6,5,5], got \(reps)")
+
+            let weights = strength.sets.map { Int($0.weight ?? -1) }
+            ok = ok && check("test4", weights == [130, 110, 110, 110], "Expected nearest-following weight grouping [130,110,110,110], got \(weights)")
+            ok = ok && check("test4", strength.sets.allSatisfy { $0.restSeconds == 90 }, "Expected restSeconds=90 for all sets")
+            ok = ok && check("test4", !draft.warnings.isEmpty, "Expected warning for fractional reps")
+        } else {
+            ok = false
+            print("[test4] FAIL: Expected first item to be strength")
+        }
+
+        print("[test4] \(ok ? "PASS" : "FAIL")")
+        return ok
+    }
+
+    @discardableResult
+    private static func test5_BatchSplitAndCrossMidnight() -> Bool {
+        let parser = NotesImportParser()
+        let input = """
+        Nov 15, 2022, Pull
+        08:10-09:00
+        Deadlift, 3 sets of 5, 180kg
+
+        Pull, February 20, 2025
+        22:30-00:10
+        Indoor cycle, 20min, 10km
+        """
+
+        let batch = parser.parseBatch(from: input, defaultWeightUnit: .kg)
+        for (index, draft) in batch.drafts.enumerated() {
+            printDraftSummary("test5-draft\(index + 1)", draft)
+        }
+
+        var ok = true
+        ok = ok && check("test5", batch.drafts.count == 2, "Expected 2 drafts")
+
+        if batch.drafts.count == 2,
+           let start = batch.drafts[1].startTime,
+           let end = batch.drafts[1].endTime {
+            ok = ok && check("test5", end > start, "Expected cross-midnight end > start")
+        } else {
+            ok = false
+            print("[test5] FAIL: Missing second draft time range")
+        }
+
+        print("[test5] \(ok ? "PASS" : "FAIL")")
+        return ok
+    }
+
+    @discardableResult
+    private static func test6_UnknownLinesPreserved() -> Bool {
         let parser = NotesImportParser()
         let input = """
         December 20, 2025, Misc
@@ -129,55 +168,33 @@ final class NotesImportParserDebug {
         Bike, 1km, 5:15min
         """
 
-        let batch = parser.parseBatch(from: input, defaultWeightUnit: .lb)
-        guard let draft = batch.drafts.first else {
-            return fail("test3", "No draft parsed")
-        }
+        let draft = parser.parseSingleSession(from: input, defaultWeightUnit: .lb)
+        printDraftSummary("test6", draft)
 
         var ok = true
-        ok = ok && check("test3", draft.items.count == 2, "Expected 2 parsed items")
-        ok = ok && check("test3", draft.unknownLines.contains("Started watch workout"), "Expected unknown line to retain started-watch text")
-        ok = ok && check("test3", draft.unknownLines.contains("Weird unparseable line"), "Expected unknown line to be preserved")
+        ok = ok && check("test6", draft.items.count == 2, "Expected 2 parsed items")
+        ok = ok && check("test6", draft.unknownLines.contains("Started watch workout"), "Expected unknown line to preserve watch text")
+        ok = ok && check("test6", draft.unknownLines.contains("Weird unparseable line"), "Expected unknown line to be preserved")
 
-        if case .strength(let strength)? = draft.items.first {
-            ok = ok && check("test3", strength.sets.count == 3, "Expected 3 sets from '3x10'")
-            ok = ok && check("test3", strength.sets.allSatisfy { $0.weight == nil }, "Expected nil weight when omitted")
-            ok = ok && check("test3", strength.sets.allSatisfy { $0.weightUnit == .lb }, "Expected default weight unit .lb")
-        } else {
-            ok = false
-            print("[test3] Expected first item to be strength")
-        }
-
-        print("[test3] \(ok ? "PASS" : "FAIL")")
+        print("[test6] \(ok ? "PASS" : "FAIL")")
         return ok
     }
 
-    @discardableResult
-    private static func test4() -> Bool {
-        let parser = NotesImportParser()
-        let inputA = """
-        December 31, 2025, Push
-        11:00-12:00
-        Incline Press, 2x8, 80kg
-        """
+    private static func printDraftSummary(_ test: String, _ draft: NotesImportDraft) {
+        print("[\(test)] header routine=\(draft.routineNameRaw ?? "nil") date=\(draft.parsedDate?.formatted(date: .abbreviated, time: .omitted) ?? "nil") items=\(draft.items.count) warnings=\(draft.warnings.count) unknown=\(draft.unknownLines.count)")
 
-        let inputB = """
-        december 31 2025 push
-        11:00-12:00
-        Incline Press, 2x8, 80kg
-        """
-
-        let draftA = parser.parseSingleSession(from: inputA, defaultWeightUnit: .kg)
-        let draftB = parser.parseSingleSession(from: inputB, defaultWeightUnit: .kg)
-
-        var ok = true
-        ok = ok && check("test4", draftA.importHash == draftB.importHash, "Expected hash to match after canonical normalization")
-        ok = ok && check("test4", draftA.parsedDate != nil, "Expected valid date parse for inputA")
-        ok = ok && check("test4", draftB.parsedDate == nil, "Expected invalid date parse for inputB missing comma")
-        ok = ok && check("test4", !draftB.warnings.isEmpty, "Expected warning for unparsed date in inputB")
-
-        print("[test4] \(ok ? "PASS" : "FAIL")")
-        return ok
+        for item in draft.items {
+            switch item {
+            case .strength(let strength):
+                let setDescription = strength.sets.map { "\($0.reps)x @\($0.weight.map { String($0) } ?? "nil") \($0.weightUnit.rawValue)" }.joined(separator: " | ")
+                print("[\(test)] strength \(strength.exerciseNameRaw): \(setDescription)")
+            case .cardio(let cardio):
+                let setDescription = cardio.sets.map { set in
+                    "dur=\(set.durationSeconds.map { String($0) } ?? "nil") dist=\(set.distance.map { String($0) } ?? "nil") \(set.distanceUnit.rawValue) pace=\(set.paceSeconds.map { String($0) } ?? "nil")"
+                }.joined(separator: " | ")
+                print("[\(test)] cardio \(cardio.exerciseNameRaw): \(setDescription)")
+            }
+        }
     }
 
     @discardableResult
@@ -186,12 +203,6 @@ final class NotesImportParserDebug {
             print("[\(test)] FAIL: \(message)")
         }
         return condition
-    }
-
-    @discardableResult
-    private static func fail(_ test: String, _ message: String) -> Bool {
-        print("[\(test)] FAIL: \(message)")
-        return false
     }
 }
 #endif

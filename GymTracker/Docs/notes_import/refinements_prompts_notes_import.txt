@@ -100,6 +100,83 @@ Acceptance:
 - Fractional reps do not crash and produce a warning.
 
 ===========================================================
+R3.1 — Cardio Telemetry Parsing (Cycling / Running Extras)
+===========================================================
+Goal:
+Improve parser support for structured cardio telemetry while keeping the data model minimal and stable.
+
+Tasks:
+1) Core cardio parsing (existing behavior must remain):
+   - Detect duration tokens: “X:YYm”, “Xmin”, “X:YY” -> durationSeconds.
+   - Detect distance tokens: “N(.N)?km” or “mi” -> distance + distanceUnit.
+   - Detect speed tokens: “N(.N)?km/h” or “mph”.
+     - If avgSpeed field exists -> populate it.
+     - Else -> append speed info to set notes.
+2) Telemetry token detection (store in notes):
+   - “###W” -> append “Power: ###W”
+   - “##RPM” -> append “Cadence: ## RPM”
+   - “level ##” -> append “Level: ##”
+   - Any structured but unrecognized token -> append raw to notes.
+3) Notes handling:
+   - Preserve original order of telemetry data.
+   - Never discard telemetry information.
+   - Do NOT prompt user to choose important metrics (v1 behavior).
+4) Example to support:
+   “1. Indoor cycle, 181W, 71RPM, 34.1KM/H, level 50, 4:01m, 2.25km”
+   Expected:
+     - durationSeconds = 241
+     - distance = 2.25 (km)
+     - notes contain Power, Cadence, Speed, Level info.
+5) Extend DEBUG/parser harness with at least one regression test for this exact example.
+
+Acceptance:
+- Duration and distance parsed correctly.
+- Telemetry preserved in notes (or avgSpeed if implemented).
+- No crash or dropped tokens.
+- Existing cardio parsing behavior remains unchanged.
+
+===========================================================
+R3.2 — Header Normalization (Comma-Heavy & Flexible Date Formats)
+===========================================================
+Goal:
+Support real-world headers with extra commas and varied date positioning.
+
+Tasks:
+1) Pre-normalize header line for date extraction:
+   - Replace commas with spaces.
+   - Collapse multiple spaces.
+   - Trim leading/trailing whitespace.
+2) Date detection rules:
+   Support formats:
+   - “January 22, 2025”
+   - “January 22 2025”
+   - “January, 22, 2025”
+   - “Pull, February 20, 2025”
+   - “September 30, 2025 - Back and bicep”
+   - “Push, January, 22, 2025”
+   Date may appear anywhere in header line.
+3) Routine extraction:
+   - After extracting date substring, remove it from header.
+   - Trim punctuation and whitespace.
+   - Remaining text becomes routineNameRaw.
+   - If routineNameRaw is empty and next line is short text (e.g., “Push day”),
+     use it as fallback routine name.
+4) Time range behavior remains unchanged:
+   - Support “HH:mm-HH:mm”.
+   - Cross-midnight handling as already defined.
+   - Device timezone.
+5) Add regression samples:
+   - “Push, January, 22, 2025”
+   - “Pull, February 20, 2025”
+   - “September 30, 2025 - Back and bicep”
+
+Acceptance:
+- Date parses correctly in all listed formats.
+- Routine name extracted correctly.
+- No “Date could not be parsed” warning for supported formats.
+- Existing header formats remain unaffected.
+
+===========================================================
 R4 — Preview shows parsed sets (read-only, like session view)
 ===========================================================
 Goal:
