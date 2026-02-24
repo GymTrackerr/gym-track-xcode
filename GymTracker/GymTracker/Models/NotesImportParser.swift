@@ -58,6 +58,12 @@ final class NotesImportParser {
             parsedDate = parsedHeader.date
             routineNameRaw = parsedHeader.routineNameRaw
 
+            if routineNameRaw == nil,
+               let fallback = fallbackRoutineName(afterHeaderIndex: headerIndex, in: rawLines) {
+                routineNameRaw = fallback.name
+                consumedLineIndices.insert(fallback.index)
+            }
+
             if let date = parsedDate {
                 if let timeRange = parseTimeRange(in: headerLine) {
                     consumedLineIndices.insert(headerIndex)
@@ -149,7 +155,7 @@ private extension NotesImportParser {
     }
 
     var dateExtractorRegex: NSRegularExpression {
-        let pattern = "\\b(\(monthNamePattern))\\s+(\\d{1,2}),\\s*(\\d{4})\\b"
+        let pattern = "\\b(\(monthNamePattern))\\s+(\\d{1,2})\\s+(\\d{4})\\b"
         return try! NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
     }
 
@@ -198,29 +204,63 @@ private extension NotesImportParser {
         return try! NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
     }
 
+    var speedRegex: NSRegularExpression {
+        let pattern = "\\b(\\d+(?:\\.\\d+)?)\\s*(km\\/h|kph|mph)\\b"
+        return try! NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+    }
+
     func normalizeLineEndings(_ text: String) -> String {
         text
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
     }
 
+    func normalizeHeaderForDateExtraction(_ header: String) -> String {
+        header
+            .replacingOccurrences(of: ",", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func fallbackRoutineName(afterHeaderIndex headerIndex: Int, in lines: [String]) -> (index: Int, name: String)? {
+        let upperBound = min(lines.count, headerIndex + 4)
+        for index in (headerIndex + 1)..<upperBound {
+            let line = lines[index].trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !line.isEmpty else { continue }
+            if parseTimeRange(in: line) != nil { continue }
+
+            let hasDigits = line.range(of: #"\d"#, options: .regularExpression) != nil
+            let hasComma = line.contains(",")
+            let wordCount = line.split(whereSeparator: { $0.isWhitespace }).count
+
+            if !hasDigits && !hasComma && wordCount <= 5 && line.count <= 40 {
+                return (index, line)
+            }
+            break
+        }
+        return nil
+    }
+
     func isDateHeaderLine(_ line: String) -> Bool {
-        let range = NSRange(location: 0, length: line.utf16.count)
-        return dateExtractorRegex.firstMatch(in: line, options: [], range: range) != nil
+        let normalized = normalizeHeaderForDateExtraction(line)
+        let range = NSRange(location: 0, length: normalized.utf16.count)
+        return dateExtractorRegex.firstMatch(in: normalized, options: [], range: range) != nil
     }
 
     func parseDateHeader(_ headerLine: String) -> (date: Date?, routineNameRaw: String?) {
-        let nsRange = NSRange(location: 0, length: headerLine.utf16.count)
-        guard let match = dateExtractorRegex.firstMatch(in: headerLine, options: [], range: nsRange),
-              let monthRange = Range(match.range(at: 1), in: headerLine),
-              let dayRange = Range(match.range(at: 2), in: headerLine),
-              let yearRange = Range(match.range(at: 3), in: headerLine),
-              let day = Int(headerLine[dayRange]),
-              let year = Int(headerLine[yearRange]) else {
+        let normalizedHeader = normalizeHeaderForDateExtraction(headerLine)
+        let nsRange = NSRange(location: 0, length: normalizedHeader.utf16.count)
+
+        guard let match = dateExtractorRegex.firstMatch(in: normalizedHeader, options: [], range: nsRange),
+              let monthRange = Range(match.range(at: 1), in: normalizedHeader),
+              let dayRange = Range(match.range(at: 2), in: normalizedHeader),
+              let yearRange = Range(match.range(at: 3), in: normalizedHeader),
+              let day = Int(normalizedHeader[dayRange]),
+              let year = Int(normalizedHeader[yearRange]) else {
             return (nil, nil)
         }
 
-        let monthToken = String(headerLine[monthRange]).lowercased()
+        let monthToken = String(normalizedHeader[monthRange]).lowercased()
         let month = monthNumber(from: monthToken)
 
         var date: Date?
@@ -237,11 +277,9 @@ private extension NotesImportParser {
         }
 
         let matchRange = match.range
-        let prefix = (headerLine as NSString).substring(to: matchRange.location)
-        let suffixStart = matchRange.location + matchRange.length
-        let suffix = (headerLine as NSString).substring(from: suffixStart)
-
-        var routine = "\(prefix) \(suffix)"
+        var routine = normalizedHeader
+        routine = (routine as NSString).replacingCharacters(in: matchRange, with: " ")
+        routine = routine
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .trimmingCharacters(in: CharacterSet(charactersIn: ",-:|"))
@@ -434,9 +472,57 @@ private extension NotesImportParser {
         let isCardioByKeyword = ["run", "running", "bike", "cycling", "swim", "walk", "treadmill", "indoor"]
             .contains(where: { lowerName.contains($0) || lowerTail.contains($0) })
 
-        let distance = parseDistance(in: tail)
-        let duration = parseDuration(in: tail)
-        let pace = parsePace(in: tail)
+        let tokens = tail
+            .split(separator: ",", omittingEmptySubsequences: false)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+        var duration: Int?
+        var distance: (value: Double, unit: DistanceUnit)?
+        var pace: Int?
+        var telemetryNotes: [String] = []
+
+        for token in tokens where !token.isEmpty {
+            var consumed = false
+
+            if duration == nil, let parsedDuration = parseDuration(in: token) {
+                duration = parsedDuration
+                consumed = true
+            }
+
+            if distance == nil, let parsedDistance = parseDistance(in: token) {
+                distance = parsedDistance
+                consumed = true
+            }
+
+            if pace == nil, let parsedPace = parsePace(in: token) {
+                pace = parsedPace
+                consumed = true
+            }
+
+            if let speed = parseSpeed(in: token) {
+                telemetryNotes.append("Speed: \(speed)")
+                consumed = true
+            }
+
+            if let power = parsePower(in: token) {
+                telemetryNotes.append("Power: \(power)W")
+                consumed = true
+            }
+
+            if let cadence = parseCadence(in: token) {
+                telemetryNotes.append("Cadence: \(cadence) RPM")
+                consumed = true
+            }
+
+            if let level = parseLevel(in: token) {
+                telemetryNotes.append("Level: \(level)")
+                consumed = true
+            }
+
+            if !consumed && isStructuredTelemetryToken(token) {
+                telemetryNotes.append(token)
+            }
+        }
 
         let hasCardioMetrics = distance != nil || duration != nil || pace != nil
         guard isCardioByKeyword && hasCardioMetrics else {
@@ -450,7 +536,8 @@ private extension NotesImportParser {
             paceSeconds: pace
         )
 
-        return ParsedCardio(exerciseNameRaw: name, sets: [cardioSet], notes: nil)
+        let notes = telemetryNotes.isEmpty ? nil : telemetryNotes.joined(separator: "; ")
+        return ParsedCardio(exerciseNameRaw: name, sets: [cardioSet], notes: notes)
     }
 
     func allSetDescriptors(in text: String) -> [DescriptorToken] {
@@ -552,6 +639,13 @@ private extension NotesImportParser {
     }
 
     func parseDuration(in text: String) -> Int? {
+        let clockWithOptionalSuffixPattern = #"\b(\d{1,2}):(\d{2})\s*(m|min|mins|minute|minutes)?\b"#
+        if let match = firstMatch(of: clockWithOptionalSuffixPattern, in: text, options: .caseInsensitive),
+           let minutes = intCapture(match: match, index: 1, in: text),
+           let seconds = intCapture(match: match, index: 2, in: text) {
+            return (minutes * 60) + seconds
+        }
+
         if let match = matches(for: durationClockRegex, in: text).first,
            let minutes = intCapture(match: match, index: 1, in: text),
            let seconds = intCapture(match: match, index: 2, in: text) {
@@ -581,6 +675,58 @@ private extension NotesImportParser {
         }
 
         return nil
+    }
+
+    func parseSpeed(in text: String) -> String? {
+        guard let match = matches(for: speedRegex, in: text).first,
+              let valueRange = Range(match.range(at: 1), in: text),
+              let unitRange = Range(match.range(at: 2), in: text) else {
+            return nil
+        }
+
+        let value = String(text[valueRange])
+        let unitToken = String(text[unitRange]).lowercased()
+        let unitLabel: String
+        switch unitToken {
+        case "mph":
+            unitLabel = "mph"
+        case "kph", "km/h":
+            unitLabel = "km/h"
+        default:
+            unitLabel = unitToken
+        }
+
+        return "\(value) \(unitLabel)"
+    }
+
+    func parsePower(in text: String) -> Int? {
+        guard let match = firstMatch(of: #"\b(\d{2,4})\s*w\b"#, in: text, options: .caseInsensitive),
+              let value = intCapture(match: match, index: 1, in: text) else {
+            return nil
+        }
+        return value
+    }
+
+    func parseCadence(in text: String) -> Int? {
+        guard let match = firstMatch(of: #"\b(\d{2,3})\s*rpm\b"#, in: text, options: .caseInsensitive),
+              let value = intCapture(match: match, index: 1, in: text) else {
+            return nil
+        }
+        return value
+    }
+
+    func parseLevel(in text: String) -> Int? {
+        guard let match = firstMatch(of: #"\blevel\s*(\d{1,3})\b"#, in: text, options: .caseInsensitive),
+              let value = intCapture(match: match, index: 1, in: text) else {
+            return nil
+        }
+        return value
+    }
+
+    func isStructuredTelemetryToken(_ token: String) -> Bool {
+        let hasLetter = token.range(of: #"[A-Za-z]"#, options: .regularExpression) != nil
+        let hasDigit = token.range(of: #"\d"#, options: .regularExpression) != nil
+        return hasLetter && hasDigit
     }
 
     func generateImportHash(for text: String) -> String {

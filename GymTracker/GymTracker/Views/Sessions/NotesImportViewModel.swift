@@ -182,9 +182,12 @@ final class NotesImportViewModel: ObservableObject {
                 resolutionState.routineMode = .matched
                 resolutionState.selectedRoutineId = matched.id
             } else {
-                resolutionState.routineMode = .createNew
+                let draftRoutineName = (currentDraft?.routineNameRaw ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+
+                resolutionState.routineMode = draftRoutineName.isEmpty ? .none : .createNew
                 resolutionState.selectedRoutineId = nil
-                resolutionState.newRoutineName = (currentDraft?.routineNameRaw ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                resolutionState.newRoutineName = draftRoutineName
             }
         } catch {
             resolutionState.errorMessage = "Routine resolution failed: \(error.localizedDescription)"

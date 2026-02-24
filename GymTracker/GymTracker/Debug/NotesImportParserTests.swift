@@ -16,7 +16,9 @@ final class NotesImportParserDebug {
             test3_BarDefaultWeight(),
             test4_ChainedSegmentsAndFractionalReps(),
             test5_BatchSplitAndCrossMidnight(),
-            test6_UnknownLinesPreserved()
+            test6_UnknownLinesPreserved(),
+            test7_CardioTelemetrySample(),
+            test8_HeaderNormalizationFormats()
         ]
 
         let passCount = results.filter { $0 }.count
@@ -180,19 +182,98 @@ final class NotesImportParserDebug {
         return ok
     }
 
+    @discardableResult
+    private static func test7_CardioTelemetrySample() -> Bool {
+        let parser = NotesImportParser()
+        let input = """
+        January 22, 2025, Cardio
+        1. Indoor cycle, 181W, 71RPM, 34.1KM/H, level 50, 4:01m, 2.25km
+        """
+
+        let draft = parser.parseSingleSession(from: input, defaultWeightUnit: .kg)
+        printDraftSummary("test7", draft)
+
+        var ok = true
+        if case .cardio(let cardio)? = draft.items.first {
+            let set = cardio.sets.first
+            ok = ok && check("test7", set?.durationSeconds == 241, "Expected durationSeconds=241")
+            ok = ok && check("test7", set?.distance == 2.25, "Expected distance=2.25")
+            ok = ok && check("test7", set?.distanceUnit == .km, "Expected distance unit km")
+
+            let notes = cardio.notes ?? ""
+            ok = ok && check("test7", notes.contains("Power: 181W"), "Expected power telemetry in notes")
+            ok = ok && check("test7", notes.contains("Cadence: 71 RPM"), "Expected cadence telemetry in notes")
+            ok = ok && check("test7", notes.contains("Speed: 34.1 km/h"), "Expected speed telemetry in notes")
+            ok = ok && check("test7", notes.contains("Level: 50"), "Expected level telemetry in notes")
+        } else {
+            ok = false
+            print("[test7] FAIL: Expected first item to be cardio")
+        }
+
+        print("[test7] \(ok ? "PASS" : "FAIL")")
+        return ok
+    }
+
+    @discardableResult
+    private static func test8_HeaderNormalizationFormats() -> Bool {
+        let parser = NotesImportParser()
+
+        let sample1 = parser.parseSingleSession(
+            from: """
+            Push, January, 22, 2025
+            Bench Press, 3x8, 185lbs
+            """,
+            defaultWeightUnit: .lb
+        )
+
+        let sample2 = parser.parseSingleSession(
+            from: """
+            January, 22, 2025
+            Push day
+            Bench Press, 3x8, 185lbs
+            """,
+            defaultWeightUnit: .lb
+        )
+
+        let sample3 = parser.parseSingleSession(
+            from: """
+            September 30, 2025 - Back and bicep
+            Lat pull, 3x10, 130 pounds
+            """,
+            defaultWeightUnit: .lb
+        )
+
+        printDraftSummary("test8-1", sample1)
+        printDraftSummary("test8-2", sample2)
+        printDraftSummary("test8-3", sample3)
+
+        var ok = true
+        ok = ok && check("test8", sample1.parsedDate != nil, "Expected date parse for comma-heavy header")
+        ok = ok && check("test8", sample1.routineNameRaw == "Push", "Expected routine 'Push' from comma-heavy header")
+
+        ok = ok && check("test8", sample2.parsedDate != nil, "Expected date parse for 'January, 22, 2025'")
+        ok = ok && check("test8", sample2.routineNameRaw == "Push day", "Expected fallback routine 'Push day'")
+
+        ok = ok && check("test8", sample3.parsedDate != nil, "Expected date parse for suffix routine header")
+        ok = ok && check("test8", sample3.routineNameRaw == "Back and bicep", "Expected routine extraction for suffix header")
+
+        print("[test8] \(ok ? "PASS" : "FAIL")")
+        return ok
+    }
+
     private static func printDraftSummary(_ test: String, _ draft: NotesImportDraft) {
         print("[\(test)] header routine=\(draft.routineNameRaw ?? "nil") date=\(draft.parsedDate?.formatted(date: .abbreviated, time: .omitted) ?? "nil") items=\(draft.items.count) warnings=\(draft.warnings.count) unknown=\(draft.unknownLines.count)")
 
         for item in draft.items {
             switch item {
             case .strength(let strength):
-                let setDescription = strength.sets.map { "\($0.reps)x @\($0.weight.map { String($0) } ?? "nil") \($0.weightUnit.rawValue)" }.joined(separator: " | ")
+                let setDescription = strength.sets.map { "\($0.reps)x @\($0.weight.map { String($0) } ?? "nil") \($0.weightUnit.name)" }.joined(separator: " | ")
                 print("[\(test)] strength \(strength.exerciseNameRaw): \(setDescription)")
             case .cardio(let cardio):
                 let setDescription = cardio.sets.map { set in
                     "dur=\(set.durationSeconds.map { String($0) } ?? "nil") dist=\(set.distance.map { String($0) } ?? "nil") \(set.distanceUnit.rawValue) pace=\(set.paceSeconds.map { String($0) } ?? "nil")"
                 }.joined(separator: " | ")
-                print("[\(test)] cardio \(cardio.exerciseNameRaw): \(setDescription)")
+                print("[\(test)] cardio \(cardio.exerciseNameRaw): \(setDescription) notes=\(cardio.notes ?? "nil")")
             }
         }
     }

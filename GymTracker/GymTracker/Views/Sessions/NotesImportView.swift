@@ -7,6 +7,7 @@ struct NotesImportView: View {
 
     @StateObject private var viewModel = NotesImportViewModel()
     @State private var exercisePickerRawName: String?
+    @State private var draftDecisions: [Int: DraftDecision] = [:]
 
     let currentUserId: UUID?
     var onImportCompleted: (() -> Void)? = nil
@@ -28,8 +29,7 @@ struct NotesImportView: View {
             Button("Cancel", role: .cancel) { }
             Button("Import Anyway") {
                 if viewModel.importDuplicateAnyway() {
-                    onImportCompleted?()
-                    dismiss()
+                    markCurrentDraftConfirmedAndAdvance()
                 }
             }
         } message: {
@@ -134,6 +134,36 @@ struct NotesImportView: View {
                 .disabled(viewModel.currentDraftIndex >= viewModel.batch.drafts.count - 1)
             }
             .font(.footnote)
+
+            HStack(spacing: 10) {
+                Button {
+                    confirmCurrentDraft()
+                } label: {
+                    if viewModel.isCommitting {
+                        ProgressView()
+                    } else {
+                        Text("Confirm This Import")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(currentDraftDecision != nil || viewModel.isCommitting)
+
+                Button("Deny This Import", role: .destructive) {
+                    denyCurrentDraft()
+                }
+                .buttonStyle(.bordered)
+                .disabled(currentDraftDecision != nil || viewModel.isCommitting)
+            }
+
+            if let decision = currentDraftDecision {
+                Text("Decision: \(decision.title)")
+                    .font(.footnote)
+                    .foregroundStyle(decision.color)
+            } else {
+                Text("Decision: Pending")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -348,32 +378,17 @@ struct NotesImportView: View {
 
     private var actionsSection: some View {
         VStack(spacing: 10) {
-            HStack(spacing: 10) {
-                Button("Re-Resolve") {
-                    viewModel.resolveRoutine()
-                    viewModel.resolveExercise()
-                }
-                .buttonStyle(.bordered)
-
-                Button {
-                    if viewModel.confirmImport() {
-                        onImportCompleted?()
-                        dismiss()
-                    }
-                } label: {
-                    if viewModel.isCommitting {
-                        ProgressView()
-                    } else {
-                        Text("Confirm Import")
-                    }
-                }
-                .buttonStyle(.borderedProminent)
+            Button("Re-Resolve") {
+                viewModel.resolveRoutine()
+                viewModel.resolveExercise()
             }
+            .buttonStyle(.bordered)
 
             Button("Back to Paste") {
                 viewModel.batch = NotesImportBatch(drafts: [])
                 viewModel.currentDraftIndex = 0
                 viewModel.resolutionState = .empty
+                draftDecisions = [:]
             }
             .buttonStyle(.bordered)
         }
@@ -413,5 +428,73 @@ struct NotesImportView: View {
         }
 
         return [.existing, .createNew]
+    }
+
+    private var currentDraftDecision: DraftDecision? {
+        draftDecisions[viewModel.currentDraftIndex]
+    }
+
+    private func confirmCurrentDraft() {
+        guard viewModel.confirmImport() else { return }
+        markCurrentDraftConfirmedAndAdvance()
+    }
+
+    private func markCurrentDraftConfirmedAndAdvance() {
+        draftDecisions[viewModel.currentDraftIndex] = .confirmed
+        advanceOrFinishReview()
+    }
+
+    private func denyCurrentDraft() {
+        draftDecisions[viewModel.currentDraftIndex] = .denied
+        advanceOrFinishReview()
+    }
+
+    private func advanceOrFinishReview() {
+        if let nextIndex = nextPendingDraftIndex(after: viewModel.currentDraftIndex) {
+            viewModel.setCurrentDraftIndex(nextIndex)
+            return
+        }
+
+        if let firstPending = nextPendingDraftIndex(after: -1) {
+            viewModel.setCurrentDraftIndex(firstPending)
+            return
+        }
+
+        if draftDecisions.values.contains(.confirmed) {
+            onImportCompleted?()
+        }
+        dismiss()
+    }
+
+    private func nextPendingDraftIndex(after index: Int) -> Int? {
+        for candidate in (index + 1)..<viewModel.batch.drafts.count {
+            if draftDecisions[candidate] == nil {
+                return candidate
+            }
+        }
+        return nil
+    }
+}
+
+private enum DraftDecision: Equatable {
+    case confirmed
+    case denied
+
+    var title: String {
+        switch self {
+        case .confirmed:
+            return "Confirmed"
+        case .denied:
+            return "Denied"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .confirmed:
+            return .green
+        case .denied:
+            return .red
+        }
     }
 }
