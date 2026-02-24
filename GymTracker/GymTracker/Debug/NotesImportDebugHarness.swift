@@ -11,6 +11,7 @@ final class NotesImportDebugHarness {
         print("=== NotesImportDebugHarness start ===")
         NotesImportParserDebug.runSamples()
         NotesImportResolverDebug.runSamples()
+        NotesImportWriterDebug.runSamples()
         print("=== NotesImportDebugHarness done ===")
     }
 }
