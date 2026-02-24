@@ -7,8 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		6500F51E2F4E1CFD00472D60 /* agent_phase_prompts.txt in Resources */ = {isa = PBXBuildFile; fileRef = 6500F5172F4E1CFD00472D60 /* agent_phase_prompts.txt */; };
+		6500F51F2F4E1CFD00472D60 /* NutritionImplementation.md in Resources */ = {isa = PBXBuildFile; fileRef = 6500F51B2F4E1CFD00472D60 /* NutritionImplementation.md */; };
+		6500F5202F4E1CFD00472D60 /* notes_import_implementation.md in Resources */ = {isa = PBXBuildFile; fileRef = 6500F5192F4E1CFD00472D60 /* notes_import_implementation.md */; };
+		6500F5212F4E1CFD00472D60 /* notes_import_architecture.md in Resources */ = {isa = PBXBuildFile; fileRef = 6500F5182F4E1CFD00472D60 /* notes_import_architecture.md */; };
 		65B6FEC42EE5EF8700DB4EED /* GymTrackerWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 65B6FEBA2EE5EF8500DB4EED /* GymTrackerWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		65EEEBCA2F4CA74600C0CE4C /* NutritionImplementation.md in Resources */ = {isa = PBXBuildFile; fileRef = 65EEEBC92F4CA73900C0CE4C /* NutritionImplementation.md */; };
 		65F66C1D2EE4FD780089B62E /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 65F66C1C2EE4FD780089B62E /* WidgetKit.framework */; };
 		65F66C1F2EE4FD780089B62E /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 65F66C1E2EE4FD780089B62E /* SwiftUI.framework */; };
 		65F66C302EE4FD790089B62E /* TrackerWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 65F66C1A2EE4FD780089B62E /* TrackerWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -57,9 +60,12 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		6500F5172F4E1CFD00472D60 /* agent_phase_prompts.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = agent_phase_prompts.txt; sourceTree = "<group>"; };
+		6500F5182F4E1CFD00472D60 /* notes_import_architecture.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = notes_import_architecture.md; sourceTree = "<group>"; };
+		6500F5192F4E1CFD00472D60 /* notes_import_implementation.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = notes_import_implementation.md; sourceTree = "<group>"; };
+		6500F51B2F4E1CFD00472D60 /* NutritionImplementation.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = NutritionImplementation.md; sourceTree = "<group>"; };
 		651FCBAD2E8D3B9C00AC42F6 /* GymTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GymTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		65B6FEBA2EE5EF8500DB4EED /* GymTrackerWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "GymTrackerWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		65EEEBC92F4CA73900C0CE4C /* NutritionImplementation.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = NutritionImplementation.md; sourceTree = "<group>"; };
 		65F66C1A2EE4FD780089B62E /* TrackerWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TrackerWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		65F66C1C2EE4FD780089B62E /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		65F66C1E2EE4FD780089B62E /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
@@ -180,10 +186,37 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		6500F51A2F4E1CFD00472D60 /* notes_import */ = {
+			isa = PBXGroup;
+			children = (
+				6500F5172F4E1CFD00472D60 /* agent_phase_prompts.txt */,
+				6500F5182F4E1CFD00472D60 /* notes_import_architecture.md */,
+				6500F5192F4E1CFD00472D60 /* notes_import_implementation.md */,
+			);
+			path = notes_import;
+			sourceTree = "<group>";
+		};
+		6500F51C2F4E1CFD00472D60 /* nutrition */ = {
+			isa = PBXGroup;
+			children = (
+				6500F51B2F4E1CFD00472D60 /* NutritionImplementation.md */,
+			);
+			path = nutrition;
+			sourceTree = "<group>";
+		};
+		6500F51D2F4E1CFD00472D60 /* Docs */ = {
+			isa = PBXGroup;
+			children = (
+				6500F51A2F4E1CFD00472D60 /* notes_import */,
+				6500F51C2F4E1CFD00472D60 /* nutrition */,
+			);
+			path = Docs;
+			sourceTree = "<group>";
+		};
 		651FCBA42E8D3B9B00AC42F6 = {
 			isa = PBXGroup;
 			children = (
-				65EEEBC92F4CA73900C0CE4C /* NutritionImplementation.md */,
+				6500F51D2F4E1CFD00472D60 /* Docs */,
 				651FCBAF2E8D3B9C00AC42F6 /* GymTracker */,
 				65F66C202EE4FD780089B62E /* TrackerWidget */,
 				65B6FEBB2EE5EF8500DB4EED /* GymTrackerWatch Watch App */,
@@ -331,7 +364,10 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				65EEEBCA2F4CA74600C0CE4C /* NutritionImplementation.md in Resources */,
+				6500F51E2F4E1CFD00472D60 /* agent_phase_prompts.txt in Resources */,
+				6500F51F2F4E1CFD00472D60 /* NutritionImplementation.md in Resources */,
+				6500F5202F4E1CFD00472D60 /* notes_import_implementation.md in Resources */,
+				6500F5212F4E1CFD00472D60 /* notes_import_architecture.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -518,7 +554,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = GymTracker/GymTracker.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 12;
 				DEVELOPMENT_TEAM = VHCWBN8GY3;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -580,7 +616,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = GymTracker/GymTracker.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 12;
 				DEVELOPMENT_TEAM = VHCWBN8GY3;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;

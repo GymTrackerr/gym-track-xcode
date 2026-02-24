@@ -1,0 +1,292 @@
+GymTracker Notes Import — Agent Prompts (Copy/Paste)
+================================================
+
+How to use
+----------
+- Run ONE phase per agent run.
+- Paste the entire phase prompt block.
+- Do not let the agent “also do” later phases.
+- After each phase, build + run the app and verify.
+
+Global constraints (always include)
+-----------------------------------
+You are working inside an existing SwiftUI + SwiftData project called GymTracker.
+
+You MUST follow BOTH spec docs strictly:
+1) notes_import_architecture.md
+2) notes_import_implementation.md
+
+The architecture doc defines constraints and must NOT be violated.
+The implementation doc defines structure and details.
+
+Hard constraints:
+- All changes must be non-destructive.
+- Do NOT change existing required fields’ types.
+- Do NOT make SessionRep.weight/count optional.
+- Cardio is ExerciseType.run | .bike | .swim via ExerciseType.isCardio (no .cardio case).
+- SessionRep.weight remains TOTAL weight used for workload (rep.weight * rep.count stays).
+- Import must NOT mutate Routine template exercises/order/state (only assign routine to sessions; optional alias add).
+- All resolver/duplicate/writer logic MUST be scoped to currentUserId; no global queries.
+
+Behavior constraints:
+- Parsing/preview is allowed without userId, but commit is blocked until currentUserId exists.
+- Batch import: per draft all-or-nothing. One draft failure does not block other drafts.
+- Writer transaction: create objects → try context.save(); on failure context.rollback(); keep draft editable with suggestions.
+- Time parsing: only HH:mm-HH:mm; device timezone; if end < start then +1 day; if missing end then timestampDone = timestamp + 60m (warn).
+- Weightless sets persistence: weight=0, unit=defaultWeightUnit (fallback .lb), add rep note.
+
+UI constraints:
+- Paste input uses SwiftUI TextEditor (multiline).
+- Parse occurs only on “Parse” button tap (no live parsing on change).
+
+Return format:
+- Return only the changed/new files for the phase.
+- Include a short “Build verification checklist” for what I should test after this phase.
+- Ask me any MAJOR questions that block progress BEFORE writing code; otherwise make reasonable defaults consistent with the spec.
+
+================================================
+PHASE 0 — Preflight scan (NO CODE CHANGES)
+================================================
+Task:
+- Read the two spec docs (notes_import_architecture.md, notes_import_implementation.md).
+- Inspect current project for relevant models/services/views:
+  Session, Routine, Exercise, SessionEntry, SessionSet, SessionRep, existing SessionService/SetService/ExerciseService,
+  Sessions screen toolbar, and any existing import/export/backup services.
+- Identify any conflicts with the spec (types, required fields, relationships, naming).
+- Output:
+  1) A list of files you plan to modify in later phases.
+  2) Any blocking questions (max 5).
+Rules:
+- Do NOT change any code in this phase.
+
+================================================
+PHASE 1 — Model extensions ONLY (NON-DESTRUCTIVE)
+================================================
+Implement Phase 1 ONLY.
+
+Rules:
+- No parser, no UI, no writer, no DB commit flow.
+- Do NOT modify existing initializer signatures.
+- New fields must be optional or have safe defaults.
+- App must compile and launch.
+
+Tasks:
+1) Update SessionSet:
+   - durationSeconds: Int? = nil
+   - distance: Double? = nil
+   - paceSeconds: Int? = nil
+   - distanceUnitRaw: String? = nil
+   - restSeconds: Int? = nil
+   - Add DistanceUnit enum (km/mi) and computed property distanceUnit (backed by distanceUnitRaw).
+
+2) Update SessionRep:
+   - baseWeight: Double? = nil
+   - perSideWeight: Double? = nil
+   - isPerSide: Bool = false
+   - Add derivedTotalWeight helper (UI helper only) that computes base + side*2 if fields exist.
+   - IMPORTANT: SessionRep.weight remains TOTAL weight used for workload.
+
+3) Update Session:
+   - importHash: String? = nil
+
+4) Update Routine:
+   - aliases: [String] = [] (default empty)
+
+Output:
+- Only modified model files.
+
+Build verification checklist:
+- Launch app and open existing sessions list and a session detail.
+- Create a new session and add a set/rep.
+- Verify no SwiftData migration crash.
+
+================================================
+PHASE 2 — Import domain models ONLY (NO SwiftData writes)
+================================================
+Implement Phase 2 ONLY.
+
+Rules:
+- Do NOT modify database models in this phase.
+- Do NOT modify UI in this phase.
+- Do NOT query SwiftData in this phase.
+
+Tasks:
+- Create NotesImportModels.swift defining:
+  NotesImportBatch, NotesImportDraft, ParsedItem, ParsedStrength, ParsedStrengthSet,
+  ParsedCardio, ParsedCardioSet.
+- Ensure models include:
+  - originalText
+  - parsedDate/startTime/endTime/routineNameRaw
+  - items, unknownLines, warnings
+  - importHash (per session block)
+  - user-supplied defaultWeightUnit will be passed into parser/writer (not stored globally)
+
+Output:
+- Only the new NotesImportModels.swift file.
+
+Build verification:
+- App compiles.
+
+================================================
+PHASE 3 — Parser skeleton + core parsing (PURE SWIFT)
+================================================
+Implement Phase 3 ONLY.
+
+Rules:
+- No SwiftData reads/writes.
+- No UI changes.
+- Pure Swift logic.
+- Deterministic; no background tasks.
+
+Tasks:
+- Create NotesImportParser.swift with API:
+  parseBatch(from: String, defaultWeightUnit: WeightUnit) -> NotesImportBatch
+  parseSingleSession(from: String, defaultWeightUnit: WeightUnit) -> NotesImportDraft
+
+Parsing requirements:
+- Batch splitting by date header lines.
+- Date formats: “December 15, 2025” and “Nov 15, 2022”; handle optional “, legs” routine suffix.
+- Time range parsing: HH:mm-HH:mm (cross-midnight supported).
+- Strength lines:
+  - numbered prefix “1.” optional
+  - parse multiple set segments: “2x10, 205lbs, 1x10, 225lbs”
+  - parse “sets of”: “3 sets of 10”
+  - parse rest: “1:30m rest” → restSeconds
+  - per-side + bar: “35kg per side, 20kg bar” → store baseWeight/perSideWeight/isPerSide and ALSO compute total weight for persistence later.
+- Cardio lines (run/bike/swim keywords + distance/duration):
+  - parse “5km, 29min”; “1km, 5:15min”; “20min, 2km”; optional pace tokens like “9:36av”
+  - store cardio fields on ParsedCardioSet (distance/duration/pace + distance unit)
+- Unknown lines collected (do not discard).
+
+Hash requirements:
+- Generate importHash per session block AFTER splitting, using canonical normalization described in spec.
+
+Output:
+- NotesImportParser.swift (+ any small helper file NotesImportParsingHelpers.swift if needed).
+
+Build verification:
+- Add a small debug-only unit test or sample invocation in a separate DEBUG-only file (no UI integration yet),
+  OR provide an example snippet I can run in a playground to validate parsing.
+
+Major questions to ask me before coding:
+- If any ambiguity about date parsing locale (assume English month names unless I say otherwise).
+- Whether to treat “Started watch…” as note line (default yes; append to session notes).
+
+================================================
+PHASE 4 — Resolver (user-scoped matching + alias writeback)
+================================================
+Implement Phase 4 ONLY.
+
+Rules:
+- Must accept currentUserId and scope queries.
+- No UI work yet.
+- No commit/writer logic yet.
+
+Tasks:
+- Create NotesImportResolver.swift:
+  - resolveRoutine(routineNameRaw, userId, context) -> resolved routine or nil
+  - resolveExercises(set of raw names, userId, context) -> map rawName -> candidates/resolved
+- Normalization: lowercase, punctuation→space, collapse whitespace, trim.
+- Alias behavior:
+  - Routine aliases: optional add if user selects “remember alias”
+  - Exercise aliases already exist: optional add similarly
+- Must NOT modify routine template exercises/order/state.
+
+Output:
+- NotesImportResolver.swift
+
+Build verification:
+- App compiles.
+
+================================================
+PHASE 5 — Writer service (SwiftData commit per draft + rollback)
+================================================
+Implement Phase 5 ONLY.
+
+Rules:
+- Use dedicated NotesImportWriterService (do not rely on SessionService UI state methods).
+- One transaction per draft. try save; on failure rollback.
+- Must require userId.
+- Must block commit if parsedDate is nil (require user to pick date in UI later).
+
+Tasks:
+- Create NotesImportWriterService.swift with:
+  commit(draft: NotesImportDraft, resolution: ..., userId: UUID, context: ModelContext, defaultWeightUnit: WeightUnit) throws -> Session
+- Persistence rules:
+  - Strength: create SessionEntry/SessionSet/SessionRep(s)
+    - Weightless sets: create rep with weight=0, unit=defaultWeightUnit, add rep note.
+    - Per-side: persist rep.weight as TOTAL weight; also persist baseWeight/perSideWeight/isPerSide.
+  - Cardio: create SessionSet with cardio fields; DO NOT create reps.
+  - timestamp mapping: per spec; if end missing set timestampDone = timestamp + 60m with warning in notes.
+  - Append leftover lines and warnings into Session notes (do not lose data).
+- Duplicate detection:
+  - Query sessions for userId + importHash match; return a duplicate flag for UI prompting (writer should not silently skip).
+
+Output:
+- NotesImportWriterService.swift (+ any tiny helper)
+
+Build verification:
+- App compiles. (No UI wiring yet.)
+
+Major questions to ask me before coding:
+- Confirm whether Session.timestampDone is non-optional in model; if optional, prefer nil over +60m.
+
+================================================
+PHASE 6 — SwiftUI Import Flow (TextEditor → Preview → Resolve → Confirm)
+================================================
+Implement Phase 6 ONLY.
+
+Rules:
+- No changes to existing session tracking flows beyond adding entry point in Phase 7.
+- Keep UI simple and deterministic.
+
+Tasks:
+- Create NotesImportView.swift + NotesImportViewModel.swift
+- Screen 1: Paste
+  - TextEditor for raw input
+  - Default unit picker (lb/kg)
+  - Parse button
+- Screen 2: Preview (for current draft)
+  - show parsed header fields + warnings + unknown lines
+  - allow selecting date if missing (DatePicker)
+  - allow selecting routine (existing / create / none)
+  - show unresolved exercises list and per-exercise resolution UI (pick existing / create new / add alias)
+  - duplicate warning prompt (“already imported; import anyway?”)
+  - confirm import button
+- Batch navigation: left/right (segmented control or swipe) through drafts.
+
+Output:
+- New view + view model files only.
+
+Build verification:
+- Present NotesImportView in isolation (temporary preview or debug route), ensure it compiles.
+
+Major questions to ask me before coding:
+- Whether to present as sheet or navigation push (default: sheet from Sessions toolbar).
+
+================================================
+PHASE 7 — Integration (Sessions toolbar entry point)
+================================================
+Implement Phase 7 ONLY.
+
+Rules:
+- Minimal integration.
+- Do not restructure navigation.
+
+Tasks:
+- Add “Import from Notes” button to Sessions toolbar.
+- Present NotesImportView as a sheet.
+- Ensure NotesImportView receives:
+  - ModelContext
+  - currentUserId (from your auth/user context)
+- After commit, dismiss and show imported sessions in sessions list (already filtered by user).
+
+Output:
+- Only modified sessions list view file(s) and any integration wiring.
+
+Build verification:
+- Run app → Sessions → Import from Notes → paste sample → parse → resolve → import → session appears.
+
+================================================
+END
+================================================
