@@ -86,7 +86,7 @@ struct ContentView: View {
         }
         .onAppear {
 #if DEBUG
-            NotesImportParserDebug.runSamples()
+            NotesImportDebugHarness.runAll()
 #endif
         }
         // 4.
