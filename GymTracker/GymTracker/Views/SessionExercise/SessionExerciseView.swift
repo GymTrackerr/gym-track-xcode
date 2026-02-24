@@ -18,6 +18,10 @@ struct SessionExerciseView: View {
     @State private var isDropSet: Bool = false
     @State private var draftUnit: WeightUnit = .lb
     @State private var draftReps: [RepDraft] = [RepDraft()]
+    @State private var cardioDurationText: String = ""
+    @State private var cardioDistanceText: String = ""
+    @State private var cardioPaceText: String = ""
+    @State private var cardioDistanceUnit: DistanceUnit = .km
 
     var body: some View {
         ScrollView {
@@ -116,34 +120,73 @@ struct SessionExerciseView: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
 
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Weight")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                    TextField("", value: $draftReps[0].weight, formatter: weightFormatter)
-                        .keyboardType(.decimalPad)
-                        .textFieldStyle(.roundedBorder)
+            if isCardioExercise {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Duration (sec)")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        TextField("", text: $cardioDurationText)
+                            .keyboardType(.numberPad)
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Distance")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        TextField("", text: $cardioDistanceText)
+                            .keyboardType(.decimalPad)
+                            .textFieldStyle(.roundedBorder)
+                    }
                 }
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Reps")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                    TextField("", value: $draftReps[0].reps, formatter: repsFormatter)
-                        .keyboardType(.numberPad)
-                        .textFieldStyle(.roundedBorder)
-                }
-            }
+                HStack(spacing: 12) {
+                    Picker("Unit", selection: $cardioDistanceUnit) {
+                        Text("km").tag(DistanceUnit.km)
+                        Text("mi").tag(DistanceUnit.mi)
+                    }
+                    .pickerStyle(.segmented)
 
-            Picker("Unit", selection: $draftUnit) {
-                ForEach(WeightUnit.allCases) { unit in
-                    Text(unit.name).tag(unit)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Pace (sec)")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        TextField("", text: $cardioPaceText)
+                            .keyboardType(.numberPad)
+                            .textFieldStyle(.roundedBorder)
+                    }
                 }
-            }
-            .pickerStyle(.segmented)
-            .onChange(of: draftUnit) { _, newValue in
-                updateDraftUnits(to: newValue)
+            } else {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Weight")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        TextField("", value: $draftReps[0].weight, formatter: weightFormatter)
+                            .keyboardType(.decimalPad)
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Reps")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        TextField("", value: $draftReps[0].reps, formatter: repsFormatter)
+                            .keyboardType(.numberPad)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                }
+
+                Picker("Unit", selection: $draftUnit) {
+                    ForEach(WeightUnit.allCases) { unit in
+                        Text(unit.name).tag(unit)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: draftUnit) { _, newValue in
+                    updateDraftUnits(to: newValue)
+                }
             }
 
             Button {
@@ -157,48 +200,50 @@ struct SessionExerciseView: View {
             }
             .buttonStyle(.borderedProminent)
 
-            Toggle("Drop Set", isOn: $isDropSet)
-                .onChange(of: isDropSet) { _, newValue in
-                    if !newValue {
-                        trimToSingleRep()
-                    } else if draftReps.isEmpty {
-                        draftReps = [RepDraft(unit: draftUnit)]
-                    }
-                }
-
-            if isDropSet {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Drop Set Reps")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-
-                    ForEach(draftReps.indices, id: \.self) { index in
-                        HStack(spacing: 12) {
-                            TextField("Weight", value: $draftReps[index].weight, formatter: weightFormatter)
-                                .keyboardType(.decimalPad)
-                                .textFieldStyle(.roundedBorder)
-                            TextField("Reps", value: $draftReps[index].reps, formatter: repsFormatter)
-                                .keyboardType(.numberPad)
-                                .textFieldStyle(.roundedBorder)
-                            if draftReps.count > 1 {
-                                Button(role: .destructive) {
-                                    draftReps.remove(at: index)
-                                } label: {
-                                    Image(systemName: "minus.circle")
-                                }
-                            }
+            if !isCardioExercise {
+                Toggle("Drop Set", isOn: $isDropSet)
+                    .onChange(of: isDropSet) { _, newValue in
+                        if !newValue {
+                            trimToSingleRep()
+                        } else if draftReps.isEmpty {
+                            draftReps = [RepDraft(unit: draftUnit)]
                         }
                     }
 
-                    Button {
-                        let previousWeight = draftReps.last?.weight ?? 0
-                        let previousReps = draftReps.last?.reps ?? 0
-                        draftReps.append(RepDraft(weight: previousWeight, reps: previousReps, unit: draftUnit))
-                    } label: {
-                        Label("Add Rep", systemImage: "plus.circle")
+                if isDropSet {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Drop Set Reps")
                             .font(.subheadline)
+                            .fontWeight(.semibold)
+
+                        ForEach(draftReps.indices, id: \.self) { index in
+                            HStack(spacing: 12) {
+                                TextField("Weight", value: $draftReps[index].weight, formatter: weightFormatter)
+                                    .keyboardType(.decimalPad)
+                                    .textFieldStyle(.roundedBorder)
+                                TextField("Reps", value: $draftReps[index].reps, formatter: repsFormatter)
+                                    .keyboardType(.numberPad)
+                                    .textFieldStyle(.roundedBorder)
+                                if draftReps.count > 1 {
+                                    Button(role: .destructive) {
+                                        draftReps.remove(at: index)
+                                    } label: {
+                                        Image(systemName: "minus.circle")
+                                    }
+                                }
+                            }
+                        }
+
+                        Button {
+                            let previousWeight = draftReps.last?.weight ?? 0
+                            let previousReps = draftReps.last?.reps ?? 0
+                            draftReps.append(RepDraft(weight: previousWeight, reps: previousReps, unit: draftUnit))
+                        } label: {
+                            Label("Add Rep", systemImage: "plus.circle")
+                                .font(.subheadline)
+                        }
+                        .buttonStyle(.borderless)
                     }
-                    .buttonStyle(.borderless)
                 }
             }
 
@@ -226,7 +271,25 @@ struct SessionExerciseView: View {
 
             ForEach(sessionEntry.sets.sorted { $0.order < $1.order }, id: \.id) { sessionSet in
                 VStack(alignment: .leading, spacing: 8) {
-                    if sessionSet.isDropSet {
+                    if isCardioExercise {
+                        HStack(spacing: 12) {
+                            setBadge(text: "\(sessionSet.order + 1)")
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(cardioSetSummaryText(for: sessionSet))
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+
+                                if let notes = sessionSet.notes, !notes.isEmpty {
+                                    Text(notes)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+
+                            Spacer()
+                        }
+                    } else if sessionSet.isDropSet {
                         ForEach(sessionSet.sessionReps.indices, id: \.self) { index in
                             let rep = sessionSet.sessionReps[index]
                             HStack(spacing: 12) {
@@ -259,7 +322,7 @@ struct SessionExerciseView: View {
                         }
                     }
 
-                    if sessionSet.isDropSet, let notes = sessionSet.notes, !notes.isEmpty {
+                    if !isCardioExercise, sessionSet.isDropSet, let notes = sessionSet.notes, !notes.isEmpty {
                         Text(notes)
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -280,21 +343,51 @@ struct SessionExerciseView: View {
 
             ForEach(sessionEntry.sets.sorted { $0.order < $1.order }, id: \.id) { sessionSet in
                 VStack(alignment: .leading, spacing: 8) {
-                    if sessionSet.sessionReps.isEmpty {
+                    if isCardioExercise {
                         HStack(spacing: 12) {
                             Image(systemName: "line.3.horizontal")
                                 .foregroundColor(.secondary)
 
                             setBadge(text: "\(sessionSet.order + 1)")
 
-                            if !sessionSet.isDropSet {
-                                Button {
-                                    addDropRep(to: sessionSet)
-                                } label: {
-                                    Image(systemName: "chevron.down.2")
+                            TextField(
+                                "Duration (sec)",
+                                text: intTextBinding(for: sessionSet, keyPath: \.durationSeconds)
+                            )
+                            .keyboardType(.numberPad)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 110)
+
+                            TextField(
+                                "Distance",
+                                text: doubleTextBinding(for: sessionSet, keyPath: \.distance)
+                            )
+                            .keyboardType(.decimalPad)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 90)
+
+                            Menu {
+                                Button("km") {
+                                    sessionSet.distanceUnit = .km
+                                    setService.saveSetData(sessionSet: sessionSet)
                                 }
-                                .buttonStyle(.borderless)
+                                Button("mi") {
+                                    sessionSet.distanceUnit = .mi
+                                    setService.saveSetData(sessionSet: sessionSet)
+                                }
+                            } label: {
+                                Text(sessionSet.distanceUnit.rawValue.uppercased())
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
+
+                            TextField(
+                                "Pace (sec)",
+                                text: intTextBinding(for: sessionSet, keyPath: \.paceSeconds)
+                            )
+                            .keyboardType(.numberPad)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 90)
 
                             Spacer()
 
@@ -305,79 +398,104 @@ struct SessionExerciseView: View {
                             }
                         }
                     } else {
-                        ForEach(sessionSet.sessionReps.indices, id: \.self) { index in
-                            let rep = sessionSet.sessionReps[index]
+                        if sessionSet.sessionReps.isEmpty {
                             HStack(spacing: 12) {
-                                if index == 0 {
-                                    Image(systemName: "line.3.horizontal")
-                                        .foregroundColor(.secondary)
-                                } else {
-                                    Color.clear
-                                        .frame(width: 18, height: 18)
-                                }
+                                Image(systemName: "line.3.horizontal")
+                                    .foregroundColor(.secondary)
 
-                                setBadge(text: badgeText(for: sessionSet, repIndex: index))
+                                setBadge(text: "\(sessionSet.order + 1)")
 
-                                TextField("Weight", value: binding(for: rep).weight, format: .number)
-                                    .keyboardType(.decimalPad)
-                                    .textFieldStyle(.roundedBorder)
-                                    .frame(width: 70)
-
-                                Menu {
-                                    ForEach(WeightUnit.allCases) { unit in
-                                        Button(unit.name) {
-                                            rep.weight_unit = unit.rawValue
-                                            setService.saveRepData(sessionRep: rep)
-                                        }
+                                if !sessionSet.isDropSet {
+                                    Button {
+                                        addDropRep(to: sessionSet)
+                                    } label: {
+                                        Image(systemName: "chevron.down.2")
                                     }
-                                } label: {
-                                    Text("\(rep.weightUnit.name)s x")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+                                    .buttonStyle(.borderless)
                                 }
-
-                                TextField("Reps", value: binding(for: rep).count, format: .number)
-                                    .keyboardType(.numberPad)
-                                    .textFieldStyle(.roundedBorder)
-                                    .frame(width: 60)
 
                                 Spacer()
 
-                                HStack(spacing: 8) {
+                                Button(role: .destructive) {
+                                    removeSet(sessionSet)
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
+                            }
+                        } else {
+                            ForEach(sessionSet.sessionReps.indices, id: \.self) { index in
+                                let rep = sessionSet.sessionReps[index]
+                                HStack(spacing: 12) {
                                     if index == 0 {
-                                        Button(role: .destructive) {
-                                            removeSet(sessionSet)
-                                        } label: {
-                                            Image(systemName: "trash")
-                                        }
+                                        Image(systemName: "line.3.horizontal")
+                                            .foregroundColor(.secondary)
+                                    } else {
+                                        Color.clear
+                                            .frame(width: 18, height: 18)
                                     }
 
-                                    if sessionSet.isDropSet {
-                                        if index == sessionSet.sessionReps.indices.last {
+                                    setBadge(text: badgeText(for: sessionSet, repIndex: index))
+
+                                    TextField("Weight", value: binding(for: rep).weight, format: .number)
+                                        .keyboardType(.decimalPad)
+                                        .textFieldStyle(.roundedBorder)
+                                        .frame(width: 70)
+
+                                    Menu {
+                                        ForEach(WeightUnit.allCases) { unit in
+                                            Button(unit.name) {
+                                                rep.weight_unit = unit.rawValue
+                                                setService.saveRepData(sessionRep: rep)
+                                            }
+                                        }
+                                    } label: {
+                                        Text("\(rep.weightUnit.name)s x")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+
+                                    TextField("Reps", value: binding(for: rep).count, format: .number)
+                                        .keyboardType(.numberPad)
+                                        .textFieldStyle(.roundedBorder)
+                                        .frame(width: 60)
+
+                                    Spacer()
+
+                                    HStack(spacing: 8) {
+                                        if index == 0 {
+                                            Button(role: .destructive) {
+                                                removeSet(sessionSet)
+                                            } label: {
+                                                Image(systemName: "trash")
+                                            }
+                                        }
+
+                                        if sessionSet.isDropSet {
+                                            if index == sessionSet.sessionReps.indices.last {
+                                                Button {
+                                                    addDropRep(to: sessionSet)
+                                                } label: {
+                                                    Image(systemName: "plus.circle")
+                                                }
+                                            }
+
+                                            if sessionSet.sessionReps.count > 1 {
+                                                Button(role: .destructive) {
+                                                    deleteRep(sessionSet: sessionSet, rep: rep)
+                                                } label: {
+                                                    Image(systemName: "minus.circle")
+                                                }
+                                            }
+                                        } else if index == 0 {
                                             Button {
                                                 addDropRep(to: sessionSet)
                                             } label: {
-                                                Image(systemName: "plus.circle")
+                                                Image(systemName: "chevron.down.2")
                                             }
-                                        }
-
-                                        if sessionSet.sessionReps.count > 1 {
-                                            Button(role: .destructive) {
-                                                deleteRep(sessionSet: sessionSet, rep: rep)
-                                            } label: {
-                                                Image(systemName: "minus.circle")
-                                            }
-                                        }
-                                    } else if index == 0 {
-                                        Button {
-                                            addDropRep(to: sessionSet)
-                                        } label: {
-                                            Image(systemName: "chevron.down.2")
                                         }
                                     }
                                 }
                             }
-
                         }
                     }
                 }
@@ -394,6 +512,10 @@ struct SessionExerciseView: View {
         }
 
         return "Timer"
+    }
+
+    private var isCardioExercise: Bool {
+        sessionEntry.exercise.exerciseType.isCardio
     }
 
     private var weightFormatter: NumberFormatter {
@@ -454,6 +576,11 @@ struct SessionExerciseView: View {
     }
 
     private func addSetFromDraft() {
+        if isCardioExercise {
+            addCardioSetFromDraft()
+            return
+        }
+
         let useDropSet = isDropSet && draftReps.count > 1
         guard let newSet = setService.addSet(sessionEntry: sessionEntry, notes: draftNotes, isDropSet: useDropSet) else { return }
 
@@ -462,6 +589,15 @@ struct SessionExerciseView: View {
             _ = setService.addRep(sessionSet: newSet, weight: draft.weight, reps: draft.reps, unit: draft.unit)
         }
 
+    }
+
+    private func addCardioSetFromDraft() {
+        guard let newSet = setService.addSet(sessionEntry: sessionEntry, notes: draftNotes, isDropSet: false) else { return }
+        newSet.durationSeconds = Int(cardioDurationText.trimmingCharacters(in: .whitespacesAndNewlines))
+        newSet.distance = Double(cardioDistanceText.trimmingCharacters(in: .whitespacesAndNewlines))
+        newSet.distanceUnit = cardioDistanceUnit
+        newSet.paceSeconds = Int(cardioPaceText.trimmingCharacters(in: .whitespacesAndNewlines))
+        setService.saveSetData(sessionSet: newSet)
     }
 
     private func removeSet(_ sessionSet: SessionSet) {
@@ -483,11 +619,63 @@ struct SessionExerciseView: View {
     }
 
     private func applyLastRepDefaultsIfNeeded() {
+        guard !isCardioExercise else { return }
         if let rep = setService.mostRecentRep(for: sessionEntry.exercise) {
             let unit = rep.weightUnit
             draftUnit = unit
             draftReps = [RepDraft(weight: rep.weight, reps: rep.count, unit: unit)]
         }
+    }
+
+    private func cardioSetSummaryText(for sessionSet: SessionSet) -> String {
+        var parts: [String] = []
+        if let duration = sessionSet.durationSeconds {
+            parts.append("Duration \(duration)s")
+        }
+        if let distance = sessionSet.distance {
+            parts.append("Distance \(distance.clean) \(sessionSet.distanceUnit.rawValue)")
+        }
+        if let pace = sessionSet.paceSeconds {
+            parts.append("Pace \(pace)s")
+        }
+        if parts.isEmpty {
+            return "Cardio set"
+        }
+        return parts.joined(separator: " • ")
+    }
+
+    private func intTextBinding(
+        for sessionSet: SessionSet,
+        keyPath: ReferenceWritableKeyPath<SessionSet, Int?>
+    ) -> Binding<String> {
+        Binding(
+            get: {
+                guard let value = sessionSet[keyPath: keyPath] else { return "" }
+                return String(value)
+            },
+            set: { newValue in
+                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                sessionSet[keyPath: keyPath] = Int(trimmed)
+                setService.saveSetData(sessionSet: sessionSet)
+            }
+        )
+    }
+
+    private func doubleTextBinding(
+        for sessionSet: SessionSet,
+        keyPath: ReferenceWritableKeyPath<SessionSet, Double?>
+    ) -> Binding<String> {
+        Binding(
+            get: {
+                guard let value = sessionSet[keyPath: keyPath] else { return "" }
+                return value.clean
+            },
+            set: { newValue in
+                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                sessionSet[keyPath: keyPath] = Double(trimmed)
+                setService.saveSetData(sessionSet: sessionSet)
+            }
+        )
     }
 
     private func setSummaryText(for sessionSet: SessionSet) -> String {

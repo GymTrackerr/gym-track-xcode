@@ -504,7 +504,7 @@ private extension NotesImportViewModel {
                 let exerciseName = trimmed.isEmpty ? rawName : trimmed
                 let newExercise = Exercise(
                     name: exerciseName,
-                    type: inferredExerciseType(from: rawName),
+                    type: inferredExerciseType(from: rawName, draft: draft),
                     user_id: userId,
                     isUserCreated: true
                 )
@@ -521,18 +521,42 @@ private extension NotesImportViewModel {
         )
     }
 
-    func inferredExerciseType(from rawName: String) -> ExerciseType {
+    func inferredExerciseType(from rawName: String, draft: NotesImportDraft) -> ExerciseType {
+        if case .some(.cardio) = parsedItem(for: rawName, in: draft) {
+            return inferCardioExerciseType(from: rawName)
+        }
+        return .weight
+    }
+
+    func inferCardioExerciseType(from rawName: String) -> ExerciseType {
         let lower = rawName.lowercased()
-        if lower.contains("run") || lower.contains("treadmill") || lower.contains("jog") {
-            return .run
+        if lower.contains("swim") {
+            return .swim
         }
         if lower.contains("bike") || lower.contains("cycle") {
             return .bike
         }
-        if lower.contains("swim") {
-            return .swim
+        if lower.contains("run")
+            || lower.contains("running")
+            || lower.contains("treadmill")
+            || lower.contains("jog")
+            || lower.contains("indoor run")
+            || lower.contains("walk") {
+            return .run
         }
-        return .weight
+        return .bike
+    }
+
+    func parsedItem(for rawName: String, in draft: NotesImportDraft) -> ParsedItem? {
+        let normalizedRawName = normalize(rawName)
+        return draft.items.first { item in
+            switch item {
+            case .strength(let strength):
+                return normalize(strength.exerciseNameRaw) == normalizedRawName
+            case .cardio(let cardio):
+                return normalize(cardio.exerciseNameRaw) == normalizedRawName
+            }
+        }
     }
 
     func normalize(_ text: String) -> String {
