@@ -147,6 +147,7 @@ struct SessionsView: View {
         .navigationDestination(isPresented: $showingNotesImport) {
             NotesImportView(currentUserId: userService.currentUser?.id) {
                 sessionService.loadSessions()
+                splitDayService.loadSplitDays()
                 showingNotesImport = false
             }
         }

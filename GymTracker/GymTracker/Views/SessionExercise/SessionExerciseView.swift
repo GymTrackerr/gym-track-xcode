@@ -344,57 +344,69 @@ struct SessionExerciseView: View {
             ForEach(sessionEntry.sets.sorted { $0.order < $1.order }, id: \.id) { sessionSet in
                 VStack(alignment: .leading, spacing: 8) {
                     if isCardioExercise {
-                        HStack(spacing: 12) {
-                            Image(systemName: "line.3.horizontal")
-                                .foregroundColor(.secondary)
-
-                            setBadge(text: "\(sessionSet.order + 1)")
-
-                            TextField(
-                                "Duration (sec)",
-                                text: intTextBinding(for: sessionSet, keyPath: \.durationSeconds)
-                            )
-                            .keyboardType(.numberPad)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 110)
-
-                            TextField(
-                                "Distance",
-                                text: doubleTextBinding(for: sessionSet, keyPath: \.distance)
-                            )
-                            .keyboardType(.decimalPad)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 90)
-
-                            Menu {
-                                Button("km") {
-                                    sessionSet.distanceUnit = .km
-                                    setService.saveSetData(sessionSet: sessionSet)
-                                }
-                                Button("mi") {
-                                    sessionSet.distanceUnit = .mi
-                                    setService.saveSetData(sessionSet: sessionSet)
-                                }
-                            } label: {
-                                Text(sessionSet.distanceUnit.rawValue.uppercased())
-                                    .font(.caption)
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "line.3.horizontal")
                                     .foregroundColor(.secondary)
+                                setBadge(text: "\(sessionSet.order + 1)")
+                                Text("Cardio Set")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                Spacer()
+                                Button(role: .destructive) {
+                                    removeSet(sessionSet)
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
                             }
 
-                            TextField(
-                                "Pace (sec)",
-                                text: intTextBinding(for: sessionSet, keyPath: \.paceSeconds)
-                            )
-                            .keyboardType(.numberPad)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 90)
+                            HStack(spacing: 10) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Duration")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    TextField(
+                                        "sec",
+                                        text: intTextBinding(for: sessionSet, keyPath: \.durationSeconds)
+                                    )
+                                    .keyboardType(.numberPad)
+                                    .textFieldStyle(.roundedBorder)
+                                }
 
-                            Spacer()
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Distance")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    TextField(
+                                        "value",
+                                        text: doubleTextBinding(for: sessionSet, keyPath: \.distance)
+                                    )
+                                    .keyboardType(.decimalPad)
+                                    .textFieldStyle(.roundedBorder)
+                                }
 
-                            Button(role: .destructive) {
-                                removeSet(sessionSet)
-                            } label: {
-                                Image(systemName: "trash")
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Unit")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Picker("Distance Unit", selection: distanceUnitBinding(for: sessionSet)) {
+                                        Text("km").tag(DistanceUnit.km)
+                                        Text("mi").tag(DistanceUnit.mi)
+                                    }
+                                    .pickerStyle(.segmented)
+                                }
+                            }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Pace")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                TextField(
+                                    "sec",
+                                    text: intTextBinding(for: sessionSet, keyPath: \.paceSeconds)
+                                )
+                                .keyboardType(.numberPad)
+                                .textFieldStyle(.roundedBorder)
                             }
                         }
                     } else {
@@ -673,6 +685,16 @@ struct SessionExerciseView: View {
             set: { newValue in
                 let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
                 sessionSet[keyPath: keyPath] = Double(trimmed)
+                setService.saveSetData(sessionSet: sessionSet)
+            }
+        )
+    }
+
+    private func distanceUnitBinding(for sessionSet: SessionSet) -> Binding<DistanceUnit> {
+        Binding(
+            get: { sessionSet.distanceUnit },
+            set: { newValue in
+                sessionSet.distanceUnit = newValue
                 setService.saveSetData(sessionSet: sessionSet)
             }
         )

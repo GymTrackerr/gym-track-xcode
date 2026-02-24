@@ -215,5 +215,91 @@ Acceptance:
 - Cardio add-set works without creating reps.
 
 ===========================================================
+## R6 — Post-R5 Fixes (Cardio set edit UI, live refresh, routine delete safety)
+===========================================================
+
+### A) Cardio set edit UI cleanup
+
+* Current inline editing UI for cardio sets is messy.
+* Improve layout to be clean and consistent with strength set UI:
+
+  * Group fields (duration, distance+unit, pace) in a compact form.
+  * Use appropriate input controls (e.g., numeric fields, pickers).
+  * Ensure it is readable in both normal + edit modes.
+* Do not change data model.
+
+### B) Live refresh after import (no app restart)
+
+Problem: after importing, new exercises/routines don’t show until app restart.
+
+* Fix so exercises and routines lists refresh immediately after import commits.
+* Use SwiftData best practices:
+
+  * rely on @Query where possible
+  * or publish change notifications / refresh triggers in services/viewmodels
+* Do not introduce polling.
+* Ensure Sessions list + Exercise picker + Routine picker reflect new items immediately.
+
+### C) Routine deletion must not delete unrelated sessions
+
+Problem: deleting a routine sometimes deletes sessions (even unrelated).
+
+* Find and fix the relationship/delete rules causing cascade deletion.
+* Requirement:
+
+  * Deleting a Routine must NOT delete any Session.
+  * Sessions that referenced the deleted routine should become routine=nil (or equivalent safe state).
+* Do not break existing session deletion behavior.
+* Add a minimal regression check:
+
+  * Create two routines and two sessions (only one linked to routine A).
+  * Delete routine A.
+  * Verify both sessions still exist; only routine link is removed for the one that referenced it.
+
+Output:
+
+* Only changed files.
+* Build verification checklist for A/B/C.
+
+If a major ambiguity blocks progress, ask before writing code.
+
+===========================================================
+R6B.1 — Cardio UI in SessionExerciseView (no reps, different add-set)
+===========================================================
+## Requirements
+
+1. Remove all custom notification usage related to import refresh.
+
+   * Delete `NotesImportNotifications.swift`.
+   * Remove NotificationCenter observers/post calls.
+
+2. Replace refresh behavior with proper SwiftData patterns:
+
+   * Use `@Query` in SwiftUI views where possible.
+   * Ensure views observe the same `ModelContext`.
+   * Remove any manual refresh hacks.
+
+3. Services must not cache stale arrays of routines/exercises.
+
+   * If services expose arrays, make sure they are derived from queries or refreshed via context.
+
+4. Do NOT reintroduce notifications.
+
+5. Do NOT change unrelated logic.
+
+Return only changed files.
+
+Include a short explanation of how live refresh now works without notifications.
+
+---
+
+# What You Want As The Result
+
+* Import commits to the same `ModelContext`.
+* Any view using `@Query` updates automatically.
+* No NotificationCenter.
+* No manual “reload”.
+
+===========================================================
 END
 ===========================================================

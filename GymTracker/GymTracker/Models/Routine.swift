@@ -20,7 +20,7 @@ final class Routine {
     @Relationship(deleteRule: .cascade)
     var exerciseSplits: [ExerciseSplitDay]
     
-    @Relationship(deleteRule: .cascade)
+    @Relationship(deleteRule: .nullify)
     var sessions: [Session]
     
     init(order: Int, name: String, user_id: UUID) {

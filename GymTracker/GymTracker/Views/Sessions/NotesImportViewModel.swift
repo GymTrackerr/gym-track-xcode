@@ -330,6 +330,10 @@ final class NotesImportViewModel: ObservableObject {
                 defaultWeightUnit: defaultWeightUnit
             )
 
+            loadAllUserExercises()
+            resolveRoutine()
+            resolveExercise()
+
             resolutionState.statusMessage = "Draft imported successfully."
             resolutionState.errorMessage = nil
             resolutionState.allowDuplicateImport = false
@@ -438,6 +442,7 @@ private extension NotesImportViewModel {
         context: ModelContext
     ) throws -> ResolutionResult {
         var resolvedRoutine: Routine?
+        var shouldPopulateRoutineTemplate = false
 
         switch resolutionState.routineMode {
         case .none:
@@ -465,6 +470,7 @@ private extension NotesImportViewModel {
 
             context.insert(newRoutine)
             resolvedRoutine = newRoutine
+            shouldPopulateRoutineTemplate = true
         }
 
         var resolvedExercises: [String: Exercise] = [:]
@@ -517,7 +523,8 @@ private extension NotesImportViewModel {
         return ResolutionResult(
             resolvedRoutine: resolvedRoutine,
             resolvedExercises: resolvedExercises,
-            unresolvedExercises: unresolvedExercises
+            unresolvedExercises: unresolvedExercises,
+            shouldPopulateRoutineTemplate: shouldPopulateRoutineTemplate
         )
     }
 

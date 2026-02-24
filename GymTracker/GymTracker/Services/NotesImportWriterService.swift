@@ -146,6 +146,16 @@ final class NotesImportWriterService {
                 }
             }
 
+            if resolution.shouldPopulateRoutineTemplate,
+               let routine = resolution.resolvedRoutine {
+                populateRoutineTemplateIfNeeded(
+                    routine: routine,
+                    draft: draft,
+                    resolution: resolution,
+                    context: context
+                )
+            }
+
             try context.save()
 #if DEBUG
             print("[NotesImportWriterService] commit save succeeded")
@@ -254,5 +264,50 @@ private extension NotesImportWriterService {
         }
 
         return result
+    }
+
+    func populateRoutineTemplateIfNeeded(
+        routine: Routine,
+        draft: NotesImportDraft,
+        resolution: ResolutionResult,
+        context: ModelContext
+    ) {
+        var exerciseOrder = routine.exerciseSplits.count
+        var seenExerciseIds = Set(routine.exerciseSplits.map(\.exercise.id))
+
+        for rawName in rawExerciseNamesInDraftOrder(from: draft) {
+            let key = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let exercise = resolution.resolvedExercises[key] else { continue }
+            if seenExerciseIds.contains(exercise.id) { continue }
+
+            let split = ExerciseSplitDay(order: exerciseOrder, routine: routine, exercise: exercise)
+            context.insert(split)
+            routine.exerciseSplits.append(split)
+            seenExerciseIds.insert(exercise.id)
+            exerciseOrder += 1
+        }
+    }
+
+    func rawExerciseNamesInDraftOrder(from draft: NotesImportDraft) -> [String] {
+        var names: [String] = []
+        var seen: Set<String> = []
+
+        for item in draft.items {
+            let rawName: String
+            switch item {
+            case .strength(let strength):
+                rawName = strength.exerciseNameRaw
+            case .cardio(let cardio):
+                rawName = cardio.exerciseNameRaw
+            }
+
+            let trimmed = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            if seen.insert(trimmed).inserted {
+                names.append(trimmed)
+            }
+        }
+
+        return names
     }
 }

@@ -15,7 +15,10 @@ final class NotesImportWriterDebug {
             test1DuplicateCheckIsUserScoped(),
             test2CommitPersistsStrengthAndCardio(),
             test3CommitFailsWhenDateMissing(),
-            test4CommitFailsWhenExerciseUnresolved()
+            test4CommitFailsWhenExerciseUnresolved(),
+            test5CreateRoutinePopulatesTemplate(),
+            test6ExistingRoutineDoesNotPopulateTemplate(),
+            test7NoneRoutineDoesNotAttachOrPopulate()
         ]
 
         let passCount = results.filter { $0 }.count
@@ -317,6 +320,254 @@ final class NotesImportWriterDebug {
             }
         } catch {
             return fail("writer-test4", "Unexpected error: \(error)")
+        }
+    }
+
+    @discardableResult
+    private static func test5CreateRoutinePopulatesTemplate() -> Bool {
+        do {
+            let harness = try makeHarness()
+            let writer = NotesImportWriterService()
+
+            let userId = UUID()
+            let createdRoutine = Routine(order: 0, name: "Imported Routine", user_id: userId)
+            let squat = Exercise(name: "Back Squat", type: .weight, user_id: userId)
+            let bike = Exercise(name: "Indoor cycle", type: .bike, user_id: userId)
+
+            harness.context.insert(createdRoutine)
+            harness.context.insert(squat)
+            harness.context.insert(bike)
+            try harness.context.save()
+
+            let draft = NotesImportDraft(
+                originalText: "sample",
+                parsedDate: Date(),
+                startTime: nil,
+                endTime: nil,
+                routineNameRaw: "Leg Day",
+                items: [
+                    .strength(
+                        ParsedStrength(
+                            exerciseNameRaw: "Back Squat",
+                            sets: [
+                                ParsedStrengthSet(
+                                    reps: 5,
+                                    weight: 225,
+                                    weightUnit: .lb,
+                                    perSideWeight: nil,
+                                    baseWeight: nil,
+                                    isPerSide: false,
+                                    restSeconds: nil
+                                )
+                            ],
+                            notes: nil
+                        )
+                    ),
+                    .cardio(
+                        ParsedCardio(
+                            exerciseNameRaw: "Indoor cycle",
+                            sets: [
+                                ParsedCardioSet(
+                                    durationSeconds: 600,
+                                    distance: 3,
+                                    distanceUnit: .km,
+                                    paceSeconds: nil
+                                )
+                            ],
+                            notes: nil
+                        )
+                    )
+                ],
+                unknownLines: [],
+                warnings: [],
+                importHash: "hash-create-routine"
+            )
+
+            let resolution = ResolutionResult(
+                resolvedRoutine: createdRoutine,
+                resolvedExercises: [
+                    "Back Squat": squat,
+                    "Indoor cycle": bike
+                ],
+                unresolvedExercises: [],
+                shouldPopulateRoutineTemplate: true
+            )
+
+            _ = try writer.commit(
+                draft: draft,
+                resolution: resolution,
+                userId: userId,
+                context: harness.context,
+                defaultWeightUnit: .lb
+            )
+
+            var ok = true
+            ok = ok && check("writer-test5", createdRoutine.exerciseSplits.count == 2, "Expected new routine template to receive imported exercises")
+            ok = ok && check("writer-test5", createdRoutine.exerciseSplits[0].exercise.id == squat.id, "Expected first split to match draft order")
+            ok = ok && check("writer-test5", createdRoutine.exerciseSplits[1].exercise.id == bike.id, "Expected second split to match draft order")
+            print("[writer-test5] \(ok ? "PASS" : "FAIL")")
+            return ok
+        } catch {
+            return fail("writer-test5", "Unexpected error: \(error)")
+        }
+    }
+
+    @discardableResult
+    private static func test6ExistingRoutineDoesNotPopulateTemplate() -> Bool {
+        do {
+            let harness = try makeHarness()
+            let writer = NotesImportWriterService()
+
+            let userId = UUID()
+            let existingRoutine = Routine(order: 0, name: "Push", user_id: userId)
+            let bench = Exercise(name: "Bench Press", type: .weight, user_id: userId)
+            let run = Exercise(name: "Run", type: .run, user_id: userId)
+
+            harness.context.insert(existingRoutine)
+            harness.context.insert(bench)
+            harness.context.insert(run)
+            let existingSplit = ExerciseSplitDay(order: 0, routine: existingRoutine, exercise: bench)
+            harness.context.insert(existingSplit)
+            existingRoutine.exerciseSplits.append(existingSplit)
+            try harness.context.save()
+
+            let draft = NotesImportDraft(
+                originalText: "sample",
+                parsedDate: Date(),
+                startTime: nil,
+                endTime: nil,
+                routineNameRaw: "Push",
+                items: [
+                    .strength(
+                        ParsedStrength(
+                            exerciseNameRaw: "Bench Press",
+                            sets: [
+                                ParsedStrengthSet(
+                                    reps: 8,
+                                    weight: 185,
+                                    weightUnit: .lb,
+                                    perSideWeight: nil,
+                                    baseWeight: nil,
+                                    isPerSide: false,
+                                    restSeconds: nil
+                                )
+                            ],
+                            notes: nil
+                        )
+                    ),
+                    .cardio(
+                        ParsedCardio(
+                            exerciseNameRaw: "Run",
+                            sets: [
+                                ParsedCardioSet(
+                                    durationSeconds: 300,
+                                    distance: 1,
+                                    distanceUnit: .mi,
+                                    paceSeconds: nil
+                                )
+                            ],
+                            notes: nil
+                        )
+                    )
+                ],
+                unknownLines: [],
+                warnings: [],
+                importHash: "hash-existing-routine"
+            )
+
+            let resolution = ResolutionResult(
+                resolvedRoutine: existingRoutine,
+                resolvedExercises: [
+                    "Bench Press": bench,
+                    "Run": run
+                ],
+                unresolvedExercises: [],
+                shouldPopulateRoutineTemplate: false
+            )
+
+            _ = try writer.commit(
+                draft: draft,
+                resolution: resolution,
+                userId: userId,
+                context: harness.context,
+                defaultWeightUnit: .lb
+            )
+
+            var ok = true
+            ok = ok && check("writer-test6", existingRoutine.exerciseSplits.count == 1, "Expected matched/existing routine template to remain unchanged")
+            ok = ok && check("writer-test6", existingRoutine.exerciseSplits[0].exercise.id == bench.id, "Expected existing split to remain untouched")
+            print("[writer-test6] \(ok ? "PASS" : "FAIL")")
+            return ok
+        } catch {
+            return fail("writer-test6", "Unexpected error: \(error)")
+        }
+    }
+
+    @discardableResult
+    private static func test7NoneRoutineDoesNotAttachOrPopulate() -> Bool {
+        do {
+            let harness = try makeHarness()
+            let writer = NotesImportWriterService()
+
+            let userId = UUID()
+            let untouchedRoutine = Routine(order: 0, name: "Existing", user_id: userId)
+            let bike = Exercise(name: "Bike", type: .bike, user_id: userId)
+
+            harness.context.insert(untouchedRoutine)
+            harness.context.insert(bike)
+            try harness.context.save()
+
+            let draft = NotesImportDraft(
+                originalText: "sample",
+                parsedDate: Date(),
+                startTime: nil,
+                endTime: nil,
+                routineNameRaw: nil,
+                items: [
+                    .cardio(
+                        ParsedCardio(
+                            exerciseNameRaw: "Bike",
+                            sets: [
+                                ParsedCardioSet(
+                                    durationSeconds: 240,
+                                    distance: 2,
+                                    distanceUnit: .km,
+                                    paceSeconds: nil
+                                )
+                            ],
+                            notes: nil
+                        )
+                    )
+                ],
+                unknownLines: [],
+                warnings: [],
+                importHash: "hash-none-routine"
+            )
+
+            let resolution = ResolutionResult(
+                resolvedRoutine: nil,
+                resolvedExercises: [
+                    "Bike": bike
+                ],
+                unresolvedExercises: [],
+                shouldPopulateRoutineTemplate: false
+            )
+
+            let session = try writer.commit(
+                draft: draft,
+                resolution: resolution,
+                userId: userId,
+                context: harness.context,
+                defaultWeightUnit: .lb
+            )
+
+            var ok = true
+            ok = ok && check("writer-test7", session.routine == nil, "Expected session routine to remain nil in none mode")
+            ok = ok && check("writer-test7", untouchedRoutine.exerciseSplits.isEmpty, "Expected unrelated routine template to remain unchanged")
+            print("[writer-test7] \(ok ? "PASS" : "FAIL")")
+            return ok
+        } catch {
+            return fail("writer-test7", "Unexpected error: \(error)")
         }
     }
 

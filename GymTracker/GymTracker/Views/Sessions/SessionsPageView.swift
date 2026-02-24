@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SessionsPageView: View {
     @EnvironmentObject var sessionService: SessionService
+    @EnvironmentObject var splitDayService: RoutineService
     @EnvironmentObject var userService: UserService
 
     @State private var openedSession: Session?
@@ -88,6 +89,7 @@ struct SessionsPageView: View {
         .navigationDestination(isPresented: $showingNotesImport) {
             NotesImportView(currentUserId: userService.currentUser?.id) {
                 sessionService.loadSessions()
+                splitDayService.loadSplitDays()
                 showingNotesImport = false
             }
         }
