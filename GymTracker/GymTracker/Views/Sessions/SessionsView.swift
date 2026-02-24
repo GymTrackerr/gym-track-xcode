@@ -12,9 +12,11 @@ struct SessionsView: View {
     
     @EnvironmentObject var sessionService: SessionService
     @EnvironmentObject var splitDayService: RoutineService
+    @EnvironmentObject var userService: UserService
     @Binding var openedSession: Session?
     
     @Namespace private var transition
+    @State private var showingNotesImport = false
 //    @State private var newSession = false
 
 //    @State private var isEditing = false
@@ -118,6 +120,11 @@ struct SessionsView: View {
             DefaultToolbarItem(kind: .search, placement: .bottomBar)
             ToolbarSpacer(.flexible, placement: .bottomBar)
             ToolbarItem(placement: .bottomBar) {
+                Button("Import", systemImage: "doc.text") {
+                    showingNotesImport = true
+                }
+            }
+            ToolbarItem(placement: .bottomBar) {
                 Button("New", systemImage: "plus") {
                     sessionService.creating_session = true
                 }
@@ -136,6 +143,12 @@ struct SessionsView: View {
             .navigationTransition(
                 .zoom(sourceID: "info", in: transition)
             )
+        }
+        .sheet(isPresented: $showingNotesImport) {
+            NotesImportView(currentUserId: userService.currentUser?.id) {
+                sessionService.loadSessions()
+                showingNotesImport = false
+            }
         }
         .navigationDestination(item: $openedSession) { session in
             SingleSessionView(session: session)
@@ -375,4 +388,3 @@ struct CreateSessionSheetView: View {
 //        .glassEffect(in: .rect(cornerRadi´us: 20.0))
     }
 }
-

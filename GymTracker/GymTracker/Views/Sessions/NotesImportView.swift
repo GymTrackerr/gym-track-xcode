@@ -3,10 +3,12 @@ import SwiftData
 
 struct NotesImportView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
 
     @StateObject private var viewModel = NotesImportViewModel()
 
     let currentUserId: UUID?
+    var onImportCompleted: (() -> Void)? = nil
 
     var body: some View {
         NavigationStack {
@@ -25,7 +27,10 @@ struct NotesImportView: View {
             .alert("Duplicate Session Detected", isPresented: $viewModel.showDuplicatePrompt) {
                 Button("Cancel", role: .cancel) { }
                 Button("Import Anyway") {
-                    viewModel.importDuplicateAnyway()
+                    if viewModel.importDuplicateAnyway() {
+                        onImportCompleted?()
+                        dismiss()
+                    }
                 }
             } message: {
                 Text("Seems like this session was already imported. Import anyway?")
@@ -337,7 +342,10 @@ struct NotesImportView: View {
                 .buttonStyle(.bordered)
 
                 Button {
-                    viewModel.confirmImport()
+                    if viewModel.confirmImport() {
+                        onImportCompleted?()
+                        dismiss()
+                    }
                 } label: {
                     if viewModel.isCommitting {
                         ProgressView()

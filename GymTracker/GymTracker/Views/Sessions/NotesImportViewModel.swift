@@ -249,20 +249,21 @@ final class NotesImportViewModel: ObservableObject {
         }
     }
 
-    func confirmImport() {
+    @discardableResult
+    func confirmImport() -> Bool {
         guard let context = modelContext else {
             resolutionState.errorMessage = "Missing model context."
-            return
+            return false
         }
 
         guard let userId = currentUserId else {
             resolutionState.errorMessage = "No active user. Commit is blocked until currentUserId exists."
-            return
+            return false
         }
 
         guard var draft = currentDraft else {
             resolutionState.errorMessage = "No draft selected."
-            return
+            return false
         }
 
         if draft.parsedDate == nil {
@@ -274,7 +275,7 @@ final class NotesImportViewModel: ObservableObject {
             if try writer.duplicateExists(draft: draft, userId: userId, context: context), !resolutionState.allowDuplicateImport {
                 resolutionState.duplicateExists = true
                 showDuplicatePrompt = true
-                return
+                return false
             }
 
             let resolved = try buildResolutionResult(for: draft, userId: userId, context: context)
@@ -294,14 +295,17 @@ final class NotesImportViewModel: ObservableObject {
             resolutionState.allowDuplicateImport = false
             showDuplicatePrompt = false
             refreshDuplicateState()
+            return true
         } catch {
             resolutionState.errorMessage = error.localizedDescription
+            return false
         }
     }
 
-    func importDuplicateAnyway() {
+    @discardableResult
+    func importDuplicateAnyway() -> Bool {
         resolutionState.allowDuplicateImport = true
-        confirmImport()
+        return confirmImport()
     }
 }
 
