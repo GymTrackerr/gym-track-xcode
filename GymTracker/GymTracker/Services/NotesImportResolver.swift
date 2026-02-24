@@ -67,7 +67,7 @@ final class NotesImportResolver {
 
         let descriptor = FetchDescriptor<Routine>(
             predicate: #Predicate<Routine> { routine in
-                routine.user_id == userId
+                routine.user_id == userId && routine.isArchived == false
             },
             sortBy: [SortDescriptor(\.name)]
         )
@@ -97,7 +97,7 @@ final class NotesImportResolver {
 
         let descriptor = FetchDescriptor<Exercise>(
             predicate: #Predicate<Exercise> { exercise in
-                exercise.user_id == userId
+                exercise.user_id == userId && exercise.isArchived == false
             },
             sortBy: [SortDescriptor(\.name)]
         )

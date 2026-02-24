@@ -26,6 +26,7 @@ final class Exercise {
     var images: [String]? = []          // Relative image URLs
     var cachedMedia: Bool? = false
     var isUserCreated: Bool = true       // Key flag
+    var isArchived: Bool = false
     var timestamp: Date
 
     // deletes the exerise split day

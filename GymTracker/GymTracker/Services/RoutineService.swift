@@ -12,6 +12,7 @@ internal import CoreData
 
 class RoutineService : ServiceBase, ObservableObject {
     @Published var routines: [Routine] = []
+    @Published var archivedRoutines: [Routine] = []
 
     @Published var editingContent: String = ""
     @Published var editingSplit: Bool = false
@@ -23,7 +24,32 @@ class RoutineService : ServiceBase, ObservableObject {
     }
     
     func loadSplitDays() {
-        let descriptor = FetchDescriptor<Routine>(sortBy: [SortDescriptor(\.order)])
+        loadActiveRoutines()
+        loadArchivedRoutines()
+    }
+
+    func loadArchivedRoutines() {
+        let descriptor = FetchDescriptor<Routine>(
+            predicate: #Predicate<Routine> { routine in
+                routine.isArchived == true
+            },
+            sortBy: [SortDescriptor(\.order)]
+        )
+
+        do {
+            archivedRoutines = try modelContext.fetch(descriptor)
+        } catch {
+            archivedRoutines = []
+        }
+    }
+
+    private func loadActiveRoutines() {
+        let descriptor = FetchDescriptor<Routine>(
+            predicate: #Predicate<Routine> { routine in
+                routine.isArchived == false
+            },
+            sortBy: [SortDescriptor(\.order)]
+        )
 
         do {
             routines = try modelContext.fetch(descriptor)
@@ -67,20 +93,28 @@ class RoutineService : ServiceBase, ObservableObject {
     
     func removeSplitDay(offsets: IndexSet) {
         withAnimation {
+            var failed = false
             for index in offsets {
-                modelContext.delete(routines[index])
+                do {
+                    try delete(routines[index])
+                } catch {
+                    failed = true
+                    print("Failed to save after deletion: \(error)")
+                }
             }
-            try? modelContext.save()
-            loadSplitDays()
-            renumberSplitDays()
+            if !failed {
+                loadSplitDays()
+                renumberSplitDays()
+            }
         }
     }
     
     func clearSplitDays() {
         let descriptor = FetchDescriptor<Routine>()
         if let items = try? modelContext.fetch(descriptor) {
-            for item in items { modelContext.delete(item) }
-            try? modelContext.save()
+            for item in items {
+                try? delete(item)
+            }
         }
         loadSplitDays()
     }
@@ -110,5 +144,24 @@ class RoutineService : ServiceBase, ObservableObject {
             day.order = i
         }
         try? modelContext.save()
+    }
+
+    func delete(_ routine: Routine) throws {
+        // If routine has session history → archive
+        if !routine.sessions.isEmpty {
+            routine.isArchived = true
+            try modelContext.save()
+            return
+        }
+
+        // No history → permanently delete
+        modelContext.delete(routine)
+        try modelContext.save()
+    }
+
+    func restore(_ routine: Routine) throws {
+        routine.isArchived = false
+        try modelContext.save()
+        loadSplitDays()
     }
 }

@@ -12,6 +12,7 @@ internal import CoreData
 
 class ExerciseService : ServiceBase, ObservableObject {
     @Published var exercises: [Exercise] = []
+    @Published var archivedExercises: [Exercise] = []
     @Published var editingContent: String = ""
     @Published var editingExercise: Bool = false
     @Published var selectedExerciseType: ExerciseType = ExerciseType.weight
@@ -41,7 +42,7 @@ class ExerciseService : ServiceBase, ObservableObject {
     }
 
     override func loadFeature() {
-        self.loadExercises()
+        refreshExerciseLists()
         guard let userId = currentUser?.id else { return }
         guard apiSyncedUserId != userId else { return }
         Task {
@@ -57,7 +58,7 @@ class ExerciseService : ServiceBase, ObservableObject {
 
         let descriptor = FetchDescriptor<Exercise>(
             predicate: #Predicate<Exercise> { exercise in
-                exercise.user_id == userId
+                exercise.user_id == userId && exercise.isArchived == false
             },
             sortBy: [SortDescriptor(\.name)]
         )
@@ -70,6 +71,26 @@ class ExerciseService : ServiceBase, ObservableObject {
             }
         } catch {
             exercises = []
+        }
+    }
+
+    func loadArchivedExercises() {
+        guard let userId = currentUser?.id else {
+            archivedExercises = []
+            return
+        }
+
+        let descriptor = FetchDescriptor<Exercise>(
+            predicate: #Predicate<Exercise> { exercise in
+                exercise.user_id == userId && exercise.isArchived == true
+            },
+            sortBy: [SortDescriptor(\.name)]
+        )
+
+        do {
+            archivedExercises = try modelContext.fetch(descriptor)
+        } catch {
+            archivedExercises = []
         }
     }
 
@@ -98,6 +119,7 @@ class ExerciseService : ServiceBase, ObservableObject {
             }
             await MainActor.run {
                 self.loadExercises()
+                self.loadArchivedExercises()
                 self.apiSyncedUserId = userId
             }
 
@@ -298,7 +320,7 @@ class ExerciseService : ServiceBase, ObservableObject {
     private func fetchExercisesForUser(userId: UUID) throws -> [Exercise] {
         let descriptor = FetchDescriptor<Exercise>(
             predicate: #Predicate<Exercise> { exercise in
-                exercise.user_id == userId
+                exercise.user_id == userId && exercise.isArchived == false
             },
             sortBy: [SortDescriptor(\.name)]
         )
@@ -365,7 +387,7 @@ class ExerciseService : ServiceBase, ObservableObject {
                 // Clear and dismiss sheet after successful save
                 editingExercise = false
                 editingContent = ""
-                loadExercises()
+                refreshExerciseLists()
                 selectedExerciseType = .weight
 
             } catch {
@@ -384,28 +406,65 @@ class ExerciseService : ServiceBase, ObservableObject {
         print("not activating")
         for index in offsets {
             // Only safe when offsets map directly to the full exercises array.
-            modelContext.delete(exercises[index])
+            do {
+                try delete(exercises[index])
+            } catch {
+                print("Failed to save after deletion: \(error)")
+            }
         }
-
-        do {
-            try modelContext.save()
-            loadExercises()
-        } catch {
-            print("Failed to save after deletion: \(error)")
-        }
+        refreshExerciseLists()
     }
 
     func removeExercises(_ exercisesToDelete: [Exercise]) {
         for exercise in exercisesToDelete {
-            modelContext.delete(exercise)
+            do {
+                try delete(exercise)
+            } catch {
+                print("Failed to save after deletion: \(error)")
+            }
+        }
+        refreshExerciseLists()
+    }
+
+    func delete(_ exercise: Exercise) throws {
+        let hasPersistedHistory = try hasSessionHistory(exerciseID: exercise.id)
+
+        // If exercise has history → archive instead
+        if !exercise.sessionEntries.isEmpty || hasPersistedHistory {
+            exercise.isArchived = true
+
+            // Remove from templates
+            for split in Array(exercise.splits) {
+                modelContext.delete(split)
+            }
+
+            try modelContext.save()
+            return
         }
 
-        do {
-            try modelContext.save()
-            loadExercises()
-        } catch {
-            print("Failed to save after deletion: \(error)")
-        }
+        // No history → permanently delete
+        modelContext.delete(exercise)
+        try modelContext.save()
+    }
+
+    func restore(_ exercise: Exercise) throws {
+        exercise.isArchived = false
+        try modelContext.save()
+        refreshExerciseLists()
+    }
+
+    private func hasSessionHistory(exerciseID: UUID) throws -> Bool {
+        let descriptor = FetchDescriptor<SessionEntry>(
+            predicate: #Predicate<SessionEntry> { entry in
+                entry.exercise.id == exerciseID
+            }
+        )
+        return try !modelContext.fetch(descriptor).isEmpty
+    }
+
+    private func refreshExerciseLists() {
+        loadExercises()
+        loadArchivedExercises()
     }
 }
 

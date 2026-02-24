@@ -15,13 +15,14 @@ final class Routine {
     var order: Int
     var name: String
     var timestamp: Date
+    var isArchived: Bool = false
     var aliases: [String] = []
     
     @Relationship(deleteRule: .cascade)
     var exerciseSplits: [ExerciseSplitDay]
     
     @Relationship(deleteRule: .nullify)
-    var sessions: [Session]
+    var sessions: [Session] = []
     
     init(order: Int, name: String, user_id: UUID) {
         self.order = order

@@ -269,6 +269,22 @@ struct SingleSessionView: View {
     private var sessionEditActionSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let routine = session.routine {
+                if routine.isArchived {
+                    Button {
+                        do {
+                            try splitDayService.restore(routine)
+                            splitDayService.loadSplitDays()
+                        } catch {
+                            print("Failed to restore routine: \(error)")
+                        }
+
+                    } label: {
+                        Text("Restore Routine")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+
                 if syncingSplit {
                     Text("Are you sure? This action will replace all exercises with those in this session.")
                         .font(.caption)
@@ -284,6 +300,10 @@ struct SingleSessionView: View {
                         .buttonStyle(.bordered)
 
                         Button {
+                            if routine.isArchived {
+                                try? splitDayService.restore(routine)
+                                splitDayService.loadSplitDays()
+                            }
                             esdService.syncSplitWithSession(routine: routine, session: session)
                             syncingSplit = false
                         } label: {

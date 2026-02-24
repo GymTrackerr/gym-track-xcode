@@ -165,7 +165,7 @@ final class NotesImportViewModel: ObservableObject {
         do {
             let descriptor = FetchDescriptor<Routine>(
                 predicate: #Predicate<Routine> { routine in
-                    routine.user_id == userId
+                    routine.user_id == userId && routine.isArchived == false
                 },
                 sortBy: [SortDescriptor(\.name)]
             )
@@ -384,7 +384,7 @@ private extension NotesImportViewModel {
         do {
             let descriptor = FetchDescriptor<Exercise>(
                 predicate: #Predicate<Exercise> { exercise in
-                    exercise.user_id == userId
+                    exercise.user_id == userId && exercise.isArchived == false
                 },
                 sortBy: [SortDescriptor(\.name)]
             )

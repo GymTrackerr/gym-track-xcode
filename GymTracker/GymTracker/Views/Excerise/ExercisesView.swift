@@ -239,6 +239,7 @@ struct ExercisesView: View {
         }
         exerciseService.removeExercises(toDelete)
     }
+
 }
 //
 //// Filter Pill Component

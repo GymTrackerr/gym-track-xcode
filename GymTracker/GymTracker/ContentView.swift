@@ -36,6 +36,15 @@ struct ContentView: View {
                     }
                 }
             }
+            
+            if userService.currentUser?.showNutritionTab ?? true {
+                Tab("Nutrition", systemImage: "fork.knife", value: 3) {
+                    NavigationStack {
+                        NutritionDayView().appBackground()
+                    }
+                }
+            }
+            
             Tab("Exercises", systemImage: "dumbbell", value: 1) {
                 NavigationStack {
                     ExercisesView()
@@ -47,14 +56,6 @@ struct ContentView: View {
                 NavigationStack {
                     SessionsPageView()
                         .appBackground()
-                }
-            }
-
-            if userService.currentUser?.showNutritionTab ?? true {
-                Tab("Nutrition", systemImage: "fork.knife", value: 3) {
-                    NavigationStack {
-                        NutritionDayView().appBackground()
-                    }
                 }
             }
 

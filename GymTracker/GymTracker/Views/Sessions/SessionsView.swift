@@ -12,8 +12,10 @@ struct SessionsView: View {
     
     @EnvironmentObject var sessionService: SessionService
     @EnvironmentObject var splitDayService: RoutineService
+    @EnvironmentObject var exerciseService: ExerciseService
     @EnvironmentObject var userService: UserService
     @Binding var openedSession: Session?
+//    var showBottomToolbar: Bool = true
     
     @Namespace private var transition
     @State private var showingNotesImport = false
@@ -115,24 +117,26 @@ struct SessionsView: View {
 //        }
         // https://nilcoalescing.com/blog/PresentingLiquidGlassSheetsInSwiftUI/
         // https://nilcoalescing.com/blog/SwiftUISearchEnhancementsIniOSAndiPadOS26/
-
+/*
         .toolbar {
-            DefaultToolbarItem(kind: .search, placement: .bottomBar)
-            ToolbarSpacer(.flexible, placement: .bottomBar)
-            ToolbarItem(placement: .bottomBar) {
-                Button("Import", systemImage: "doc.text") {
-                    showingNotesImport = true
+            if showBottomToolbar {
+                DefaultToolbarItem(kind: .search, placement: .bottomBar)
+                ToolbarSpacer(.flexible, placement: .bottomBar)
+                ToolbarItem(placement: .bottomBar) {
+                    Button("Import", systemImage: "doc.text") {
+                        showingNotesImport = true
+                    }
                 }
-            }
-            ToolbarItem(placement: .bottomBar) {
-                Button("New", systemImage: "plus") {
-                    sessionService.creating_session = true
+                ToolbarItem(placement: .bottomBar) {
+                    Button("New", systemImage: "plus") {
+                        sessionService.creating_session = true
+                    }
                 }
+                .matchedTransitionSource(
+                    id: "new", in: transition
+                )
             }
-            .matchedTransitionSource(
-                id: "new", in: transition
-            )
-        }
+        }*/
         .sheet(isPresented: $sessionService.creating_session) {
             CreateSessionSheetView(
                 openedSession: $openedSession,
@@ -148,6 +152,7 @@ struct SessionsView: View {
             NotesImportView(currentUserId: userService.currentUser?.id) {
                 sessionService.loadSessions()
                 splitDayService.loadSplitDays()
+                exerciseService.loadExercises()
                 showingNotesImport = false
             }
         }

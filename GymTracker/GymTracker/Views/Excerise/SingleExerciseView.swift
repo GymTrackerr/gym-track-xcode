@@ -43,12 +43,47 @@ enum ProgressMetric: String, CaseIterable, Identifiable {
     }
 }
 
+enum CardioProgressMetric: String, CaseIterable, Identifiable {
+    case totalDistance
+    case totalDuration
+    case averagePace
+    case bestPace
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .totalDistance:
+            return "Total Distance"
+        case .totalDuration:
+            return "Total Duration"
+        case .averagePace:
+            return "Avg Pace"
+        case .bestPace:
+            return "Best Pace"
+        }
+    }
+}
+
 struct SingleExerciseView: View {
     @Bindable var exercise: Exercise
+    @EnvironmentObject var exerciseService: ExerciseService
     
     var body: some View {
         ExerciseDetailView(exercise: exercise)
-        .navigationTitle(exercise.name)
+            .navigationTitle(exercise.name)
+            .toolbar {
+                if exercise.isArchived {
+                    Button("Restore") {
+                        do {
+                            try exerciseService.restore(exercise)
+                            exerciseService.loadExercises()
+                        } catch {
+                            print("Failed to restore exercise: \(error)")
+                        }
+                    }
+                }
+            }
     }
 }
 
@@ -62,8 +97,10 @@ struct ExerciseDetailView: View {
     @State private var showExerciseData = true
     @State private var showProgress = true
     @State private var selectedTab: ProgressMetric = .maxWeight
+    @State private var selectedCardioTab: CardioProgressMetric = .totalDistance
     @State private var selectedRange: ProgressRange = .months
     @State private var selectedDisplayUnit: WeightUnit? = nil
+    @State private var selectedDistanceUnit: DistanceUnit = .km
     @State private var showingLogExerciseSheet = false
     @State private var showingAddRoutineSheet = false
     
@@ -78,6 +115,14 @@ struct ExerciseDetailView: View {
         let id = UUID()
         let date: Date
         let value: Double
+    }
+
+    private struct CardioSample {
+        let date: Date
+        let durationSeconds: Int?
+        let distance: Double?
+        let distanceUnit: DistanceUnit
+        let paceSeconds: Int?
     }
 
     
@@ -201,19 +246,37 @@ struct ExerciseDetailView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
-                                ForEach(ProgressMetric.allCases) { tab in
-                                    Button {
-                                        selectedTab = tab
-                                    } label: {
-                                        Text(tab.title)
-                                            .font(.subheadline)
-                                            .padding(.vertical, 6)
-                                            .padding(.horizontal, 12)
-                                            .background(selectedTab == tab
-                                                        ? Color.green.opacity(0.2)
-                                                        : Color.gray.opacity(0.1))
-                                            .cornerRadius(8)
-                                            .foregroundColor(selectedTab == tab ? .green : .primary)
+                                if hasCardioProgress {
+                                    ForEach(CardioProgressMetric.allCases) { tab in
+                                        Button {
+                                            selectedCardioTab = tab
+                                        } label: {
+                                            Text(tab.title)
+                                                .font(.subheadline)
+                                                .padding(.vertical, 6)
+                                                .padding(.horizontal, 12)
+                                                .background(selectedCardioTab == tab
+                                                            ? Color.green.opacity(0.2)
+                                                            : Color.gray.opacity(0.1))
+                                                .cornerRadius(8)
+                                                .foregroundColor(selectedCardioTab == tab ? .green : .primary)
+                                        }
+                                    }
+                                } else {
+                                    ForEach(ProgressMetric.allCases) { tab in
+                                        Button {
+                                            selectedTab = tab
+                                        } label: {
+                                            Text(tab.title)
+                                                .font(.subheadline)
+                                                .padding(.vertical, 6)
+                                                .padding(.horizontal, 12)
+                                                .background(selectedTab == tab
+                                                            ? Color.green.opacity(0.2)
+                                                            : Color.gray.opacity(0.1))
+                                                .cornerRadius(8)
+                                                .foregroundColor(selectedTab == tab ? .green : .primary)
+                                        }
                                     }
                                 }
                             }
@@ -245,19 +308,37 @@ struct ExerciseDetailView: View {
 
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
-                                ForEach(WeightUnit.allCases) { unit in
-                                    Button {
-                                        selectedDisplayUnit = unit
-                                    } label: {
-                                        Text(unit.name + "s")
-                                            .font(.subheadline)
-                                            .padding(.vertical, 6)
-                                            .padding(.horizontal, 12)
-                                            .background(displayUnit == unit
-                                                        ? Color.green.opacity(0.2)
-                                                        : Color.gray.opacity(0.1))
-                                            .cornerRadius(8)
-                                            .foregroundColor(displayUnit == unit ? .green : .primary)
+                                if hasCardioProgress {
+                                    ForEach([DistanceUnit.km, DistanceUnit.mi], id: \.rawValue) { unit in
+                                        Button {
+                                            selectedDistanceUnit = unit
+                                        } label: {
+                                            Text(unit.rawValue.uppercased())
+                                                .font(.subheadline)
+                                                .padding(.vertical, 6)
+                                                .padding(.horizontal, 12)
+                                                .background(selectedDistanceUnit == unit
+                                                            ? Color.green.opacity(0.2)
+                                                            : Color.gray.opacity(0.1))
+                                                .cornerRadius(8)
+                                                .foregroundColor(selectedDistanceUnit == unit ? .green : .primary)
+                                        }
+                                    }
+                                } else {
+                                    ForEach(WeightUnit.allCases) { unit in
+                                        Button {
+                                            selectedDisplayUnit = unit
+                                        } label: {
+                                            Text(unit.name + "s")
+                                                .font(.subheadline)
+                                                .padding(.vertical, 6)
+                                                .padding(.horizontal, 12)
+                                                .background(displayUnit == unit
+                                                            ? Color.green.opacity(0.2)
+                                                            : Color.gray.opacity(0.1))
+                                                .cornerRadius(8)
+                                                .foregroundColor(displayUnit == unit ? .green : .primary)
+                                        }
                                     }
                                 }
                             }
@@ -265,7 +346,7 @@ struct ExerciseDetailView: View {
                         }
                         .overlay(horizontalScrollHints)
 
-                        Chart(progressPoints) { point in
+                        Chart(chartPoints) { point in
                             LineMark(
                                 x: .value("Date", point.date, unit: chartXAxisStride),
                                 y: .value("Value", point.value)
@@ -359,7 +440,7 @@ struct ExerciseDetailView: View {
                                             Text(item.session.timestamp.formatted(date: .abbreviated, time: .omitted))
                                                 .font(.subheadline)
                                                 .fontWeight(.semibold)
-                                            Text("Exercise Volume: \(item.volume) \(dominantUnit.name)")
+                                            Text(item.subtitle)
                                                 .font(.caption)
                                                 .foregroundColor(.secondary)
                                         }
@@ -474,6 +555,10 @@ struct ExerciseDetailView: View {
             }
     }
 
+    private var hasCardioProgress: Bool {
+        isCardioExercise && !cardioSets.isEmpty
+    }
+
     private var cardioTotalDistanceLabel: String? {
         let samples = cardioSets.compactMap { set -> (distance: Double, unit: DistanceUnit)? in
             guard let distance = set.distance else { return nil }
@@ -536,6 +621,24 @@ struct ExerciseDetailView: View {
                         )
                     )
                 }
+            }
+        }
+        return samples
+    }
+
+    private var cardioSamples: [CardioSample] {
+        var samples: [CardioSample] = []
+        for entry in matchingEntries {
+            for set in entry.sets where set.durationSeconds != nil || set.distance != nil || set.paceSeconds != nil {
+                samples.append(
+                    CardioSample(
+                        date: entry.session.timestamp,
+                        durationSeconds: set.durationSeconds,
+                        distance: set.distance,
+                        distanceUnit: set.distanceUnit,
+                        paceSeconds: set.paceSeconds
+                    )
+                )
             }
         }
         return samples
@@ -637,8 +740,90 @@ struct ExerciseDetailView: View {
         }
     }
 
+    private var cardioProgressPoints: [ProgressPoint] {
+        let samples = cardioSamples
+        guard !samples.isEmpty else { return [] }
+
+        let calendar = Calendar.current
+        let endDate = calendar.date(byAdding: .day, value: -1, to: Date()) ?? Date()
+
+        let bucketComponent: Calendar.Component
+        let bucketCount: Int
+        let startDate: Date
+
+        switch selectedRange {
+        case .days:
+            bucketComponent = .day
+            bucketCount = 7
+            startDate = calendar.date(byAdding: .day, value: -(bucketCount - 1), to: endDate) ?? endDate
+        case .weeks:
+            bucketComponent = .weekOfYear
+            bucketCount = 8
+            startDate = calendar.date(byAdding: .weekOfYear, value: -(bucketCount - 1), to: endDate) ?? endDate
+        case .months:
+            bucketComponent = .month
+            bucketCount = 6
+            startDate = calendar.date(byAdding: .month, value: -(bucketCount - 1), to: endDate) ?? endDate
+        case .years:
+            bucketComponent = .year
+            bucketCount = 5
+            startDate = calendar.date(byAdding: .year, value: -(bucketCount - 1), to: endDate) ?? endDate
+        }
+
+        let bucketStartFor: (Date) -> Date = { date in
+            switch bucketComponent {
+            case .day:
+                return calendar.startOfDay(for: date)
+            case .weekOfYear:
+                return calendar.dateInterval(of: .weekOfYear, for: date)?.start ?? date
+            case .month:
+                return calendar.dateInterval(of: .month, for: date)?.start ?? date
+            case .year:
+                return calendar.dateInterval(of: .year, for: date)?.start ?? date
+            default:
+                return date
+            }
+        }
+
+        var buckets: [Date] = []
+        var current = bucketStartFor(startDate)
+        for _ in 0..<bucketCount {
+            buckets.append(current)
+            if let next = calendar.date(byAdding: bucketComponent, value: 1, to: current) {
+                current = next
+            }
+        }
+
+        return buckets.map { bucketStart in
+            let bucketEnd = calendar.date(byAdding: bucketComponent, value: 1, to: bucketStart) ?? bucketStart
+            let items = samples.filter { $0.date >= bucketStart && $0.date < bucketEnd }
+            let value: Double
+
+            switch selectedCardioTab {
+            case .totalDistance:
+                value = items.reduce(0.0) { result, sample in
+                    guard let distance = sample.distance else { return result }
+                    return result + convertDistance(distance, from: sample.distanceUnit, to: selectedDistanceUnit)
+                }
+            case .totalDuration:
+                value = Double(items.compactMap(\.durationSeconds).reduce(0, +))
+            case .averagePace:
+                let paces = items.compactMap { paceValue(for: $0) }
+                value = paces.isEmpty ? 0 : Double(paces.reduce(0, +)) / Double(paces.count)
+            case .bestPace:
+                value = Double(items.compactMap { paceValue(for: $0) }.min() ?? 0)
+            }
+
+            return ProgressPoint(date: bucketStart, value: value)
+        }
+    }
+
+    private var chartPoints: [ProgressPoint] {
+        hasCardioProgress ? cardioProgressPoints : progressPoints
+    }
+
     private var chartYMax: Double {
-        let maxValue = progressPoints.map(\.value).max() ?? 0
+        let maxValue = chartPoints.map(\.value).max() ?? 0
         if maxValue <= 0 {
             return 1
         }
@@ -676,6 +861,25 @@ struct ExerciseDetailView: View {
 
     private func convertWeight(_ value: Double, from source: WeightUnit, to target: WeightUnit) -> Double {
         value * source.conversion(to: target)
+    }
+
+    private func convertDistance(_ value: Double, from source: DistanceUnit, to target: DistanceUnit) -> Double {
+        if source == target { return value }
+        if source == .km && target == .mi {
+            return value * 0.621371
+        }
+        return value * 1.60934
+    }
+
+    private func paceValue(for sample: CardioSample) -> Int? {
+        if let explicitPace = sample.paceSeconds {
+            return explicitPace
+        }
+        guard let durationSeconds = sample.durationSeconds,
+              let distance = sample.distance else { return nil }
+        let distanceInSelectedUnit = convertDistance(distance, from: sample.distanceUnit, to: selectedDistanceUnit)
+        guard distanceInSelectedUnit > 0 else { return nil }
+        return Int(Double(durationSeconds) / distanceInSelectedUnit)
     }
 
     private func normalizedList(_ values: [String]?) -> [String] {
@@ -738,7 +942,7 @@ struct ExerciseDetailView: View {
 
     private struct PreviousSessionItem {
         let session: Session
-        let volume: Int
+        let subtitle: String
     }
 
     private var previousSessions: [PreviousSessionItem] {
@@ -753,20 +957,34 @@ struct ExerciseDetailView: View {
             guard !seen.contains(session.id) else { continue }
             seen.insert(session.id)
 
-            var totalVolume: Double = 0
-            for entry in session.sessionEntries where entry.exercise.id == exercise.id {
-                for sessionSet in entry.sets {
-                    for rep in sessionSet.sessionReps {
-                        let weight = convertWeight(rep.weight, from: rep.weightUnit, to: dominantUnit)
-                        totalVolume += weight * Double(rep.count)
+            let subtitle: String
+            if hasCardioProgress {
+                let sets = session.sessionEntries
+                    .filter { $0.exercise.id == exercise.id }
+                    .flatMap(\.sets)
+                let totalDuration = sets.compactMap(\.durationSeconds).reduce(0, +)
+                let totalDistance = sets.compactMap { set -> Double? in
+                    guard let distance = set.distance else { return nil }
+                    return convertDistance(distance, from: set.distanceUnit, to: selectedDistanceUnit)
+                }.reduce(0, +)
+                subtitle = "Distance: \(formatDecimal(totalDistance)) \(selectedDistanceUnit.rawValue), Time: \(formattedDuration(totalDuration))"
+            } else {
+                var totalVolume: Double = 0
+                for entry in session.sessionEntries where entry.exercise.id == exercise.id {
+                    for sessionSet in entry.sets {
+                        for rep in sessionSet.sessionReps {
+                            let weight = convertWeight(rep.weight, from: rep.weightUnit, to: dominantUnit)
+                            totalVolume += weight * Double(rep.count)
+                        }
                     }
                 }
+                subtitle = "Exercise Volume: \(Int(round(totalVolume))) \(dominantUnit.name)"
             }
 
             result.append(
                 PreviousSessionItem(
                     session: session,
-                    volume: Int(round(totalVolume))
+                    subtitle: subtitle
                 )
             )
         }

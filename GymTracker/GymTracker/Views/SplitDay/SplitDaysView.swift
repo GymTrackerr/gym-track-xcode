@@ -9,6 +9,7 @@ import SwiftUI
 
 struct SplitDaysView: View {
     @EnvironmentObject var splitDayService: RoutineService
+    @Environment(\.editMode) private var editMode
     @State private var isAdding: Bool = false
     
     var body: some View {
@@ -22,6 +23,10 @@ struct SplitDaysView: View {
             }
             .onDelete(perform: splitDayService.removeSplitDay)
             .onMove(perform: splitDayService.moveSplitDay)
+
+            if splitDayService.routines.isEmpty {
+                ContentUnavailableView("No routines yet", systemImage: "figure.walk.motion")
+            }
         }
         .scrollContentBackground(.hidden)
         .navigationTitle("Routines")
@@ -73,5 +78,5 @@ struct SplitDaysView: View {
             }
         }
     }
-}
 
+}
