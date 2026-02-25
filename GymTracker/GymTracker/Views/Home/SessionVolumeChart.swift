@@ -109,7 +109,7 @@ struct SessionVolumeModuleView: View {
             let total = userSessions.reduce(0.0) { result, session in
                 let date = session.timestampDone
                 guard date >= bucket.startDate && date < bucket.endDate else { return result }
-                return result + sessionVolumeInPounds(session)
+                return result + SessionService.sessionVolumeInPounds(session)
             }
             return VolumePoint(
                 startDate: bucket.startDate,
@@ -196,7 +196,7 @@ struct SessionVolumeModuleView: View {
             let total = userSessions.reduce(0.0) { result, session in
                 let date = session.timestampDone
                 guard date >= bucket.startDate && date < bucket.endDate else { return result }
-                return result + sessionVolumeInPounds(session)
+                return result + SessionService.sessionVolumeInPounds(session)
             }
             return VolumePoint(
                 startDate: bucket.startDate,
@@ -276,17 +276,6 @@ struct SessionVolumeModuleView: View {
                 endDate: end,
                 label: formatter.string(from: start)
             )
-        }
-    }
-
-    private func sessionVolumeInPounds(_ session: Session) -> Double {
-        session.sessionEntries.reduce(0.0) { entryTotal, entry in
-            entryTotal + entry.sets.reduce(0.0) { setTotal, sessionSet in
-                setTotal + sessionSet.sessionReps.reduce(0.0) { repTotal, rep in
-                    let weightInPounds = rep.weight * rep.weightUnit.conversion(to: .lb)
-                    return repTotal + (weightInPounds * Double(rep.count))
-                }
-            }
         }
     }
 

@@ -164,11 +164,14 @@ final class NotesImportWriterDebug {
 
             if let strengthEntry = session.sessionEntries.first(where: { $0.exercise.id == bench.id }) {
                 ok = ok && check("writer-test2", strengthEntry.sets.count == 2, "Expected two strength sets")
+                ok = ok && check("writer-test2", strengthEntry.isCompleted, "Expected imported strength entry to auto-complete")
 
                 if strengthEntry.sets.count >= 2 {
                     let firstRep = strengthEntry.sets[0].sessionReps.first
                     let secondRep = strengthEntry.sets[1].sessionReps.first
 
+                    ok = ok && check("writer-test2", strengthEntry.sets[0].isCompleted, "Expected imported strength set 1 to auto-complete")
+                    ok = ok && check("writer-test2", strengthEntry.sets[1].isCompleted, "Expected imported strength set 2 to auto-complete")
                     ok = ok && check("writer-test2", firstRep?.weight == 185, "Expected explicit strength weight")
                     ok = ok && check("writer-test2", firstRep?.count == 8, "Expected explicit rep count")
                     ok = ok && check("writer-test2", strengthEntry.sets[0].restSeconds == 90, "Expected restSeconds to persist")
@@ -187,7 +190,9 @@ final class NotesImportWriterDebug {
 
             if let cardioEntry = session.sessionEntries.first(where: { $0.exercise.id == run.id }) {
                 ok = ok && check("writer-test2", cardioEntry.sets.count == 1, "Expected one cardio set")
+                ok = ok && check("writer-test2", cardioEntry.isCompleted, "Expected imported cardio entry to auto-complete")
                 if let cardioSet = cardioEntry.sets.first {
+                    ok = ok && check("writer-test2", cardioSet.isCompleted, "Expected imported cardio set to auto-complete")
                     ok = ok && check("writer-test2", cardioSet.durationSeconds == 1200, "Expected cardio duration")
                     ok = ok && check("writer-test2", cardioSet.distance == 2, "Expected cardio distance")
                     ok = ok && check("writer-test2", cardioSet.distanceUnit == .mi, "Expected cardio distance unit")

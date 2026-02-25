@@ -10,24 +10,45 @@ struct SessionsPageView: View {
     @State private var showingNotesImport = false
     @State private var showingCreateSession = false
 
-    private var sortedSessions: [Session] {
-        sessionService.sessions.sorted { $0.timestamp > $1.timestamp }
-    }
+    @State private var selectedRange: SessionTimeRange = .month
+    @State private var visibleSessions: [Session] = []
+    @State private var summary = SessionPeriodSummary.empty
+    @State private var rowMetricsBySessionID: [UUID: SessionRowMetrics] = [:]
 
     var body: some View {
-        Group {
-            if sortedSessions.isEmpty {
-                ContentUnavailableView("No sessions yet", systemImage: "figure.strengthtraining.traditional")
-                    .frame(maxHeight: .infinity)
+        VStack(spacing: 12) {
+            Picker("Range", selection: $selectedRange) {
+                ForEach(SessionTimeRange.allCases) { range in
+                    Text(range.rawValue).tag(range)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
+
+            summaryCard
+                .padding(.horizontal)
+
+            if visibleSessions.isEmpty {
+                ContentUnavailableView {
+                    Label("No sessions in this period", systemImage: "figure.strengthtraining.traditional")
+                } actions: {
+                    Button("Add Log") {
+                        showingCreateSession = true
+                    }
+                }
+                .frame(maxHeight: .infinity)
             } else {
                 List {
-                    ForEach(sortedSessions, id: \.id) { session in
+                    ForEach(visibleSessions, id: \.id) { session in
                         NavigationLink {
                             SingleSessionView(session: session)
                                 .appBackground()
                         } label: {
-                            SessionsPageRowLabel(session: session)
-                                .foregroundColor(.primary)
+                            SessionsPageRowLabel(
+                                session: session,
+                                metrics: rowMetricsBySessionID[session.id]
+                            )
+                            .foregroundColor(.primary)
                         }
                         .contextMenu {
                             Button {
@@ -80,6 +101,13 @@ struct SessionsPageView: View {
         }
         .onAppear {
             sessionService.loadSessions()
+            refreshViewData()
+        }
+        .onReceive(sessionService.$sessions) { _ in
+            refreshViewData()
+        }
+        .onChange(of: selectedRange) {
+            refreshViewData()
         }
         .sheet(isPresented: $showingCreateSession) {
             CreateSessionSheetView(
@@ -101,33 +129,181 @@ struct SessionsPageView: View {
                 .appBackground()
         }
     }
+
+    private var summaryCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(summary.title)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Text("\(summary.sessionCount) Session\(summary.sessionCount == 1 ? "" : "s")")
+                .font(.headline)
+
+            Text("Total volume: \(sessionService.formattedPounds(summary.totalVolume))")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Text("Avg session volume: \(sessionService.formattedPounds(summary.averageSessionVolume))")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            if let averageDurationMinutes = summary.averageDurationMinutes {
+                Text("Avg duration: \(Int(averageDurationMinutes.rounded())) min")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color(.secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func refreshViewData() {
+        let interval = selectedRange.dateInterval(referenceDate: Date(), calendar: .current)
+        let sessions = sessionService.sessionsInRange(interval)
+
+        var nextRowMetricsBySessionID: [UUID: SessionRowMetrics] = [:]
+        var totalVolume: Double = 0
+        var totalDurationMinutes = 0
+        var sessionsWithDuration = 0
+
+        for session in sessions {
+            let sessionVolume = sessionService.sessionVolumeInPounds(session)
+            totalVolume += sessionVolume
+
+            let durationMinutes = sessionDurationMinutes(for: session)
+            if let durationMinutes {
+                totalDurationMinutes += durationMinutes
+                sessionsWithDuration += 1
+            }
+
+            nextRowMetricsBySessionID[session.id] = SessionRowMetrics(
+                exerciseCount: session.sessionEntries.count,
+                volumeText: sessionService.formattedPounds(sessionVolume),
+                durationText: durationMinutes.map { "\($0) min" }
+            )
+        }
+
+        visibleSessions = sessions
+        rowMetricsBySessionID = nextRowMetricsBySessionID
+        summary = SessionPeriodSummary(
+            title: selectedRange.summaryTitle,
+            sessionCount: sessions.count,
+            totalVolume: totalVolume,
+            averageSessionVolume: sessions.isEmpty ? 0 : totalVolume / Double(sessions.count),
+            averageDurationMinutes: sessionsWithDuration == 0
+                ? nil
+                : Double(totalDurationMinutes) / Double(sessionsWithDuration)
+        )
+    }
+
+    private func sessionDurationMinutes(for session: Session) -> Int? {
+        guard session.timestampDone > session.timestamp else { return nil }
+        let duration = session.timestampDone.timeIntervalSince(session.timestamp)
+        guard duration > 0 else { return nil }
+        return Int((duration / 60).rounded())
+    }
 }
 
 private struct SessionsPageRowLabel: View {
     @Bindable var session: Session
+    let metrics: SessionRowMetrics?
 
     var body: some View {
-        HStack {
+        HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(session.timestamp, format: Date.FormatStyle(date: .long, time: .shortened))
+                Text(session.timestamp, format: Date.FormatStyle(date: .abbreviated, time: .shortened))
+                    .font(.headline)
 
-                HStack {
-                    Text("\(session.sessionEntries.count) Exercise\(session.sessionEntries.count == 1 ? "" : "s")")
+                if let routine = session.routine {
+                    Text(routine.name)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                if let metrics {
+                    Text(metadataText(metrics: metrics))
                         .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    Spacer()
-
-                    if let routine = session.routine {
-                        Text("Routine: \(routine.name)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.9)
                 }
             }
             .padding(.vertical, 8)
             .padding(.leading, 12)
             .padding(.trailing, 4)
+
         }
     }
+
+    private func metadataText(metrics: SessionRowMetrics) -> String {
+        var components = [
+            "\(metrics.exerciseCount) exercise\(metrics.exerciseCount == 1 ? "" : "s")",
+            metrics.volumeText
+        ]
+
+        if let durationText = metrics.durationText {
+            components.append(durationText)
+        }
+
+        return components.joined(separator: " · ")
+    }
+}
+
+private enum SessionTimeRange: String, CaseIterable, Identifiable {
+    case week = "Week"
+    case month = "Month"
+    case year = "Year"
+    case all = "All"
+
+    var id: String { rawValue }
+
+    var summaryTitle: String {
+        switch self {
+        case .week:
+            return "This Week"
+        case .month:
+            return "This Month"
+        case .year:
+            return "This Year"
+        case .all:
+            return "All"
+        }
+    }
+
+    func dateInterval(referenceDate: Date, calendar: Calendar) -> DateInterval? {
+        switch self {
+        case .week:
+            return calendar.dateInterval(of: .weekOfYear, for: referenceDate)
+        case .month:
+            return calendar.dateInterval(of: .month, for: referenceDate)
+        case .year:
+            return calendar.dateInterval(of: .year, for: referenceDate)
+        case .all:
+            return nil
+        }
+    }
+}
+
+private struct SessionPeriodSummary {
+    let title: String
+    let sessionCount: Int
+    let totalVolume: Double
+    let averageSessionVolume: Double
+    let averageDurationMinutes: Double?
+
+    static let empty = SessionPeriodSummary(
+        title: SessionTimeRange.month.summaryTitle,
+        sessionCount: 0,
+        totalVolume: 0,
+        averageSessionVolume: 0,
+        averageDurationMinutes: nil
+    )
+}
+
+private struct SessionRowMetrics {
+    let exerciseCount: Int
+    let volumeText: String
+    let durationText: String?
 }

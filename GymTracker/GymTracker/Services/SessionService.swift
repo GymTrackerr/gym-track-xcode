@@ -67,6 +67,76 @@ class SessionService : ServiceBase, ObservableObject {
             sessions = []
         }
     }
+
+    func sessionsInRange(_ interval: DateInterval?) -> [Session] {
+        let sortBy = [SortDescriptor(\Session.timestamp, order: .reverse)]
+
+        do {
+            let descriptor: FetchDescriptor<Session>
+
+            if let interval {
+                let start = interval.start
+                let end = interval.end
+
+                if let userId = currentUser?.id {
+                    let predicate = #Predicate<Session> {
+                        $0.user_id == userId && $0.timestamp >= start && $0.timestamp < end
+                    }
+                    descriptor = FetchDescriptor(predicate: predicate, sortBy: sortBy)
+                } else {
+                    let predicate = #Predicate<Session> {
+                        $0.timestamp >= start && $0.timestamp < end
+                    }
+                    descriptor = FetchDescriptor(predicate: predicate, sortBy: sortBy)
+                }
+            } else if let userId = currentUser?.id {
+                let predicate = #Predicate<Session> {
+                    $0.user_id == userId
+                }
+                descriptor = FetchDescriptor(predicate: predicate, sortBy: sortBy)
+            } else {
+                descriptor = FetchDescriptor(sortBy: sortBy)
+            }
+
+            return try modelContext.fetch(descriptor)
+        } catch {
+            return sessions
+                .filter { session in
+                    guard let userId = currentUser?.id else { return true }
+                    return session.user_id == userId
+                }
+                .filter { session in
+                    guard let interval else { return true }
+                    return interval.contains(session.timestamp)
+                }
+                .sorted { $0.timestamp > $1.timestamp }
+        }
+    }
+
+    static func sessionVolumeInPounds(_ session: Session) -> Double {
+        session.sessionEntries.reduce(0.0) { entryTotal, entry in
+            entryTotal + entry.sets.reduce(0.0) { setTotal, sessionSet in
+                setTotal + sessionSet.sessionReps.reduce(0.0) { repTotal, rep in
+                    let weightInPounds = rep.weight * rep.weightUnit.conversion(to: .lb)
+                    return repTotal + (weightInPounds * Double(rep.count))
+                }
+            }
+        }
+    }
+
+    func sessionVolumeInPounds(_ session: Session) -> Double {
+        Self.sessionVolumeInPounds(session)
+    }
+
+    func totalVolumeInPounds(_ sessions: [Session]) -> Double {
+        sessions.reduce(0.0) { result, session in
+            result + sessionVolumeInPounds(session)
+        }
+    }
+
+    func formattedPounds(_ value: Double) -> String {
+        "\(Int(value.rounded())) lb"
+    }
     
     func search(query: String) -> [Session] {
         guard !query.isEmpty else { return sessions }

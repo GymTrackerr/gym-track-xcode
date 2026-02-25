@@ -98,6 +98,7 @@ final class NotesImportWriterService {
 
                     for (setIndex, parsedSet) in strength.sets.enumerated() {
                         let set = SessionSet(order: setIndex, sessionEntry: entry, notes: strength.notes)
+                        set.isCompleted = true
                         set.restSeconds = parsedSet.restSeconds
 
                         context.insert(set)
@@ -124,6 +125,7 @@ final class NotesImportWriterService {
                         context.insert(rep)
                         set.sessionReps.append(rep)
                     }
+                    entry.isCompleted = !entry.sets.isEmpty && entry.sets.allSatisfy(\.isCompleted)
 
                     entryOrder += 1
 
@@ -139,6 +141,7 @@ final class NotesImportWriterService {
 
                     for (setIndex, parsedSet) in cardio.sets.enumerated() {
                         let set = SessionSet(order: setIndex, sessionEntry: entry, notes: cardio.notes)
+                        set.isCompleted = true
                         set.durationSeconds = parsedSet.durationSeconds
                         set.distance = parsedSet.distance
                         set.distanceUnit = parsedSet.distanceUnit
@@ -147,6 +150,7 @@ final class NotesImportWriterService {
                         context.insert(set)
                         entry.sets.append(set)
                     }
+                    entry.isCompleted = !entry.sets.isEmpty && entry.sets.allSatisfy(\.isCompleted)
 
                     entryOrder += 1
                 }
