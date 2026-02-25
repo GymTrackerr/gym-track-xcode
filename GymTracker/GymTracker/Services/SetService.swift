@@ -143,14 +143,16 @@ class SetService: ServiceBase, ObservableObject {
         }
     }
 
-    func mostRecentRep(for exercise: Exercise) -> SessionRep? {
+    private func recentEntries(for exercise: Exercise) -> [SessionEntry] {
         let descriptor = FetchDescriptor<SessionEntry>()
         let allEntries = (try? modelContext.fetch(descriptor)) ?? []
-        let entries = allEntries
+        return allEntries
             .filter { $0.exercise.id == exercise.id }
             .sorted { $0.session.timestamp > $1.session.timestamp }
+    }
 
-        for entry in entries {
+    func mostRecentRep(for exercise: Exercise) -> SessionRep? {
+        for entry in recentEntries(for: exercise) {
             let sortedSets = entry.sets.sorted { $0.timestamp > $1.timestamp }
             for sessionSet in sortedSets {
                 for rep in sessionSet.sessionReps.reversed() {
@@ -160,8 +162,24 @@ class SetService: ServiceBase, ObservableObject {
                 }
             }
         }
-
         return nil
+    }
+
+    func mostRecentCardioSet(for exercise: Exercise) -> SessionSet? {
+        for entry in recentEntries(for: exercise) {
+            let sortedSets = entry.sets.sorted { $0.timestamp > $1.timestamp }
+            for sessionSet in sortedSets where isMeaningfulCardioSet(sessionSet) {
+                return sessionSet
+            }
+        }
+        return nil
+    }
+
+    private func isMeaningfulCardioSet(_ sessionSet: SessionSet) -> Bool {
+        let hasDuration = (sessionSet.durationSeconds ?? 0) > 0
+        let hasDistance = (sessionSet.distance ?? 0) > 0
+        let hasPace = (sessionSet.paceSeconds ?? 0) > 0
+        return hasDuration || hasDistance || hasPace
     }
 
     private func reorderSets(sessionEntry: SessionEntry) {

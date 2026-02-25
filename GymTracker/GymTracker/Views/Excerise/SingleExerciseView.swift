@@ -582,22 +582,26 @@ struct ExerciseDetailView: View {
     }
 
     private var cardioAveragePaceLabel: String? {
-        let paces = cardioSets.compactMap(\.paceSeconds)
-        guard !paces.isEmpty, let paceUnit = cardioPaceUnitLabel else { return nil }
-        let average = paces.reduce(0, +) / paces.count
-        return "\(formattedDuration(average))/\(paceUnit)"
-    }
-
-    private var cardioPaceUnitLabel: String? {
-        let units = cardioSets.map(\.distanceUnit)
-        guard !units.isEmpty else { return nil }
-
-        var counts: [DistanceUnit: Int] = [:]
-        for unit in units {
-            counts[unit, default: 0] += 1
+        let paces = cardioSets.compactMap { set -> Int? in
+            let resolved = SetDisplayFormatter.resolvePaceSeconds(
+                explicitPaceSeconds: set.paceSeconds,
+                durationSeconds: set.durationSeconds,
+                distance: set.distance
+            )
+            guard let resolved else { return nil }
+            return SetDisplayFormatter.paceSeconds(
+                secondsPerSourceUnit: resolved,
+                sourceUnit: set.distanceUnit,
+                preferredDistanceUnit: selectedDistanceUnit
+            )
         }
-
-        return counts.max(by: { $0.value < $1.value })?.key.rawValue
+        guard !paces.isEmpty else { return nil }
+        let average = paces.reduce(0, +) / paces.count
+        return SetDisplayFormatter.formatPace(
+            secondsPerSourceUnit: average,
+            sourceUnit: selectedDistanceUnit,
+            preferredDistanceUnit: selectedDistanceUnit
+        )
     }
 
     private var displayUnit: WeightUnit {
@@ -907,6 +911,53 @@ struct ExerciseDetailView: View {
         return formatter.string(from: TimeInterval(seconds)) ?? "\(seconds)s"
     }
 
+    private func compactPreviousSessionSubtitle(
+        for sets: [SessionSet],
+        exerciseKind: SetDisplayExerciseKind,
+        unitPrefs: SetDisplayUnitPreferences
+    ) -> String {
+        guard !sets.isEmpty else { return "No logged sets." }
+
+        var parts: [String] = ["\(sets.count) set\(sets.count == 1 ? "" : "s")"]
+
+        switch exerciseKind {
+        case .cardio:
+            let totalDuration = sets.compactMap(\.durationSeconds).filter { $0 > 0 }.reduce(0, +)
+            if totalDuration > 0 {
+                parts.append(formattedDuration(totalDuration))
+            }
+
+            let targetUnit = unitPrefs.preferredDistanceUnit ?? .km
+            let totalDistance = sets.reduce(0.0) { result, set in
+                guard let distance = set.distance, distance > 0 else { return result }
+                return result + convertDistance(distance, from: set.distanceUnit, to: targetUnit)
+            }
+            if totalDistance > 0 {
+                parts.append("\(formatDecimal(totalDistance)) \(targetUnit.rawValue)")
+            }
+
+        case .strength, .bodyweight:
+            let reps = sets.flatMap(\.sessionReps).reduce(0) { $0 + max($1.count, 0) }
+            if reps > 0 {
+                parts.append("\(reps) reps")
+            }
+
+            let targetUnit = unitPrefs.preferredWeightUnit ?? displayUnit
+            let totalWeight = sets
+                .flatMap(\.sessionReps)
+                .reduce(0.0) { result, rep in
+                    guard rep.weight > 0 else { return result }
+                    let converted = rep.weight * rep.weightUnit.conversion(to: targetUnit)
+                    return result + converted
+                }
+            if totalWeight > 0 {
+                parts.append("\(formatDecimal(totalWeight)) \(targetUnit.name)")
+            }
+        }
+
+        return parts.joined(separator: " • ")
+    }
+
     @ViewBuilder
     private func detailRow(_ title: String, _ value: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -993,25 +1044,11 @@ struct ExerciseDetailView: View {
                 SetDisplayFormatter.isMeaningfulSet($0, exerciseKind: exercise.setDisplayKind)
             }
 
-            let subtitle: String
-            if meaningfulSets.isEmpty {
-                subtitle = "No logged sets."
-            } else {
-                let maxPreviewCount = 2
-                let preview = meaningfulSets.prefix(maxPreviewCount).map {
-                    SetDisplayFormatter.formatSetSummary(
-                        $0,
-                        exerciseKind: exercise.setDisplayKind,
-                        unitPrefs: unitPrefs
-                    )
-                }
-                let previewText = preview.map { $0.primaryText }.joined(separator: " • ")
-                if meaningfulSets.count > maxPreviewCount {
-                    subtitle = "\(previewText) • +\(meaningfulSets.count - maxPreviewCount) more"
-                } else {
-                    subtitle = previewText
-                }
-            }
+            let subtitle = compactPreviousSessionSubtitle(
+                for: meaningfulSets,
+                exerciseKind: exercise.setDisplayKind,
+                unitPrefs: unitPrefs
+            )
 
             result.append(
                 PreviousSessionItem(

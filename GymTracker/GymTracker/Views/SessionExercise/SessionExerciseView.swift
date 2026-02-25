@@ -20,10 +20,11 @@ struct SessionExerciseView: View {
     @State private var isDropSet: Bool = false
     @State private var draftUnit: WeightUnit = .lb
     @State private var draftReps: [RepDraft] = [RepDraft()]
-    @State private var cardioDurationText: String = ""
+    @State private var cardioDurationSeconds: Int = 0
     @State private var cardioDistanceText: String = ""
     @State private var cardioPaceText: String = ""
     @State private var cardioDistanceUnit: DistanceUnit = .km
+    @State private var cardioManualPace: Bool = false
 
     init(sessionEntry: SessionEntry, navigationContext: SessionNavigationContext? = nil) {
         self.sessionEntry = sessionEntry
@@ -74,7 +75,7 @@ struct SessionExerciseView: View {
             }
         }
         .onAppear {
-            applyLastRepDefaultsIfNeeded()
+            applyLastDefaultsIfNeeded()
         }
     }
 
@@ -159,40 +160,62 @@ struct SessionExerciseView: View {
                 .foregroundColor(.secondary)
 
             if sessionEntry.exercise.cardio {
-                HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 12) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Duration (sec)")
+                        Text("Time (HH:MM:SS)")
                             .font(.subheadline)
                             .fontWeight(.semibold)
-                        TextField("", text: $cardioDurationText)
-                            .keyboardType(.numberPad)
-                            .textFieldStyle(.roundedBorder)
+                        DurationWheelPicker(totalSeconds: $cardioDurationSeconds)
+                        Text(SetDisplayFormatter.formatClockDuration(cardioDurationSeconds))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
 
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Distance")
                             .font(.subheadline)
                             .fontWeight(.semibold)
-                        TextField("", text: $cardioDistanceText)
-                            .keyboardType(.decimalPad)
-                            .textFieldStyle(.roundedBorder)
-                    }
-                }
+                        HStack(spacing: 10) {
+                            TextField("", text: $cardioDistanceText)
+                                .keyboardType(.decimalPad)
+                                .textFieldStyle(.roundedBorder)
 
-                HStack(spacing: 12) {
-                    Picker("Unit", selection: $cardioDistanceUnit) {
-                        Text("km").tag(DistanceUnit.km)
-                        Text("mi").tag(DistanceUnit.mi)
+                            Picker("Unit", selection: $cardioDistanceUnit) {
+                                Text("km").tag(DistanceUnit.km)
+                                Text("mi").tag(DistanceUnit.mi)
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(maxWidth: 130)
+                        }
                     }
-                    .pickerStyle(.segmented)
 
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Pace (sec)")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                        TextField("", text: $cardioPaceText)
-                            .keyboardType(.numberPad)
-                            .textFieldStyle(.roundedBorder)
+                        Toggle("Manual Pace", isOn: $cardioManualPace)
+                        if cardioManualPace {
+                            HStack(spacing: 8) {
+                                Text("Pace")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                TextField("", text: $cardioPaceText)
+                                    .keyboardType(.numberPad)
+                                    .textFieldStyle(.roundedBorder)
+                                Text("/\(cardioDistanceUnit.rawValue)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else if let estimated = calculateEstimatedPace(
+                            distance: Double(cardioDistanceText.trimmingCharacters(in: .whitespacesAndNewlines)),
+                            durationSeconds: cardioDurationSeconds > 0 ? cardioDurationSeconds : nil,
+                            distanceUnit: cardioDistanceUnit
+                        ) {
+                            Text("Estimated Pace \(estimated)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("Estimated Pace --")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
             } else {
@@ -332,40 +355,60 @@ struct SessionExerciseView: View {
                     sessionSet,
                     exerciseKind: exerciseKind
                 )
-                HStack(alignment: .top, spacing: 12) {
-                    setBadge(text: "\(sessionSet.order + 1)")
+                if !sessionEntry.exercise.cardio && sessionSet.isDropSet {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(sessionSet.sessionReps.indices, id: \.self) { index in
+                            let rep = sessionSet.sessionReps[index]
+                            HStack(spacing: 12) {
+                                setBadge(text: badgeText(for: sessionSet, repIndex: index))
 
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(summary.primaryText)
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
+                                Text("\(rep.weight.clean) \(rep.weightUnit.name)s x \(rep.count) reps")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
 
-                        if let secondary = summary.secondaryText, !secondary.isEmpty {
-                            Text(secondary)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-
-                        if !summary.chips.isEmpty {
-                            HStack(spacing: 6) {
-                                ForEach(summary.chips, id: \.self) { chip in
-                                    Text(chip)
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
-                                        .background(Color.gray.opacity(0.14))
-                                        .clipShape(Capsule())
-                                }
+                                Spacer()
                             }
                         }
                     }
+                    .padding(12)
+                    .background(Color.gray.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                } else {
+                    HStack(alignment: .top, spacing: 12) {
+                        setBadge(text: "\(sessionSet.order + 1)")
 
-                    Spacer()
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(summary.primaryText)
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+
+                            if let secondary = summary.secondaryText, !secondary.isEmpty {
+                                Text(secondary)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            if !summary.chips.isEmpty {
+                                HStack(spacing: 6) {
+                                    ForEach(summary.chips, id: \.self) { chip in
+                                        Text(chip)
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
+                                            .background(Color.gray.opacity(0.14))
+                                            .clipShape(Capsule())
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer()
+                    }
+                    .padding(12)
+                    .background(Color.gray.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
-                .padding(12)
-                .background(Color.gray.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
             }
         }
     }
@@ -394,53 +437,70 @@ struct SessionExerciseView: View {
                                 }
                             }
 
-                            HStack(spacing: 10) {
+                            VStack(alignment: .leading, spacing: 10) {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("Duration")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
-                                    TextField(
-                                        "sec",
-                                        text: intTextBinding(for: sessionSet, keyPath: \.durationSeconds)
-                                    )
-                                    .keyboardType(.numberPad)
-                                    .textFieldStyle(.roundedBorder)
+                                    DurationWheelPicker(totalSeconds: durationSecondsBinding(for: sessionSet))
+                                    Text(SetDisplayFormatter.formatClockDuration(sessionSet.durationSeconds ?? 0))
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
                                 }
 
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("Distance")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
-                                    TextField(
-                                        "value",
-                                        text: doubleTextBinding(for: sessionSet, keyPath: \.distance)
-                                    )
-                                    .keyboardType(.decimalPad)
-                                    .textFieldStyle(.roundedBorder)
+                                    HStack(spacing: 10) {
+                                        TextField(
+                                            "value",
+                                            text: doubleTextBinding(for: sessionSet, keyPath: \.distance)
+                                        )
+                                        .keyboardType(.decimalPad)
+                                        .textFieldStyle(.roundedBorder)
+
+                                        Picker("Distance Unit", selection: distanceUnitBinding(for: sessionSet)) {
+                                            Text("km").tag(DistanceUnit.km)
+                                            Text("mi").tag(DistanceUnit.mi)
+                                        }
+                                        .pickerStyle(.segmented)
+                                        .frame(maxWidth: 130)
+                                    }
                                 }
 
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("Unit")
+                                    Toggle("Manual Pace", isOn: manualPaceBinding(for: sessionSet))
                                         .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                    Picker("Distance Unit", selection: distanceUnitBinding(for: sessionSet)) {
-                                        Text("km").tag(DistanceUnit.km)
-                                        Text("mi").tag(DistanceUnit.mi)
+                                    if (sessionSet.paceSeconds ?? 0) > 0 {
+                                        HStack(spacing: 8) {
+                                            Text("Pace")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                            TextField(
+                                                "sec",
+                                                text: intTextBinding(for: sessionSet, keyPath: \.paceSeconds)
+                                            )
+                                            .keyboardType(.numberPad)
+                                            .textFieldStyle(.roundedBorder)
+                                            Text("/\(sessionSet.distanceUnit.rawValue)")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    } else if let estimated = calculateEstimatedPace(
+                                        distance: sessionSet.distance,
+                                        durationSeconds: sessionSet.durationSeconds,
+                                        distanceUnit: sessionSet.distanceUnit
+                                    ) {
+                                        Text("Estimated Pace \(estimated)")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    } else {
+                                        Text("Estimated Pace --")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
                                     }
-                                    .pickerStyle(.segmented)
                                 }
-                            }
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Pace")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                TextField(
-                                    "sec",
-                                    text: intTextBinding(for: sessionSet, keyPath: \.paceSeconds)
-                                )
-                                .keyboardType(.numberPad)
-                                .textFieldStyle(.roundedBorder)
                             }
                         }
                     } else {
@@ -664,10 +724,14 @@ struct SessionExerciseView: View {
     private func addCardioSetFromDraft() {
         guard canEditSession else { return }
         guard let newSet = setService.addSet(sessionEntry: sessionEntry, notes: draftNotes, isDropSet: false) else { return }
-        newSet.durationSeconds = Int(cardioDurationText.trimmingCharacters(in: .whitespacesAndNewlines))
+        newSet.durationSeconds = cardioDurationSeconds > 0 ? cardioDurationSeconds : nil
         newSet.distance = Double(cardioDistanceText.trimmingCharacters(in: .whitespacesAndNewlines))
         newSet.distanceUnit = cardioDistanceUnit
-        newSet.paceSeconds = Int(cardioPaceText.trimmingCharacters(in: .whitespacesAndNewlines))
+        if cardioManualPace {
+            newSet.paceSeconds = Int(cardioPaceText.trimmingCharacters(in: .whitespacesAndNewlines))
+        } else {
+            newSet.paceSeconds = nil
+        }
         setService.saveSetData(sessionSet: newSet)
     }
 
@@ -692,8 +756,34 @@ struct SessionExerciseView: View {
         setService.saveSetData(sessionSet: sessionSet)
     }
 
-    private func applyLastRepDefaultsIfNeeded() {
-        guard !sessionEntry.exercise.cardio else { return }
+    private func applyLastDefaultsIfNeeded() {
+        if sessionEntry.exercise.cardio {
+            let hasDraft = cardioDurationSeconds > 0 ||
+                !cardioDistanceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                !cardioPaceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            guard !hasDraft else { return }
+            let recentSet = sessionEntry.sets
+                .sorted { $0.timestamp > $1.timestamp }
+                .first {
+                    ($0.durationSeconds ?? 0) > 0 ||
+                    ($0.distance ?? 0) > 0 ||
+                    ($0.paceSeconds ?? 0) > 0
+                } ?? setService.mostRecentCardioSet(for: sessionEntry.exercise)
+            guard let recentSet else { return }
+
+            cardioDurationSeconds = recentSet.durationSeconds ?? 0
+            cardioDistanceText = recentSet.distance?.clean ?? ""
+            cardioDistanceUnit = recentSet.distanceUnit
+            if let pace = recentSet.paceSeconds, pace > 0 {
+                cardioManualPace = true
+                cardioPaceText = String(pace)
+            } else {
+                cardioManualPace = false
+                cardioPaceText = ""
+            }
+            return
+        }
+
         if let rep = setService.mostRecentRep(for: sessionEntry.exercise) {
             let unit = rep.weightUnit
             draftUnit = unit
@@ -745,6 +835,46 @@ struct SessionExerciseView: View {
         )
     }
 
+    private func durationSecondsBinding(for sessionSet: SessionSet) -> Binding<Int> {
+        Binding(
+            get: { max(sessionSet.durationSeconds ?? 0, 0) },
+            set: { newValue in
+                let clamped = max(newValue, 0)
+                sessionSet.durationSeconds = clamped > 0 ? clamped : nil
+                setService.saveSetData(sessionSet: sessionSet)
+            }
+        )
+    }
+
+    private func manualPaceBinding(for sessionSet: SessionSet) -> Binding<Bool> {
+        Binding(
+            get: { (sessionSet.paceSeconds ?? 0) > 0 },
+            set: { newValue in
+                if !newValue {
+                    sessionSet.paceSeconds = nil
+                }
+                setService.saveSetData(sessionSet: sessionSet)
+            }
+        )
+    }
+
+    private func calculateEstimatedPace(
+        distance: Double?,
+        durationSeconds: Int?,
+        distanceUnit: DistanceUnit
+    ) -> String? {
+        let resolvedPace = SetDisplayFormatter.resolvePaceSeconds(
+            explicitPaceSeconds: nil,
+            durationSeconds: durationSeconds,
+            distance: distance
+        )
+        return SetDisplayFormatter.formatPace(
+            secondsPerSourceUnit: resolvedPace,
+            sourceUnit: distanceUnit,
+            preferredDistanceUnit: distanceUnit
+        )
+    }
+
     private func binding(for rep: SessionRep) -> (weight: Binding<Double>, count: Binding<Int>) {
         (
             weight: Binding(
@@ -784,6 +914,106 @@ private extension Double {
             return String(format: "%.0f", self)
         }
         return String(format: "%.1f", self)
+    }
+}
+
+private struct DurationWheelPicker: View {
+    @Binding var totalSeconds: Int
+
+    private var hoursBinding: Binding<Int> {
+        Binding(
+            get: { totalSeconds / 3600 },
+            set: { newValue in
+                let clamped = max(0, min(newValue, 23))
+                totalSeconds = (clamped * 3600) + (minutes * 60) + seconds
+            }
+        )
+    }
+
+    private var minutesBinding: Binding<Int> {
+        Binding(
+            get: { minutes },
+            set: { newValue in
+                let clamped = max(0, min(newValue, 59))
+                totalSeconds = (hours * 3600) + (clamped * 60) + seconds
+            }
+        )
+    }
+
+    private var secondsBinding: Binding<Int> {
+        Binding(
+            get: { seconds },
+            set: { newValue in
+                let clamped = max(0, min(newValue, 59))
+                totalSeconds = (hours * 3600) + (minutes * 60) + clamped
+            }
+        )
+    }
+
+    private var hours: Int { max(totalSeconds, 0) / 3600 }
+    private var minutes: Int { (max(totalSeconds, 0) % 3600) / 60 }
+    private var seconds: Int { max(totalSeconds, 0) % 60 }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            VStack(spacing: 2) {
+                Picker("Hours", selection: hoursBinding) {
+                    ForEach(0..<24, id: \.self) { value in
+                        Text(String(format: "%02d", value)).tag(value)
+                    }
+                }
+                .pickerStyle(.wheel)
+                .frame(width: 66, height: 88)
+                .clipped()
+                .background(Color(.systemGray6))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                Text("HH")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Text(":")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 2) {
+                Picker("Minutes", selection: minutesBinding) {
+                    ForEach(0..<60, id: \.self) { value in
+                        Text(String(format: "%02d", value)).tag(value)
+                    }
+                }
+                .pickerStyle(.wheel)
+                .frame(width: 66, height: 88)
+                .clipped()
+                .background(Color(.systemGray6))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                Text("MM")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Text(":")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 2) {
+                Picker("Seconds", selection: secondsBinding) {
+                    ForEach(0..<60, id: \.self) { value in
+                        Text(String(format: "%02d", value)).tag(value)
+                    }
+                }
+                .pickerStyle(.wheel)
+                .frame(width: 66, height: 88)
+                .clipped()
+                .background(Color(.systemGray6))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                Text("SS")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(height: 112)
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 }
 private func dismissKeyboard() {

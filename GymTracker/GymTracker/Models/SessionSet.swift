@@ -70,6 +70,55 @@ struct SetDisplaySummary {
 }
 
 enum SetDisplayFormatter {
+    static func resolvePaceSeconds(
+        explicitPaceSeconds: Int?,
+        durationSeconds: Int?,
+        distance: Double?
+    ) -> Int? {
+        if let explicitPaceSeconds, explicitPaceSeconds > 0 {
+            return explicitPaceSeconds
+        }
+        guard let durationSeconds, durationSeconds > 0,
+              let distance, distance > 0 else { return nil }
+        return Int((Double(durationSeconds) / distance).rounded())
+    }
+
+    static func formatClockDuration(_ seconds: Int) -> String {
+        let safeSeconds = max(seconds, 0)
+        let hours = safeSeconds / 3600
+        let minutes = (safeSeconds % 3600) / 60
+        let remainingSeconds = safeSeconds % 60
+
+        if hours > 0 {
+            return String(format: "%02d:%02d:%02d", hours, minutes, remainingSeconds)
+        }
+        return String(format: "%02d:%02d", minutes, remainingSeconds)
+    }
+
+    static func formatPace(
+        secondsPerSourceUnit: Int?,
+        sourceUnit: DistanceUnit,
+        preferredDistanceUnit: DistanceUnit? = nil
+    ) -> String? {
+        guard let convertedPace = paceSeconds(
+            secondsPerSourceUnit: secondsPerSourceUnit,
+            sourceUnit: sourceUnit,
+            preferredDistanceUnit: preferredDistanceUnit
+        ) else { return nil }
+        let targetUnit = preferredDistanceUnit ?? sourceUnit
+        return "\(formatDuration(convertedPace))/\(targetUnit.rawValue)"
+    }
+
+    static func paceSeconds(
+        secondsPerSourceUnit: Int?,
+        sourceUnit: DistanceUnit,
+        preferredDistanceUnit: DistanceUnit? = nil
+    ) -> Int? {
+        guard let secondsPerSourceUnit, secondsPerSourceUnit > 0 else { return nil }
+        let targetUnit = preferredDistanceUnit ?? sourceUnit
+        return convertPace(secondsPerSourceUnit, from: sourceUnit, to: targetUnit)
+    }
+
     static func isMeaningfulSet(_ set: SessionSet, exerciseKind: SetDisplayExerciseKind) -> Bool {
         let hasNote = !(set.notes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
 
@@ -111,9 +160,17 @@ enum SetDisplayFormatter {
                 distanceText = nil
             }
 
-            let paceText = (set.paceSeconds ?? 0) > 0
-                ? "Pace \(formatDuration(set.paceSeconds ?? 0))/\((unitPrefs.preferredDistanceUnit ?? set.distanceUnit).rawValue)"
-                : nil
+            let sourceUnit = set.distanceUnit
+            let targetUnit = unitPrefs.preferredDistanceUnit ?? sourceUnit
+            let paceText = formatPace(
+                secondsPerSourceUnit: resolvePaceSeconds(
+                    explicitPaceSeconds: set.paceSeconds,
+                    durationSeconds: set.durationSeconds,
+                    distance: set.distance
+                ),
+                sourceUnit: sourceUnit,
+                preferredDistanceUnit: targetUnit
+            ).map { "Pace \($0)" }
 
             let primaryParts = [durationText, distanceText].compactMap { $0 }
             if !primaryParts.isEmpty {
@@ -199,6 +256,13 @@ enum SetDisplayFormatter {
             return value * 0.621371
         }
         return value * 1.60934
+    }
+
+    private static func convertPace(_ secondsPerUnit: Int, from source: DistanceUnit, to target: DistanceUnit) -> Int {
+        if source == target { return secondsPerUnit }
+        let sourceUnitsPerTargetUnit = convertDistance(1, from: target, to: source)
+        let converted = Double(secondsPerUnit) * sourceUnitsPerTargetUnit
+        return Int(converted.rounded())
     }
 
     private static func formatDuration(_ seconds: Int) -> String {
