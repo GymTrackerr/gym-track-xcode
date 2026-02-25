@@ -969,28 +969,36 @@ struct ExerciseDetailView: View {
             guard !seen.contains(session.id) else { continue }
             seen.insert(session.id)
 
+            let unitPrefs = SetDisplayUnitPreferences(
+                preferredWeightUnit: displayUnit,
+                preferredDistanceUnit: selectedDistanceUnit
+            )
+            let sets = session.sessionEntries
+                .filter { $0.exercise.id == exercise.id }
+                .flatMap(\.sets)
+                .sorted { $0.order < $1.order }
+            let meaningfulSets = sets.filter {
+                SetDisplayFormatter.isMeaningfulSet($0, exerciseKind: exercise.setDisplayKind)
+            }
+
             let subtitle: String
-            if hasCardioProgress {
-                let sets = session.sessionEntries
-                    .filter { $0.exercise.id == exercise.id }
-                    .flatMap(\.sets)
-                let totalDuration = sets.compactMap(\.durationSeconds).reduce(0, +)
-                let totalDistance = sets.compactMap { set -> Double? in
-                    guard let distance = set.distance else { return nil }
-                    return convertDistance(distance, from: set.distanceUnit, to: selectedDistanceUnit)
-                }.reduce(0, +)
-                subtitle = "Distance: \(formatDecimal(totalDistance)) \(selectedDistanceUnit.rawValue), Time: \(formattedDuration(totalDuration))"
+            if meaningfulSets.isEmpty {
+                subtitle = "No logged sets."
             } else {
-                var totalVolume: Double = 0
-                for entry in session.sessionEntries where entry.exercise.id == exercise.id {
-                    for sessionSet in entry.sets {
-                        for rep in sessionSet.sessionReps {
-                            let weight = convertWeight(rep.weight, from: rep.weightUnit, to: dominantUnit)
-                            totalVolume += weight * Double(rep.count)
-                        }
-                    }
+                let maxPreviewCount = 2
+                let preview = meaningfulSets.prefix(maxPreviewCount).map {
+                    SetDisplayFormatter.formatSetSummary(
+                        $0,
+                        exerciseKind: exercise.setDisplayKind,
+                        unitPrefs: unitPrefs
+                    )
                 }
-                subtitle = "Exercise Volume: \(Int(round(totalVolume))) \(dominantUnit.name)"
+                let previewText = preview.map { $0.primaryText }.joined(separator: " • ")
+                if meaningfulSets.count > maxPreviewCount {
+                    subtitle = "\(previewText) • +\(meaningfulSets.count - maxPreviewCount) more"
+                } else {
+                    subtitle = previewText
+                }
             }
 
             result.append(

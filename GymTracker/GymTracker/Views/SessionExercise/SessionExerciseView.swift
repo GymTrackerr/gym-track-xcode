@@ -269,65 +269,46 @@ struct SessionExerciseView: View {
             Text("Today's Sets")
                 .font(.headline)
 
-            ForEach(sessionEntry.sets.sorted { $0.order < $1.order }, id: \.id) { sessionSet in
-                VStack(alignment: .leading, spacing: 8) {
-                    if sessionEntry.exercise.cardio {
-                        HStack(spacing: 12) {
-                            setBadge(text: "\(sessionSet.order + 1)")
+            let exerciseKind = sessionEntry.exercise.setDisplayKind
+            let meaningfulSets = sessionEntry.sets
+                .sorted { $0.order < $1.order }
+                .filter { SetDisplayFormatter.isMeaningfulSet($0, exerciseKind: exerciseKind) }
 
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(cardioSetSummaryText(for: sessionSet))
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
+            ForEach(meaningfulSets, id: \.id) { sessionSet in
+                let summary = SetDisplayFormatter.formatSetSummary(
+                    sessionSet,
+                    exerciseKind: exerciseKind
+                )
+                HStack(alignment: .top, spacing: 12) {
+                    setBadge(text: "\(sessionSet.order + 1)")
 
-                                if let notes = sessionSet.notes, !notes.isEmpty {
-                                    Text(notes)
-                                        .font(.caption)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(summary.primaryText)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+
+                        if let secondary = summary.secondaryText, !secondary.isEmpty {
+                            Text(secondary)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        if !summary.chips.isEmpty {
+                            HStack(spacing: 6) {
+                                ForEach(summary.chips, id: \.self) { chip in
+                                    Text(chip)
+                                        .font(.caption2)
                                         .foregroundColor(.secondary)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(Color.gray.opacity(0.14))
+                                        .clipShape(Capsule())
                                 }
                             }
-
-                            Spacer()
-                        }
-                    } else if sessionSet.isDropSet {
-                        ForEach(sessionSet.sessionReps.indices, id: \.self) { index in
-                            let rep = sessionSet.sessionReps[index]
-                            HStack(spacing: 12) {
-                                setBadge(text: badgeText(for: sessionSet, repIndex: index))
-
-                                Text("\(rep.weight.clean) \(rep.weightUnit.name)s x \(rep.count) reps")
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-
-                                Spacer()
-                            }
-                        }
-                    } else {
-                        HStack(spacing: 12) {
-                            setBadge(text: "\(sessionSet.order + 1)")
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(setSummaryText(for: sessionSet))
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-
-                                if let notes = sessionSet.notes, !notes.isEmpty {
-                                    Text(notes)
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-
-                            Spacer()
                         }
                     }
 
-                    if !sessionEntry.exercise.cardio, sessionSet.isDropSet, let notes = sessionSet.notes, !notes.isEmpty {
-                        Text(notes)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .padding(.leading, 40)
-                    }
+                    Spacer()
                 }
                 .padding(12)
                 .background(Color.gray.opacity(0.1))
@@ -635,23 +616,6 @@ struct SessionExerciseView: View {
         }
     }
 
-    private func cardioSetSummaryText(for sessionSet: SessionSet) -> String {
-        var parts: [String] = []
-        if let duration = sessionSet.durationSeconds {
-            parts.append("Duration \(duration)s")
-        }
-        if let distance = sessionSet.distance {
-            parts.append("Distance \(distance.clean) \(sessionSet.distanceUnit.rawValue)")
-        }
-        if let pace = sessionSet.paceSeconds {
-            parts.append("Pace \(pace)s")
-        }
-        if parts.isEmpty {
-            return "Cardio set"
-        }
-        return parts.joined(separator: " • ")
-    }
-
     private func intTextBinding(
         for sessionSet: SessionSet,
         keyPath: ReferenceWritableKeyPath<SessionSet, Int?>
@@ -694,26 +658,6 @@ struct SessionExerciseView: View {
                 setService.saveSetData(sessionSet: sessionSet)
             }
         )
-    }
-
-    private func setSummaryText(for sessionSet: SessionSet) -> String {
-        if sessionSet.sessionReps.count > 1 {
-            return "Drop Set • \(sessionSet.sessionReps.count) reps"
-        }
-
-        if let rep = sessionSet.sessionReps.first {
-            return "\(rep.weight.clean) \(rep.weightUnit.name)s x \(rep.count) reps"
-        }
-
-        return "No reps"
-    }
-
-    private func firstRep(for sessionSet: SessionSet) -> SessionRep? {
-        if sessionSet.sessionReps.isEmpty {
-            return nil
-        }
-
-        return sessionSet.sessionReps.first
     }
 
     private func binding(for rep: SessionRep) -> (weight: Binding<Double>, count: Binding<Int>) {

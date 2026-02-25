@@ -51,3 +51,182 @@ enum DistanceUnit: String, Codable {
     case km
     case mi
 }
+
+enum SetDisplayExerciseKind {
+    case strength
+    case cardio
+    case bodyweight
+}
+
+struct SetDisplayUnitPreferences {
+    var preferredWeightUnit: WeightUnit? = nil
+    var preferredDistanceUnit: DistanceUnit? = nil
+}
+
+struct SetDisplaySummary {
+    let primaryText: String
+    let secondaryText: String?
+    let chips: [String]
+}
+
+enum SetDisplayFormatter {
+    static func isMeaningfulSet(_ set: SessionSet, exerciseKind: SetDisplayExerciseKind) -> Bool {
+        let hasNote = !(set.notes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+
+        switch exerciseKind {
+        case .cardio:
+            let hasDuration = (set.durationSeconds ?? 0) > 0
+            let hasDistance = (set.distance ?? 0) > 0
+            let hasPace = (set.paceSeconds ?? 0) > 0
+            return hasDuration || hasDistance || hasPace || hasNote
+        case .bodyweight:
+            let hasReps = set.sessionReps.contains { $0.count > 0 }
+            let hasAddedWeight = set.sessionReps.contains { $0.weight > 0 }
+            return hasReps || hasAddedWeight || hasNote
+        case .strength:
+            let hasReps = set.sessionReps.contains { $0.count > 0 }
+            let hasWeight = set.sessionReps.contains { $0.weight > 0 }
+            return hasReps || hasWeight || hasNote
+        }
+    }
+
+    static func formatSetSummary(
+        _ set: SessionSet,
+        exerciseKind: SetDisplayExerciseKind,
+        unitPrefs: SetDisplayUnitPreferences = SetDisplayUnitPreferences()
+    ) -> SetDisplaySummary {
+        let note = set.notes?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasNote = !(note?.isEmpty ?? true)
+
+        switch exerciseKind {
+        case .cardio:
+            let durationText = (set.durationSeconds ?? 0) > 0 ? formatDuration(set.durationSeconds ?? 0) : nil
+            let distanceText: String?
+            if let distance = set.distance, distance > 0 {
+                let sourceUnit = set.distanceUnit
+                let targetUnit = unitPrefs.preferredDistanceUnit ?? sourceUnit
+                let value = convertDistance(distance, from: sourceUnit, to: targetUnit)
+                distanceText = "\(formatNumber(value)) \(targetUnit.rawValue)"
+            } else {
+                distanceText = nil
+            }
+
+            let paceText = (set.paceSeconds ?? 0) > 0
+                ? "Pace \(formatDuration(set.paceSeconds ?? 0))/\((unitPrefs.preferredDistanceUnit ?? set.distanceUnit).rawValue)"
+                : nil
+
+            let primaryParts = [durationText, distanceText].compactMap { $0 }
+            if !primaryParts.isEmpty {
+                return SetDisplaySummary(
+                    primaryText: primaryParts.joined(separator: " • "),
+                    secondaryText: paceText ?? (hasNote ? note : nil),
+                    chips: []
+                )
+            }
+
+            if hasNote {
+                return SetDisplaySummary(primaryText: note ?? "", secondaryText: nil, chips: ["Note"])
+            }
+
+            return SetDisplaySummary(primaryText: "Cardio set", secondaryText: nil, chips: [])
+
+        case .bodyweight:
+            return formatStrengthLikeSummary(set, kind: .bodyweight, unitPrefs: unitPrefs, note: note)
+
+        case .strength:
+            return formatStrengthLikeSummary(set, kind: .strength, unitPrefs: unitPrefs, note: note)
+        }
+    }
+
+    private static func formatStrengthLikeSummary(
+        _ set: SessionSet,
+        kind: SetDisplayExerciseKind,
+        unitPrefs: SetDisplayUnitPreferences,
+        note: String?
+    ) -> SetDisplaySummary {
+        let reps = set.sessionReps.filter { $0.count > 0 || $0.weight > 0 }
+
+        if reps.isEmpty {
+            if let note, !note.isEmpty {
+                return SetDisplaySummary(primaryText: note, secondaryText: nil, chips: ["Note"])
+            }
+            return SetDisplaySummary(primaryText: "Set", secondaryText: nil, chips: [])
+        }
+
+        let displayRows = reps.prefix(3).map { rep -> String in
+            let targetUnit = unitPrefs.preferredWeightUnit ?? rep.weightUnit
+            let convertedWeight = rep.weight * rep.weightUnit.conversion(to: targetUnit)
+            let hasWeight = convertedWeight > 0
+            let hasReps = rep.count > 0
+
+            if kind == .bodyweight {
+                if hasReps && hasWeight {
+                    return "+\(formatNumber(convertedWeight)) \(targetUnit.name) x \(rep.count)"
+                }
+                if hasReps {
+                    return "\(rep.count) reps"
+                }
+                return "+\(formatNumber(convertedWeight)) \(targetUnit.name)"
+            }
+
+            if hasWeight && hasReps {
+                return "\(formatNumber(convertedWeight)) \(targetUnit.name) x \(rep.count)"
+            }
+            if hasReps {
+                return "\(rep.count) reps"
+            }
+            return "\(formatNumber(convertedWeight)) \(targetUnit.name)"
+        }
+
+        var chips: [String] = []
+        if set.isDropSet || reps.count > 1 {
+            chips.append("Drop Set")
+        }
+        if reps.count > 3 {
+            chips.append("+\(reps.count - 3) more")
+        }
+
+        return SetDisplaySummary(
+            primaryText: displayRows.joined(separator: " • "),
+            secondaryText: (note?.isEmpty == false) ? note : nil,
+            chips: chips
+        )
+    }
+
+    private static func convertDistance(_ value: Double, from source: DistanceUnit, to target: DistanceUnit) -> Double {
+        if source == target { return value }
+        if source == .km && target == .mi {
+            return value * 0.621371
+        }
+        return value * 1.60934
+    }
+
+    private static func formatDuration(_ seconds: Int) -> String {
+        let formatter = DateComponentsFormatter()
+        formatter.unitsStyle = .abbreviated
+        formatter.allowedUnits = seconds >= 3600 ? [.hour, .minute, .second] : [.minute, .second]
+        formatter.zeroFormattingBehavior = [.pad]
+        return formatter.string(from: TimeInterval(seconds)) ?? "\(seconds)s"
+    }
+
+    private static func formatNumber(_ value: Double) -> String {
+        if value.rounded() == value {
+            return String(Int(value))
+        }
+        return String(format: "%.2f", value)
+    }
+}
+
+extension Exercise {
+    var setDisplayKind: SetDisplayExerciseKind {
+        if cardio {
+            return .cardio
+        }
+
+        if let equipment = equipment?.lowercased(), equipment.contains("body") {
+            return .bodyweight
+        }
+
+        return .strength
+    }
+}
