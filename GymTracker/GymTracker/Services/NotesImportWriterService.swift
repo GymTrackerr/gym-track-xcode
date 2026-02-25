@@ -122,9 +122,11 @@ final class NotesImportWriterService {
                         for (segmentIndex, segment) in segments.enumerated() {
                             let repWeight = segment.weight ?? 0
                             let repWeightUnit = segment.weight == nil ? defaultWeightUnit : segment.weightUnit
-                            let repNote = segment.weight == nil
-                                ? "Imported: weight not specified (treated as 0)."
-                                : nil
+                            let repNote = composeRepNote(
+                                weightIsMissing: segment.weight == nil,
+                                sourceRawReps: segment.sourceRawReps,
+                                persistedReps: segment.reps
+                            )
 
                             let rep = SessionRep(
                                 sessionSet: set,
@@ -273,6 +275,21 @@ private extension NotesImportWriterService {
         }
 
         return sections.joined(separator: "\n\n")
+    }
+
+    func composeRepNote(
+        weightIsMissing: Bool,
+        sourceRawReps: String?,
+        persistedReps: Int
+    ) -> String? {
+        var notes: [String] = []
+        if weightIsMissing {
+            notes.append("Imported: weight not specified (treated as 0).")
+        }
+        if let sourceRawReps {
+            notes.append("Imported as \(persistedReps) reps (from \(sourceRawReps)).")
+        }
+        return notes.isEmpty ? nil : notes.joined(separator: " ")
     }
 
     func deduplicatePreservingOrder(_ values: [String]) -> [String] {

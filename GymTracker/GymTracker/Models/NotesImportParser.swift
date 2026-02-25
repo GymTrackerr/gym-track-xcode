@@ -185,7 +185,7 @@ private extension NotesImportParser {
     }
 
     var nxrRegex: NSRegularExpression {
-        let pattern = "\\b(\\d+)\\s*x\\s*(\\d+(?:\\.\\d+)?)\\b"
+        let pattern = #"\b(\d+)\s*x\s*(\d+(?:\.\d+)?|\d+\s+\d+/\d+|\d+/\d+)\b"#
         return try! NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
     }
 
@@ -200,7 +200,7 @@ private extension NotesImportParser {
     }
 
     var dropSegmentRegex: NSRegularExpression {
-        let pattern = #"\+\s*(\d+(?:\.\d+)?)\s*(\d+(?:\.\d+)?)\s*(kg|kgs|kilogram|kilograms|lb|lbs|pound|pounds)\b"#
+        let pattern = #"\+\s*(\d+(?:\.\d+)?|\d+\s+\d+/\d+|\d+/\d+)\s*(\d+(?:\.\d+)?)\s*(kg|kgs|kilogram|kilograms|lb|lbs|pound|pounds)\b"#
         return try! NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
     }
 
@@ -431,12 +431,14 @@ private extension NotesImportParser {
         var setCount: Int
         var reps: Int
         var warning: String?
+        var sourceRawReps: String?
     }
 
     struct StrengthSetTemplate {
         var reps: Int
         var weight: (value: Double, unit: WeightUnit)?
         var restSeconds: Int?
+        var sourceRawReps: String?
     }
 
     func parseStrength(name: String, tail: String, defaultWeightUnit: WeightUnit) -> ParsedStrengthResult? {
@@ -471,7 +473,8 @@ private extension NotesImportParser {
                         StrengthSetTemplate(
                             reps: descriptor.reps,
                             weight: nil,
-                            restSeconds: currentRestSeconds
+                            restSeconds: currentRestSeconds,
+                            sourceRawReps: descriptor.sourceRawReps
                         )
                     )
                     pendingTemplateIndices.append(templates.count - 1)
@@ -516,6 +519,7 @@ private extension NotesImportParser {
                         mainReps: template.reps,
                         mainWeight: totalWeight,
                         mainUnit: chosenUnit,
+                        mainSourceRawReps: template.sourceRawReps,
                         dropSegments: dropSegments
                     )
                 )
@@ -612,20 +616,25 @@ private extension NotesImportParser {
         var descriptors: [(range: NSRange, token: DescriptorToken)] = []
         descriptors += matches(for: nxrRegex, in: text).compactMap { match in
             guard let setCount = intCapture(match: match, index: 1, in: text),
-                  let repsRaw = doubleCapture(match: match, index: 2, in: text) else {
+                  let repsToken = textCapture(match: match, index: 2, in: text),
+                  let parsedReps = parseRepToken(repsToken) else {
                 return nil
             }
 
-            let flooredReps = Int(floor(repsRaw))
-            let reps = max(1, flooredReps)
-            let warning: String? = repsRaw == Double(reps) ? nil : "Fractional reps \(repsRaw) were floored to \(reps)."
+            let warning: String?
+            if let sourceRaw = parsedReps.sourceRawReps {
+                warning = "Fractional reps \(sourceRaw) were rounded to \(parsedReps.reps)."
+            } else {
+                warning = nil
+            }
 
             return (
                 range: match.range,
                 token: DescriptorToken(
                     setCount: setCount,
-                    reps: reps,
-                    warning: warning
+                    reps: parsedReps.reps,
+                    warning: warning,
+                    sourceRawReps: parsedReps.sourceRawReps
                 )
             )
         }
@@ -640,7 +649,8 @@ private extension NotesImportParser {
                 token: DescriptorToken(
                     setCount: setCount,
                     reps: reps,
-                    warning: nil
+                    warning: nil,
+                    sourceRawReps: nil
                 )
             )
         }
@@ -690,18 +700,17 @@ private extension NotesImportParser {
         matches(for: dropSegmentRegex, in: text).compactMap { match in
             guard let rawReps = textCapture(match: match, index: 1, in: text),
                   let rawWeight = textCapture(match: match, index: 2, in: text),
-                  let repsValue = Double(rawReps),
+                  let parsedReps = parseRepToken(rawReps),
                   let weight = Double(rawWeight),
                   let unit = weightUnitCapture(match: match, index: 3, in: text) else {
                 return nil
             }
 
-            let flooredReps = max(1, Int(floor(repsValue)))
             return ParsedRepSegment(
-                reps: flooredReps,
+                reps: parsedReps.reps,
                 weight: weight,
                 weightUnit: unit,
-                sourceRawReps: repsValue == Double(flooredReps) ? nil : rawReps
+                sourceRawReps: parsedReps.sourceRawReps
             )
         }
     }
@@ -710,6 +719,7 @@ private extension NotesImportParser {
         mainReps: Int,
         mainWeight: Double?,
         mainUnit: WeightUnit,
+        mainSourceRawReps: String?,
         dropSegments: [ParsedRepSegment]
     ) -> [ParsedRepSegment] {
         var segments: [ParsedRepSegment] = [
@@ -717,11 +727,46 @@ private extension NotesImportParser {
                 reps: mainReps,
                 weight: mainWeight,
                 weightUnit: mainUnit,
-                sourceRawReps: nil
+                sourceRawReps: mainSourceRawReps
             )
         ]
         segments.append(contentsOf: dropSegments)
         return segments
+    }
+
+    func parseRepToken(_ rawToken: String) -> (reps: Int, sourceRawReps: String?)? {
+        let normalized = rawToken
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        guard !normalized.isEmpty else { return nil }
+
+        guard let value = parseRepValue(normalized) else { return nil }
+        let rounded = max(1, Int(value.rounded(.toNearestOrAwayFromZero)))
+        let source = value == Double(rounded) ? nil : normalized
+        return (rounded, source)
+    }
+
+    func parseRepValue(_ token: String) -> Double? {
+        if let decimal = Double(token) {
+            return decimal
+        }
+
+        if let mixed = firstMatch(of: #"^(\d+)\s+(\d+)\/(\d+)$"#, in: token),
+           let whole = intCapture(match: mixed, index: 1, in: token),
+           let numerator = intCapture(match: mixed, index: 2, in: token),
+           let denominator = intCapture(match: mixed, index: 3, in: token),
+           denominator != 0 {
+            return Double(whole) + (Double(numerator) / Double(denominator))
+        }
+
+        if let fraction = firstMatch(of: #"^(\d+)\/(\d+)$"#, in: token),
+           let numerator = intCapture(match: fraction, index: 1, in: token),
+           let denominator = intCapture(match: fraction, index: 2, in: token),
+           denominator != 0 {
+            return Double(numerator) / Double(denominator)
+        }
+
+        return nil
     }
 
     func parseRestSeconds(in text: String) -> Int? {

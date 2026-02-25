@@ -20,7 +20,8 @@ final class NotesImportParserDebug {
             test7_CardioTelemetrySample(),
             test8_HeaderNormalizationFormats(),
             test9_StrictTimeRangeFormats(),
-            test10_DropSetSegments()
+            test10_DropSetSegments(),
+            test11_MixedFractionalReps()
         ]
 
         let passCount = results.filter { $0 }.count
@@ -112,7 +113,7 @@ final class NotesImportParserDebug {
         if case .strength(let strength)? = draft.items.first {
             ok = ok && check("test4", strength.sets.count == 4, "Expected 4 total sets")
             let reps = strength.sets.map(\.reps)
-            ok = ok && check("test4", reps == [5, 6, 5, 5], "Expected reps [5,6,5,5], got \(reps)")
+            ok = ok && check("test4", reps == [5, 7, 5, 5], "Expected reps [5,7,5,5], got \(reps)")
 
             let weights = strength.sets.map { Int($0.weight ?? -1) }
             ok = ok && check("test4", weights == [130, 110, 110, 110], "Expected nearest-following weight grouping [130,110,110,110], got \(weights)")
@@ -389,6 +390,33 @@ final class NotesImportParserDebug {
         }
 
         print("[test10] \(ok ? "PASS" : "FAIL")")
+        return ok
+    }
+
+    @discardableResult
+    private static func test11_MixedFractionalReps() -> Bool {
+        let parser = NotesImportParser()
+        let input = """
+        December 15, 2025, Pull
+        Pull Up, 1x5 1/2, 1x5.5, 1x4.4, bodyweight
+        """
+
+        let draft = parser.parseSingleSession(from: input, defaultWeightUnit: .lb)
+        printDraftSummary("test11", draft)
+
+        var ok = true
+        if case .strength(let strength)? = draft.items.first {
+            let reps = strength.sets.map(\.reps)
+            ok = ok && check("test11", reps == [6, 6, 4], "Expected rounded reps [6,6,4], got \(reps)")
+
+            let sourceRaw = strength.sets.compactMap { $0.repSegments.first?.sourceRawReps }
+            ok = ok && check("test11", sourceRaw == ["5 1/2", "5.5", "4.4"], "Expected source raw reps to be preserved")
+        } else {
+            ok = false
+            print("[test11] FAIL: Expected first item to be strength")
+        }
+
+        print("[test11] \(ok ? "PASS" : "FAIL")")
         return ok
     }
 

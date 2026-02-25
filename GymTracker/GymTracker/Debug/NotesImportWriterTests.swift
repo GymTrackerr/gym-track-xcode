@@ -19,7 +19,8 @@ final class NotesImportWriterDebug {
             test5CreateRoutinePopulatesTemplate(),
             test6ExistingRoutineDoesNotPopulateTemplate(),
             test7NoneRoutineDoesNotAttachOrPopulate(),
-            test8DropSetSegmentsPersistInOrder()
+            test8DropSetSegmentsPersistInOrder(),
+            test9FractionalRepNoteIsPersisted()
         ]
 
         let passCount = results.filter { $0 }.count
@@ -664,6 +665,77 @@ final class NotesImportWriterDebug {
             return ok
         } catch {
             return fail("writer-test8", "Unexpected error: \(error)")
+        }
+    }
+
+    @discardableResult
+    private static func test9FractionalRepNoteIsPersisted() -> Bool {
+        do {
+            let harness = try makeHarness()
+            let writer = NotesImportWriterService()
+
+            let userId = UUID()
+            let exercise = Exercise(name: "Dips", type: .weight, user_id: userId)
+            harness.context.insert(exercise)
+            try harness.context.save()
+
+            let draft = NotesImportDraft(
+                originalText: "sample",
+                parsedDate: Date(),
+                startTime: Date(),
+                endTime: Date().addingTimeInterval(1800),
+                routineNameRaw: nil,
+                items: [
+                    .strength(
+                        ParsedStrength(
+                            exerciseNameRaw: "Dips",
+                            sets: [
+                                ParsedStrengthSet(
+                                    reps: 6,
+                                    weight: 0,
+                                    weightUnit: .lb,
+                                    perSideWeight: nil,
+                                    baseWeight: nil,
+                                    isPerSide: false,
+                                    restSeconds: nil,
+                                    repSegments: [
+                                        ParsedRepSegment(reps: 6, weight: 0, weightUnit: .lb, sourceRawReps: "5.5")
+                                    ]
+                                )
+                            ],
+                            notes: nil
+                        )
+                    )
+                ],
+                unknownLines: [],
+                warnings: [],
+                importHash: "hash-fractional-note"
+            )
+
+            let resolution = ResolutionResult(
+                resolvedRoutine: nil,
+                resolvedExercises: ["Dips": exercise],
+                unresolvedExercises: []
+            )
+
+            let session = try writer.commit(
+                draft: draft,
+                resolution: resolution,
+                userId: userId,
+                context: harness.context,
+                defaultWeightUnit: .lb
+            )
+
+            var ok = true
+            guard let rep = session.sessionEntries.first?.sets.first?.sessionReps.first else {
+                return fail("writer-test9", "Expected imported rep")
+            }
+            ok = ok && check("writer-test9", rep.count == 6, "Expected rounded integer rep count")
+            ok = ok && check("writer-test9", rep.notes?.contains("Imported as 6 reps (from 5.5).") == true, "Expected fractional source note")
+            print("[writer-test9] \(ok ? "PASS" : "FAIL")")
+            return ok
+        } catch {
+            return fail("writer-test9", "Unexpected error: \(error)")
         }
     }
 
