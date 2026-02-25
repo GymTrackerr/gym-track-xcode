@@ -35,6 +35,8 @@ final class NotesImportDebugHarness {
         NotesImportParserDebug.runSamples()
         NotesImportResolverDebug.runSamples()
         NotesImportWriterDebug.runSamples()
+        ExerciseMergeDebug.runSamples()
+        ExerciseBackupDebug.runSamples()
         print("=== NotesImportDebugHarness done ===")
     }
 }

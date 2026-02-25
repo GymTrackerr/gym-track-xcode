@@ -132,6 +132,15 @@ struct SettingsView: View {
                         }
                     }
 
+                    Button {
+                        mergeExercisesWithSameNpId()
+                    } label: {
+                        HStack {
+                            Image(systemName: "arrow.merge")
+                            Text("Merge Exercises by npId")
+                        }
+                    }
+
                 }
             }
             .scrollContentBackground(.hidden)
@@ -287,6 +296,24 @@ struct SettingsView: View {
                 exportErrorMessage = error.localizedDescription
                 showExportErrorAlert = true
             }
+        }
+    }
+
+    private func mergeExercisesWithSameNpId() {
+        do {
+            let report = try exerciseService.mergeExercisesWithSameNpId()
+            splitDayService.loadSplitDays()
+            sessionService.loadSessions()
+            exerciseSplitDayService.loadFeature()
+            sessionExerciseService.loadFeature()
+
+            backupAlertTitle = "Merge Complete"
+            exportErrorMessage = "Merged \(report.groupsMerged) npId group(s), removed \(report.duplicatesRemoved) duplicate exercise record(s)."
+            showExportErrorAlert = true
+        } catch {
+            backupAlertTitle = "Merge Failed"
+            exportErrorMessage = error.localizedDescription
+            showExportErrorAlert = true
         }
     }
 

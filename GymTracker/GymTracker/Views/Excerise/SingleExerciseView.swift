@@ -137,6 +137,10 @@ struct ExerciseDetailView: View {
                         .padding(.horizontal)
                 }
 
+#if DEBUG
+                debugIdentityCard
+#endif
+
                 if hasExerciseInfo {
                     DisclosureGroup(isExpanded: $showExerciseData) {
                         VStack(alignment: .leading, spacing: 12) {
@@ -496,6 +500,7 @@ struct ExerciseDetailView: View {
             .presentationDragIndicator(.visible)
         }
         .onAppear {
+            sessionService.loadSessions()
             if selectedDisplayUnit == nil {
                 selectedDisplayUnit = dominantUnit
             }
@@ -504,8 +509,12 @@ struct ExerciseDetailView: View {
 
     private var matchingEntries: [SessionEntry] {
         sessionService.sessions
-            .flatMap { $0.sessionEntries }
-            .filter { $0.exercise.id == exercise.id }
+            .flatMap(\.sessionEntries)
+            .filter { entry in
+                guard entry.exercise.id == exercise.id else { return false }
+                guard let userId = sessionService.currentUser?.id else { return true }
+                return entry.session.user_id == userId
+            }
     }
 
     private var primaryMuscles: [String] {
@@ -940,6 +949,28 @@ struct ExerciseDetailView: View {
         .opacity(0.45)
     }
 
+#if DEBUG
+    private var debugIdentityCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Debug Identity")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundColor(.secondary)
+            Text("Exercise ID: \(exercise.id.uuidString)")
+                .font(.caption2)
+                .textSelection(.enabled)
+            Text("npId: \(exercise.npId ?? "nil")")
+                .font(.caption2)
+                .textSelection(.enabled)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.yellow.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .padding(.horizontal)
+    }
+#endif
+
     private struct PreviousSessionItem {
         let session: Session
         let subtitle: String
@@ -991,6 +1022,7 @@ struct ExerciseDetailView: View {
 
         return result
     }
+
 }
 
 private struct MuscleChip: View {

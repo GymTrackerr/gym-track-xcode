@@ -63,7 +63,7 @@ final class ExerciseBackupService {
         }
 
         let allExercises = try fetchExercises(userId: userId)
-        let exportableExercises = allExercises
+        let exportableExercises = allExercises.filter(\.isUserCreated)
 
         let routines = try fetchRoutines(userId: userId)
         let routinesById = Dictionary(uniqueKeysWithValues: routines.map { ($0.id, $0) })

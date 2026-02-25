@@ -11,6 +11,11 @@ import Combine
 internal import CoreData
 
 class ExerciseService : ServiceBase, ObservableObject {
+    struct NpIdMergeReport {
+        let groupsMerged: Int
+        let duplicatesRemoved: Int
+    }
+
     @Published var exercises: [Exercise] = []
     @Published var archivedExercises: [Exercise] = []
     @Published var editingContent: String = ""
@@ -190,8 +195,8 @@ class ExerciseService : ServiceBase, ObservableObject {
                     continue
                 }
 
-                mergeExerciseReferences(from: duplicate, to: primary, currentUserId: userId)
-                let relationshipCounts = exerciseRelationshipCounts(duplicate)
+                try mergeExerciseReferences(from: duplicate, to: primary, targetUserId: userId)
+                let relationshipCounts = try exerciseRelationshipCounts(forExerciseId: duplicate.id)
                 if relationshipCounts.allZero {
                     modelContext.delete(duplicate)
                     removed += 1
@@ -223,23 +228,39 @@ class ExerciseService : ServiceBase, ObservableObject {
     }
 
     @MainActor
-    private func mergeExerciseReferences(from duplicate: Exercise, to primary: Exercise, currentUserId: UUID) {
+    private func mergeExerciseReferences(from duplicate: Exercise, to primary: Exercise, targetUserId: UUID) throws {
         guard duplicate.id != primary.id else { return }
-        guard duplicate.user_id == currentUserId, primary.user_id == currentUserId else {
-            print("Skipped cross-user merge attempt for exercise \(duplicate.id).")
-            return
-        }
 
-        // Exercise has two inverse relationships today: splits and sessionEntries.
-        for split in duplicate.splits where split.exercise.id == duplicate.id {
+        let duplicateId = duplicate.id
+
+        // Re-link by direct fetch so merge does not depend on inverse array fault state.
+        let splitDescriptor = FetchDescriptor<ExerciseSplitDay>(
+            predicate: #Predicate<ExerciseSplitDay> { split in
+                split.exercise.id == duplicateId
+            }
+        )
+        let splits = try modelContext.fetch(splitDescriptor)
+        for split in splits {
             split.exercise = primary
+            split.routine.user_id = targetUserId
             if !primary.splits.contains(where: { $0.id == split.id }) {
                 primary.splits.append(split)
             }
+            if !split.routine.exerciseSplits.contains(where: { $0.id == split.id }) {
+                split.routine.exerciseSplits.append(split)
+            }
         }
 
-        for entry in duplicate.sessionEntries where entry.exercise.id == duplicate.id {
+        let entryDescriptor = FetchDescriptor<SessionEntry>(
+            predicate: #Predicate<SessionEntry> { entry in
+                entry.exercise.id == duplicateId
+            }
+        )
+        let entries = try modelContext.fetch(entryDescriptor)
+        for entry in entries {
             entry.exercise = primary
+            entry.session.user_id = targetUserId
+            entry.session.routine?.user_id = targetUserId
             if !primary.sessionEntries.contains(where: { $0.id == entry.id }) {
                 primary.sessionEntries.append(entry)
             }
@@ -251,6 +272,25 @@ class ExerciseService : ServiceBase, ObservableObject {
         ExerciseRelationshipCounts(
             splitDays: exercise.splits.count,
             sessionEntries: exercise.sessionEntries.count
+        )
+    }
+
+    @MainActor
+    private func exerciseRelationshipCounts(forExerciseId exerciseId: UUID) throws -> ExerciseRelationshipCounts {
+        let splitDescriptor = FetchDescriptor<ExerciseSplitDay>(
+            predicate: #Predicate<ExerciseSplitDay> { split in
+                split.exercise.id == exerciseId
+            }
+        )
+        let entryDescriptor = FetchDescriptor<SessionEntry>(
+            predicate: #Predicate<SessionEntry> { entry in
+                entry.exercise.id == exerciseId
+            }
+        )
+
+        return ExerciseRelationshipCounts(
+            splitDays: try modelContext.fetch(splitDescriptor).count,
+            sessionEntries: try modelContext.fetch(entryDescriptor).count
         )
     }
 
@@ -456,6 +496,66 @@ class ExerciseService : ServiceBase, ObservableObject {
         exercise.isArchived = false
         try modelContext.save()
         refreshExerciseLists()
+    }
+
+    @MainActor
+    func mergeExercisesWithSameNpId() throws -> NpIdMergeReport {
+        guard let currentUserId = currentUser?.id else {
+            return NpIdMergeReport(groupsMerged: 0, duplicatesRemoved: 0)
+        }
+
+        let allExercises = try modelContext.fetch(FetchDescriptor<Exercise>())
+
+        var groupedByNpId: [String: [Exercise]] = [:]
+        for exercise in allExercises {
+            guard let npId = normalizedNpId(exercise.npId) else { continue }
+            groupedByNpId[npId, default: []].append(exercise)
+        }
+
+        var groupsMerged = 0
+        var duplicatesRemoved = 0
+
+        for group in groupedByNpId.values where group.count > 1 {
+            let currentUserMatches = group.filter { $0.user_id == currentUserId }
+            guard !currentUserMatches.isEmpty else { continue }
+
+            let selection = preferredExercise(from: currentUserMatches)
+            guard let primary = selection.primary, !selection.isAmbiguous else { continue }
+
+            var aliases = Set((primary.aliases ?? []).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) })
+            var didMergeGroup = false
+
+            for duplicate in group where duplicate.id != primary.id {
+                for alias in duplicate.aliases ?? [] {
+                    let trimmed = alias.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty {
+                        aliases.insert(trimmed)
+                    }
+                }
+
+                try mergeExerciseReferences(from: duplicate, to: primary, targetUserId: currentUserId)
+
+                if try exerciseRelationshipCounts(forExerciseId: duplicate.id).allZero {
+                    modelContext.delete(duplicate)
+                    duplicatesRemoved += 1
+                    didMergeGroup = true
+                }
+            }
+
+            primary.user_id = currentUserId
+            primary.aliases = Array(aliases).sorted()
+
+            if didMergeGroup {
+                groupsMerged += 1
+            }
+        }
+
+        if groupsMerged > 0 || duplicatesRemoved > 0 {
+            try modelContext.save()
+        }
+
+        refreshExerciseLists()
+        return NpIdMergeReport(groupsMerged: groupsMerged, duplicatesRemoved: duplicatesRemoved)
     }
 
     private func hasSessionHistory(exerciseID: UUID) throws -> Bool {

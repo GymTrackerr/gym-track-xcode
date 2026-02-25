@@ -117,10 +117,13 @@ final class NotesImportResolver {
                     normalize(alias) == normalizedTarget
                 }
             }
+            let orderedCandidates = candidates.sorted { lhs, rhs in
+                candidateSortKey(lhs, target: normalizedTarget) > candidateSortKey(rhs, target: normalizedTarget)
+            }
 
             result[rawName] = ExerciseResolution(
-                resolved: candidates.first,
-                candidates: candidates
+                resolved: orderedCandidates.first,
+                candidates: orderedCandidates
             )
         }
 
@@ -220,5 +223,12 @@ private extension NotesImportResolver {
             .replacingOccurrences(of: "[^a-z0-9]+", with: " ", options: .regularExpression)
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func candidateSortKey(_ exercise: Exercise, target: String) -> (Int, Int, Int, String) {
+        let relationshipCount = exercise.sessionEntries.count + exercise.splits.count
+        let exactNameMatch = normalize(exercise.name) == target ? 1 : 0
+        let timestampRank = -Int(exercise.timestamp.timeIntervalSince1970)
+        return (relationshipCount, exactNameMatch, timestampRank, exercise.id.uuidString)
     }
 }

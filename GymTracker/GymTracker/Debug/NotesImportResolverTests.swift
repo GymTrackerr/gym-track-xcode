@@ -15,7 +15,8 @@ final class NotesImportResolverDebug {
             test1RoutineResolutionIsUserScoped(),
             test2ExerciseResolutionNormalizationAndScoping(),
             test3ResolveDraftResult(),
-            test4AliasWritebackHelpers()
+            test4AliasWritebackHelpers(),
+            test5ResolverPrefersLinkedExerciseOverNameCollision()
         ]
 
         let passCount = results.filter { $0 }.count
@@ -241,6 +242,48 @@ final class NotesImportResolverDebug {
 
         print("[resolver-test4] \(ok ? "PASS" : "FAIL")")
         return ok
+    }
+
+    @discardableResult
+    private static func test5ResolverPrefersLinkedExerciseOverNameCollision() -> Bool {
+        do {
+            let harness = try makeHarness()
+            let resolver = NotesImportResolver()
+            let userId = UUID()
+
+            let canonical = Exercise(name: "Alternating Hammer Curl", type: .weight, user_id: userId)
+            canonical.aliases = ["Alternate Hammer Curl"]
+            let duplicate = Exercise(name: "Alternate Hammer Curl", type: .weight, user_id: userId)
+
+            harness.context.insert(canonical)
+            harness.context.insert(duplicate)
+
+            let session = Session(timestamp: Date(), user_id: userId, routine: nil, notes: "")
+            harness.context.insert(session)
+            let entry = SessionEntry(order: 0, session: session, exercise: canonical)
+            harness.context.insert(entry)
+            session.sessionEntries.append(entry)
+            canonical.sessionEntries.append(entry)
+
+            try harness.context.save()
+
+            let resolutions = try resolver.resolveExercises(
+                rawNames: ["Alternate Hammer Curl"],
+                userId: userId,
+                context: harness.context
+            )
+
+            var ok = true
+            ok = ok && check(
+                "resolver-test5",
+                resolutions["Alternate Hammer Curl"]?.resolved?.id == canonical.id,
+                "Expected resolver to prefer linked canonical exercise over name-collision duplicate"
+            )
+            print("[resolver-test5] \(ok ? "PASS" : "FAIL")")
+            return ok
+        } catch {
+            return fail("resolver-test5", "Unexpected error: \(error)")
+        }
     }
 
     private struct Harness {

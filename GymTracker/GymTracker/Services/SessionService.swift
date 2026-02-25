@@ -30,7 +30,17 @@ class SessionService : ServiceBase, ObservableObject {
     }
     
     func loadSessions() {
-        let descriptor = FetchDescriptor<Session>(sortBy: [SortDescriptor(\.timestamp)])
+        let descriptor: FetchDescriptor<Session>
+        if let userId = currentUser?.id {
+            descriptor = FetchDescriptor<Session>(
+                predicate: #Predicate<Session> { session in
+                    session.user_id == userId
+                },
+                sortBy: [SortDescriptor(\.timestamp)]
+            )
+        } else {
+            descriptor = FetchDescriptor<Session>(sortBy: [SortDescriptor(\.timestamp)])
+        }
 
         do {
 //            sessions = try modelContext.fetch(descriptor)
@@ -57,7 +67,8 @@ class SessionService : ServiceBase, ObservableObject {
 //            for session in sessions {
 //                print(session.routine)
 //                if let routine = session.routine {
-//                    
+            
+//
 //                } else {
 //                    var sesiosnEdit = session
 ////                    sesiosnEdit.routine_id = nil

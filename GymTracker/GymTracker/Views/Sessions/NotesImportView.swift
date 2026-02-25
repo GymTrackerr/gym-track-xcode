@@ -79,9 +79,17 @@ struct NotesImportView: View {
                 )
 
             Button {
-                pasteFromClipboard()
+                pasteFromClipboardAdding()
             } label: {
-                Label("Paste", systemImage: "doc.on.clipboard")
+                Label("Paste Add", systemImage: "plus.doc.on.clipboard")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+
+            Button(role: .destructive) {
+                pasteFromClipboardReplacing()
+            } label: {
+                Label("Paste Replace", systemImage: "doc.on.clipboard")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
@@ -520,7 +528,19 @@ struct NotesImportView: View {
         return date.formatted(date: .abbreviated, time: .shortened)
     }
 
-    private func pasteFromClipboard() {
+    private func pasteFromClipboardAdding() {
+#if os(iOS)
+        if let clipboardText = UIPasteboard.general.string {
+            appendClipboardText(clipboardText)
+        }
+#elseif os(macOS)
+        if let clipboardText = NSPasteboard.general.string(forType: .string) {
+            appendClipboardText(clipboardText)
+        }
+#endif
+    }
+
+    private func pasteFromClipboardReplacing() {
 #if os(iOS)
         if let clipboardText = UIPasteboard.general.string {
             viewModel.rawInput = clipboardText
@@ -530,6 +550,19 @@ struct NotesImportView: View {
             viewModel.rawInput = clipboardText
         }
 #endif
+    }
+
+    private func appendClipboardText(_ clipboardText: String) {
+        let incoming = clipboardText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !incoming.isEmpty else { return }
+
+        let existing = viewModel.rawInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        if existing.isEmpty {
+            viewModel.rawInput = clipboardText
+            return
+        }
+
+        viewModel.rawInput += "\n\n\(clipboardText)"
     }
 
     private func exerciseNames(from draft: NotesImportDraft) -> [String] {
