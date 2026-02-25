@@ -35,6 +35,14 @@ struct ParsedStrengthSet {
     var baseWeight: Double?
     var isPerSide: Bool
     var restSeconds: Int?
+    var repSegments: [ParsedRepSegment] = []
+}
+
+struct ParsedRepSegment {
+    var reps: Int
+    var weight: Double?
+    var weightUnit: WeightUnit
+    var sourceRawReps: String?
 }
 
 struct ParsedCardio {

@@ -18,7 +18,8 @@ final class NotesImportWriterDebug {
             test4CommitFailsWhenExerciseUnresolved(),
             test5CreateRoutinePopulatesTemplate(),
             test6ExistingRoutineDoesNotPopulateTemplate(),
-            test7NoneRoutineDoesNotAttachOrPopulate()
+            test7NoneRoutineDoesNotAttachOrPopulate(),
+            test8DropSetSegmentsPersistInOrder()
         ]
 
         let passCount = results.filter { $0 }.count
@@ -581,6 +582,88 @@ final class NotesImportWriterDebug {
             return ok
         } catch {
             return fail("writer-test7", "Unexpected error: \(error)")
+        }
+    }
+
+    @discardableResult
+    private static func test8DropSetSegmentsPersistInOrder() -> Bool {
+        do {
+            let harness = try makeHarness()
+            let writer = NotesImportWriterService()
+
+            let userId = UUID()
+            let bench = Exercise(name: "Bench Press", type: .weight, user_id: userId)
+            harness.context.insert(bench)
+            try harness.context.save()
+
+            let draft = NotesImportDraft(
+                originalText: "sample",
+                parsedDate: Date(),
+                startTime: Date(),
+                endTime: Date().addingTimeInterval(1800),
+                routineNameRaw: nil,
+                items: [
+                    .strength(
+                        ParsedStrength(
+                            exerciseNameRaw: "Bench Press",
+                            sets: [
+                                ParsedStrengthSet(
+                                    reps: 6,
+                                    weight: 25,
+                                    weightUnit: .kg,
+                                    perSideWeight: nil,
+                                    baseWeight: nil,
+                                    isPerSide: false,
+                                    restSeconds: nil,
+                                    repSegments: [
+                                        ParsedRepSegment(reps: 6, weight: 25, weightUnit: .kg, sourceRawReps: nil),
+                                        ParsedRepSegment(reps: 3, weight: 22.5, weightUnit: .kg, sourceRawReps: nil)
+                                    ]
+                                )
+                            ],
+                            notes: nil
+                        )
+                    )
+                ],
+                unknownLines: [],
+                warnings: [],
+                importHash: "hash-drop-segments"
+            )
+
+            let resolution = ResolutionResult(
+                resolvedRoutine: nil,
+                resolvedExercises: ["Bench Press": bench],
+                unresolvedExercises: []
+            )
+
+            let session = try writer.commit(
+                draft: draft,
+                resolution: resolution,
+                userId: userId,
+                context: harness.context,
+                defaultWeightUnit: .lb
+            )
+
+            var ok = true
+            guard let strengthEntry = session.sessionEntries.first else {
+                return fail("writer-test8", "Expected imported entry")
+            }
+            ok = ok && check("writer-test8", strengthEntry.sets.count == 1, "Expected one top-level SessionSet")
+            if let set = strengthEntry.sets.first {
+                ok = ok && check("writer-test8", set.isDropSet, "Expected drop set flag for multi-segment set")
+                ok = ok && check("writer-test8", set.sessionReps.count == 2, "Expected two reps under one set")
+                if set.sessionReps.count == 2 {
+                    let first = set.sessionReps[0]
+                    let second = set.sessionReps[1]
+                    ok = ok && check("writer-test8", first.count == 6 && first.weight == 25, "Expected first segment persisted first")
+                    ok = ok && check("writer-test8", second.count == 3 && second.weight == 22.5, "Expected drop segment persisted second")
+                }
+            }
+
+            print("[writer-test8] \(ok ? "PASS" : "FAIL")")
+            return ok
+        } catch {
+            return fail("writer-test8", "Unexpected error: \(error)")
         }
     }
 

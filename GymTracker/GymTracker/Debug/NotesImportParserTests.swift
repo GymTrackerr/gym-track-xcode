@@ -19,7 +19,8 @@ final class NotesImportParserDebug {
             test6_UnknownLinesPreserved(),
             test7_CardioTelemetrySample(),
             test8_HeaderNormalizationFormats(),
-            test9_StrictTimeRangeFormats()
+            test9_StrictTimeRangeFormats(),
+            test10_DropSetSegments()
         ]
 
         let passCount = results.filter { $0 }.count
@@ -356,6 +357,38 @@ final class NotesImportParserDebug {
         ok = ok && check("test9", rejectedMixed.startTime == nil && rejectedMixed.endTime == nil, "Expected reject for mixed 24h + AM/PM format")
 
         print("[test9] \(ok ? "PASS" : "FAIL")")
+        return ok
+    }
+
+    @discardableResult
+    private static func test10_DropSetSegments() -> Bool {
+        let parser = NotesImportParser()
+        let input = """
+        December 15, 2025, Pull
+        Barbell Row, 2x6 25kg +3 22.5kg
+        """
+
+        let draft = parser.parseSingleSession(from: input, defaultWeightUnit: .kg)
+        printDraftSummary("test10", draft)
+
+        var ok = true
+        if case .strength(let strength)? = draft.items.first {
+            ok = ok && check("test10", strength.sets.count == 2, "Expected exactly 2 top-level sets")
+            for (index, set) in strength.sets.enumerated() {
+                ok = ok && check("test10", set.repSegments.count == 2, "Set \(index + 1) should have 2 rep segments")
+                if set.repSegments.count == 2 {
+                    let first = set.repSegments[0]
+                    let second = set.repSegments[1]
+                    ok = ok && check("test10", first.reps == 6 && first.weight == 25, "Expected first segment 6 reps @ 25kg")
+                    ok = ok && check("test10", second.reps == 3 && second.weight == 22.5, "Expected drop segment 3 reps @ 22.5kg")
+                }
+            }
+        } else {
+            ok = false
+            print("[test10] FAIL: Expected first item to be strength")
+        }
+
+        print("[test10] \(ok ? "PASS" : "FAIL")")
         return ok
     }
 

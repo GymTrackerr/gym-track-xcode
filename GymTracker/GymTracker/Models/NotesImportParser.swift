@@ -199,6 +199,11 @@ private extension NotesImportParser {
         return try! NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
     }
 
+    var dropSegmentRegex: NSRegularExpression {
+        let pattern = #"\+\s*(\d+(?:\.\d+)?)\s*(\d+(?:\.\d+)?)\s*(kg|kgs|kilogram|kilograms|lb|lbs|pound|pounds)\b"#
+        return try! NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+    }
+
     var restRegex: NSRegularExpression {
         let pattern = "\\b(\\d{1,2}):(\\d{2})\\s*m?\\s*rest\\b"
         return try! NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
@@ -437,6 +442,7 @@ private extension NotesImportParser {
     func parseStrength(name: String, tail: String, defaultWeightUnit: WeightUnit) -> ParsedStrengthResult? {
         let perSide = parsePerSideWeight(in: tail)
         let base = parseBaseWeight(in: tail, defaultWeightUnit: defaultWeightUnit)
+        let dropSegments = parseDropSegments(in: tail)
 
         let tokenParts = tail
             .split(separator: ",", omittingEmptySubsequences: false)
@@ -505,7 +511,13 @@ private extension NotesImportParser {
                     perSideWeight: perSide?.value,
                     baseWeight: base?.value,
                     isPerSide: perSide != nil && base != nil,
-                    restSeconds: template.restSeconds
+                    restSeconds: template.restSeconds,
+                    repSegments: buildRepSegments(
+                        mainReps: template.reps,
+                        mainWeight: totalWeight,
+                        mainUnit: chosenUnit,
+                        dropSegments: dropSegments
+                    )
                 )
             )
         }
@@ -672,6 +684,44 @@ private extension NotesImportParser {
             return nil
         }
         return (value, unit)
+    }
+
+    func parseDropSegments(in text: String) -> [ParsedRepSegment] {
+        matches(for: dropSegmentRegex, in: text).compactMap { match in
+            guard let rawReps = textCapture(match: match, index: 1, in: text),
+                  let rawWeight = textCapture(match: match, index: 2, in: text),
+                  let repsValue = Double(rawReps),
+                  let weight = Double(rawWeight),
+                  let unit = weightUnitCapture(match: match, index: 3, in: text) else {
+                return nil
+            }
+
+            let flooredReps = max(1, Int(floor(repsValue)))
+            return ParsedRepSegment(
+                reps: flooredReps,
+                weight: weight,
+                weightUnit: unit,
+                sourceRawReps: repsValue == Double(flooredReps) ? nil : rawReps
+            )
+        }
+    }
+
+    func buildRepSegments(
+        mainReps: Int,
+        mainWeight: Double?,
+        mainUnit: WeightUnit,
+        dropSegments: [ParsedRepSegment]
+    ) -> [ParsedRepSegment] {
+        var segments: [ParsedRepSegment] = [
+            ParsedRepSegment(
+                reps: mainReps,
+                weight: mainWeight,
+                weightUnit: mainUnit,
+                sourceRawReps: nil
+            )
+        ]
+        segments.append(contentsOf: dropSegments)
+        return segments
     }
 
     func parseRestSeconds(in text: String) -> Int? {

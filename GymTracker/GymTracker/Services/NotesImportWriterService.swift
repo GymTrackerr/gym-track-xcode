@@ -84,6 +84,7 @@ final class NotesImportWriterService {
 
         do {
             var entryOrder = 0
+            var importedRepOrderBySetId: [UUID: [SessionRep]] = [:]
             for item in draft.items {
                 switch item {
                 case .strength(let strength):
@@ -104,26 +105,46 @@ final class NotesImportWriterService {
                         context.insert(set)
                         entry.sets.append(set)
 
-                        let repWeight = parsedSet.weight ?? 0
-                        let repWeightUnit = parsedSet.weight == nil ? defaultWeightUnit : parsedSet.weightUnit
-                        let repNote = parsedSet.weight == nil
-                            ? "Imported: weight not specified (treated as 0)."
-                            : nil
+                        let segments = parsedSet.repSegments.isEmpty
+                            ? [
+                                ParsedRepSegment(
+                                    reps: parsedSet.reps,
+                                    weight: parsedSet.weight,
+                                    weightUnit: parsedSet.weightUnit,
+                                    sourceRawReps: nil
+                                )
+                            ]
+                            : parsedSet.repSegments
 
-                        let rep = SessionRep(
-                            sessionSet: set,
-                            weight: repWeight,
-                            weight_unit: repWeightUnit,
-                            count: parsedSet.reps,
-                            notes: repNote
-                        )
+                        set.isDropSet = segments.count > 1
+                        var orderedReps: [SessionRep] = []
 
-                        rep.baseWeight = parsedSet.baseWeight
-                        rep.perSideWeight = parsedSet.perSideWeight
-                        rep.isPerSide = parsedSet.isPerSide
+                        for (segmentIndex, segment) in segments.enumerated() {
+                            let repWeight = segment.weight ?? 0
+                            let repWeightUnit = segment.weight == nil ? defaultWeightUnit : segment.weightUnit
+                            let repNote = segment.weight == nil
+                                ? "Imported: weight not specified (treated as 0)."
+                                : nil
 
-                        context.insert(rep)
-                        set.sessionReps.append(rep)
+                            let rep = SessionRep(
+                                sessionSet: set,
+                                weight: repWeight,
+                                weight_unit: repWeightUnit,
+                                count: segment.reps,
+                                notes: repNote
+                            )
+
+                            if segmentIndex == 0 {
+                                rep.baseWeight = parsedSet.baseWeight
+                                rep.perSideWeight = parsedSet.perSideWeight
+                                rep.isPerSide = parsedSet.isPerSide
+                            }
+
+                            context.insert(rep)
+                            orderedReps.append(rep)
+                        }
+                        set.sessionReps = orderedReps
+                        importedRepOrderBySetId[set.id] = orderedReps
                     }
                     entry.sets.sort { $0.order < $1.order }
                     entry.isCompleted = !entry.sets.isEmpty && entry.sets.allSatisfy(\.isCompleted)
@@ -174,6 +195,13 @@ final class NotesImportWriterService {
 #if DEBUG
             print("[NotesImportWriterService] commit save succeeded")
 #endif
+            for entry in session.sessionEntries {
+                for set in entry.sets {
+                    if let orderedReps = importedRepOrderBySetId[set.id] {
+                        set.sessionReps = orderedReps
+                    }
+                }
+            }
             return session
         } catch {
 #if DEBUG
