@@ -63,7 +63,7 @@ final class ExerciseBackupService {
         }
 
         let allExercises = try fetchExercises(userId: userId)
-        let exportableExercises = allExercises.filter { !$0.isUserCreated }
+        let exportableExercises = allExercises
 
         let routines = try fetchRoutines(userId: userId)
         let routinesById = Dictionary(uniqueKeysWithValues: routines.map { ($0.id, $0) })
@@ -172,6 +172,7 @@ final class ExerciseBackupService {
                 order: $0.order,
                 name: $0.name,
                 timestamp: $0.timestamp,
+                isArchived: $0.isArchived,
                 aliases: $0.aliases
             )
         }
@@ -305,6 +306,7 @@ final class ExerciseBackupService {
             target.images = dto.images
             target.cachedMedia = dto.cachedMedia
             target.isUserCreated = dto.isUserCreated
+            target.isArchived = dto.isArchived ?? false
             target.timestamp = dto.timestamp
 
             register(target, inById: &exerciseMaps.byId, byNpId: &exerciseMaps.byNpId)
@@ -336,6 +338,7 @@ final class ExerciseBackupService {
             routine.order = dto.order
             routine.name = dto.name
             routine.timestamp = dto.timestamp
+            routine.isArchived = dto.isArchived ?? false
             routine.aliases = dto.aliases ?? []
             routinesById[routineId] = routine
         }
@@ -942,6 +945,7 @@ private struct ExerciseBackupDTO: Codable {
     let images: [String]?
     let cachedMedia: Bool?
     let isUserCreated: Bool
+    let isArchived: Bool?
     let timestamp: Date
 
     init(_ exercise: Exercise) {
@@ -959,6 +963,7 @@ private struct ExerciseBackupDTO: Codable {
         images = exercise.images
         cachedMedia = exercise.cachedMedia
         isUserCreated = exercise.isUserCreated
+        isArchived = exercise.isArchived
         timestamp = exercise.timestamp
     }
 }
@@ -969,6 +974,7 @@ private struct RoutineBackupDTO: Codable {
     let order: Int
     let name: String
     let timestamp: Date
+    let isArchived: Bool?
     let aliases: [String]?
 }
 
