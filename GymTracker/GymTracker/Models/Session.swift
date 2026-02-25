@@ -32,3 +32,61 @@ final class Session {
         self.sessionEntries = []
     }
 }
+
+enum SessionNavigationContext: Equatable {
+    case active(sessionId: UUID)
+    case past(sessionId: UUID)
+    case fromExerciseHistory(sessionId: UUID, exerciseId: UUID)
+
+    var sessionId: UUID {
+        switch self {
+        case .active(let sessionId):
+            return sessionId
+        case .past(let sessionId):
+            return sessionId
+        case .fromExerciseHistory(let sessionId, _):
+            return sessionId
+        }
+    }
+
+    var isEditableByDefault: Bool {
+        switch self {
+        case .active:
+            return true
+        case .past, .fromExerciseHistory:
+            return false
+        }
+    }
+
+    var allowsUnlock: Bool {
+        switch self {
+        case .active:
+            return false
+        case .past, .fromExerciseHistory:
+            return true
+        }
+    }
+
+    var isFromExerciseHistory: Bool {
+        if case .fromExerciseHistory = self {
+            return true
+        }
+        return false
+    }
+
+    var statusBadgeText: String {
+        switch self {
+        case .active:
+            return "Current session"
+        case .past, .fromExerciseHistory:
+            return "Past session"
+        }
+    }
+
+    static func forSession(_ session: Session) -> SessionNavigationContext {
+        if session.timestampDone == session.timestamp {
+            return .active(sessionId: session.id)
+        }
+        return .past(sessionId: session.id)
+    }
+}

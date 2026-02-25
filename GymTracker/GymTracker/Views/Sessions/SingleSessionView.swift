@@ -18,12 +18,19 @@ struct SingleSessionView: View {
     @EnvironmentObject var timerService: TimerService
 
     @Bindable var session: Session
+    let navigationContext: SessionNavigationContext
     @Environment(\.editMode) private var editMode
     @State var syncingSplit: Bool = false
+    @State private var isUnlockedForEditing: Bool = false
 
     private let cardCornerRadius: CGFloat = 16
     private let accentGreen = Color.green
     private let softGreen = Color.green.opacity(0.12)
+
+    init(session: Session, navigationContext: SessionNavigationContext? = nil) {
+        self.session = session
+        self.navigationContext = navigationContext ?? SessionNavigationContext.forSession(session)
+    }
 
     var body: some View {
         VStack(spacing: 12) {
@@ -45,7 +52,11 @@ struct SingleSessionView: View {
                 List {
                     ForEach(session.sessionEntries.sorted { $0.order < $1.order }, id: \.id) { sessionEntry in
                         NavigationLink {
-                            SessionExerciseView(sessionEntry: sessionEntry).appBackground()
+                            SessionExerciseView(
+                                sessionEntry: sessionEntry,
+                                navigationContext: SessionNavigationContext.forSession(session)
+                            )
+                            .appBackground()
                         } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: sessionEntry.isCompleted ? "checkmark.arrow.trianglehead.counterclockwise" : "square.and.pencil")
@@ -70,23 +81,27 @@ struct SingleSessionView: View {
                                 .padding(.horizontal, 4)
                         )
                         .swipeActions(edge: (editMode?.wrappedValue == .inactive) ? .leading : .trailing, allowsFullSwipe: (editMode?.wrappedValue == .inactive)) {
-                            Button {
-                                seService.toggleCompletion(sessionEntry: sessionEntry)
-                            } label: {
-                                Label(
-                                    sessionEntry.isCompleted ? "Uncheck" : "Complete",
-                                    systemImage: sessionEntry.isCompleted ? "pencil.slash" : "checkmark"
-                                )
+                            if canModifySessionExercises {
+                                Button {
+                                    seService.toggleCompletion(sessionEntry: sessionEntry)
+                                } label: {
+                                    Label(
+                                        sessionEntry.isCompleted ? "Uncheck" : "Complete",
+                                        systemImage: sessionEntry.isCompleted ? "pencil.slash" : "checkmark"
+                                    )
+                                }
+                                .tint(sessionEntry.isCompleted ? .orange : .green)
                             }
-                            .tint(sessionEntry.isCompleted ? .orange : .green)
                         }
                         .swipeActions(edge: .trailing, allowsFullSwipe: (editMode?.wrappedValue == .inactive)) {
-                            Button {
-                                seService.removeExercise(session: session, sessionEntry: sessionEntry)
-                            } label: {
-                                Label("Remove", systemImage: "trash")
+                            if canModifySessionExercises {
+                                Button {
+                                    seService.removeExercise(session: session, sessionEntry: sessionEntry)
+                                } label: {
+                                    Label("Remove", systemImage: "trash")
+                                }
+                                .tint(.red)
                             }
-                            .tint(.red)
                         }
                     }
                     .onDelete(perform: removeExercise)
@@ -103,7 +118,13 @@ struct SingleSessionView: View {
         .toolbar {
         #if os(iOS)
             ToolbarItem(placement: .navigationBarTrailing) {
-                EditButton()
+                if canModifySessionExercises {
+                    EditButton()
+                } else if navigationContext.allowsUnlock {
+                    Button("Unlock") {
+                        isUnlockedForEditing = true
+                    }
+                }
             }
         #endif
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -114,11 +135,13 @@ struct SingleSessionView: View {
                 }
             }
             ToolbarItem {
-                Button {
-                    exerciseService.editingContent = ""
-                    seService.addingExerciseSession = true
-                } label: {
-                    Label("Add Exercise", systemImage: "plus.circle")
+                if canModifySessionExercises {
+                    Button {
+                        exerciseService.editingContent = ""
+                        seService.addingExerciseSession = true
+                    } label: {
+                        Label("Add Exercise", systemImage: "plus.circle")
+                    }
                 }
             }
         }
@@ -128,10 +151,12 @@ struct SingleSessionView: View {
     }
     
     func removeExercise(offsets: IndexSet) {
+        guard canModifySessionExercises else { return }
         seService.removeExercise(session: session, offsets: offsets)
     }
     
     func moveExercise(from source: IndexSet, to destination: Int) {
+        guard canModifySessionExercises else { return }
         withTransaction(Transaction(animation: .default)) {
             seService.moveExercise(session: session, from: source, to: destination)
         }
@@ -172,6 +197,10 @@ struct SingleSessionView: View {
         return "Timer"
     }
 
+    private var canModifySessionExercises: Bool {
+        navigationContext.isEditableByDefault || isUnlockedForEditing
+    }
+
     private var sessionSummaryCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -185,6 +214,13 @@ struct SingleSessionView: View {
                         .fontWeight(.semibold)
                 }
                 Spacer()
+                Text(navigationContext.statusBadgeText)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.gray.opacity(0.12))
+                    .clipShape(Capsule())
             }
 
             Text(sessionTimeDetail)

@@ -414,12 +414,12 @@ struct ExerciseDetailView: View {
                 .padding(.bottom, 12)
 
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Previous Sessions")
+                    Text("Previous Logs")
                         .font(.headline)
                         .padding(.horizontal)
 
                     if previousSessions.isEmpty {
-                        Text("No previous sessions yet.")
+                        Text("No previous logs yet.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -433,7 +433,14 @@ struct ExerciseDetailView: View {
                         VStack(spacing: 8) {
                             ForEach(previousSessions, id: \.session.id) { item in
                                 NavigationLink {
-                                    SingleSessionView(session: item.session).appBackground()
+                                    SessionExerciseView(
+                                        sessionEntry: item.sessionEntry,
+                                        navigationContext: .fromExerciseHistory(
+                                            sessionId: item.session.id,
+                                            exerciseId: exercise.id
+                                        )
+                                    )
+                                    .appBackground()
                                 } label: {
                                     HStack(spacing: 12) {
                                         VStack(alignment: .leading, spacing: 4) {
@@ -954,6 +961,7 @@ struct ExerciseDetailView: View {
 
     private struct PreviousSessionItem {
         let session: Session
+        let sessionEntry: SessionEntry
         let subtitle: String
     }
 
@@ -969,12 +977,16 @@ struct ExerciseDetailView: View {
             guard !seen.contains(session.id) else { continue }
             seen.insert(session.id)
 
+            let matchingSessionEntries = session.sessionEntries
+                .filter { $0.exercise.id == exercise.id }
+                .sorted { $0.order < $1.order }
+            guard let focusedEntry = matchingSessionEntries.first else { continue }
+
             let unitPrefs = SetDisplayUnitPreferences(
                 preferredWeightUnit: displayUnit,
                 preferredDistanceUnit: selectedDistanceUnit
             )
-            let sets = session.sessionEntries
-                .filter { $0.exercise.id == exercise.id }
+            let sets = matchingSessionEntries
                 .flatMap(\.sets)
                 .sorted { $0.order < $1.order }
             let meaningfulSets = sets.filter {
@@ -1004,6 +1016,7 @@ struct ExerciseDetailView: View {
             result.append(
                 PreviousSessionItem(
                     session: session,
+                    sessionEntry: focusedEntry,
                     subtitle: subtitle
                 )
             )

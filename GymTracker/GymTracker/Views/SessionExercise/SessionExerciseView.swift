@@ -12,8 +12,10 @@ struct SessionExerciseView: View {
     @EnvironmentObject var timerService: TimerService
 
     @Bindable var sessionEntry: SessionEntry
+    let navigationContext: SessionNavigationContext
 
     @State private var isEditingSets: Bool = false
+    @State private var isUnlockedForEditing: Bool = false
     @State private var draftNotes: String = ""
     @State private var isDropSet: Bool = false
     @State private var draftUnit: WeightUnit = .lb
@@ -23,17 +25,33 @@ struct SessionExerciseView: View {
     @State private var cardioPaceText: String = ""
     @State private var cardioDistanceUnit: DistanceUnit = .km
 
+    init(sessionEntry: SessionEntry, navigationContext: SessionNavigationContext? = nil) {
+        self.sessionEntry = sessionEntry
+        self.navigationContext = navigationContext ?? SessionNavigationContext.forSession(sessionEntry.session)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                contextBadge
                 timerQuickCard
-                detailsQuickCard
+                if !navigationContext.isFromExerciseHistory {
+                    detailsQuickCard
+                }
 
                 if isEditingSets {
                     editingSetsView
                 } else {
-                    addSetForm
+                    if canEditSession {
+                        addSetForm
+                    } else {
+                        lockedEditingNotice
+                    }
                     todaysSetsList
+                }
+
+                if navigationContext.isFromExerciseHistory {
+                    openFullSessionButton
                 }
             }
             .padding(.horizontal)
@@ -44,8 +62,14 @@ struct SessionExerciseView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button(isEditingSets ? "Done" : "Edit") {
-                    isEditingSets.toggle()
+                if canEditSession {
+                    Button(isEditingSets ? "Done" : "Edit") {
+                        isEditingSets.toggle()
+                    }
+                } else if navigationContext.allowsUnlock {
+                    Button("Unlock") {
+                        isUnlockedForEditing = true
+                    }
                 }
             }
         }
@@ -85,6 +109,20 @@ struct SessionExerciseView: View {
             .clipShape(RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.plain)
+    }
+
+    private var contextBadge: some View {
+        HStack {
+            Text(navigationContext.statusBadgeText)
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.gray.opacity(0.12))
+                .clipShape(Capsule())
+            Spacer()
+        }
     }
 
     private var detailsQuickCard: some View {
@@ -259,6 +297,21 @@ struct SessionExerciseView: View {
             }
 
         }
+        .padding(12)
+        .background(Color.gray.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    private var lockedEditingNotice: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Read-only")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+            Text("This session is not active. Unlock to add or edit sets.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
         .background(Color.gray.opacity(0.06))
         .clipShape(RoundedRectangle(cornerRadius: 14))
@@ -507,6 +560,33 @@ struct SessionExerciseView: View {
         return "Timer"
     }
 
+    private var canEditSession: Bool {
+        navigationContext.isEditableByDefault || isUnlockedForEditing
+    }
+
+    private var openFullSessionButton: some View {
+        NavigationLink {
+            SingleSessionView(
+                session: sessionEntry.session,
+                navigationContext: SessionNavigationContext.forSession(sessionEntry.session)
+            )
+            .appBackground()
+        } label: {
+            HStack {
+                Text("Open full session")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                Spacer()
+                Image(systemName: "arrow.up.right.square")
+                    .foregroundColor(.secondary)
+            }
+            .padding(12)
+            .background(Color.gray.opacity(0.1))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+    }
+
     private var weightFormatter: NumberFormatter {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
@@ -565,6 +645,7 @@ struct SessionExerciseView: View {
     }
 
     private func addSetFromDraft() {
+        guard canEditSession else { return }
         if sessionEntry.exercise.cardio {
             addCardioSetFromDraft()
             return
@@ -581,6 +662,7 @@ struct SessionExerciseView: View {
     }
 
     private func addCardioSetFromDraft() {
+        guard canEditSession else { return }
         guard let newSet = setService.addSet(sessionEntry: sessionEntry, notes: draftNotes, isDropSet: false) else { return }
         newSet.durationSeconds = Int(cardioDurationText.trimmingCharacters(in: .whitespacesAndNewlines))
         newSet.distance = Double(cardioDistanceText.trimmingCharacters(in: .whitespacesAndNewlines))
@@ -590,14 +672,17 @@ struct SessionExerciseView: View {
     }
 
     private func removeSet(_ sessionSet: SessionSet) {
+        guard canEditSession else { return }
         setService.deleteSet(sessionEntry: sessionEntry, sessionSet: sessionSet)
     }
 
     private func deleteRep(sessionSet: SessionSet, rep: SessionRep) {
+        guard canEditSession else { return }
         setService.deleteRep(sessionSet: sessionSet, rep: rep)
     }
 
     private func addDropRep(to sessionSet: SessionSet) {
+        guard canEditSession else { return }
         let lastRep = sessionSet.sessionReps.last
         let unit = lastRep?.weightUnit ?? .lb
         let weight = lastRep?.weight ?? 0
