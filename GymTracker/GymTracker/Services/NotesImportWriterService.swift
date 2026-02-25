@@ -19,6 +19,28 @@ enum NotesImportWriterError: LocalizedError {
 }
 
 final class NotesImportWriterService {
+    enum UnknownLineCategory {
+        case context
+        case parseError
+        case neutral
+    }
+
+    func unknownLineClassification(
+        for draft: NotesImportDraft
+    ) -> (context: [String], parseError: [String], neutral: [String]) {
+        let ordered = unknownLineClassificationInSourceOrder(for: draft)
+        let context = ordered.filter { $0.category == .context }.map(\.line)
+        let parseError = ordered.filter { $0.category == .parseError }.map(\.line)
+        let neutral = ordered.filter { $0.category == .neutral }.map(\.line)
+        return (context, parseError, neutral)
+    }
+
+    func unknownLineClassificationInSourceOrder(
+        for draft: NotesImportDraft
+    ) -> [(line: String, category: UnknownLineCategory)] {
+        classifyUnknownLines(for: draft).ordered
+    }
+
     func duplicateExists(
         draft: NotesImportDraft,
         userId: UUID,
@@ -269,12 +291,123 @@ private extension NotesImportWriterService {
             sections.append("Import warnings:\n\(text)")
         }
 
-        if !draft.unknownLines.isEmpty {
-            let text = draft.unknownLines.map { "- \($0)" }.joined(separator: "\n")
+        let classifiedUnknown = classifyUnknownLines(for: draft)
+        if !classifiedUnknown.context.isEmpty {
+            sections.append(classifiedUnknown.context.joined(separator: "\n"))
+        }
+
+        let unparsed = classifiedUnknown.parseError + classifiedUnknown.neutral
+        if !unparsed.isEmpty {
+            let text = unparsed.map { "- \($0)" }.joined(separator: "\n")
             sections.append("Unparsed lines:\n\(text)")
         }
 
         return sections.joined(separator: "\n\n")
+    }
+
+    func classifyUnknownLines(
+        for draft: NotesImportDraft
+    ) -> (
+        context: [String],
+        parseError: [String],
+        neutral: [String],
+        ordered: [(line: String, category: UnknownLineCategory)]
+    ) {
+        let allLines = draft.originalText
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        var remainingUnknownCount: [String: Int] = [:]
+        for line in draft.unknownLines {
+            remainingUnknownCount[line, default: 0] += 1
+        }
+
+        var unknownIndexedLines: [(index: Int, line: String)] = []
+        for (index, line) in allLines.enumerated() {
+            let remaining = remainingUnknownCount[line, default: 0]
+            if remaining > 0 {
+                unknownIndexedLines.append((index, line))
+                remainingUnknownCount[line] = remaining - 1
+            }
+        }
+
+        // For any unknown line that wasn't found in original text (e.g. synthetic tests),
+        // default to neutral so we don't incorrectly mark it as context/error.
+        for (line, remaining) in remainingUnknownCount where remaining > 0 {
+            for _ in 0..<remaining {
+                unknownIndexedLines.append((index: -1, line: line))
+            }
+        }
+
+        let exerciseSpan = exerciseLineSpan(in: allLines, draft: draft)
+        var context: [String] = []
+        var parseError: [String] = []
+        var neutral: [String] = []
+        var ordered: [(line: String, category: UnknownLineCategory)] = []
+
+        for entry in unknownIndexedLines {
+            if entry.index >= 0, let span = exerciseSpan {
+                if entry.index < span.start || entry.index > span.end {
+                    context.append(entry.line)
+                    ordered.append((entry.line, .context))
+                    continue
+                }
+
+                if isExerciseLikeLine(entry.line) {
+                    parseError.append(entry.line)
+                    ordered.append((entry.line, .parseError))
+                    continue
+                }
+            }
+
+            neutral.append(entry.line)
+            ordered.append((entry.line, .neutral))
+        }
+
+        return (context, parseError, neutral, ordered)
+    }
+
+    func exerciseLineSpan(
+        in allLines: [String],
+        draft: NotesImportDraft
+    ) -> (start: Int, end: Int)? {
+        guard !draft.items.isEmpty else { return nil }
+
+        var exerciseIndices: [Int] = []
+        for (index, line) in allLines.enumerated() {
+            let withoutPrefix = line.replacingOccurrences(of: #"^\s*\d+\.\s*"#, with: "", options: .regularExpression)
+            guard let commaIndex = withoutPrefix.firstIndex(of: ",") else { continue }
+            let namePart = String(withoutPrefix[..<commaIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let tailPart = String(withoutPrefix[withoutPrefix.index(after: commaIndex)...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if namePart.isEmpty || tailPart.isEmpty {
+                continue
+            }
+
+            if isExerciseLikeLine(withoutPrefix) {
+                exerciseIndices.append(index)
+            }
+        }
+
+        guard let first = exerciseIndices.min(), let last = exerciseIndices.max() else {
+            return nil
+        }
+        return (first, last)
+    }
+
+    func isExerciseLikeLine(_ line: String) -> Bool {
+        let lower = line.lowercased()
+        let patterns = [
+            #"\b\d+\s*x\s*\d+(?:[./]\d+)?\b"#,
+            #"\b(kg|kgs|lb|lbs|pound|pounds)\b"#,
+            #"\b\d+\s*,\s*\d+\b"#,
+            #"\b\d+\s*sets?\s*of\s*\d+\b"#,
+            #"\b\d+(?:\.\d+)?\s*(kg|lb)\b"#
+        ]
+
+        return patterns.contains { pattern in
+            lower.range(of: pattern, options: .regularExpression) != nil
+        }
     }
 
     func composeRepNote(

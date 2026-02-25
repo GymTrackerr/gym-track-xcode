@@ -414,10 +414,10 @@ struct NotesImportView: View {
                 Text("Unknown Lines")
                     .font(.headline)
 
-                ForEach(draft.unknownLines, id: \.self) { line in
-                    Text("• \(line)")
+                ForEach(Array(viewModel.unknownLinePreviewItems(for: draft).enumerated()), id: \.offset) { _, item in
+                    Text("• \(item.line)")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(unknownLineColor(item.classification))
                 }
             }
 
@@ -651,6 +651,17 @@ struct NotesImportView: View {
             }
         }
         return nil
+    }
+
+    private func unknownLineColor(_ classification: NotesImportViewModel.UnknownLineClassification) -> Color {
+        switch classification {
+        case .context:
+            return .orange
+        case .parseError:
+            return .red
+        case .neutral:
+            return .secondary
+        }
     }
 }
 

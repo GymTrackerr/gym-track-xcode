@@ -4,6 +4,12 @@ import Combine
 
 @MainActor
 final class NotesImportViewModel: ObservableObject {
+    enum UnknownLineClassification {
+        case context
+        case parseError
+        case neutral
+    }
+
     enum RoutineResolutionMode: String, CaseIterable, Identifiable {
         case matched
         case existing
@@ -141,10 +147,7 @@ final class NotesImportViewModel: ObservableObject {
         initializeDateTimeResolutions()
         syncCurrentDraftDateTimeSelection()
 
-        resolveRoutine()
-        resolveExercise()
-        loadAllUserExercises()
-        refreshDuplicateState()
+        refreshResolvedData()
     }
 
     func moveToNextDraft() {
@@ -399,7 +402,7 @@ final class NotesImportViewModel: ObservableObject {
             return false
         }
 
-        guard let draft = currentDraft else {
+        guard currentDraft != nil else {
             resolutionState.errorMessage = "No draft selected."
             return false
         }
@@ -428,15 +431,12 @@ final class NotesImportViewModel: ObservableObject {
                 defaultWeightUnit: defaultWeightUnit
             )
 
-            loadAllUserExercises()
-            resolveRoutine()
-            resolveExercise()
+            refreshResolvedData()
 
             resolutionState.statusMessage = "Draft imported successfully."
             resolutionState.errorMessage = nil
             resolutionState.allowDuplicateImport = false
             showDuplicatePrompt = false
-            refreshDuplicateState()
             return true
         } catch {
             resolutionState.errorMessage = error.localizedDescription
@@ -449,6 +449,23 @@ final class NotesImportViewModel: ObservableObject {
         resolutionState.allowDuplicateImport = true
         return confirmImport()
     }
+
+    func unknownLinePreviewItems(
+        for draft: NotesImportDraft
+    ) -> [(line: String, classification: UnknownLineClassification)] {
+        writer.unknownLineClassificationInSourceOrder(for: draft).map { item in
+            let classification: UnknownLineClassification
+            switch item.category {
+            case .context:
+                classification = .context
+            case .parseError:
+                classification = .parseError
+            case .neutral:
+                classification = .neutral
+            }
+            return (item.line, classification)
+        }
+    }
 }
 
 private extension NotesImportViewModel {
@@ -460,6 +477,10 @@ private extension NotesImportViewModel {
         resolutionState.allowDuplicateImport = false
         showDuplicatePrompt = false
 
+        refreshResolvedData()
+    }
+
+    func refreshResolvedData() {
         resolveRoutine()
         resolveExercise()
         loadAllUserExercises()
@@ -767,11 +788,12 @@ private extension NotesImportViewModel {
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
 }
+
 private extension Array {
     subscript(safe index: Int) -> Element? {
         guard indices.contains(index) else { return nil }
         return self[index]
     }
 }
-
