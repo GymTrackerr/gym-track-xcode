@@ -16,6 +16,14 @@ class SessionService : ServiceBase, ObservableObject {
     @Published var create_notes: String = ""
     @Published var creating_session: Bool = false
     @Published var selected_splitDay: Routine? = nil
+
+    private static let poundsFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.maximumFractionDigits = 0
+        formatter.minimumFractionDigits = 0
+        return formatter
+    }()
     
     override func loadFeature() {
         self.loadSessions()
@@ -124,18 +132,10 @@ class SessionService : ServiceBase, ObservableObject {
         }
     }
 
-    func sessionVolumeInPounds(_ session: Session) -> Double {
-        Self.sessionVolumeInPounds(session)
-    }
-
-    func totalVolumeInPounds(_ sessions: [Session]) -> Double {
-        sessions.reduce(0.0) { result, session in
-            result + sessionVolumeInPounds(session)
-        }
-    }
-
-    func formattedPounds(_ value: Double) -> String {
-        "\(Int(value.rounded())) lb"
+    static func formattedPounds(_ value: Double) -> String {
+        let rounded = value.rounded()
+        let formatted = poundsFormatter.string(from: NSNumber(value: rounded)) ?? "0"
+        return "\(formatted) lb"
     }
     
     func search(query: String) -> [Session] {

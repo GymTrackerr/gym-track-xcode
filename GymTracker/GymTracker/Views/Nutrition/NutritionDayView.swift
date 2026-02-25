@@ -85,7 +85,7 @@ struct NutritionDayView: View {
                         let categoryMealEntries = mealEntries(for: category)
 
                         if !standaloneLogs.isEmpty || !categoryMealEntries.isEmpty {
-                            Section(category.displayName) {
+                            Section {
                                 ForEach(standaloneLogs, id: \.id) { log in
                                     NutritionLogRow(log: log)
                                         .contentShape(Rectangle())
@@ -128,32 +128,33 @@ struct NutritionDayView: View {
                                             }
 
                                         if isExpanded {
-                                            VStack(spacing: 4) {
+                                            Divider()
+                                                .padding(.leading, 12)
+                                                .padding(.bottom, 4)
+
+                                            VStack(spacing: 10) {
                                                 ForEach(logs(for: entry), id: \.id) { log in
                                                     NutritionLogRow(log: log)
-                                                        .padding(.leading, 12)
                                                         .contentShape(Rectangle())
                                                         .onTapGesture {
                                                             editingLog = log
                                                         }
-                                                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                                            Button(role: .destructive) {
-                                                                nutritionService.deleteFoodLog(log, selectedDate: selectedDate)
-                                                            } label: {
-                                                                Label("Delete", systemImage: "trash")
-                                                            }
-                                                        }
                                                 }
                                             }
-                                            .padding(8)
-                                            .background(Color(.tertiarySystemBackground))
-                                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                            .transition(.opacity.combined(with: .move(edge: .top)))
+                                            .padding(.top, 3)
+                                            .transition(.opacity)
                                         }
                                     }
                                     .padding(.vertical, 2)
                                 }
+                            } header: {
+                                Text(category.displayName)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                    .textCase(nil)
+                                    .padding(.top, 14)
                             }
+                            .listRowBackground(Color(.secondarySystemBackground).opacity(0.74))
                         }
                     }
                 }
@@ -167,17 +168,19 @@ struct NutritionDayView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
+                    showLogSheet = true
+                } label: {
+                    Label("Log Food", systemImage: "plus.circle")
+                }
+            }
+
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
                     showManagePage = true
                 } label: {
                     Label("Manage", systemImage: "line.3.horizontal")
                 }
             }
-        }
-        .safeAreaInset(edge: .bottom) {
-            actionBar
-                .padding(.horizontal)
-                .padding(.top, 8)
-//                .background(.ultraThinMaterial)
         }
         .onAppear {
             nutritionService.loadFoods()
@@ -352,17 +355,8 @@ struct NutritionDayView: View {
         .padding(12)
         .background(Color(.secondarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .shadow(color: Color.black.opacity(0.07), radius: 10, x: 0, y: 3)
         .padding(.horizontal)
-    }
-
-    private var actionBar: some View {
-        Button {
-            showLogSheet = true
-        } label: {
-            Label("Log", systemImage: "plus.circle.fill")
-                .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.borderedProminent)
     }
 
     private func standaloneLogs(for category: FoodLogCategory) -> [FoodLog] {
@@ -384,12 +378,10 @@ struct NutritionDayView: View {
     }
 
     private func toggleMealEntry(_ id: UUID) {
-        withAnimation(.easeInOut(duration: 0.2)) {
-            if expandedMealEntryIDs.contains(id) {
-                expandedMealEntryIDs.remove(id)
-            } else {
-                expandedMealEntryIDs.insert(id)
-            }
+        if expandedMealEntryIDs.contains(id) {
+            expandedMealEntryIDs.remove(id)
+        } else {
+            expandedMealEntryIDs.insert(id)
         }
     }
 }
@@ -428,7 +420,8 @@ private struct NutritionMealEntryHeaderRow: View {
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
             Image(systemName: isExpanded ? "chevron.down.circle.fill" : "chevron.right.circle")
-                .foregroundStyle(.secondary)
+                .font(.caption)
+                .foregroundStyle(.secondary.opacity(0.75))
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
@@ -440,7 +433,8 @@ private struct NutritionMealEntryHeaderRow: View {
                         .font(.caption2)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(Color(.systemGray5))
+                        .foregroundStyle(.secondary.opacity(0.75))
+                        .background(Color(.systemGray5).opacity(0.55))
                         .clipShape(Capsule())
                 }
 
@@ -465,7 +459,7 @@ private struct NutritionMealEntryHeaderRow: View {
 
                 Text("\(logs.count) item\(logs.count == 1 ? "" : "s")")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondary.opacity(0.75))
             }
 
             Menu {
@@ -497,7 +491,7 @@ private struct NutritionLogRow: View {
 
                 Text(log.timestamp, format: .dateTime.hour().minute())
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondary.opacity(0.75))
 
                 if let note = log.note, !note.isEmpty {
                     Text(note)
@@ -521,7 +515,7 @@ private struct NutritionLogRow: View {
                 } else {
                     Text("\(Int(log.grams.rounded())) \(log.food.unit.shortLabel)")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondary.opacity(0.75))
                 }
             }
         }

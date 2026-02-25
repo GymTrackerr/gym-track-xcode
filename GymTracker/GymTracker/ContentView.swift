@@ -45,16 +45,16 @@ struct ContentView: View {
                 }
             }
             
-            Tab("Exercises", systemImage: "dumbbell", value: 1) {
-                NavigationStack {
-                    ExercisesView()
-                        .appBackground()
-                }
-            }
-
             Tab("Sessions", systemImage: "list.bullet.rectangle", value: 2) {
                 NavigationStack {
                     SessionsPageView()
+                        .appBackground()
+                }
+            }
+            
+            Tab("Exercises", systemImage: "dumbbell", value: 1) {
+                NavigationStack {
+                    ExercisesView()
                         .appBackground()
                 }
             }

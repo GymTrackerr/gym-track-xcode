@@ -125,6 +125,7 @@ final class NotesImportWriterService {
                         context.insert(rep)
                         set.sessionReps.append(rep)
                     }
+                    entry.sets.sort { $0.order < $1.order }
                     entry.isCompleted = !entry.sets.isEmpty && entry.sets.allSatisfy(\.isCompleted)
 
                     entryOrder += 1
@@ -150,11 +151,14 @@ final class NotesImportWriterService {
                         context.insert(set)
                         entry.sets.append(set)
                     }
+                    entry.sets.sort { $0.order < $1.order }
                     entry.isCompleted = !entry.sets.isEmpty && entry.sets.allSatisfy(\.isCompleted)
 
                     entryOrder += 1
                 }
             }
+
+            session.sessionEntries.sort { $0.order < $1.order }
 
             if let routine = resolution.resolvedRoutine,
                resolution.createdRoutineId == routine.id {
@@ -262,7 +266,7 @@ private extension NotesImportWriterService {
         resolution: ResolutionResult,
         context: ModelContext
     ) {
-        var exerciseOrder = routine.exerciseSplits.count
+        var exerciseOrder = (routine.exerciseSplits.map(\.order).max() ?? -1) + 1
         var seenExerciseIds = Set(routine.exerciseSplits.map(\.exercise.id))
 
         for rawName in rawExerciseNamesInDraftOrder(from: draft) {
@@ -275,6 +279,13 @@ private extension NotesImportWriterService {
             routine.exerciseSplits.append(split)
             seenExerciseIds.insert(exercise.id)
             exerciseOrder += 1
+        }
+
+        routine.exerciseSplits.sort { lhs, rhs in
+            if lhs.order != rhs.order {
+                return lhs.order < rhs.order
+            }
+            return lhs.id.uuidString < rhs.id.uuidString
         }
     }
 

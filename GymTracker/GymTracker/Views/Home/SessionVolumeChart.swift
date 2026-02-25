@@ -155,16 +155,16 @@ struct SessionVolumeModuleView: View {
                 )
 
                 if module.size == .medium {
-                    Text("Total: \(formatted(total))  •  Avg: \(formatted(average))")
+                    Text("Total: \(SessionService.formattedPounds(total))  •  Avg: \(SessionService.formattedPounds(average))")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.85)
                 } else {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("\(activeRange.currentBucketLabel): \(formatted(currentBucketValue))")
-                        Text("\(activeRange.totalLabel): \(formatted(total))")
-                        Text("\(activeRange.averageLabel): \(formatted(average))")
+                        Text("\(activeRange.currentBucketLabel): \(SessionService.formattedPounds(currentBucketValue))")
+                        Text("\(activeRange.totalLabel): \(SessionService.formattedPounds(total))")
+                        Text("\(activeRange.averageLabel): \(SessionService.formattedPounds(average))")
                     }
                     .font(.caption2)
                     .foregroundColor(.secondary)
@@ -175,7 +175,7 @@ struct SessionVolumeModuleView: View {
         } else {
             MetricCard(
                 title: module.type.displayName,
-                value: formatted(totalVolumeForWeek),
+                value: SessionService.formattedPounds(totalVolumeForWeek),
                 icon: module.type.iconName,
                 hasBackground: false
             )
@@ -279,7 +279,4 @@ struct SessionVolumeModuleView: View {
         }
     }
 
-    private func formatted(_ value: Double) -> String {
-        "\(Int(value.rounded())) lb"
-    }
 }

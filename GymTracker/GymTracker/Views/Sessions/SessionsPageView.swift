@@ -86,16 +86,19 @@ struct SessionsPageView: View {
         }
         .navigationTitle("Sessions")
         .navigationBarTitleDisplayMode(.inline)
+        
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Import", systemImage: "doc.text") {
-                    showingNotesImport = true
-                }
-            }
-
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Add Log", systemImage: "plus") {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
                     showingCreateSession = true
+                } label: {
+                    Label("New Session", systemImage: "plus.circle").labelStyle(.iconOnly)
+                }
+                
+                Button {
+                    showingNotesImport = true
+                } label: {
+                    Label("Import", systemImage: "doc.text").labelStyle(.iconOnly)
                 }
             }
         }
@@ -139,11 +142,11 @@ struct SessionsPageView: View {
             Text("\(summary.sessionCount) Session\(summary.sessionCount == 1 ? "" : "s")")
                 .font(.headline)
 
-            Text("Total volume: \(sessionService.formattedPounds(summary.totalVolume))")
+            Text("Total volume: \(SessionService.formattedPounds(summary.totalVolume))")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            Text("Avg session volume: \(sessionService.formattedPounds(summary.averageSessionVolume))")
+            Text("Avg session volume: \(SessionService.formattedPounds(summary.averageSessionVolume))")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
@@ -169,7 +172,7 @@ struct SessionsPageView: View {
         var sessionsWithDuration = 0
 
         for session in sessions {
-            let sessionVolume = sessionService.sessionVolumeInPounds(session)
+            let sessionVolume = SessionService.sessionVolumeInPounds(session)
             totalVolume += sessionVolume
 
             let durationMinutes = sessionDurationMinutes(for: session)
@@ -180,7 +183,7 @@ struct SessionsPageView: View {
 
             nextRowMetricsBySessionID[session.id] = SessionRowMetrics(
                 exerciseCount: session.sessionEntries.count,
-                volumeText: sessionService.formattedPounds(sessionVolume),
+                volumeText: SessionService.formattedPounds(sessionVolume),
                 durationText: durationMinutes.map { "\($0) min" }
             )
         }

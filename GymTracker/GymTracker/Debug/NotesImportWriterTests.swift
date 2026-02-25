@@ -167,14 +167,18 @@ final class NotesImportWriterDebug {
                 ok = ok && check("writer-test2", strengthEntry.isCompleted, "Expected imported strength entry to auto-complete")
 
                 if strengthEntry.sets.count >= 2 {
-                    let firstRep = strengthEntry.sets[0].sessionReps.first
-                    let secondRep = strengthEntry.sets[1].sessionReps.first
+                    let orderedSets = strengthEntry.sets.sorted { lhs, rhs in
+                        if lhs.order != rhs.order { return lhs.order < rhs.order }
+                        return lhs.id.uuidString < rhs.id.uuidString
+                    }
+                    let firstRep = orderedSets[0].sessionReps.first
+                    let secondRep = orderedSets[1].sessionReps.first
 
-                    ok = ok && check("writer-test2", strengthEntry.sets[0].isCompleted, "Expected imported strength set 1 to auto-complete")
-                    ok = ok && check("writer-test2", strengthEntry.sets[1].isCompleted, "Expected imported strength set 2 to auto-complete")
+                    ok = ok && check("writer-test2", orderedSets[0].isCompleted, "Expected imported strength set 1 to auto-complete")
+                    ok = ok && check("writer-test2", orderedSets[1].isCompleted, "Expected imported strength set 2 to auto-complete")
                     ok = ok && check("writer-test2", firstRep?.weight == 185, "Expected explicit strength weight")
                     ok = ok && check("writer-test2", firstRep?.count == 8, "Expected explicit rep count")
-                    ok = ok && check("writer-test2", strengthEntry.sets[0].restSeconds == 90, "Expected restSeconds to persist")
+                    ok = ok && check("writer-test2", orderedSets[0].restSeconds == 90, "Expected restSeconds to persist")
 
                     ok = ok && check("writer-test2", secondRep?.weight == 0, "Expected weightless set to persist as 0")
                     ok = ok && check("writer-test2", secondRep?.weight_unit == WeightUnit.lb.rawValue, "Expected default weight unit to be used for weightless set")
@@ -409,9 +413,13 @@ final class NotesImportWriterDebug {
             )
 
             var ok = true
+            let orderedSplits = createdRoutine.exerciseSplits.sorted { lhs, rhs in
+                if lhs.order != rhs.order { return lhs.order < rhs.order }
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
             ok = ok && check("writer-test5", createdRoutine.exerciseSplits.count == 2, "Expected new routine template to receive imported exercises")
-            ok = ok && check("writer-test5", createdRoutine.exerciseSplits[0].exercise.id == squat.id, "Expected first split to match draft order")
-            ok = ok && check("writer-test5", createdRoutine.exerciseSplits[1].exercise.id == bike.id, "Expected second split to match draft order")
+            ok = ok && check("writer-test5", orderedSplits[0].exercise.id == squat.id, "Expected first split to match draft order")
+            ok = ok && check("writer-test5", orderedSplits[1].exercise.id == bike.id, "Expected second split to match draft order")
             print("[writer-test5] \(ok ? "PASS" : "FAIL")")
             return ok
         } catch {
