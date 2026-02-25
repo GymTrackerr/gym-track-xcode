@@ -75,7 +75,7 @@ final class NotesImportWriterDebug {
             let userId = UUID()
             let routine = Routine(order: 0, name: "Push", user_id: userId)
             let bench = Exercise(name: "Bench Press", type: .weight, user_id: userId)
-            let run = Exercise(name: "Run", type: .run, user_id: userId)
+            let run = Exercise(name: "Run", type: .cardio, user_id: userId)
 
             harness.context.insert(routine)
             harness.context.insert(bench)
@@ -345,7 +345,7 @@ final class NotesImportWriterDebug {
             let userId = UUID()
             let createdRoutine = Routine(order: 0, name: "Imported Routine", user_id: userId)
             let squat = Exercise(name: "Back Squat", type: .weight, user_id: userId)
-            let bike = Exercise(name: "Indoor cycle", type: .bike, user_id: userId)
+            let bike = Exercise(name: "Indoor cycle", type: .cardio, user_id: userId)
 
             harness.context.insert(createdRoutine)
             harness.context.insert(squat)
@@ -438,7 +438,7 @@ final class NotesImportWriterDebug {
             let userId = UUID()
             let existingRoutine = Routine(order: 0, name: "Push", user_id: userId)
             let bench = Exercise(name: "Bench Press", type: .weight, user_id: userId)
-            let run = Exercise(name: "Run", type: .run, user_id: userId)
+            let run = Exercise(name: "Run", type: .cardio, user_id: userId)
 
             harness.context.insert(existingRoutine)
             harness.context.insert(bench)
@@ -527,7 +527,7 @@ final class NotesImportWriterDebug {
 
             let userId = UUID()
             let untouchedRoutine = Routine(order: 0, name: "Existing", user_id: userId)
-            let bike = Exercise(name: "Bike", type: .bike, user_id: userId)
+            let bike = Exercise(name: "Bike", type: .cardio, user_id: userId)
 
             harness.context.insert(untouchedRoutine)
             harness.context.insert(bike)

@@ -943,13 +943,3 @@ private extension NotesImportParser {
     }
 }
 
-extension ExerciseType {
-    var isCardio: Bool {
-        switch self {
-        case .run, .bike, .swim:
-            return true
-        default:
-            return false
-        }
-    }
-}

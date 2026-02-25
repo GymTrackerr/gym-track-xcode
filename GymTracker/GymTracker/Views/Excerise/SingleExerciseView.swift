@@ -146,15 +146,11 @@ struct ExerciseDetailView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             detailRow("Exercise Type", exercise.exerciseType.name)
 
-                            if let category = cleanedString(exercise.category) {
-                                detailRow("Category", category)
-                            }
-
                             if let equipment = cleanedString(exercise.equipment) {
                                 detailRow("Equipment", equipment)
                             }
 
-                            if isCardioExercise {
+                            if exercise.cardio {
                                 detailRow("Cardio", "Yes")
                                 if let totalDistance = cardioTotalDistanceLabel {
                                     detailRow("Total Distance", totalDistance)
@@ -534,26 +530,11 @@ struct ExerciseDetailView: View {
     }
 
     private var hasExerciseInfo: Bool {
-        cleanedString(exercise.category) != nil ||
         cleanedString(exercise.equipment) != nil ||
         !aliases.isEmpty ||
         !primaryMuscles.isEmpty ||
         !secondaryMuscles.isEmpty ||
         !cardioSets.isEmpty
-    }
-
-    private var isCardioExercise: Bool {
-        if let category = cleanedString(exercise.category),
-           category.lowercased().contains("cardio") {
-            return true
-        }
-
-        switch exercise.exerciseType {
-        case .run, .bike, .swim:
-            return true
-        default:
-            return false
-        }
     }
 
     private var cardioSets: [SessionSet] {
@@ -565,7 +546,7 @@ struct ExerciseDetailView: View {
     }
 
     private var hasCardioProgress: Bool {
-        isCardioExercise && !cardioSets.isEmpty
+        exercise.cardio && !cardioSets.isEmpty
     }
 
     private var cardioTotalDistanceLabel: String? {

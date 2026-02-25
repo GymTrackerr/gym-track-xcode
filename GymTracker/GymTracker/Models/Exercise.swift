@@ -37,7 +37,11 @@ final class Exercise {
     var sessionEntries: [SessionEntry]
 
     var exerciseType: ExerciseType {
-        ExerciseType(rawValue: type) ?? ExerciseType.weight
+        ExerciseType.fromPersisted(rawValue: type)
+    }
+
+    var cardio: Bool {
+        exerciseType == .cardio
     }
 
     init(name:String, type: ExerciseType=ExerciseType.weight, user_id: UUID, isUserCreated: Bool = true) {
@@ -56,6 +60,7 @@ final class Exercise {
         self.user_id = userId
 
         self.name = api.name
+        self.type = ExerciseType.from(apiCategory: api.category).rawValue
         self.primary_muscles = api.primaryMuscles
         self.secondary_muscles = api.secondaryMuscles
         self.equipment = api.equipment
@@ -75,7 +80,12 @@ final class Exercise {
 
 
 enum ExerciseType: Int, CaseIterable, Identifiable {
-    case strength, stretching, strongman, plyometrics, weight, run, bike, swim
+    case strength = 0
+    case stretching = 1
+    case strongman = 2
+    case plyometrics = 3
+    case weight = 4
+    case cardio = 5
     
     var id: Int { return self.rawValue }
 
@@ -88,18 +98,55 @@ enum ExerciseType: Int, CaseIterable, Identifiable {
         case .strongman:
             return "Strongman"
         case .plyometrics:
-            return "plyometrics"
+            return "Plyometrics"
         case .weight:
             return "Weight"
-        case .run:
-            return "Run"
-        case .bike:
-            return "Bike"
-        case .swim:
-            return "Swim"
+        case .cardio:
+            return "Cardio"
 //        default:
 //            return "Unknown"
         }
+    }
+}
+
+extension ExerciseType {
+    static func from(apiCategory: String) -> ExerciseType {
+        let normalized = apiCategory
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        switch normalized {
+        case "cardio":
+            return .cardio
+        case "strength", "powerlifting", "olympic weightlifting":
+            return .strength
+        case "stretching":
+            return .stretching
+        case "strongman":
+            return .strongman
+        case "plyometrics":
+            return .plyometrics
+        default:
+            return .weight
+        }
+    }
+
+    static func from(apiCategory: String?) -> ExerciseType {
+        guard let apiCategory else { return .weight }
+        return from(apiCategory: apiCategory)
+    }
+
+    static func fromPersisted(rawValue: Int) -> ExerciseType {
+        if let resolved = ExerciseType(rawValue: rawValue) {
+            return resolved
+        }
+
+        // Backward compatibility for previously persisted types.
+        if rawValue == 6 || rawValue == 7 {
+            return .cardio
+        }
+
+        return .weight
     }
 }
 

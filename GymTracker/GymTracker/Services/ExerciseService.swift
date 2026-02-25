@@ -219,6 +219,7 @@ class ExerciseService : ServiceBase, ObservableObject {
         exercise.npId = apiExercise.id
         exercise.isUserCreated = false
         exercise.name = apiExercise.name
+        exercise.type = ExerciseType.from(apiCategory: apiExercise.category).rawValue
         exercise.primary_muscles = apiExercise.primaryMuscles
         exercise.secondary_muscles = apiExercise.secondaryMuscles
         exercise.equipment = apiExercise.equipment

@@ -281,9 +281,10 @@ final class ExerciseBackupService {
                 target = existingById
                 report.exercises.updated += 1
             } else {
+                let resolvedType = resolveExerciseType(for: dto)
                 target = Exercise(
                     name: dto.name,
-                    type: ExerciseType(rawValue: dto.type) ?? .weight,
+                    type: resolvedType,
                     user_id: userId,
                     isUserCreated: dto.isUserCreated
                 )
@@ -297,7 +298,7 @@ final class ExerciseBackupService {
             target.npId = dto.npId
             target.name = dto.name
             target.aliases = dto.aliases
-            target.type = dto.type
+            target.type = resolveExerciseType(for: dto).rawValue
             target.primary_muscles = dto.primaryMuscles
             target.secondary_muscles = dto.secondaryMuscles
             target.equipment = dto.equipment
@@ -875,6 +876,13 @@ final class ExerciseBackupService {
 #endif
     }
 
+    private func resolveExerciseType(for dto: ExerciseBackupDTO) -> ExerciseType {
+        if let rawType = dto.type {
+            return ExerciseType.fromPersisted(rawValue: rawType)
+        }
+        return ExerciseType.from(apiCategory: dto.category)
+    }
+
     // MARK: - Normalization
 
     private func normalizedNpId(_ value: String?) -> String? {
@@ -935,7 +943,7 @@ private struct ExerciseBackupDTO: Codable {
     let npId: String?
     let name: String
     let aliases: [String]?
-    let type: Int
+    let type: Int?
     let userId: String
     let primaryMuscles: [String]?
     let secondaryMuscles: [String]?

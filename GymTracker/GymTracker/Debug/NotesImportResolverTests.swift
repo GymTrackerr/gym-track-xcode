@@ -112,7 +112,7 @@ final class NotesImportResolverDebug {
 
             let bench = Exercise(name: "Bench Press", type: .weight, user_id: userId)
             bench.aliases = ["Bench"]
-            let run = Exercise(name: "Run", type: .run, user_id: userId)
+            let run = Exercise(name: "Run", type: .cardio, user_id: userId)
 
             harness.context.insert(routine)
             harness.context.insert(bench)

@@ -120,7 +120,7 @@ struct SessionExerciseView: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
 
-            if isCardioExercise {
+            if sessionEntry.exercise.cardio {
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Duration (sec)")
@@ -200,7 +200,7 @@ struct SessionExerciseView: View {
             }
             .buttonStyle(.borderedProminent)
 
-            if !isCardioExercise {
+            if !sessionEntry.exercise.cardio {
                 Toggle("Drop Set", isOn: $isDropSet)
                     .onChange(of: isDropSet) { _, newValue in
                         if !newValue {
@@ -271,7 +271,7 @@ struct SessionExerciseView: View {
 
             ForEach(sessionEntry.sets.sorted { $0.order < $1.order }, id: \.id) { sessionSet in
                 VStack(alignment: .leading, spacing: 8) {
-                    if isCardioExercise {
+                    if sessionEntry.exercise.cardio {
                         HStack(spacing: 12) {
                             setBadge(text: "\(sessionSet.order + 1)")
 
@@ -322,7 +322,7 @@ struct SessionExerciseView: View {
                         }
                     }
 
-                    if !isCardioExercise, sessionSet.isDropSet, let notes = sessionSet.notes, !notes.isEmpty {
+                    if !sessionEntry.exercise.cardio, sessionSet.isDropSet, let notes = sessionSet.notes, !notes.isEmpty {
                         Text(notes)
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -343,7 +343,7 @@ struct SessionExerciseView: View {
 
             ForEach(sessionEntry.sets.sorted { $0.order < $1.order }, id: \.id) { sessionSet in
                 VStack(alignment: .leading, spacing: 8) {
-                    if isCardioExercise {
+                    if sessionEntry.exercise.cardio {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack(spacing: 12) {
                                 Image(systemName: "line.3.horizontal")
@@ -526,10 +526,6 @@ struct SessionExerciseView: View {
         return "Timer"
     }
 
-    private var isCardioExercise: Bool {
-        sessionEntry.exercise.exerciseType.isCardio
-    }
-
     private var weightFormatter: NumberFormatter {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
@@ -588,7 +584,7 @@ struct SessionExerciseView: View {
     }
 
     private func addSetFromDraft() {
-        if isCardioExercise {
+        if sessionEntry.exercise.cardio {
             addCardioSetFromDraft()
             return
         }
@@ -631,7 +627,7 @@ struct SessionExerciseView: View {
     }
 
     private func applyLastRepDefaultsIfNeeded() {
-        guard !isCardioExercise else { return }
+        guard !sessionEntry.exercise.cardio else { return }
         if let rep = setService.mostRecentRep(for: sessionEntry.exercise) {
             let unit = rep.weightUnit
             draftUnit = unit

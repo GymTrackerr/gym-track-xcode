@@ -745,28 +745,9 @@ private extension NotesImportViewModel {
 
     func inferredExerciseType(from rawName: String, draft: NotesImportDraft) -> ExerciseType {
         if case .some(.cardio) = parsedItem(for: rawName, in: draft) {
-            return inferCardioExerciseType(from: rawName)
+            return .cardio
         }
         return .weight
-    }
-
-    func inferCardioExerciseType(from rawName: String) -> ExerciseType {
-        let lower = rawName.lowercased()
-        if lower.contains("swim") {
-            return .swim
-        }
-        if lower.contains("bike") || lower.contains("cycle") {
-            return .bike
-        }
-        if lower.contains("run")
-            || lower.contains("running")
-            || lower.contains("treadmill")
-            || lower.contains("jog")
-            || lower.contains("indoor run")
-            || lower.contains("walk") {
-            return .run
-        }
-        return .bike
     }
 
     func parsedItem(for rawName: String, in draft: NotesImportDraft) -> ParsedItem? {
