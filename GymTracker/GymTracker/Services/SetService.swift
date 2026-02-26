@@ -143,6 +143,57 @@ class SetService: ServiceBase, ObservableObject {
         }
     }
 
+    @discardableResult
+    func duplicateSet(_ sessionSet: SessionSet) -> SessionSet? {
+        let sourceEntry = sessionSet.sessionEntry
+        let insertionOrder = max(sessionSet.order + 1, 0)
+
+        let duplicate = SessionSet(
+            order: insertionOrder,
+            sessionEntry: sourceEntry,
+            notes: sessionSet.notes
+        )
+        duplicate.isDropSet = sessionSet.isDropSet
+        duplicate.isCompleted = sessionSet.isCompleted
+        duplicate.durationSeconds = sessionSet.durationSeconds
+        duplicate.distance = sessionSet.distance
+        duplicate.paceSeconds = sessionSet.paceSeconds
+        duplicate.distanceUnit = sessionSet.distanceUnit
+        duplicate.restSeconds = sessionSet.restSeconds
+
+        for sourceRep in sessionSet.sessionReps {
+            let copiedRep = SessionRep(
+                sessionSet: duplicate,
+                weight: sourceRep.weight,
+                weight_unit: sourceRep.weightUnit,
+                count: sourceRep.count,
+                notes: sourceRep.notes
+            )
+            copiedRep.baseWeight = sourceRep.baseWeight
+            copiedRep.perSideWeight = sourceRep.perSideWeight
+            copiedRep.isPerSide = sourceRep.isPerSide
+            duplicate.sessionReps.append(copiedRep)
+        }
+
+        var failed = false
+        withAnimation {
+            do {
+                for set in sourceEntry.sets where set.order >= insertionOrder {
+                    set.order += 1
+                }
+                modelContext.insert(duplicate)
+                sourceEntry.sets.append(duplicate)
+                reorderSets(sessionEntry: sourceEntry)
+                try modelContext.save()
+            } catch {
+                failed = true
+            }
+        }
+
+        if failed { return nil }
+        return duplicate
+    }
+
     func moveSet(_ sessionSet: SessionSet, to targetExercise: Exercise) throws {
         let sourceEntry = sessionSet.sessionEntry
         let session = sourceEntry.session
@@ -213,14 +264,6 @@ class SetService: ServiceBase, ObservableObject {
         }
     }
 
-    func addRep(sessionSet: SessionSet) {
-        
-    }
-    
-    func createNewRep() {
-        
-    }
-    
     func saveSetData(sessionSet: SessionSet) {
         withAnimation {
             try? modelContext.save()

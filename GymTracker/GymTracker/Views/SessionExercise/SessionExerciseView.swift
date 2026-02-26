@@ -400,9 +400,20 @@ struct SessionExerciseView: View {
                     .padding(12)
                     .background(Color.gray.opacity(0.1))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        guard canEditSession else { return }
+                        copySetIntoCurrentDraft(sessionSet)
+                    }
                     .contextMenu {
                         if canEditSession {
-                            Button("Transfer set...") {
+                            Button("Copy into Current") {
+                                copySetIntoCurrentDraft(sessionSet)
+                            }
+                            Button("Duplicate Set") {
+                                duplicateSet(sessionSet)
+                            }
+                            Button("Transfer Set") {
                                 startMoveSetFlow(for: sessionSet)
                             }
                         }
@@ -442,8 +453,19 @@ struct SessionExerciseView: View {
                     .padding(12)
                     .background(Color.gray.opacity(0.1))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        guard canEditSession else { return }
+                        copySetIntoCurrentDraft(sessionSet)
+                    }
                     .contextMenu {
                         if canEditSession {
+                            Button("Copy into current") {
+                                copySetIntoCurrentDraft(sessionSet)
+                            }
+                            Button("Duplicate set") {
+                                duplicateSet(sessionSet)
+                            }
                             Button("Transfer set...") {
                                 startMoveSetFlow(for: sessionSet)
                             }
@@ -723,6 +745,11 @@ struct SessionExerciseView: View {
         showMoveSetPicker = true
     }
 
+    private func duplicateSet(_ sessionSet: SessionSet) {
+        guard canEditSession else { return }
+        _ = setService.duplicateSet(sessionSet)
+    }
+
     private func moveSet(_ sessionSet: SessionSet, to targetExercise: Exercise) {
         do {
             try setService.moveSet(sessionSet, to: targetExercise)
@@ -765,6 +792,37 @@ struct SessionExerciseView: View {
         } else {
             draftReps = [RepDraft(unit: draftUnit)]
         }
+    }
+
+    private func copySetIntoCurrentDraft(_ sourceSet: SessionSet) {
+        if sessionEntry.exercise.cardio {
+            cardioDurationSeconds = max(sourceSet.durationSeconds ?? 0, 0)
+            cardioDistanceText = sourceSet.distance?.clean ?? ""
+            cardioDistanceUnit = sourceSet.distanceUnit
+            if let pace = sourceSet.paceSeconds, pace > 0 {
+                cardioManualPace = true
+                cardioPaceText = String(pace)
+            } else {
+                cardioManualPace = false
+                cardioPaceText = ""
+            }
+            draftNotes = sourceSet.notes ?? ""
+            return
+        }
+
+        guard !sourceSet.sessionReps.isEmpty else { return }
+        let copiedReps = sourceSet.sessionReps.map {
+            RepDraft(weight: $0.weight, reps: $0.count, unit: $0.weightUnit)
+        }
+        if let firstUnit = copiedReps.first?.unit {
+            draftUnit = firstUnit
+        }
+        draftReps = copiedReps
+        isDropSet = sourceSet.isDropSet && copiedReps.count > 1
+        if !isDropSet {
+            trimToSingleRep()
+        }
+        draftNotes = sourceSet.notes ?? ""
     }
 
     private func addSetFromDraft() {
