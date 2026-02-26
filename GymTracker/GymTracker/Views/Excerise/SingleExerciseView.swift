@@ -103,6 +103,7 @@ struct ExerciseDetailView: View {
     @State private var selectedDistanceUnit: DistanceUnit = .km
     @State private var showingLogExerciseSheet = false
     @State private var showingAddRoutineSheet = false
+    @State private var showingTransferExerciseSheet = false
     
     private struct RepSample {
         let date: Date
@@ -469,6 +470,27 @@ struct ExerciseDetailView: View {
                         .padding(.bottom, 12)
                     }
                 }
+
+                Button {
+                    showingTransferExerciseSheet = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.left.arrow.right")
+                        Text("Transfer History")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule()
+                            .fill(Color.gray.opacity(0.14))
+                    )
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.bottom, 14)
             }
         }
         .background(
@@ -501,6 +523,11 @@ struct ExerciseDetailView: View {
             )
             .presentationDetents([.height(360), .medium])
             .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showingTransferExerciseSheet) {
+            ExerciseTransferToolView(initialSourceExerciseId: exercise.id)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
         .onAppear {
             sessionService.loadSessions()

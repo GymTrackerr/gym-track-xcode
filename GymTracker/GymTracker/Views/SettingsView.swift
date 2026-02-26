@@ -32,6 +32,7 @@ struct SettingsView: View {
     @State private var showExportErrorAlert = false
     @State private var backupAlertTitle = "Backup"
     @State private var exportErrorMessage = ""
+    @State private var showExerciseTransferTool = false
 
     var body: some View {
         VStack {
@@ -141,6 +142,15 @@ struct SettingsView: View {
                         }
                     }
 
+                    Button {
+                        showExerciseTransferTool = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "arrow.left.arrow.right")
+                            Text("Transfer History")
+                        }
+                    }
+
                 }
             }
             .scrollContentBackground(.hidden)
@@ -167,6 +177,11 @@ struct SettingsView: View {
             case .exercise:
                 handleExerciseImport(result)
             }
+        }
+        .sheet(isPresented: $showExerciseTransferTool) {
+            ExerciseTransferToolView()
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
 //        .toolbar {
 //            ToolbarItem(placement: .navigationBarTrailing) {

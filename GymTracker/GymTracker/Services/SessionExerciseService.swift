@@ -139,6 +139,25 @@ class SessionExerciseService: ServiceBase, ObservableObject {
             }
         }
     }
+
+    func transferExerciseHistory(from source: Exercise, to target: Exercise, sessionIds: Set<UUID>) throws {
+        guard source.id != target.id else { return }
+        guard source.type == target.type else { return }
+        guard !sessionIds.isEmpty else { return }
+
+        let sourceEntries = try modelContext.fetch(FetchDescriptor<SessionEntry>())
+            .filter { $0.exercise.id == source.id }
+            .filter { sessionIds.contains($0.session.id) }
+
+        guard !sourceEntries.isEmpty else { return }
+
+        for sourceEntry in sourceEntries {
+            // Just update the exercise reference - preserves isCompleted and all other state
+            sourceEntry.exercise = target
+        }
+
+        try modelContext.save()
+    }
     
     func moveExercise(session: Session, from source: IndexSet, to destination: Int) {
         var exercises = session.sessionEntries.sorted { $0.order < $1.order }

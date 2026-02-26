@@ -461,7 +461,7 @@ struct addingExerciseSessionView : View {
                         
                     }
                 } label: {
-                    Label("Save", systemImage: "plus.circle")
+                    Label("Add", systemImage: "plus.circle")
                         .font(.title2)
                         .padding()
                 }
@@ -490,7 +490,7 @@ struct addingExerciseSessionView : View {
             .navigationTitle("Add Exercises")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
+                    Button("Save") {
                         seService.confirmEditing(session: session)
                         exerciseService.editingContent = ""
                     }

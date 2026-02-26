@@ -143,6 +143,30 @@ class SetService: ServiceBase, ObservableObject {
         }
     }
 
+    func moveSet(_ sessionSet: SessionSet, to targetExercise: Exercise) throws {
+        let sourceEntry = sessionSet.sessionEntry
+        let session = sourceEntry.session
+        guard sourceEntry.exercise.id != targetExercise.id else { return }
+
+        let targetEntry = SessionEntryResolver.ensureSessionEntry(
+            for: targetExercise,
+            in: session,
+            context: modelContext
+        )
+
+        sourceEntry.sets.removeAll { $0.id == sessionSet.id }
+        sessionSet.sessionEntry = targetEntry
+        sessionSet.order = targetEntry.sets.count
+        targetEntry.sets.append(sessionSet)
+
+        reorderSets(sessionEntry: sourceEntry)
+        if sourceEntry.id != targetEntry.id {
+            reorderSets(sessionEntry: targetEntry)
+        }
+
+        try modelContext.save()
+    }
+
     private func recentEntries(for exercise: Exercise) -> [SessionEntry] {
         let descriptor = FetchDescriptor<SessionEntry>()
         let allEntries = (try? modelContext.fetch(descriptor)) ?? []
@@ -188,7 +212,7 @@ class SetService: ServiceBase, ObservableObject {
             set.order = index
         }
     }
-    
+
     func addRep(sessionSet: SessionSet) {
         
     }

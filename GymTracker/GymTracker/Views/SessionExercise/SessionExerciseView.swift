@@ -10,6 +10,7 @@ import SwiftUI
 struct SessionExerciseView: View {
     @EnvironmentObject var setService: SetService
     @EnvironmentObject var timerService: TimerService
+    @EnvironmentObject var exerciseService: ExerciseService
 
     @Bindable var sessionEntry: SessionEntry
     let navigationContext: SessionNavigationContext
@@ -25,6 +26,9 @@ struct SessionExerciseView: View {
     @State private var cardioPaceText: String = ""
     @State private var cardioDistanceUnit: DistanceUnit = .km
     @State private var cardioManualPace: Bool = false
+    @State private var setToMove: SessionSet? = nil
+    @State private var showMoveSetPicker: Bool = false
+    @State private var moveSetErrorMessage: String? = nil
 
     init(sessionEntry: SessionEntry, navigationContext: SessionNavigationContext? = nil) {
         self.sessionEntry = sessionEntry
@@ -76,6 +80,29 @@ struct SessionExerciseView: View {
         }
         .onAppear {
             applyLastDefaultsIfNeeded()
+        }
+        .sheet(isPresented: $showMoveSetPicker, onDismiss: {
+            setToMove = nil
+        }) {
+            if let setToMove {
+                MoveSetExercisePickerView(
+                    sourceExercise: sessionEntry.exercise,
+                    sessionDate: sessionEntry.session.timestamp,
+                    setCount: 1,
+                    exercises: moveTargetExercises,
+                    onConfirm: { targetExercise in
+                        moveSet(setToMove, to: targetExercise)
+                    }
+                )
+            }
+        }
+        .alert("Unable to move set", isPresented: Binding(
+            get: { moveSetErrorMessage != nil },
+            set: { if !$0 { moveSetErrorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) { moveSetErrorMessage = nil }
+        } message: {
+            Text(moveSetErrorMessage ?? "Unknown error")
         }
     }
 
@@ -373,6 +400,13 @@ struct SessionExerciseView: View {
                     .padding(12)
                     .background(Color.gray.opacity(0.1))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .contextMenu {
+                        if canEditSession {
+                            Button("Transfer set...") {
+                                startMoveSetFlow(for: sessionSet)
+                            }
+                        }
+                    }
                 } else {
                     HStack(alignment: .top, spacing: 12) {
                         setBadge(text: "\(sessionSet.order + 1)")
@@ -408,6 +442,13 @@ struct SessionExerciseView: View {
                     .padding(12)
                     .background(Color.gray.opacity(0.1))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .contextMenu {
+                        if canEditSession {
+                            Button("Transfer set...") {
+                                startMoveSetFlow(for: sessionSet)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -670,6 +711,28 @@ struct SessionExerciseView: View {
         }
     }
 
+    private var moveTargetExercises: [Exercise] {
+        let sessionExercises = sessionEntry.session.sessionEntries.map(\.exercise)
+        return sessionExercises
+            .filter { $0.id != sessionEntry.exercise.id && $0.isArchived == false }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private func startMoveSetFlow(for sessionSet: SessionSet) {
+        setToMove = sessionSet
+        showMoveSetPicker = true
+    }
+
+    private func moveSet(_ sessionSet: SessionSet, to targetExercise: Exercise) {
+        do {
+            try setService.moveSet(sessionSet, to: targetExercise)
+            showMoveSetPicker = false
+            setToMove = nil
+        } catch {
+            moveSetErrorMessage = error.localizedDescription
+        }
+    }
+
     private func badgeText(for sessionSet: SessionSet, repIndex: Int) -> String {
         if sessionSet.isDropSet {
             return "\(sessionSet.order + 1).\(repIndex + 1)"
@@ -892,6 +955,109 @@ struct SessionExerciseView: View {
                 }
             )
         )
+    }
+}
+
+private struct MoveSetExercisePickerView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let sourceExercise: Exercise
+    let sessionDate: Date
+    let setCount: Int
+    let exercises: [Exercise]
+    let onConfirm: (Exercise) -> Void
+
+    @State private var searchText: String = ""
+    @State private var selectedExerciseId: UUID? = nil
+
+    private var selectedExercise: Exercise? {
+        guard let selectedExerciseId else { return nil }
+        return exercises.first { $0.id == selectedExerciseId }
+    }
+
+    private var filteredExercises: [Exercise] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return exercises }
+        return exercises.filter { exercise in
+            if exercise.name.localizedCaseInsensitiveContains(query) {
+                return true
+            }
+            return (exercise.aliases ?? []).contains { alias in
+                alias.localizedCaseInsensitiveContains(query)
+            }
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("Confirm Transfer") {
+                    detailRow(title: "From", value: sourceExercise.name)
+                    detailRow(title: "To", value: selectedExercise?.name ?? "Select target")
+                    detailRow(
+                        title: "Session",
+                        value: sessionDate.formatted(date: .abbreviated, time: .shortened)
+                    )
+                    detailRow(title: "Sets", value: "\(setCount)")
+                }
+
+                Section("Target Exercise") {
+                    ForEach(filteredExercises, id: \.id) { exercise in
+                        Button {
+                            selectedExerciseId = exercise.id
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(exercise.name)
+                                        .foregroundStyle(.primary)
+                                    if let aliases = exercise.aliases, !aliases.isEmpty {
+                                        Text(aliases.joined(separator: ", "))
+                                            .font(.footnote)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
+                                }
+                                Spacer()
+                                if selectedExerciseId == exercise.id {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.tint)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Transfer Set")
+            .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $searchText, prompt: "Search exercise")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Transfer") {
+                        guard let selectedExercise else { return }
+                        onConfirm(selectedExercise)
+                        dismiss()
+                    }
+                    .disabled(selectedExercise == nil)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func detailRow(title: String, value: String) -> some View {
+        HStack {
+            Text(title)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(value)
+                .fontWeight(.semibold)
+                .multilineTextAlignment(.trailing)
+        }
     }
 }
 
