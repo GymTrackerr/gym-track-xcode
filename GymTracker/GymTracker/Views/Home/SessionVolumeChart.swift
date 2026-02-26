@@ -149,10 +149,16 @@ struct SessionVolumeModuleView: View {
                     .pickerStyle(.segmented)
                 }
 
-                SessionVolumeChart(
-                    points: points,
-                    chartHeight: module.size == .large ? 140 : 105
-                )
+                NavigationLink {
+                    ExerciseHistoryChartView()
+                        .appBackground()
+                } label: {
+                    SessionVolumeChart(
+                        points: points,
+                        chartHeight: module.size == .large ? 140 : 105
+                    )
+                }
+                .buttonStyle(.plain)
 
                 if module.size == .medium {
                     Text("Total: \(SessionService.formattedPounds(total))  •  Avg: \(SessionService.formattedPounds(average))")

@@ -96,7 +96,7 @@ struct ExerciseDetailView: View {
     @State private var showHowToPerform = true
     @State private var showExerciseData = true
     @State private var showProgress = true
-    @State private var selectedTab: ProgressMetric = .maxWeight
+    @State private var selectedTab: ProgressMetric = .totalVolume
     @State private var selectedCardioTab: CardioProgressMetric = .totalDistance
     @State private var selectedRange: ProgressRange = .months
     @State private var selectedDisplayUnit: WeightUnit? = nil
@@ -104,6 +104,7 @@ struct ExerciseDetailView: View {
     @State private var showingLogExerciseSheet = false
     @State private var showingAddRoutineSheet = false
     @State private var showingTransferExerciseSheet = false
+    private let previousLogsSectionID = "previous-logs-section"
     
     private struct RepSample {
         let date: Date
@@ -113,23 +114,16 @@ struct ExerciseDetailView: View {
     }
 
     private struct ProgressPoint: Identifiable {
-        let id = UUID()
         let date: Date
         let value: Double
+        var id: TimeInterval { date.timeIntervalSinceReferenceDate }
     }
 
-    private struct CardioSample {
-        let date: Date
-        let durationSeconds: Int?
-        let distance: Double?
-        let distanceUnit: DistanceUnit
-        let paceSeconds: Int?
-    }
 
-    
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
                 
                 if let gifURL = exerciseService.gifURL(for: exercise) {
                     CachedMediaView(url: gifURL)
@@ -369,6 +363,17 @@ struct ExerciseDetailView: View {
                         }
                         .chartYScale(domain: 0...chartYMax)
                         .frame(height: 160)
+
+                        NavigationLink {
+                            ExerciseHistoryChartView(exercise: exercise)
+                                .appBackground()
+                        } label: {
+                            Label("Open Full Chart", systemImage: "chart.bar.xaxis")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                        }
+                        .buttonStyle(.bordered)
                     }
                     .padding(.top, 6)
                 } label: {
@@ -418,6 +423,7 @@ struct ExerciseDetailView: View {
                     Text("Previous Logs")
                         .font(.headline)
                         .padding(.horizontal)
+                        .id(previousLogsSectionID)
 
                     if previousSessions.isEmpty {
                         Text("No previous logs yet.")
@@ -491,6 +497,18 @@ struct ExerciseDetailView: View {
                 .buttonStyle(.plain)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.bottom, 14)
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        withAnimation(.easeInOut) {
+                            proxy.scrollTo(previousLogsSectionID, anchor: .top)
+                        }
+                    } label: {
+                        Label("History", systemImage: "clock.arrow.circlepath")
+                    }
+                }
             }
         }
         .background(
@@ -654,24 +672,6 @@ struct ExerciseDetailView: View {
         return samples
     }
 
-    private var cardioSamples: [CardioSample] {
-        var samples: [CardioSample] = []
-        for entry in matchingEntries {
-            for set in entry.sets where set.durationSeconds != nil || set.distance != nil || set.paceSeconds != nil {
-                samples.append(
-                    CardioSample(
-                        date: entry.session.timestamp,
-                        durationSeconds: set.durationSeconds,
-                        distance: set.distance,
-                        distanceUnit: set.distanceUnit,
-                        paceSeconds: set.paceSeconds
-                    )
-                )
-            }
-        }
-        return samples
-    }
-
     private var dominantUnit: WeightUnit {
         var counts: [WeightUnit: Int] = [.lb: 0, .kg: 0]
         for rep in repSamples {
@@ -683,171 +683,28 @@ struct ExerciseDetailView: View {
         return .lb
     }
 
-    private var progressPoints: [ProgressPoint] {
-        let samples = repSamples
-        guard !samples.isEmpty else { return [] }
-
-        let calendar = Calendar.current
-        let endDate = calendar.date(byAdding: .day, value: -1, to: Date()) ?? Date()
-
-        let bucketComponent: Calendar.Component
-        let bucketCount: Int
-        let startDate: Date
-
-        switch selectedRange {
-        case .days:
-            bucketComponent = .day
-            bucketCount = 7
-            startDate = calendar.date(byAdding: .day, value: -(bucketCount - 1), to: endDate) ?? endDate
-        case .weeks:
-            bucketComponent = .weekOfYear
-            bucketCount = 8
-            startDate = calendar.date(byAdding: .weekOfYear, value: -(bucketCount - 1), to: endDate) ?? endDate
-        case .months:
-            bucketComponent = .month
-            bucketCount = 6
-            startDate = calendar.date(byAdding: .month, value: -(bucketCount - 1), to: endDate) ?? endDate
-        case .years:
-            bucketComponent = .year
-            bucketCount = 5
-            startDate = calendar.date(byAdding: .year, value: -(bucketCount - 1), to: endDate) ?? endDate
-        }
-
-        let bucketStartFor: (Date) -> Date = { date in
-            switch bucketComponent {
-            case .day:
-                return calendar.startOfDay(for: date)
-            case .weekOfYear:
-                return calendar.dateInterval(of: .weekOfYear, for: date)?.start ?? date
-            case .month:
-                return calendar.dateInterval(of: .month, for: date)?.start ?? date
-            case .year:
-                return calendar.dateInterval(of: .year, for: date)?.start ?? date
-            default:
-                return date
-            }
-        }
-
-        var buckets: [Date] = []
-        var current = bucketStartFor(startDate)
-        for _ in 0..<bucketCount {
-            buckets.append(current)
-            if let next = calendar.date(byAdding: bucketComponent, value: 1, to: current) {
-                current = next
-            }
-        }
-
-        return buckets.map { bucketStart in
-            let bucketEnd = calendar.date(byAdding: bucketComponent, value: 1, to: bucketStart) ?? bucketStart
-            let items = samples.filter { $0.date >= bucketStart && $0.date < bucketEnd }
-            let value: Double
-
-            switch selectedTab {
-            case .maxWeight:
-                value = items.map { sample in
-                    convertWeight(sample.weight, from: sample.unit, to: displayUnit)
-                }.max() ?? 0
-            case .averageWeight:
-                let totalWeight = items.reduce(0.0) { result, sample in
-                    result + convertWeight(sample.weight, from: sample.unit, to: displayUnit)
-                }
-                value = items.isEmpty ? 0 : totalWeight / Double(items.count)
-            case .totalVolume:
-                value = items.reduce(0) { result, sample in
-                    let weight = convertWeight(sample.weight, from: sample.unit, to: displayUnit)
-                    return result + (weight * Double(sample.reps))
-                }
-            case .totalReps:
-                value = Double(items.reduce(0) { $0 + $1.reps })
-            case .averageReps:
-                let totalReps = items.reduce(0) { $0 + $1.reps }
-                value = items.isEmpty ? 0 : Double(totalReps) / Double(items.count)
-            }
-
-            return ProgressPoint(date: bucketStart, value: value)
-        }
-    }
-
-    private var cardioProgressPoints: [ProgressPoint] {
-        let samples = cardioSamples
-        guard !samples.isEmpty else { return [] }
-
-        let calendar = Calendar.current
-        let endDate = calendar.date(byAdding: .day, value: -1, to: Date()) ?? Date()
-
-        let bucketComponent: Calendar.Component
-        let bucketCount: Int
-        let startDate: Date
-
-        switch selectedRange {
-        case .days:
-            bucketComponent = .day
-            bucketCount = 7
-            startDate = calendar.date(byAdding: .day, value: -(bucketCount - 1), to: endDate) ?? endDate
-        case .weeks:
-            bucketComponent = .weekOfYear
-            bucketCount = 8
-            startDate = calendar.date(byAdding: .weekOfYear, value: -(bucketCount - 1), to: endDate) ?? endDate
-        case .months:
-            bucketComponent = .month
-            bucketCount = 6
-            startDate = calendar.date(byAdding: .month, value: -(bucketCount - 1), to: endDate) ?? endDate
-        case .years:
-            bucketComponent = .year
-            bucketCount = 5
-            startDate = calendar.date(byAdding: .year, value: -(bucketCount - 1), to: endDate) ?? endDate
-        }
-
-        let bucketStartFor: (Date) -> Date = { date in
-            switch bucketComponent {
-            case .day:
-                return calendar.startOfDay(for: date)
-            case .weekOfYear:
-                return calendar.dateInterval(of: .weekOfYear, for: date)?.start ?? date
-            case .month:
-                return calendar.dateInterval(of: .month, for: date)?.start ?? date
-            case .year:
-                return calendar.dateInterval(of: .year, for: date)?.start ?? date
-            default:
-                return date
-            }
-        }
-
-        var buckets: [Date] = []
-        var current = bucketStartFor(startDate)
-        for _ in 0..<bucketCount {
-            buckets.append(current)
-            if let next = calendar.date(byAdding: bucketComponent, value: 1, to: current) {
-                current = next
-            }
-        }
-
-        return buckets.map { bucketStart in
-            let bucketEnd = calendar.date(byAdding: bucketComponent, value: 1, to: bucketStart) ?? bucketStart
-            let items = samples.filter { $0.date >= bucketStart && $0.date < bucketEnd }
-            let value: Double
-
-            switch selectedCardioTab {
-            case .totalDistance:
-                value = items.reduce(0.0) { result, sample in
-                    guard let distance = sample.distance else { return result }
-                    return result + SetDisplayFormatter.convertDistance(distance, from: sample.distanceUnit, to: selectedDistanceUnit)
-                }
-            case .totalDuration:
-                value = Double(items.compactMap(\.durationSeconds).reduce(0, +))
-            case .averagePace:
-                let paces = items.compactMap { paceValue(for: $0) }
-                value = paces.isEmpty ? 0 : Double(paces.reduce(0, +)) / Double(paces.count)
-            case .bestPace:
-                value = Double(items.compactMap { paceValue(for: $0) }.min() ?? 0)
-            }
-
-            return ProgressPoint(date: bucketStart, value: value)
-        }
-    }
-
     private var chartPoints: [ProgressPoint] {
-        hasCardioProgress ? cardioProgressPoints : progressPoints
+        let points: [ExerciseHistoryPoint]
+        if hasCardioProgress {
+            points = ExerciseHistoryChartCalculator.cardioPoints(
+                sessions: timeframeSessions,
+                interval: chartInterval,
+                timeframe: compactTimeframe,
+                exerciseId: exercise.id,
+                metric: selectedCardioTab,
+                distanceUnit: selectedDistanceUnit
+            )
+        } else {
+            points = ExerciseHistoryChartCalculator.strengthPoints(
+                sessions: timeframeSessions,
+                interval: chartInterval,
+                timeframe: compactTimeframe,
+                exerciseId: exercise.id,
+                metric: selectedTab,
+                displayUnit: displayUnit
+            )
+        }
+        return points.map { ProgressPoint(date: $0.date, value: $0.value) }
     }
 
     private var chartYMax: Double {
@@ -856,6 +713,27 @@ struct ExerciseDetailView: View {
             return 1
         }
         return maxValue * 1.15
+    }
+
+    private var compactTimeframe: ExerciseHistoryTimeframe {
+        switch selectedRange {
+        case .days:
+            return .week
+        case .weeks:
+            return .month
+        case .months:
+            return .year
+        case .years:
+            return .fiveYears
+        }
+    }
+
+    private var chartInterval: DateInterval {
+        ExerciseHistoryChartCalculator.currentWindow(for: compactTimeframe, now: Date())
+    }
+
+    private var timeframeSessions: [Session] {
+        sessionService.sessionsInRange(chartInterval)
     }
 
     private var chartXAxisStride: Calendar.Component {
@@ -885,21 +763,6 @@ struct ExerciseDetailView: View {
             formatter.setLocalizedDateFormatFromTemplate("yyyy")
         }
         return formatter.string(from: date)
-    }
-
-    private func convertWeight(_ value: Double, from source: WeightUnit, to target: WeightUnit) -> Double {
-        value * source.conversion(to: target)
-    }
-
-    private func paceValue(for sample: CardioSample) -> Int? {
-        if let explicitPace = sample.paceSeconds {
-            return explicitPace
-        }
-        guard let durationSeconds = sample.durationSeconds,
-              let distance = sample.distance else { return nil }
-        let distanceInSelectedUnit = SetDisplayFormatter.convertDistance(distance, from: sample.distanceUnit, to: selectedDistanceUnit)
-        guard distanceInSelectedUnit > 0 else { return nil }
-        return Int(Double(durationSeconds) / distanceInSelectedUnit)
     }
 
     private func normalizedList(_ values: [String]?) -> [String] {
@@ -948,26 +811,56 @@ struct ExerciseDetailView: View {
                 parts.append("\(SetDisplayFormatter.formatDecimal(totalDistance)) \(targetUnit.rawValue)")
             }
 
-        case .strength, .bodyweight:
-            let reps = sets.flatMap(\.sessionReps).reduce(0) { $0 + max($1.count, 0) }
-            if reps > 0 {
-                parts.append("\(reps) reps")
+            if let paceText = SetDisplayFormatter.formatPace(
+                secondsPerSourceUnit: SetDisplayFormatter.resolvePaceSeconds(
+                    explicitPaceSeconds: nil,
+                    durationSeconds: totalDuration > 0 ? totalDuration : nil,
+                    distance: totalDistance > 0 ? totalDistance : nil
+                ),
+                sourceUnit: targetUnit,
+                preferredDistanceUnit: targetUnit
+            ) {
+                parts.append(paceText)
             }
 
+        case .strength, .bodyweight:
             let targetUnit = unitPrefs.preferredWeightUnit ?? displayUnit
-            let totalWeight = sets
-                .flatMap(\.sessionReps)
-                .reduce(0.0) { result, rep in
-                    guard rep.weight > 0 else { return result }
-                    let converted = rep.weight * rep.weightUnit.conversion(to: targetUnit)
-                    return result + converted
+            let repsPerSet = sets.compactMap { set -> Double? in
+                let setReps = set.sessionReps.map(\.count).filter { $0 > 0 }
+                guard !setReps.isEmpty else { return nil }
+                return Double(setReps.reduce(0, +))
+            }
+            let weightPerSet = sets.compactMap { set -> Double? in
+                let setWeights = set.sessionReps.filter { $0.weight > 0 }.map {
+                    $0.weight * $0.weightUnit.conversion(to: targetUnit)
                 }
-            if totalWeight > 0 {
-                parts.append("\(SetDisplayFormatter.formatDecimal(totalWeight)) \(targetUnit.name)")
+                guard !setWeights.isEmpty else { return nil }
+                return setWeights.reduce(0.0, +) / Double(setWeights.count)
+            }
+
+            if let repsSummary = averageSummary(values: repsPerSet, suffix: " reps") {
+                if let weightSummary = averageSummary(values: weightPerSet, suffix: " \(targetUnit.name)") {
+                    parts.append("\(repsSummary) @ \(weightSummary)")
+                } else {
+                    parts.append(repsSummary)
+                }
+            } else if let weightSummary = averageSummary(values: weightPerSet, suffix: " \(targetUnit.name)") {
+                parts.append(weightSummary)
             }
         }
 
         return parts.joined(separator: " • ")
+    }
+
+    private func averageSummary(values: [Double], suffix: String) -> String? {
+        guard !values.isEmpty else { return nil }
+        let average = values.reduce(0.0, +) / Double(values.count)
+        let allSame = values.allSatisfy { abs($0 - values[0]) < 0.0001 }
+        let valueText = "\(SetDisplayFormatter.formatDecimal(average))\(suffix)"
+        if allSame {
+            return valueText
+        }
+        return "avg \(valueText)"
     }
 
     @ViewBuilder
