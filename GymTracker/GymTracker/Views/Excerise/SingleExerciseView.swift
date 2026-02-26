@@ -593,13 +593,13 @@ struct ExerciseDetailView: View {
         let units = Set(samples.map(\.unit))
         if units.count == 1, let unit = units.first {
             let total = samples.reduce(0.0) { $0 + $1.distance }
-            return "\(formatDecimal(total)) \(unit.rawValue)"
+            return "\(SetDisplayFormatter.formatDecimal(total)) \(unit.rawValue)"
         }
 
         let totalKilometers = samples.reduce(0.0) { result, sample in
             result + (sample.unit == .km ? sample.distance : sample.distance * 1.60934)
         }
-        return "\(formatDecimal(totalKilometers)) km (mixed units)"
+        return "\(SetDisplayFormatter.formatDecimal(totalKilometers)) km (mixed units)"
     }
 
     private var cardioTotalDurationLabel: String? {
@@ -831,7 +831,7 @@ struct ExerciseDetailView: View {
             case .totalDistance:
                 value = items.reduce(0.0) { result, sample in
                     guard let distance = sample.distance else { return result }
-                    return result + convertDistance(distance, from: sample.distanceUnit, to: selectedDistanceUnit)
+                    return result + SetDisplayFormatter.convertDistance(distance, from: sample.distanceUnit, to: selectedDistanceUnit)
                 }
             case .totalDuration:
                 value = Double(items.compactMap(\.durationSeconds).reduce(0, +))
@@ -891,21 +891,13 @@ struct ExerciseDetailView: View {
         value * source.conversion(to: target)
     }
 
-    private func convertDistance(_ value: Double, from source: DistanceUnit, to target: DistanceUnit) -> Double {
-        if source == target { return value }
-        if source == .km && target == .mi {
-            return value * 0.621371
-        }
-        return value * 1.60934
-    }
-
     private func paceValue(for sample: CardioSample) -> Int? {
         if let explicitPace = sample.paceSeconds {
             return explicitPace
         }
         guard let durationSeconds = sample.durationSeconds,
               let distance = sample.distance else { return nil }
-        let distanceInSelectedUnit = convertDistance(distance, from: sample.distanceUnit, to: selectedDistanceUnit)
+        let distanceInSelectedUnit = SetDisplayFormatter.convertDistance(distance, from: sample.distanceUnit, to: selectedDistanceUnit)
         guard distanceInSelectedUnit > 0 else { return nil }
         return Int(Double(durationSeconds) / distanceInSelectedUnit)
     }
@@ -921,13 +913,6 @@ struct ExerciseDetailView: View {
         guard let value else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
-    }
-
-    private func formatDecimal(_ value: Double) -> String {
-        if value.rounded() == value {
-            return String(Int(value))
-        }
-        return String(format: "%.2f", value)
     }
 
     private func formattedDuration(_ seconds: Int) -> String {
@@ -957,10 +942,10 @@ struct ExerciseDetailView: View {
             let targetUnit = unitPrefs.preferredDistanceUnit ?? .km
             let totalDistance = sets.reduce(0.0) { result, set in
                 guard let distance = set.distance, distance > 0 else { return result }
-                return result + convertDistance(distance, from: set.distanceUnit, to: targetUnit)
+                return result + SetDisplayFormatter.convertDistance(distance, from: set.distanceUnit, to: targetUnit)
             }
             if totalDistance > 0 {
-                parts.append("\(formatDecimal(totalDistance)) \(targetUnit.rawValue)")
+                parts.append("\(SetDisplayFormatter.formatDecimal(totalDistance)) \(targetUnit.rawValue)")
             }
 
         case .strength, .bodyweight:
@@ -978,7 +963,7 @@ struct ExerciseDetailView: View {
                     return result + converted
                 }
             if totalWeight > 0 {
-                parts.append("\(formatDecimal(totalWeight)) \(targetUnit.name)")
+                parts.append("\(SetDisplayFormatter.formatDecimal(totalWeight)) \(targetUnit.name)")
             }
         }
 
@@ -1305,6 +1290,7 @@ struct AddToRoutineSheetView: View {
 struct SingleExerciseLabelView: View {
     @Bindable var exercise: Exercise
     @State var orderInSplit: Int? = nil
+    var subtitleText: String? = nil
 
     var body : some View {
         VStack (alignment: .leading, spacing: 4) {
@@ -1313,21 +1299,31 @@ struct SingleExerciseLabelView: View {
                     VStack(alignment: .leading) {
                         Text(exercise.name)
                         HStack {
-                            if (orderInSplit != nil) {
-                                Text("Order \((orderInSplit ?? 0)+1)")
+                            if let subtitleText, !subtitleText.isEmpty {
+                                Text(subtitleText)
                                     .font(.caption)
                                     .foregroundColor(.secondary)
-                                Spacer()
+                            } else {
+                                if (orderInSplit != nil) {
+                                    Text("Order \((orderInSplit ?? 0)+1)")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Spacer()
+                                }
+
+                                Text(exercise.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
-                            
-                            Text(exercise.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                                .font(.caption)
-                                .foregroundColor(.secondary)
                         }
                     }
                     .padding(.vertical, 4)
                 } else {
-                    DetailedExerciseLabelView(exercise: exercise, orderInSplit: orderInSplit)
+                    DetailedExerciseLabelView(
+                        exercise: exercise,
+                        orderInSplit: orderInSplit,
+                        subtitleText: subtitleText
+                    )
                 }
             }
         }
@@ -1345,6 +1341,7 @@ struct DetailedExerciseLabelView: View {
     @EnvironmentObject var exerciseService: ExerciseService
     @Bindable var exercise: Exercise
     @State var orderInSplit: Int? = nil
+    var subtitleText: String? = nil
     
     var body: some View {
         HStack {
@@ -1367,7 +1364,14 @@ struct DetailedExerciseLabelView: View {
                     Text(exercise.name)
                     Spacer()
                 }
-                if let orderInSplit = orderInSplit {
+                if let subtitleText, !subtitleText.isEmpty {
+                    HStack {
+                        Text(subtitleText)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                } else if let orderInSplit = orderInSplit {
                     HStack {
                         Text("Order \((orderInSplit)+1)")
                             .font(.caption)

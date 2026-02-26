@@ -64,7 +64,11 @@ struct SingleSessionView: View {
                                     .padding(.horizontal, 8)
 
                                 VStack(alignment: .leading, spacing: 4) {
-                                    SingleExerciseLabelView(exercise: sessionEntry.exercise, orderInSplit: sessionEntry.order)
+                                    SingleExerciseLabelView(
+                                        exercise: sessionEntry.exercise,
+                                        orderInSplit: sessionEntry.order,
+                                        subtitleText: summaryText(for: sessionEntry)
+                                    )
                                         .id(sessionEntry.order)
                                 }
 
@@ -199,6 +203,120 @@ struct SingleSessionView: View {
 
     private var canModifySessionExercises: Bool {
         navigationContext.isEditableByDefault || isUnlockedForEditing
+    }
+
+    private func summaryText(for sessionEntry: SessionEntry) -> String? {
+        if sessionEntry.exercise.cardio {
+            return cardioSummaryText(for: sessionEntry)
+        }
+        return strengthSummaryText(for: sessionEntry)
+    }
+
+    private func strengthSummaryText(for sessionEntry: SessionEntry) -> String? {
+        let exerciseKind = sessionEntry.exercise.setDisplayKind
+        let meaningfulSets = sessionEntry.sets.filter {
+            SetDisplayFormatter.isMeaningfulSet($0, exerciseKind: exerciseKind)
+        }
+        guard !meaningfulSets.isEmpty else { return nil }
+
+        let repsPerSet = meaningfulSets.compactMap { sessionSet -> Double? in
+            let setReps = sessionSet.sessionReps
+                .map(\.count)
+                .filter { $0 > 0 }
+            guard !setReps.isEmpty else { return nil }
+            return Double(setReps.reduce(0, +))
+        }
+
+        let weightUnit = SetDisplayFormatter.dominantWeightUnit(in: meaningfulSets.flatMap(\.sessionReps).filter { $0.weight > 0 })
+        let weightPerSet = meaningfulSets.compactMap { sessionSet -> Double? in
+            let setWeights = sessionSet.sessionReps.filter { $0.weight > 0 }.map {
+                $0.weight * $0.weightUnit.conversion(to: weightUnit)
+            }
+            guard !setWeights.isEmpty else { return nil }
+            return setWeights.reduce(0.0, +) / Double(setWeights.count)
+        }
+
+        let repsSummary = metricSummary(
+            values: repsPerSet,
+            formattedValue: { "\(SetDisplayFormatter.formatDecimal($0))" },
+            includeAverageLabelWhenNeeded: true
+        )
+        let weightSummary = metricSummary(
+            values: weightPerSet,
+            formattedValue: { "\(SetDisplayFormatter.formatDecimal($0))\(weightUnit.name)" },
+            includeAverageLabelWhenNeeded: true
+        )
+
+        var tail = ""
+        if let repsSummary, let weightSummary {
+            tail = "\(repsSummary) @ \(weightSummary)"
+        } else if let repsSummary {
+            tail = repsSummary
+        } else if let weightSummary {
+            tail = weightSummary
+        }
+
+        if tail.isEmpty {
+            return "\(meaningfulSets.count) sets"
+        }
+        return "\(meaningfulSets.count) sets - \(tail)"
+    }
+
+    private func cardioSummaryText(for sessionEntry: SessionEntry) -> String? {
+        let meaningfulSets = sessionEntry.sets.filter {
+            SetDisplayFormatter.isMeaningfulSet($0, exerciseKind: .cardio)
+        }
+        guard !meaningfulSets.isEmpty else { return nil }
+
+        let totalDurationSeconds = meaningfulSets.reduce(0) { result, set in
+            result + max(set.durationSeconds ?? 0, 0)
+        }
+
+        let distanceSamples = meaningfulSets.compactMap { set -> (distance: Double, unit: DistanceUnit)? in
+            guard let distance = set.distance, distance > 0 else { return nil }
+            return (distance, set.distanceUnit)
+        }
+
+        let distanceUnit = SetDisplayFormatter.dominantDistanceUnit(in: distanceSamples)
+        let totalDistance = distanceSamples.reduce(0.0) { result, sample in
+            result + SetDisplayFormatter.convertDistance(sample.distance, from: sample.unit, to: distanceUnit)
+        }
+
+        var parts: [String] = []
+        if totalDurationSeconds > 0 {
+            parts.append(SetDisplayFormatter.formatClockDuration(totalDurationSeconds))
+        }
+        if totalDistance > 0 {
+            parts.append("\(SetDisplayFormatter.formatDecimal(totalDistance)) \(distanceUnit.rawValue)")
+        }
+
+        if let paceText = SetDisplayFormatter.formatPace(
+            secondsPerSourceUnit: SetDisplayFormatter.resolvePaceSeconds(
+                explicitPaceSeconds: nil,
+                durationSeconds: totalDurationSeconds > 0 ? totalDurationSeconds : nil,
+                distance: totalDistance > 0 ? totalDistance : nil
+            ),
+            sourceUnit: distanceUnit,
+            preferredDistanceUnit: distanceUnit
+        ) {
+            parts.append(paceText)
+        }
+
+        return parts.isEmpty ? nil : parts.joined(separator: " • ")
+    }
+
+    private func metricSummary(
+        values: [Double],
+        formattedValue: (Double) -> String,
+        includeAverageLabelWhenNeeded: Bool
+    ) -> String? {
+        guard !values.isEmpty else { return nil }
+        let average = values.reduce(0.0, +) / Double(values.count)
+        let allEqual = values.allSatisfy { abs($0 - values[0]) < 0.0001 }
+        if includeAverageLabelWhenNeeded && !allEqual {
+            return "avg \(formattedValue(average))"
+        }
+        return formattedValue(average)
     }
 
     private var sessionSummaryCard: some View {

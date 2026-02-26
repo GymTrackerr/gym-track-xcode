@@ -250,12 +250,38 @@ enum SetDisplayFormatter {
         )
     }
 
-    private static func convertDistance(_ value: Double, from source: DistanceUnit, to target: DistanceUnit) -> Double {
+    // MARK: - Shared Utility Helpers (for views)
+    
+    static func dominantWeightUnit(in reps: [SessionRep]) -> WeightUnit {
+        var counts: [WeightUnit: Int] = [.lb: 0, .kg: 0]
+        for rep in reps {
+            counts[rep.weightUnit, default: 0] += 1
+        }
+        return (counts[.kg, default: 0] > counts[.lb, default: 0]) ? .kg : .lb
+    }
+    
+    static func dominantDistanceUnit(in samples: [(distance: Double, unit: DistanceUnit)]) -> DistanceUnit {
+        guard !samples.isEmpty else { return .km }
+        var counts: [DistanceUnit: Int] = [.km: 0, .mi: 0]
+        for sample in samples {
+            counts[sample.unit, default: 0] += 1
+        }
+        return (counts[.mi, default: 0] > counts[.km, default: 0]) ? .mi : .km
+    }
+    
+    static func convertDistance(_ value: Double, from source: DistanceUnit, to target: DistanceUnit) -> Double {
         if source == target { return value }
         if source == .km && target == .mi {
             return value * 0.621371
         }
         return value * 1.60934
+    }
+    
+    static func formatDecimal(_ value: Double) -> String {
+        if value.rounded() == value {
+            return String(Int(value))
+        }
+        return String(format: "%.1f", value)
     }
 
     private static func convertPace(_ secondsPerUnit: Int, from source: DistanceUnit, to target: DistanceUnit) -> Int {
