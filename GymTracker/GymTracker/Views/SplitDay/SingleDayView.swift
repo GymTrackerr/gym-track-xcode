@@ -16,9 +16,11 @@ import SwiftUI
 struct SingleDayView: View {
     @EnvironmentObject var esdService: ExerciseSplitDayService
     @EnvironmentObject var exerciseService: ExerciseService
+    @EnvironmentObject var splitDayService: RoutineService
     @Bindable var routine: Routine
     
     @State var searchResults: [Exercise] = []
+    @State private var routineAliasDraft: String = ""
     @Environment(\.editMode) private var editMode
 
     var body: some View {
@@ -28,13 +30,69 @@ struct SingleDayView: View {
                     Text("Routine: \(routine.name)")
                     Text("Order: \(routine.order)")
                     Text("Date: \(routine.timestamp.formatted(date: .numeric, time: .omitted))")
+
+                    if !routine.aliases.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(routine.aliases, id: \.self) { alias in
+                                    Text(alias)
+                                        .font(.caption)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(Color(.systemGray5))
+                                        .clipShape(Capsule())
+                                }
+                            }
+                        }
+                    }
                 }
                 .padding()
             } else {
-                VStack {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Identity")
+                        .font(.headline)
+                        .padding(.horizontal)
+
                     TextField("Routine Name", text: $routine.name)
                         .textFieldStyle(.roundedBorder)
                         .padding(.horizontal)
+
+                    HStack(spacing: 8) {
+                        TextField("Add alias", text: $routineAliasDraft)
+                            .textFieldStyle(.roundedBorder)
+
+                        Button("Add") {
+                            addRoutineAlias()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(routineAliasDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                    .padding(.horizontal)
+
+                    if !routine.aliases.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(routine.aliases, id: \.self) { alias in
+                                    HStack(spacing: 4) {
+                                        Text(alias)
+                                            .font(.caption)
+                                        Button {
+                                            removeRoutineAlias(alias)
+                                        } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .font(.caption)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color(.systemGray5))
+                                    .clipShape(Capsule())
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+                    }
                 }
             }
             
@@ -190,6 +248,26 @@ struct SingleDayView: View {
         }
 
 //        esdService.moveExercise(routine: routine, from: source, to: destination)
+    }
+
+    private func addRoutineAlias() {
+        let trimmed = routineAliasDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        var aliases = routine.aliases
+        if aliases.contains(where: { $0.compare(trimmed, options: .caseInsensitive) == .orderedSame }) {
+            routineAliasDraft = ""
+            return
+        }
+
+        aliases.append(trimmed)
+        _ = splitDayService.setAliases(for: routine, aliases: aliases)
+        routineAliasDraft = ""
+    }
+
+    private func removeRoutineAlias(_ alias: String) {
+        let updated = routine.aliases.filter { $0 != alias }
+        _ = splitDayService.setAliases(for: routine, aliases: updated)
     }
 }
 

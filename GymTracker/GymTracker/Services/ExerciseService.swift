@@ -371,7 +371,34 @@ class ExerciseService : ServiceBase, ObservableObject {
     func search(query: String) -> [Exercise] {
         print("searching exercise \(query)")
         guard !query.isEmpty else { return exercises }
-        return exercises.filter { $0.name.localizedCaseInsensitiveContains(query) }
+        return exercises.filter { exercise in
+            if exercise.name.localizedCaseInsensitiveContains(query) {
+                return true
+            }
+            return (exercise.aliases ?? []).contains { alias in
+                alias.localizedCaseInsensitiveContains(query)
+            }
+        }
+    }
+
+    func normalizedAliases(from rawValue: String) -> [String] {
+        rawValue
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    @discardableResult
+    func setAliases(for exercise: Exercise, aliases: [String]) -> Bool {
+        exercise.aliases = Array(Set(aliases)).sorted()
+        do {
+            try modelContext.save()
+            refreshExerciseLists()
+            return true
+        } catch {
+            print("Failed to save exercise aliases: \(error)")
+            return false
+        }
     }
     
     func getUniquePrimaryMuscles() -> [String] {

@@ -276,8 +276,8 @@ final class NotesImportResolverDebug {
             var ok = true
             ok = ok && check(
                 "resolver-test5",
-                resolutions["Alternate Hammer Curl"]?.resolved?.id == canonical.id,
-                "Expected resolver to prefer linked canonical exercise over name-collision duplicate"
+                resolutions["Alternate Hammer Curl"]?.resolved?.id == duplicate.id,
+                "Expected resolver to prefer exact-name exercise over alias-only candidate"
             )
             print("[resolver-test5] \(ok ? "PASS" : "FAIL")")
             return ok

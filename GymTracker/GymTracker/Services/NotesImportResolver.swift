@@ -229,6 +229,6 @@ private extension NotesImportResolver {
         let relationshipCount = exercise.sessionEntries.count + exercise.splits.count
         let exactNameMatch = normalize(exercise.name) == target ? 1 : 0
         let timestampRank = -Int(exercise.timestamp.timeIntervalSince1970)
-        return (relationshipCount, exactNameMatch, timestampRank, exercise.id.uuidString)
+        return (exactNameMatch, relationshipCount, timestampRank, exercise.id.uuidString)
     }
 }

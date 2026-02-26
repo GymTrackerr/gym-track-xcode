@@ -62,7 +62,34 @@ class RoutineService : ServiceBase, ObservableObject {
         print("searching split days \(query)")
 
         guard !query.isEmpty else { return routines }
-        return routines.filter { $0.name.localizedCaseInsensitiveContains(query) }
+        return routines.filter { routine in
+            if routine.name.localizedCaseInsensitiveContains(query) {
+                return true
+            }
+            return routine.aliases.contains { alias in
+                alias.localizedCaseInsensitiveContains(query)
+            }
+        }
+    }
+
+    func normalizedAliases(from rawValue: String) -> [String] {
+        rawValue
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    @discardableResult
+    func setAliases(for routine: Routine, aliases: [String]) -> Bool {
+        routine.aliases = Array(Set(aliases)).sorted()
+        do {
+            try modelContext.save()
+            loadSplitDays()
+            return true
+        } catch {
+            print("Failed to save routine aliases: \(error)")
+            return false
+        }
     }
     
     func addSplitDay() -> Routine? {

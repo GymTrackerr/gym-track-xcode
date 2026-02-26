@@ -64,6 +64,16 @@ final class ExerciseBackupService {
 
         let allExercises = try fetchExercises(userId: userId)
         let exportableExercises = allExercises.filter(\.isUserCreated)
+        let npExerciseExports = allExercises.compactMap { exercise -> NpExerciseExportDTO? in
+            guard !exercise.isUserCreated,
+                  let npId = normalizedNpId(exercise.npId) else { return nil }
+            return NpExerciseExportDTO(
+                npId: npId,
+                exerciseAliases: (exercise.aliases ?? [])
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+            )
+        }
 
         let routines = try fetchRoutines(userId: userId)
         let routinesById = Dictionary(uniqueKeysWithValues: routines.map { ($0.id, $0) })
@@ -195,6 +205,7 @@ final class ExerciseBackupService {
             userId: userId.uuidString,
             payload: ExercisePayloadDTO(
                 exercises: exportableExercises.map(ExerciseBackupDTO.init),
+                npExerciseExports: npExerciseExports.isEmpty ? nil : npExerciseExports,
                 routines: routineDTOs,
                 splitDays: splitDayDTOs,
                 sessions: sessionDTOs,
@@ -314,6 +325,34 @@ final class ExerciseBackupService {
             if let key = normalizedNpId(dto.npId) {
                 exerciseMaps.byNpId[key] = dedupeExerciseList(exerciseMaps.byNpId[key], preferred: target)
             }
+        }
+
+        for npExport in root.payload.npExerciseExports ?? [] {
+            guard let key = normalizedNpId(npExport.npId) else { continue }
+
+            let incomingAliases = npExport.exerciseAliases
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+
+            if incomingAliases.isEmpty { continue }
+
+            if let resolved = preferredExercise(from: exerciseMaps.byNpId[key], label: "npId=\(key)") {
+                resolved.aliases = mergeAliasesCaseInsensitive(existing: resolved.aliases ?? [], incoming: incomingAliases)
+                continue
+            }
+
+            // Preserve npId alias joins even when the underlying NP exercise doesn't yet exist.
+            let placeholder = Exercise(
+                name: "Imported NP Exercise (\(key))",
+                type: .weight,
+                user_id: userId,
+                isUserCreated: false
+            )
+            placeholder.npId = key
+            placeholder.aliases = mergeAliasesCaseInsensitive(existing: placeholder.aliases ?? [], incoming: incomingAliases)
+            modelContext.insert(placeholder)
+            register(placeholder, inById: &exerciseMaps.byId, byNpId: &exerciseMaps.byNpId)
+            report.warnings.append("Created placeholder non-user exercise for npId=\(key) to preserve imported aliases.")
         }
 
         let existingRoutines = try fetchRoutines(userId: userId)
@@ -834,6 +873,22 @@ final class ExerciseBackupService {
         }
     }
 
+    private func mergeAliasesCaseInsensitive(existing: [String], incoming: [String]) -> [String] {
+        var ordered: [String] = []
+        var seen: Set<String> = []
+
+        for alias in existing + incoming {
+            let trimmed = alias.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            let key = trimmed.lowercased()
+            if seen.insert(key).inserted {
+                ordered.append(trimmed)
+            }
+        }
+
+        return ordered.sorted()
+    }
+
     // MARK: - Debug Checks
 
     private func debugAssertPayloadReferenceScenario(payload: ExercisePayloadDTO, plan: ExercisePreflightPlan) {
@@ -930,12 +985,18 @@ private struct ExerciseBackupRootDTO: Codable {
 
 private struct ExercisePayloadDTO: Codable {
     let exercises: [ExerciseBackupDTO]
+    let npExerciseExports: [NpExerciseExportDTO]?
     let routines: [RoutineBackupDTO]
     let splitDays: [ExerciseSplitDayBackupDTO]
     let sessions: [SessionBackupDTO]
     let sessionEntries: [SessionEntryBackupDTO]
     let sessionSets: [SessionSetBackupDTO]
     let sessionReps: [SessionRepBackupDTO]
+}
+
+private struct NpExerciseExportDTO: Codable {
+    let npId: String
+    let exerciseAliases: [String]
 }
 
 private struct ExerciseBackupDTO: Codable {

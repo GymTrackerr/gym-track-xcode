@@ -36,7 +36,14 @@ struct ExercisesView: View {
         }
 
         if !searchText.isEmpty {
-            result = result.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+            result = result.filter { exercise in
+                if exercise.name.localizedCaseInsensitiveContains(searchText) {
+                    return true
+                }
+                return (exercise.aliases ?? []).contains { alias in
+                    alias.localizedCaseInsensitiveContains(searchText)
+                }
+            }
         }
 
         return result
@@ -46,7 +53,12 @@ struct ExercisesView: View {
         var muscles = Set<String>()
         let filteredBySearch = scopeFilteredExercises.filter { exercise in
             guard !searchText.isEmpty else { return true }
-            return exercise.name.localizedCaseInsensitiveContains(searchText)
+            if exercise.name.localizedCaseInsensitiveContains(searchText) {
+                return true
+            }
+            return (exercise.aliases ?? []).contains { alias in
+                alias.localizedCaseInsensitiveContains(searchText)
+            }
         }
 
         for exercise in filteredBySearch {

@@ -104,6 +104,9 @@ struct ExerciseDetailView: View {
     @State private var showingLogExerciseSheet = false
     @State private var showingAddRoutineSheet = false
     @State private var showingTransferExerciseSheet = false
+    @State private var exerciseAliasDraft = ""
+    @State private var isEditingAliases = false
+    @State private var aliasError: String? = nil
     private let previousLogsSectionID = "previous-logs-section"
     
     private struct RepSample {
@@ -158,18 +161,25 @@ struct ExerciseDetailView: View {
                                 }
                             }
 
-                            if !aliases.isEmpty {
+                            if !aliases.isEmpty || isEditingAliases {
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text("Aliases")
                                         .font(.subheadline)
                                         .fontWeight(.semibold)
-                                    ScrollView(.horizontal, showsIndicators: false) {
-                                        HStack(spacing: 8) {
-                                            ForEach(aliases, id: \.self) { alias in
-                                                MuscleChip(text: alias)
-                                            }
+                                        .accessibilityLabel("Exercise Aliases")
+
+                                    if isEditingAliases {
+                                        aliasInputField
+                                        if !aliases.isEmpty {
+                                            aliasEditList
                                         }
-                                        .padding(.vertical, 2)
+                                        if let error = aliasError {
+                                            Text(error)
+                                                .font(.caption2)
+                                                .foregroundStyle(.red)
+                                        }
+                                    } else {
+                                        aliasViewList
                                     }
                                 }
                             }
@@ -500,7 +510,13 @@ struct ExerciseDetailView: View {
                 }
             }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button {
+                        isEditingAliases.toggle()
+                    } label: {
+                        Label(isEditingAliases ? "Done Editing" : "Edit", systemImage: isEditingAliases ? "checkmark.circle" : "pencil")
+                    }
+
                     Button {
                         withAnimation(.easeInOut) {
                             proxy.scrollTo(previousLogsSectionID, anchor: .top)
@@ -552,6 +568,8 @@ struct ExerciseDetailView: View {
             if selectedDisplayUnit == nil {
                 selectedDisplayUnit = dominantUnit
             }
+            exerciseAliasDraft = ""
+            isEditingAliases = false
         }
     }
 
@@ -575,6 +593,63 @@ struct ExerciseDetailView: View {
 
     private var aliases: [String] {
         normalizedList(exercise.aliases)
+    }
+    
+    private var aliasInputField: some View {
+        HStack(spacing: 8) {
+            TextField("Add alias", text: $exerciseAliasDraft)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityLabel("Alias input")
+                .accessibilityHint("Enter a new alias for this exercise")
+            
+            Button("Add") {
+                addExerciseAlias()
+            }
+            .buttonStyle(.bordered)
+            .disabled(exerciseAliasDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityLabel("Add alias")
+        }
+    }
+    
+    private var aliasEditList: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(aliases.indices, id: \.self) { index in
+                    HStack(spacing: 4) {
+                        Text(aliases[index])
+                            .font(.caption)
+                            .lineLimit(1)
+                        
+                        Button {
+                            removeExerciseAlias(at: index)
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Remove \(aliases[index])")
+                        .accessibilityHint("Removes this alias from the exercise")
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(.systemGray5))
+                    .clipShape(Capsule())
+                }
+            }
+            .padding(.vertical, 2)
+        }
+    }
+    
+    private var aliasViewList: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(aliases.indices, id: \.self) { index in
+                    MuscleChip(text: aliases[index])
+                        .accessibilityLabel("Alias: \(aliases[index])")
+                }
+            }
+            .padding(.vertical, 2)
+        }
     }
 
     private var instructions: [String] {
@@ -784,6 +859,49 @@ struct ExerciseDetailView: View {
         formatter.allowedUnits = seconds >= 3600 ? [.hour, .minute, .second] : [.minute, .second]
         formatter.zeroFormattingBehavior = [.pad]
         return formatter.string(from: TimeInterval(seconds)) ?? "\(seconds)s"
+    }
+
+    private func addExerciseAlias() {
+        let trimmed = exerciseAliasDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Validate input
+        if trimmed.isEmpty {
+            aliasError = "Alias cannot be empty"
+            return
+        }
+        if trimmed.count > 100 {
+            aliasError = "Alias too long (max 100 characters)"
+            return
+        }
+        
+        // Check for duplicates (case-insensitive)
+        if aliases.contains(where: { $0.compare(trimmed, options: .caseInsensitive) == .orderedSame }) {
+            aliasError = "This alias already exists"
+            return
+        }
+        
+        // Add to list and persist
+        var updatedAliases = aliases
+        updatedAliases.append(trimmed)
+        
+        if exerciseService.setAliases(for: exercise, aliases: updatedAliases) {
+            exerciseAliasDraft = ""
+            aliasError = nil
+        } else {
+            aliasError = "Failed to add alias"
+        }
+    }
+
+    private func removeExerciseAlias(at index: Int) {
+        guard index >= 0 && index < aliases.count else { return }
+        var updatedAliases = aliases
+        updatedAliases.remove(at: index)
+        
+        if exerciseService.setAliases(for: exercise, aliases: updatedAliases) {
+            aliasError = nil
+        } else {
+            aliasError = "Failed to remove alias"
+        }
     }
 
     private func compactPreviousSessionSubtitle(

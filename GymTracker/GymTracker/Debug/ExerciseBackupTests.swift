@@ -12,7 +12,8 @@ final class ExerciseBackupDebug {
         print("=== ExerciseBackupDebug start ===")
         let results = [
             test1ExportSkipsNonUserExercisesAndKeepsNpIdReferences(),
-            test2ImportLinksByNpIdToExistingExercise()
+            test2ImportLinksByNpIdToExistingExercise(),
+            test3NpExerciseAliasJoinExportAndMerge()
         ]
         let passCount = results.filter { $0 }.count
         print("=== ExerciseBackupDebug done: \(passCount)/\(results.count) passed ===")
@@ -92,6 +93,64 @@ final class ExerciseBackupDebug {
         }
     }
 
+    @discardableResult
+    private static func test3NpExerciseAliasJoinExportAndMerge() -> Bool {
+        do {
+            let fixture = try makeExportFixture()
+            let data = try Data(contentsOf: fixture.exportURL)
+
+            guard
+                let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                let payload = root["payload"] as? [String: Any],
+                let npExports = payload["npExerciseExports"] as? [[String: Any]]
+            else {
+                return fail("backup-test3", "Could not parse npExerciseExports in export JSON")
+            }
+
+            let matchingNpExport = npExports.first { ($0["npId"] as? String) == fixture.apiExerciseNpId }
+            var ok = true
+            ok = ok && check("backup-test3", matchingNpExport != nil, "Expected npExerciseExports entry for API npId")
+
+            let targetHarness = try makeHarness()
+            let targetUser = User(name: "Import Alias Target")
+            targetHarness.context.insert(targetUser)
+
+            let existingApiExercise = Exercise(name: "API Existing", type: .weight, user_id: targetUser.id, isUserCreated: false)
+            existingApiExercise.npId = fixture.apiExerciseNpId
+            existingApiExercise.aliases = ["alt hammer curl", "Extra Existing Alias"]
+            targetHarness.context.insert(existingApiExercise)
+            try targetHarness.context.save()
+
+            let service = ExerciseBackupService(
+                context: targetHarness.context,
+                currentUserProvider: { targetUser }
+            )
+            _ = try service.importExercises(data: data, mode: .merge)
+
+            let descriptor = FetchDescriptor<Exercise>()
+            let importedExercises = try targetHarness.context.fetch(descriptor).filter { exercise in
+                exercise.user_id == targetUser.id
+            }
+            guard let resolved = importedExercises.first(where: {
+                ($0.npId?.lowercased() ?? "") == fixture.apiExerciseNpId.lowercased()
+            }) else {
+                return fail("backup-test3", "Expected imported npId exercise to exist")
+            }
+
+            let aliases = resolved.aliases ?? []
+            let lowerAliases = Set(aliases.map { $0.lowercased() })
+
+            ok = ok && check("backup-test3", lowerAliases.contains("alternate hammer curl"), "Expected imported alias to be merged")
+            ok = ok && check("backup-test3", lowerAliases.contains("extra existing alias"), "Expected existing alias to be preserved")
+            ok = ok && check("backup-test3", lowerAliases.filter { $0 == "alt hammer curl" }.count == 1, "Expected case-insensitive dedupe for existing/imported alias")
+
+            print("[backup-test3] \(ok ? "PASS" : "FAIL")")
+            return ok
+        } catch {
+            return fail("backup-test3", "Unexpected error: \(error)")
+        }
+    }
+
     private struct Harness {
         let container: ModelContainer
         let context: ModelContext
@@ -109,6 +168,7 @@ final class ExerciseBackupDebug {
 
         let apiExercise = Exercise(name: "Alternate Hammer Curl", type: .weight, user_id: user.id, isUserCreated: false)
         apiExercise.npId = "alternate-hammer-curl"
+        apiExercise.aliases = ["Alternate Hammer Curl", "Alt Hammer Curl"]
 
         let userExercise = Exercise(name: "My Custom Curl", type: .weight, user_id: user.id, isUserCreated: true)
         userExercise.npId = "my-custom-curl"
