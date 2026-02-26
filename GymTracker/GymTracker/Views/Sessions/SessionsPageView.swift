@@ -88,6 +88,15 @@ struct SessionsPageView: View {
         .navigationBarTitleDisplayMode(.inline)
         
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                NavigationLink {
+                    ExerciseHistoryChartView()
+                        .appBackground()
+                } label: {
+                    Image(systemName: "chart.bar.xaxis")
+                }
+            }
+            
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
                     showingCreateSession = true

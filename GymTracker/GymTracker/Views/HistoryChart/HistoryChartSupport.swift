@@ -1,0 +1,254 @@
+import Foundation
+
+enum HistoryChartTimeframe: String, CaseIterable, Identifiable {
+    case week = "W"
+    case month = "M"
+    case sixMonths = "6M"
+    case year = "Y"
+    case fiveYears = "5Y"
+
+    var id: String { rawValue }
+
+    var barsPerWindow: Int {
+        switch self {
+        case .week: 7
+        case .month: 31
+        case .sixMonths: 26
+        case .year: 12
+        case .fiveYears: 5
+        }
+    }
+
+    var barFillRatio: CGFloat { 0.8 }
+
+    /// Calendar component for each bar's time bucket (day, week, month, year)
+    var bucketCalendarComponent: Calendar.Component {
+        switch self {
+        case .week, .month: .day
+        case .sixMonths: .weekOfYear
+        case .year: .month
+        case .fiveYears: .year
+        }
+    }
+
+    /// Calendar component that defines the visible window boundary (for shifting & snapping)
+    var windowCalendarComponent: Calendar.Component {
+        switch self {
+        case .week: .weekOfYear
+        case .month, .sixMonths: .month
+        case .year, .fiveYears: .year
+        }
+    }
+
+    /// How many window-component units to shift when navigating forward/back
+    var shiftMultiplier: Int {
+        switch self {
+        case .sixMonths: 6
+        case .fiveYears: 5
+        default: 1
+        }
+    }
+
+    /// Approximate visible domain length in days
+    var visibleDomainDays: Int {
+        switch self {
+        case .week: 7
+        case .month: 31
+        case .sixMonths: 183
+        case .year: 366
+        case .fiveYears: 1830
+        }
+    }
+
+    /// Calendar component used for axis marks, nil means automatic
+    var axisMarkCalendarComponent: Calendar.Component? {
+        switch self {
+        case .week, .month: nil
+        case .sixMonths, .year: .month
+        case .fiveYears: .year
+        }
+    }
+}
+
+struct HistoryChartPoint: Identifiable {
+    let startDate: Date
+    let endDate: Date
+    let value: Double
+
+    var id: TimeInterval {
+        startDate.timeIntervalSinceReferenceDate + (endDate.timeIntervalSinceReferenceDate * 0.0001)
+    }
+
+    var date: Date {
+        startDate.addingTimeInterval(endDate.timeIntervalSince(startDate) / 2)
+    }
+}
+
+enum HistoryChartCalculator {
+    static func currentWindow(
+        for timeframe: HistoryChartTimeframe,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> DateInterval {
+        switch timeframe {
+        case .week:
+            let weekStart = calendar.dateInterval(of: .weekOfYear, for: now)?.start ?? calendar.startOfDay(for: now)
+            let weekEnd = calendar.date(byAdding: .weekOfYear, value: 1, to: weekStart) ?? weekStart.addingTimeInterval(7 * 24 * 3600)
+            return DateInterval(start: weekStart, end: weekEnd)
+
+        case .month:
+            let monthStart = calendar.dateInterval(of: .month, for: now)?.start ?? calendar.startOfDay(for: now)
+            let monthEnd = calendar.date(byAdding: .month, value: 1, to: monthStart) ?? monthStart
+            return DateInterval(start: monthStart, end: monthEnd)
+
+        case .sixMonths:
+            let currentMonthStart = calendar.dateInterval(of: .month, for: now)?.start ?? calendar.startOfDay(for: now)
+            let start = calendar.date(byAdding: .month, value: -2, to: currentMonthStart) ?? currentMonthStart
+            let end = calendar.date(byAdding: .month, value: 4, to: currentMonthStart) ?? currentMonthStart
+            return DateInterval(start: start, end: end)
+
+        case .year:
+            let yearStart = calendar.dateInterval(of: .year, for: now)?.start ?? calendar.startOfDay(for: now)
+            let yearEnd = calendar.date(byAdding: .year, value: 1, to: yearStart) ?? yearStart
+            return DateInterval(start: yearStart, end: yearEnd)
+
+        case .fiveYears:
+            let yearStart = calendar.dateInterval(of: .year, for: now)?.start ?? calendar.startOfDay(for: now)
+            let start = calendar.date(byAdding: .year, value: -3, to: yearStart) ?? yearStart
+            let end = calendar.date(byAdding: .year, value: 2, to: yearStart) ?? yearStart
+            return DateInterval(start: start, end: end)
+        }
+    }
+
+    static func shift(
+        anchorDate: Date,
+        timeframe: HistoryChartTimeframe,
+        direction: Int,
+        calendar: Calendar = .current
+    ) -> Date {
+        calendar.date(byAdding: timeframe.windowCalendarComponent, value: timeframe.shiftMultiplier * direction, to: anchorDate) ?? anchorDate
+    }
+
+    static func visibleDomainLength(for timeframe: HistoryChartTimeframe) -> TimeInterval {
+        Double(timeframe.visibleDomainDays) * 24 * 60 * 60
+    }
+
+    static func xAxisLabel(
+        for date: Date,
+        timeframe: HistoryChartTimeframe,
+        calendar: Calendar = .current
+    ) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+
+        switch timeframe {
+        case .week:
+            formatter.setLocalizedDateFormatFromTemplate("EEE")
+            return formatter.string(from: date)
+        case .month:
+            return String(calendar.component(.day, from: date))
+        case .sixMonths:
+            formatter.setLocalizedDateFormatFromTemplate("MMM")
+            return String(formatter.string(from: date).prefix(3))
+        case .year:
+            formatter.setLocalizedDateFormatFromTemplate("MMM")
+            return String(formatter.string(from: date).prefix(1))
+        case .fiveYears:
+            formatter.setLocalizedDateFormatFromTemplate("yyyy")
+            return formatter.string(from: date)
+        }
+    }
+
+    static func selectionLabel(
+        for point: HistoryChartPoint,
+        timeframe: HistoryChartTimeframe,
+        calendar: Calendar = .current
+    ) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+
+        switch timeframe {
+        case .week, .month:
+            formatter.setLocalizedDateFormatFromTemplate("MMM d, yyyy")
+            return formatter.string(from: point.startDate)
+        case .sixMonths:
+            let start = point.startDate
+            let end = calendar.date(byAdding: .day, value: -1, to: point.endDate) ?? point.endDate
+            let startMonth = calendar.component(.month, from: start)
+            let endMonth = calendar.component(.month, from: end)
+
+            let monthFormatter = DateFormatter()
+            monthFormatter.locale = Locale.current
+            monthFormatter.setLocalizedDateFormatFromTemplate("MMM")
+            let startMonthText = monthFormatter.string(from: start)
+            let endMonthText = monthFormatter.string(from: end)
+            let startDay = calendar.component(.day, from: start)
+            let endDay = calendar.component(.day, from: end)
+
+            let yearFormatter = DateFormatter()
+            yearFormatter.locale = Locale.current
+            yearFormatter.setLocalizedDateFormatFromTemplate("yyyy")
+            let yearText = yearFormatter.string(from: end)
+
+            if startMonth == endMonth {
+                return "\(startMonthText) \(startDay)-\(endDay), \(yearText)"
+            }
+            return "\(startMonthText) \(startDay) - \(endMonthText) \(endDay), \(yearText)"
+        case .year:
+            formatter.setLocalizedDateFormatFromTemplate("MMMM yyyy")
+            return formatter.string(from: point.startDate)
+        case .fiveYears:
+            formatter.setLocalizedDateFormatFromTemplate("yyyy")
+            return formatter.string(from: point.startDate)
+        }
+    }
+
+    static func axisMarkDates(
+        for timeframe: HistoryChartTimeframe,
+        interval: DateInterval,
+        calendar: Calendar = .current
+    ) -> [Date]? {
+        guard let component = timeframe.axisMarkCalendarComponent else { return nil }
+        var marks: [Date] = []
+        var cursor = calendar.dateInterval(of: component, for: interval.start)?.start ?? interval.start
+        while cursor < interval.end {
+            marks.append(cursor)
+            cursor = calendar.date(byAdding: component, value: 1, to: cursor) ?? interval.end
+        }
+        return marks
+    }
+
+    static func bucketIntervals(
+        interval: DateInterval,
+        timeframe: HistoryChartTimeframe,
+        calendar: Calendar = .current
+    ) -> [DateInterval] {
+        var buckets: [DateInterval] = []
+        var cursor = bucketStart(for: interval.start, timeframe: timeframe, calendar: calendar)
+
+        while cursor < interval.end {
+            let next = nextBucketStart(after: cursor, timeframe: timeframe, calendar: calendar)
+            buckets.append(DateInterval(start: cursor, end: next))
+            cursor = next
+        }
+
+        return buckets
+    }
+
+    private static func bucketStart(
+        for date: Date,
+        timeframe: HistoryChartTimeframe,
+        calendar: Calendar
+    ) -> Date {
+        calendar.dateInterval(of: timeframe.bucketCalendarComponent, for: date)?.start ?? date
+    }
+
+    private static func nextBucketStart(
+        after date: Date,
+        timeframe: HistoryChartTimeframe,
+        calendar: Calendar
+    ) -> Date {
+        calendar.date(byAdding: timeframe.bucketCalendarComponent, value: 1, to: date) ?? date
+    }
+}
+

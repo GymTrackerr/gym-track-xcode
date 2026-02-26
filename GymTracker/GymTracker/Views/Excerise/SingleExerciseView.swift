@@ -684,9 +684,9 @@ struct ExerciseDetailView: View {
     }
 
     private var chartPoints: [ProgressPoint] {
-        let points: [ExerciseHistoryPoint]
+        let points: [HistoryChartPoint]
         if hasCardioProgress {
-            points = ExerciseHistoryChartCalculator.cardioPoints(
+            points = ExerciseChartCalculator.cardioPoints(
                 sessions: timeframeSessions,
                 interval: chartInterval,
                 timeframe: compactTimeframe,
@@ -695,7 +695,7 @@ struct ExerciseDetailView: View {
                 distanceUnit: selectedDistanceUnit
             )
         } else {
-            points = ExerciseHistoryChartCalculator.strengthPoints(
+            points = ExerciseChartCalculator.strengthPoints(
                 sessions: timeframeSessions,
                 interval: chartInterval,
                 timeframe: compactTimeframe,
@@ -715,7 +715,7 @@ struct ExerciseDetailView: View {
         return maxValue * 1.15
     }
 
-    private var compactTimeframe: ExerciseHistoryTimeframe {
+    private var compactTimeframe: HistoryChartTimeframe {
         switch selectedRange {
         case .days:
             return .week
@@ -729,7 +729,7 @@ struct ExerciseDetailView: View {
     }
 
     private var chartInterval: DateInterval {
-        ExerciseHistoryChartCalculator.currentWindow(for: compactTimeframe, now: Date())
+        HistoryChartCalculator.currentWindow(for: compactTimeframe, now: Date())
     }
 
     private var timeframeSessions: [Session] {

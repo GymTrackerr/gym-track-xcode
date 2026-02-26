@@ -166,6 +166,15 @@ struct NutritionDayView: View {
         .navigationTitle("Nutrition")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                NavigationLink {
+                    NutritionHistoryChartView()
+                        .appBackground()
+                } label: {
+                    Image(systemName: "chart.bar.xaxis")
+                }
+            }
+
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     showLogSheet = true

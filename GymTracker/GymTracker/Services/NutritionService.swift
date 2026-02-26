@@ -846,18 +846,49 @@ class NutritionService: ServiceBase, ObservableObject {
             let date = calendar.date(byAdding: .day, value: offset, to: startDay) ?? startDay
             let dayLogs = groupedByDay[date] ?? []
             let value: Double = dayLogs.reduce(0) { partial, log in
-                switch metric {
-                case .calories:
-                    return partial + log.kcal
-                case .protein:
-                    return partial + log.protein
-                case .carbs:
-                    return partial + log.carbs
-                case .fat:
-                    return partial + log.fat
-                }
+                partial + metricValue(for: log, metric: metric)
             }
             return DailyNutritionPoint(date: date, value: value)
+        }
+    }
+
+    func logsInDateInterval(_ interval: DateInterval) throws -> [FoodLog] {
+        let userId = try requireUserId()
+        let descriptor = FetchDescriptor<FoodLog>(
+            predicate: #Predicate<FoodLog> { log in
+                log.userId == userId && log.timestamp >= interval.start && log.timestamp < interval.end
+            },
+            sortBy: [SortDescriptor(\.timestamp)]
+        )
+
+        do {
+            return try modelContext.fetch(descriptor)
+        } catch {
+            throw NutritionError.persistence("Could not load nutrition logs for this timeframe.")
+        }
+    }
+
+    func nutritionBounds(for metric: NutritionSeriesMetric) throws -> (oldest: Date?, newest: Date?) {
+        let userId = try requireUserId()
+
+        // kcal/protein/carbs/fat are computed properties on FoodLog, so they
+        // cannot be used inside #Predicate.  Instead, fetch just the first and
+        // last log by timestamp (fetchLimit 1) to determine the date range.
+        func boundDate(ascending: Bool) throws -> Date? {
+            var descriptor = FetchDescriptor<FoodLog>(
+                predicate: #Predicate<FoodLog> { log in log.userId == userId },
+                sortBy: [SortDescriptor(\.timestamp, order: ascending ? .forward : .reverse)]
+            )
+            descriptor.fetchLimit = 1
+            return try modelContext.fetch(descriptor).first?.timestamp
+        }
+
+        do {
+            let oldest = try boundDate(ascending: true)
+            let newest = try boundDate(ascending: false)
+            return (oldest, newest)
+        } catch {
+            throw NutritionError.persistence("Could not load nutrition bounds.")
         }
     }
 
@@ -895,6 +926,19 @@ class NutritionService: ServiceBase, ObservableObject {
         let dayStart = Calendar.current.startOfDay(for: selectedDate)
         let dayEnd = Calendar.current.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
         return (dayStart, dayEnd)
+    }
+
+    private func metricValue(for log: FoodLog, metric: NutritionSeriesMetric) -> Double {
+        switch metric {
+        case .calories:
+            return log.kcal
+        case .protein:
+            return log.protein
+        case .carbs:
+            return log.carbs
+        case .fat:
+            return log.fat
+        }
     }
 
     private func normalizedOptionalText(_ value: String?) -> String? {
