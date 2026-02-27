@@ -21,6 +21,7 @@ struct SingleDayView: View {
     
     @State var searchResults: [Exercise] = []
     @State private var routineAliasDraft: String = ""
+    @EnvironmentObject var toastManager: ActionToastManager
     @Environment(\.editMode) private var editMode
 
     var body: some View {
@@ -239,7 +240,11 @@ struct SingleDayView: View {
         searchResults = exerciseService.search(query: exerciseService.editingContent)
     }
     func removeExercise(offsets: IndexSet) {
-        esdService.removeExercise(routine: routine, offsets: offsets)
+        let sortedSplits = routine.exerciseSplits.sorted { $0.order < $1.order }
+        let splitIds = offsets.compactMap { index in
+            sortedSplits.indices.contains(index) ? sortedSplits[index].id : nil
+        }
+        removeExerciseOptimistic(splitIds: splitIds)
     }
     
     func moveExercise(from source: IndexSet, to destination: Int) {
@@ -268,6 +273,29 @@ struct SingleDayView: View {
     private func removeRoutineAlias(_ alias: String) {
         let updated = routine.aliases.filter { $0 != alias }
         _ = splitDayService.setAliases(for: routine, aliases: updated)
+    }
+
+    private func removeExerciseOptimistic(splitIds: [UUID]) {
+        let toRemove = routine.exerciseSplits.filter { split in
+            splitIds.contains(split.id)
+        }
+        guard !toRemove.isEmpty else { return }
+
+        esdService.removeExercise(routine: routine, splitIds: splitIds)
+
+        let count = toRemove.count
+        let noun = count == 1 ? "exercise" : "exercises"
+        let removedItems = toRemove
+        toastManager.add(
+            message: "Remove \(count) \(noun) from routine?",
+            intent: .undo,
+            timeout: 4,
+            onAction: {
+                for split in removedItems {
+                    esdService.addRestoredExerciseSplit(routine: routine, exerciseSplit: split)
+                }
+            }
+        )
     }
 }
 

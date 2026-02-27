@@ -100,7 +100,7 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
         modelContext.insert(newESD)
         routine.exerciseSplits.append(newESD)
     }
-
+    
     func saveChanges() {
         try? modelContext.save()
     }
@@ -109,29 +109,25 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
         withAnimation {
             let esd = routine.exerciseSplits.first(where: { $0.exercise == exercise })
             if let esd = esd {
-                modelContext.delete(esd)
+                // Just remove from relationship - don't hard-delete for undo support
                 routine.exerciseSplits.removeAll { $0.id == esd.id }
             }
             try? modelContext.save()
         }
     }
     
-    func removeExercise(routine:Routine, offsets: IndexSet) {
-        print("ofset \(offsets)")
+    func removeExercise(routine: Routine, splitIds: [UUID]) {
+        guard !splitIds.isEmpty else { return }
         
         withAnimation {
-            DispatchQueue.main.async {
-                let sortedSplits = routine.exerciseSplits.sorted { $0.order < $1.order }
-                for index in offsets {
-                    guard sortedSplits.indices.contains(index) else { continue }
-                    let split = sortedSplits[index]
-                    self.modelContext.delete(split)
-                    routine.exerciseSplits.removeAll { $0.id == split.id }
-                }
-                
-                try? self.modelContext.save()
-                self.renumberExercises(routine: routine)
+            let validSplits = routine.exerciseSplits.filter { splitIds.contains($0.id) }
+            for split in validSplits {
+                // Just remove from relationship - don't hard-delete for undo support
+                routine.exerciseSplits.removeAll { $0.id == split.id }
             }
+            
+            try? modelContext.save()
+            renumberExercises(routine: routine)
         }
     }
     
@@ -143,7 +139,20 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
         for (i, exercise) in exercises.enumerated() {
             exercise.order = i
         }
-
+        
         try? modelContext.save()
+    }
+    
+    func addRestoredExerciseSplit(routine: Routine, exerciseSplit: ExerciseSplitDay) {
+        // Re-add the split back to the routine
+        if !routine.exerciseSplits.contains(where: { $0.id == exerciseSplit.id }) {
+            routine.exerciseSplits.append(exerciseSplit)
+        }
+        do {
+            try modelContext.save()
+            renumberExercises(routine: routine)
+        } catch {
+            print("Failed to restore exercise split: \(error)")
+        }
     }
 }

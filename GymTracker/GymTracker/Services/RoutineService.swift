@@ -136,6 +136,23 @@ class RoutineService : ServiceBase, ObservableObject {
         }
     }
     
+    func addRestoredRoutine(_ routine: Routine) {
+        // For archived items, just unarchive
+        if routine.isArchived {
+            routine.isArchived = false
+        } else {
+            // For non-archived items that were deleted, re-insert
+            modelContext.insert(routine)
+        }
+        do {
+            try modelContext.save()
+            loadSplitDays()
+            renumberSplitDays()
+        } catch {
+            print("Failed to restore routine: \(error)")
+        }
+    }
+    
     func clearSplitDays() {
         let descriptor = FetchDescriptor<Routine>()
         if let items = try? modelContext.fetch(descriptor) {
@@ -181,8 +198,8 @@ class RoutineService : ServiceBase, ObservableObject {
             return
         }
 
-        // No history → permanently delete
-        modelContext.delete(routine)
+        // No history → mark as archived (soft delete) for undo support
+        routine.isArchived = true
         try modelContext.save()
     }
 

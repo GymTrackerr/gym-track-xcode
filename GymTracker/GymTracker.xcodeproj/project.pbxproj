@@ -14,6 +14,7 @@
 		6500F5382F4E2FBD00472D60 /* refinements_prompts_notes_import.txt in Resources */ = {isa = PBXBuildFile; fileRef = 6500F5372F4E2FBD00472D60 /* refinements_prompts_notes_import.txt */; };
 		651ACB712F4E815C003BD3D6 /* session_nutrition_design.md in Resources */ = {isa = PBXBuildFile; fileRef = 651ACB6F2F4E8128003BD3D6 /* session_nutrition_design.md */; };
 		65B6FEC42EE5EF8700DB4EED /* GymTrackerWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 65B6FEBA2EE5EF8500DB4EED /* GymTrackerWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		65E4E2AD2F4F9AEF007F028F /* usage_based_improvements.md in Resources */ = {isa = PBXBuildFile; fileRef = 65E6BE812F4F86900047C486 /* usage_based_improvements.md */; };
 		65E6BE7A2F4F27950047C486 /* refinements_notes_import_bugs.md in Resources */ = {isa = PBXBuildFile; fileRef = 65E6BE792F4F27950047C486 /* refinements_notes_import_bugs.md */; };
 		65F66C1D2EE4FD780089B62E /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 65F66C1C2EE4FD780089B62E /* WidgetKit.framework */; };
 		65F66C1F2EE4FD780089B62E /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 65F66C1E2EE4FD780089B62E /* SwiftUI.framework */; };
@@ -72,6 +73,7 @@
 		651FCBAD2E8D3B9C00AC42F6 /* GymTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GymTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		65B6FEBA2EE5EF8500DB4EED /* GymTrackerWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "GymTrackerWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		65E6BE792F4F27950047C486 /* refinements_notes_import_bugs.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = refinements_notes_import_bugs.md; sourceTree = "<group>"; };
+		65E6BE812F4F86900047C486 /* usage_based_improvements.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = usage_based_improvements.md; sourceTree = "<group>"; };
 		65F66C1A2EE4FD780089B62E /* TrackerWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TrackerWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		65F66C1C2EE4FD780089B62E /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		65F66C1E2EE4FD780089B62E /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
@@ -225,6 +227,7 @@
 		651ACB6E2F4E8120003BD3D6 /* design */ = {
 			isa = PBXGroup;
 			children = (
+				65E6BE812F4F86900047C486 /* usage_based_improvements.md */,
 				651ACB6F2F4E8128003BD3D6 /* session_nutrition_design.md */,
 			);
 			path = design;
@@ -384,6 +387,7 @@
 				6500F51E2F4E1CFD00472D60 /* agent_phase_prompts.txt in Resources */,
 				65E6BE7A2F4F27950047C486 /* refinements_notes_import_bugs.md in Resources */,
 				6500F51F2F4E1CFD00472D60 /* NutritionImplementation.md in Resources */,
+				65E4E2AD2F4F9AEF007F028F /* usage_based_improvements.md in Resources */,
 				651ACB712F4E815C003BD3D6 /* session_nutrition_design.md in Resources */,
 				6500F5202F4E1CFD00472D60 /* notes_import_implementation.md in Resources */,
 				6500F5382F4E2FBD00472D60 /* refinements_prompts_notes_import.txt in Resources */,

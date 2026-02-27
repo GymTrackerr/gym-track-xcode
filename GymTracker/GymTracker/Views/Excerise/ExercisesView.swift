@@ -17,6 +17,7 @@ struct ExercisesView: View {
     @State private var searchText: String = ""
     @State private var selectedMuscle: String = ""
     @State private var showUserExercisesOnly: Bool = false
+    @EnvironmentObject var toastManager: ActionToastManager
 
     private var scopeFilteredExercises: [Exercise] {
         if showUserExercisesOnly {
@@ -254,14 +255,52 @@ struct ExercisesView: View {
     }
 
     private func deleteFilteredExercises(offsets: IndexSet) {
-        let toDelete = offsets.compactMap { index in
-            filteredExercises.indices.contains(index) ? filteredExercises[index] : nil
+        let ids = offsets.compactMap { index in
+            filteredExercises.indices.contains(index) ? filteredExercises[index].id : nil
         }
-        exerciseService.removeExercises(toDelete)
+        deleteExercisesOptimistic(ids: ids)
     }
 
     private func deleteExercise(_ exercise: Exercise) {
-        exerciseService.removeExercises([exercise])
+        deleteExercisesOptimistic(ids: [exercise.id])
+    }
+
+    private func deleteExercisesOptimistic(ids: [UUID]) {
+        let toDelete = ids.compactMap { id in
+            exerciseService.exercises.first(where: { $0.id == id })
+        }
+        guard !toDelete.isEmpty else { return }
+
+        let archiveCount = toDelete.reduce(into: 0) { count, exercise in
+            if exerciseService.willArchiveOnDelete(exercise) {
+                count += 1
+            }
+        }
+
+        exerciseService.removeExercises(toDelete)
+
+        let isPlural = toDelete.count > 1
+        let noun = isPlural ? "exercises" : "exercise"
+        let message: String
+        if archiveCount == toDelete.count {
+            message = isPlural ? "Exercises have history. Will archive \(noun)." : "Exercise has history. Will archive \(noun)."
+        } else if archiveCount == 0 {
+            message = "Delete \(toDelete.count) \(noun)?"
+        } else {
+            message = "Will archive \(archiveCount), delete \(toDelete.count - archiveCount)."
+        }
+
+        let deletedItems = toDelete
+        toastManager.add(
+            message: message,
+            intent: .undo,
+            timeout: 4,
+            onAction: {
+                for exercise in deletedItems {
+                    exerciseService.addRestoredExercise(exercise)
+                }
+            }
+        )
     }
 
 }

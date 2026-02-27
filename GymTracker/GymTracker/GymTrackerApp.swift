@@ -25,6 +25,7 @@ struct GymTrackerApp: App {
     
     @StateObject var watchSessionManager: WatchSessionManager
     @StateObject var healthKitManager = HealthKitManager()
+    @StateObject var toastManager = ActionToastManager()
 
     init() {
         if let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: SharedModelConfig.appGroupIdentifier) {
@@ -85,6 +86,10 @@ struct GymTrackerApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                .overlay(alignment: .top) {
+                    ActionToastStack()
+                }
+                .environmentObject(toastManager)
                 .environmentObject(healthKitManager)
                 .environmentObject(watchSessionManager)
                 .environmentObject(userService)

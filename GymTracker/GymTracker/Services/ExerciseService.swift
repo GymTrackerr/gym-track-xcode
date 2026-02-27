@@ -494,6 +494,22 @@ class ExerciseService : ServiceBase, ObservableObject {
         refreshExerciseLists()
     }
 
+    func addRestoredExercise(_ exercise: Exercise) {
+        // For archived items, just unarchive
+        if exercise.isArchived {
+            exercise.isArchived = false
+        } else {
+            // For non-archived items that were deleted, re-insert and undelete
+            modelContext.insert(exercise)
+        }
+        do {
+            try modelContext.save()
+            refreshExerciseLists()
+        } catch {
+            print("Failed to restore exercise: \(error)")
+        }
+    }
+
     func delete(_ exercise: Exercise) throws {
         let hasPersistedHistory = try hasSessionHistory(exerciseID: exercise.id)
 
@@ -510,8 +526,8 @@ class ExerciseService : ServiceBase, ObservableObject {
             return
         }
 
-        // No history → permanently delete
-        modelContext.delete(exercise)
+        // No history → mark as archived (soft delete) for undo support
+        exercise.isArchived = true
         try modelContext.save()
     }
 

@@ -11,6 +11,7 @@ struct SplitDaysView: View {
     @EnvironmentObject var splitDayService: RoutineService
     @Environment(\.editMode) private var editMode
     @State private var isAdding: Bool = false
+    @EnvironmentObject var toastManager: ActionToastManager
     
     var body: some View {
         List {
@@ -29,7 +30,7 @@ struct SplitDaysView: View {
                     }
                 }
             }
-            .onDelete(perform: splitDayService.removeSplitDay)
+            .onDelete(perform: deleteRoutinesFromOffsets)
             .onMove(perform: splitDayService.moveSplitDay)
 
             if splitDayService.routines.isEmpty {
@@ -88,8 +89,61 @@ struct SplitDaysView: View {
     }
 
     private func deleteRoutine(_ routine: Routine) {
-        guard let index = splitDayService.routines.firstIndex(where: { $0.id == routine.id }) else { return }
-        splitDayService.removeSplitDay(offsets: IndexSet(integer: index))
+        deleteRoutinesOptimistic(ids: [routine.id])
+    }
+
+    private func deleteRoutinesFromOffsets(offsets: IndexSet) {
+        let ids = offsets.compactMap { index in
+            splitDayService.routines.indices.contains(index) ? splitDayService.routines[index].id : nil
+        }
+        deleteRoutinesOptimistic(ids: ids)
+    }
+
+    private func deleteRoutinesOptimistic(ids: [UUID]) {
+        let toDelete = ids.compactMap { id in
+            splitDayService.routines.first(where: { $0.id == id })
+        }
+        guard !toDelete.isEmpty else { return }
+
+        let archiveCount = toDelete.reduce(into: 0) { count, routine in
+            if splitDayService.willArchiveOnDelete(routine) {
+                count += 1
+            }
+        }
+
+        let offsetsToDelete = toDelete.compactMap { routine in
+            splitDayService.routines.firstIndex(where: { $0.id == routine.id })
+        }
+        if !offsetsToDelete.isEmpty {
+            var indexSet = IndexSet()
+            for offset in offsetsToDelete {
+                indexSet.insert(offset)
+            }
+            splitDayService.removeSplitDay(offsets: indexSet)
+        }
+
+        let isPlural = toDelete.count > 1
+        let noun = isPlural ? "routines" : "routine"
+        let message: String
+        if archiveCount == toDelete.count {
+            message = isPlural ? "Routines have history. Will archive \(noun)." : "Routine has history. Will archive \(noun)."
+        } else if archiveCount == 0 {
+            message = "Delete \(toDelete.count) \(noun)?"
+        } else {
+            message = "Will archive \(archiveCount), delete \(toDelete.count - archiveCount)."
+        }
+
+        let deletedItems = toDelete
+        toastManager.add(
+            message: message,
+            intent: .undo,
+            timeout: 4,
+            onAction: {
+                for routine in deletedItems {
+                    splitDayService.addRestoredRoutine(routine)
+                }
+            }
+        )
     }
 
 }
