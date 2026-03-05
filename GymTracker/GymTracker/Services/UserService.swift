@@ -46,7 +46,7 @@ class UserService: ServiceBase, ObservableObject {
 
     func loadAccounts(firstLoad: Bool = false) {
         print("loadingaccounts")
-        let descriptor = FetchDescriptor<User>(sortBy: [SortDescriptor(\.lastLogin)])
+        let descriptor = FetchDescriptor<User>(sortBy: [SortDescriptor(\.lastLogin, order: .reverse)])
 
         do {
             print("not ??")
@@ -79,6 +79,22 @@ class UserService: ServiceBase, ObservableObject {
 
         }
         print("??")
+    }
+
+    func switchAccount(to userId: UUID) {
+        guard let account = accounts.first(where: { $0.id == userId }) else { return }
+
+        withAnimation {
+            account.lastLogin = Date()
+            currentUser = account
+
+            do {
+                try modelContext.save()
+                loadAccounts()
+            } catch {
+                print("Failed to switch account: \(error)")
+            }
+        }
     }
     
     func removeUser(id: UUID) {

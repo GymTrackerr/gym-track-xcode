@@ -33,6 +33,7 @@ struct SettingsView: View {
     @State private var backupAlertTitle = "Backup"
     @State private var exportErrorMessage = ""
     @State private var showExerciseTransferTool = false
+    @State private var newUserName: String = ""
 
     var body: some View {
         VStack {
@@ -44,12 +45,53 @@ struct SettingsView: View {
                 // Settings
                 // Show Account
                 Button {
-                    userService.removeUser(id: userService.currentUser!.id)
+                    if let currentUserId = userService.currentUser?.id {
+                        userService.removeUser(id: currentUserId)
+                    }
                 } label: {
                     Text("Delete Account")
                 }
-                
-                
+
+                Section("Accounts") {
+                    HStack {
+                        TextField("New username", text: $newUserName)
+                            .textFieldStyle(.roundedBorder)
+                        Button("Create") {
+                            if !newUserName.trimmingCharacters(in: .whitespaces).isEmpty {
+                                userService.addUser(text: newUserName)
+                                newUserName = ""
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(newUserName.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                    
+                    ForEach(userService.accounts, id: \.id) { account in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(account.name)
+                                    .font(.body.weight(.semibold))
+                                Text("Last login: \(account.lastLogin, format: .dateTime.month().day().year().hour().minute())")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+
+                            if userService.currentUser?.id == account.id {
+                                Text("Current")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Button("Sign In") {
+                                    userService.switchAccount(to: account.id)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.small)
+                            }
+                        }
+                    }
+                }
+
                 NavigationLink {
                     AboutView()
                 } label: {
@@ -431,6 +473,7 @@ struct AboutView: View {
 
 struct TestDataShow : View {
     @Environment(\.modelContext) private var context
+    @EnvironmentObject var userService: UserService
 
     @State var routines: [Routine] = []
     @State var exercises: [Exercise] = []
@@ -439,10 +482,46 @@ struct TestDataShow : View {
     @State var sessionSets: [SessionSet] = []
     @State var sessionReps: [SessionRep] = []
     @State var sessionEntries: [SessionEntry] = []
+    @State var foods: [Food] = []
+    @State var foodLogs: [FoodLog] = []
+    @State var meals: [Meal] = []
+    @State var mealEntries: [MealEntry] = []
+    @State var mealItems: [MealItem] = []
+    @State var nutritionTargets: [NutritionTarget] = []
     @State var users: [User] = []
 
     var body: some View {
         List {
+            Section("Current Login") {
+                if let currentUser = userService.currentUser {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(currentUser.name)
+                            .font(.body.weight(.semibold))
+                        Text("\(currentUser.id)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Text("No active user")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Section("Data Point Counts") {
+                countRow("Users", total: users.count, current: userService.currentUser == nil ? 0 : 1)
+                countRow("Routines", total: routines.count, current: routinesForCurrentUser.count)
+                countRow("Exercises", total: exercises.count, current: exercisesForCurrentUser.count)
+                countRow("Exercise Split Days", total: ESD.count, current: exerciseSplitsForCurrentUser.count)
+                countRow("Sessions", total: sessions.count, current: sessionsForCurrentUser.count)
+                countRow("Session Entries", total: sessionEntries.count, current: sessionEntriesForCurrentUser.count)
+                countRow("Session Sets", total: sessionSets.count, current: sessionSetsForCurrentUser.count)
+                countRow("Session Reps", total: sessionReps.count, current: sessionRepsForCurrentUser.count)
+                countRow("Foods", total: foods.count, current: foodsForCurrentUser.count)
+                countRow("Food Logs", total: foodLogs.count, current: foodLogsForCurrentUser.count)
+                countRow("Meals", total: meals.count, current: mealsForCurrentUser.count)
+                countRow("Meal Entries", total: mealEntries.count, current: mealEntriesForCurrentUser.count)
+                countRow("Meal Items", total: mealItems.count, current: mealItemsForCurrentUser.count)
+                countRow("Nutrition Targets", total: nutritionTargets.count, current: nil)
+            }
             Section("Split Days") {
                 ForEach(routines, id: \.self) { item in
                     VStack {
@@ -497,10 +576,25 @@ struct TestDataShow : View {
                 }
             }
             Section("Users") {
-                ForEach(users, id: \.self) { item in
-                    VStack {
-                        Text("\(item.id)")
-                        Text("\(item.name)")
+                ForEach(users, id: \.id) { item in
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text("\(item.id)")
+                            Text("\(item.name)")
+                        }
+                        Spacer()
+                        if userService.currentUser?.id == item.id {
+                            Text("Current")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Button("Sign In") {
+                                userService.switchAccount(to: item.id)
+                                reloadDebugData()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        }
                     }
                 }
             }
@@ -542,18 +636,113 @@ struct TestDataShow : View {
         }
         .scrollContentBackground(.hidden)
         .onAppear() {
-            routines = try! context.fetch(FetchDescriptor<Routine>(sortBy: [SortDescriptor(\.timestamp)]))
-            exercises = try! context.fetch(FetchDescriptor<Exercise>(sortBy: [SortDescriptor(\.timestamp)]))
-            ESD = try! context.fetch(FetchDescriptor<ExerciseSplitDay>(sortBy: [SortDescriptor(\.id)]))
-            
-            sessions = try! context.fetch(FetchDescriptor<Session>(sortBy: [SortDescriptor(\.timestamp)]))
-            sessionSets = try! context.fetch(FetchDescriptor<SessionSet>(sortBy: [SortDescriptor(\.timestamp)]))
-            sessionReps = try! context.fetch(FetchDescriptor<SessionRep>(sortBy: [SortDescriptor(\.id)]))
-            
-            sessionEntries = try! context.fetch(FetchDescriptor<SessionEntry>(sortBy: [SortDescriptor(\.id)]))
-            
-            users = try! context.fetch(FetchDescriptor<User>(sortBy: [SortDescriptor(\.lastLogin)]))
-
+            reloadDebugData()
         }
+    }
+
+    private var currentUserId: UUID? {
+        userService.currentUser?.id
+    }
+
+    /// Generic filter helper - filters array based on user ID keypath
+    private func filterForCurrentUser<T>(_ items: [T], by keyPath: KeyPath<T, UUID>) -> [T] {
+        guard let currentUserId else { return [] }
+        return items.filter { $0[keyPath: keyPath] == currentUserId }
+    }
+
+    /// Generic filter helper for optional UUID properties
+    private func filterForCurrentUser<T>(_ items: [T], by keyPath: KeyPath<T, UUID?>) -> [T] {
+        guard let currentUserId else { return [] }
+        return items.filter { $0[keyPath: keyPath] == currentUserId }
+    }
+
+    private var routinesForCurrentUser: [Routine] {
+        filterForCurrentUser(routines, by: \.user_id)
+    }
+
+    private var exercisesForCurrentUser: [Exercise] {
+        filterForCurrentUser(exercises, by: \.user_id)
+    }
+
+    private var exerciseSplitsForCurrentUser: [ExerciseSplitDay] {
+        guard let currentUserId else { return [] }
+        return ESD.filter { $0.routine.user_id == currentUserId }
+    }
+
+    private var sessionsForCurrentUser: [Session] {
+        filterForCurrentUser(sessions, by: \.user_id)
+    }
+
+    private var sessionEntriesForCurrentUser: [SessionEntry] {
+        guard let currentUserId else { return [] }
+        return sessionEntries.filter { $0.session.user_id == currentUserId }
+    }
+
+    private var sessionSetsForCurrentUser: [SessionSet] {
+        guard let currentUserId else { return [] }
+        return sessionSets.filter { $0.sessionEntry.session.user_id == currentUserId }
+    }
+
+    private var sessionRepsForCurrentUser: [SessionRep] {
+        guard let currentUserId else { return [] }
+        return sessionReps.filter { $0.sessionSet.sessionEntry.session.user_id == currentUserId }
+    }
+
+    private var foodsForCurrentUser: [Food] {
+        filterForCurrentUser(foods, by: \.userId)
+    }
+
+    private var foodLogsForCurrentUser: [FoodLog] {
+        filterForCurrentUser(foodLogs, by: \.userId)
+    }
+
+    private var mealsForCurrentUser: [Meal] {
+        filterForCurrentUser(meals, by: \.userId)
+    }
+
+    private var mealEntriesForCurrentUser: [MealEntry] {
+        filterForCurrentUser(mealEntries, by: \.userId)
+    }
+
+    private var mealItemsForCurrentUser: [MealItem] {
+        guard let currentUserId else { return [] }
+        return mealItems.filter { $0.meal?.userId == currentUserId }
+    }
+
+    @ViewBuilder
+    private func countRow(_ label: String, total: Int, current: Int?) -> some View {
+        HStack {
+            Text(label)
+            Spacer()
+            if let current {
+                Text("all \(total) | current \(current)")
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+            } else {
+                Text("all \(total)")
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+            }
+        }
+    }
+
+    private func reloadDebugData() {
+        routines = try! context.fetch(FetchDescriptor<Routine>(sortBy: [SortDescriptor(\.timestamp)]))
+        exercises = try! context.fetch(FetchDescriptor<Exercise>(sortBy: [SortDescriptor(\.timestamp)]))
+        ESD = try! context.fetch(FetchDescriptor<ExerciseSplitDay>(sortBy: [SortDescriptor(\.id)]))
+
+        sessions = try! context.fetch(FetchDescriptor<Session>(sortBy: [SortDescriptor(\.timestamp)]))
+        sessionSets = try! context.fetch(FetchDescriptor<SessionSet>(sortBy: [SortDescriptor(\.timestamp)]))
+        sessionReps = try! context.fetch(FetchDescriptor<SessionRep>(sortBy: [SortDescriptor(\.id)]))
+        sessionEntries = try! context.fetch(FetchDescriptor<SessionEntry>(sortBy: [SortDescriptor(\.id)]))
+
+        foods = try! context.fetch(FetchDescriptor<Food>(sortBy: [SortDescriptor(\.createdAt)]))
+        foodLogs = try! context.fetch(FetchDescriptor<FoodLog>(sortBy: [SortDescriptor(\.timestamp)]))
+        meals = try! context.fetch(FetchDescriptor<Meal>(sortBy: [SortDescriptor(\.createdAt)]))
+        mealEntries = try! context.fetch(FetchDescriptor<MealEntry>(sortBy: [SortDescriptor(\.timestamp)]))
+        mealItems = try! context.fetch(FetchDescriptor<MealItem>(sortBy: [SortDescriptor(\.id)]))
+        nutritionTargets = try! context.fetch(FetchDescriptor<NutritionTarget>(sortBy: [SortDescriptor(\.createdAt)]))
+
+        users = try! context.fetch(FetchDescriptor<User>(sortBy: [SortDescriptor(\.lastLogin, order: .reverse)]))
     }
 }

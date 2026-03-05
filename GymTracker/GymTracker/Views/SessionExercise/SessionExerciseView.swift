@@ -11,6 +11,7 @@ struct SessionExerciseView: View {
     @EnvironmentObject var setService: SetService
     @EnvironmentObject var timerService: TimerService
     @EnvironmentObject var exerciseService: ExerciseService
+    @EnvironmentObject var draftStore: SessionExerciseDraftStore
 
     @Bindable var sessionEntry: SessionEntry
     let navigationContext: SessionNavigationContext
@@ -18,7 +19,6 @@ struct SessionExerciseView: View {
     @State private var isEditingSets: Bool = false
     @State private var isUnlockedForEditing: Bool = false
     @State private var draftNotes: String = ""
-    @State private var isDropSet: Bool = false
     @State private var draftUnit: WeightUnit = .lb
     @State private var draftReps: [RepDraft] = [RepDraft()]
     @State private var cardioDurationSeconds: Int = 0
@@ -29,39 +29,85 @@ struct SessionExerciseView: View {
     @State private var setToMove: SessionSet? = nil
     @State private var showMoveSetPicker: Bool = false
     @State private var moveSetErrorMessage: String? = nil
+    @FocusState private var focusedDropSetField: DropSetField?
 
     init(sessionEntry: SessionEntry, navigationContext: SessionNavigationContext? = nil) {
         self.sessionEntry = sessionEntry
         self.navigationContext = navigationContext ?? SessionNavigationContext.forSession(sessionEntry.session)
     }
 
+    private enum DropSetField: Hashable {
+        case weight(UUID)
+        case reps(UUID)
+    }
+
+    private var sessionExerciseId: UUID { sessionEntry.id }
+
+    private var draftState: SessionExerciseDraftStore.SessionExerciseDraft? {
+        draftStore.draft(for: sessionExerciseId)
+    }
+
+    private var isDropSetEnabled: Bool {
+        draftState?.isDropSetEnabled ?? false
+    }
+
+    private var dropSetInlineHint: String? {
+        draftState?.dropSetInlineHint
+    }
+
+    private var isDropSetBinding: Binding<Bool> {
+        Binding(
+            get: { isDropSetEnabled },
+            set: { newValue in
+                draftStore.updateDraft(for: sessionExerciseId) { draft in
+                    draft.isDropSetEnabled = newValue
+                    if !newValue {
+                        draft.dropSetInlineHint = nil
+                    }
+                }
+            }
+        )
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 contextBadge
-                timerQuickCard
+                sectionCard {
+                    timerQuickCard
+                }
                 if !navigationContext.isFromExerciseHistory {
-                    detailsQuickCard
+                    sectionCard {
+                        detailsQuickCard
+                    }
                 }
 
                 if isEditingSets {
-                    editingSetsView
+                    sectionCard {
+                        editingSetsView
+                    }
                 } else {
                     if canEditSession {
-                        addSetForm
+                        sectionCard {
+                            addSetForm
+                        }
                     } else {
-                        lockedEditingNotice
+                        sectionCard {
+                            lockedEditingNotice
+                        }
                     }
-                    todaysSetsList
+                    sectionCard {
+                        todaysSetsList
+                    }
                 }
 
                 if navigationContext.isFromExerciseHistory {
-                    openFullSessionButton
+                    sectionCard {
+                        openFullSessionButton
+                    }
                 }
             }
-            .padding(.horizontal)
-            .padding(.top, 8)
-            .padding(.bottom, 16)
+            .screenContentPadding()
         }
         .navigationTitle(sessionEntry.exercise.name)
         .navigationBarTitleDisplayMode(.inline)
@@ -79,7 +125,20 @@ struct SessionExerciseView: View {
             }
         }
         .onAppear {
+            if restoreDraftStateIfAvailable() {
+                return
+            }
             applyLastDefaultsIfNeeded()
+            seedDraftStateFromCurrentValues()
+        }
+        .onChange(of: isDropSetEnabled) { _, newValue in
+            handleDropSetEnabledChange(newValue)
+        }
+        .onChange(of: draftReps.map(\.id)) { _, _ in
+            handleDraftRepsChange()
+        }
+        .onChange(of: focusedDropSetField) { oldValue, newValue in
+            handleFocusedFieldChange(oldValue: oldValue, newValue: newValue)
         }
         .sheet(isPresented: $showMoveSetPicker, onDismiss: {
             setToMove = nil
@@ -104,6 +163,22 @@ struct SessionExerciseView: View {
         } message: {
             Text(moveSetErrorMessage ?? "Unknown error")
         }
+    }
+
+    private func sectionCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        content()
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.gray.opacity(0.06))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    private func insetCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        content()
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.gray.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private var timerQuickCard: some View {
@@ -132,9 +207,6 @@ struct SessionExerciseView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            .padding(12)
-            .background(Color.gray.opacity(0.1))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.plain)
     }
@@ -173,18 +245,19 @@ struct SessionExerciseView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            .padding(12)
-            .background(Color.gray.opacity(0.1))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.plain)
     }
 
     private var addSetForm: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Current Set")
-                .font(.caption)
-                .foregroundColor(.secondary)
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Current Set")
+                    .font(.headline)
+                Text(sessionEntry.exercise.cardio ? "Log your current cardio effort." : "Log weight and reps for your next set.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             if sessionEntry.exercise.cardio {
                 VStack(alignment: .leading, spacing: 12) {
@@ -215,9 +288,157 @@ struct SessionExerciseView: View {
                             .frame(maxWidth: 130)
                         }
                     }
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 10) {
+                        Text("Drop Set")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        Spacer()
+                        Toggle("Drop Set", isOn: isDropSetBinding)
+                            .labelsHidden()
+                            .onChange(of: isDropSetEnabled) { _, newValue in
+                                if !newValue {
+                                    trimToSingleRep()
+                                } else if draftReps.isEmpty {
+                                    draftReps = [RepDraft(unit: draftUnit)]
+                                }
+                            }
+                    }
 
-                    VStack(alignment: .leading, spacing: 6) {
-                        Toggle("Manual Pace", isOn: $cardioManualPace)
+                    Picker("Unit", selection: $draftUnit) {
+                        ForEach(WeightUnit.allCases) { unit in
+                            Text(unit.name).tag(unit)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .onChange(of: draftUnit) { _, newValue in
+                        updateDraftUnits(to: newValue)
+                    }
+                    
+                    if !isDropSetEnabled {
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Weight")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                TextField("", value: $draftReps[0].weight, formatter: weightFormatter)
+                                    .keyboardType(.decimalPad)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Reps")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                TextField("", value: $draftReps[0].reps, formatter: repsFormatter)
+                                    .keyboardType(.numberPad)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+
+                    if isDropSetEnabled {
+                        insetCard {
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack {
+                                    Text("Drop Set Reps")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                    Spacer()
+                                    Button {
+                                        commitFocusedDropSetField()
+                                        guard validateDropSetDraftsForCommit() else { return }
+                                        commitAllDropSetDrafts()
+                                        let previousWeight = draftReps.last?.weight ?? 0
+                                        let previousReps = draftReps.last?.reps ?? 0
+                                        draftReps.append(RepDraft(weight: previousWeight, reps: previousReps, unit: draftUnit))
+                                    } label: {
+                                        Label("Add Rep", systemImage: "plus")
+                                            .font(.subheadline)
+                                    }
+                                    .buttonStyle(.borderless)
+                                }
+
+                                ForEach(draftReps.indices, id: \.self) { index in
+                                    let rowId = draftReps[index].id
+                                    HStack(alignment: .center, spacing: 10) {
+                                        TextField("Weight", text: dropSetWeightBinding(for: rowId))
+                                            .keyboardType(.decimalPad)
+                                            .textFieldStyle(.roundedBorder)
+                                            .frame(maxWidth: .infinity)
+                                            .focused($focusedDropSetField, equals: .weight(rowId))
+                                            .onSubmit {
+                                                commitDropSetField(.weight(rowId))
+                                            }
+
+                                        TextField("Reps", text: dropSetRepsBinding(for: rowId))
+                                            .keyboardType(.numberPad)
+                                            .textFieldStyle(.roundedBorder)
+                                            .frame(maxWidth: .infinity)
+                                            .focused($focusedDropSetField, equals: .reps(rowId))
+                                            .onSubmit {
+                                                commitDropSetField(.reps(rowId))
+                                            }
+
+                                        if draftReps.count > 1 {
+                                            Button(role: .destructive) {
+                                                draftReps.remove(at: index)
+                                            } label: {
+                                                Image(systemName: "minus.circle.fill")
+                                                    .font(.title3)
+                                            }
+                                            .buttonStyle(.borderless)
+                                            .frame(width: 28, height: 28)
+                                        } else {
+                                            Color.clear
+                                                .frame(width: 28, height: 28)
+                                        }
+                                    }
+                                }
+
+                                if let dropSetInlineHint {
+                                    Text(dropSetInlineHint)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Button {
+                if isDropSetEnabled && !sessionEntry.exercise.cardio {
+                    commitFocusedDropSetField()
+                    guard validateDropSetDraftsForCommit() else { return }
+                    commitAllDropSetDrafts()
+                }
+                addSetFromDraft()
+                dismissKeyboard()
+                startTimerIfNeeded()
+            } label: {
+                Label("Add Set", systemImage: "plus")
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            }
+            .buttonStyle(.borderedProminent)
+
+            if sessionEntry.exercise.cardio {
+                insetCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 10) {
+                            Text("Manual Pace")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                            Spacer()
+                            Toggle("Manual Pace", isOn: $cardioManualPace)
+                                .labelsHidden()
+                        }
+
                         if cardioManualPace {
                             HStack(spacing: 8) {
                                 Text("Pace")
@@ -245,111 +466,19 @@ struct SessionExerciseView: View {
                         }
                     }
                 }
-            } else {
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Weight")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                        TextField("", value: $draftReps[0].weight, formatter: weightFormatter)
-                            .keyboardType(.decimalPad)
-                            .textFieldStyle(.roundedBorder)
-                    }
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Reps")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                        TextField("", value: $draftReps[0].reps, formatter: repsFormatter)
-                            .keyboardType(.numberPad)
-                            .textFieldStyle(.roundedBorder)
-                    }
-                }
-
-                Picker("Unit", selection: $draftUnit) {
-                    ForEach(WeightUnit.allCases) { unit in
-                        Text(unit.name).tag(unit)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: draftUnit) { _, newValue in
-                    updateDraftUnits(to: newValue)
-                }
             }
 
-            Button {
-                addSetFromDraft()
-                dismissKeyboard()
-                startTimerIfNeeded()
-            } label: {
-                Label("Add Set", systemImage: "plus")
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-            }
-            .buttonStyle(.borderedProminent)
-
-            if !sessionEntry.exercise.cardio {
-                Toggle("Drop Set", isOn: $isDropSet)
-                    .onChange(of: isDropSet) { _, newValue in
-                        if !newValue {
-                            trimToSingleRep()
-                        } else if draftReps.isEmpty {
-                            draftReps = [RepDraft(unit: draftUnit)]
-                        }
-                    }
-
-                if isDropSet {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Drop Set Reps")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-
-                        ForEach(draftReps.indices, id: \.self) { index in
-                            HStack(spacing: 12) {
-                                TextField("Weight", value: $draftReps[index].weight, formatter: weightFormatter)
-                                    .keyboardType(.decimalPad)
-                                    .textFieldStyle(.roundedBorder)
-                                TextField("Reps", value: $draftReps[index].reps, formatter: repsFormatter)
-                                    .keyboardType(.numberPad)
-                                    .textFieldStyle(.roundedBorder)
-                                if draftReps.count > 1 {
-                                    Button(role: .destructive) {
-                                        draftReps.remove(at: index)
-                                    } label: {
-                                        Image(systemName: "minus.circle")
-                                    }
-                                }
-                            }
-                        }
-
-                        Button {
-                            let previousWeight = draftReps.last?.weight ?? 0
-                            let previousReps = draftReps.last?.reps ?? 0
-                            draftReps.append(RepDraft(weight: previousWeight, reps: previousReps, unit: draftUnit))
-                        } label: {
-                            Label("Add Rep", systemImage: "plus.circle")
-                                .font(.subheadline)
-                        }
-                        .buttonStyle(.borderless)
-                    }
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text("Notes")
                     .font(.subheadline)
                     .fontWeight(.semibold)
                 TextEditor(text: $draftNotes)
-                    .frame(minHeight: 90)
+                    .frame(minHeight: 100)
                     .padding(8)
                     .background(Color.gray.opacity(0.08))
                     .clipShape(RoundedRectangle(cornerRadius: 10))
             }
-
         }
-        .padding(12)
-        .background(Color.gray.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
     private var lockedEditingNotice: some View {
@@ -362,9 +491,6 @@ struct SessionExerciseView: View {
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Color.gray.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
     private var todaysSetsList: some View {
@@ -703,9 +829,6 @@ struct SessionExerciseView: View {
                 Image(systemName: "arrow.up.right.square")
                     .foregroundColor(.secondary)
             }
-            .padding(12)
-            .background(Color.gray.opacity(0.1))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.plain)
     }
@@ -725,6 +848,183 @@ struct SessionExerciseView: View {
         formatter.maximumFractionDigits = 0
         formatter.zeroSymbol = ""
         return formatter
+    }
+
+    private func dropSetWeightBinding(for rowId: UUID) -> Binding<String> {
+        Binding(
+            get: {
+                draftState?.dropSetWeightDrafts[rowId] ?? ""
+            },
+            set: { newValue in
+                draftStore.updateDraft(for: sessionExerciseId) { draft in
+                    draft.dropSetWeightDrafts[rowId] = newValue
+                    draft.dropSetInlineHint = nil
+                }
+            }
+        )
+    }
+
+    private func dropSetRepsBinding(for rowId: UUID) -> Binding<String> {
+        Binding(
+            get: {
+                draftState?.dropSetRepsDrafts[rowId] ?? ""
+            },
+            set: { newValue in
+                draftStore.updateDraft(for: sessionExerciseId) { draft in
+                    draft.dropSetRepsDrafts[rowId] = newValue
+                    draft.dropSetInlineHint = nil
+                }
+            }
+        )
+    }
+
+    private func syncDropSetDraftsWithModel() {
+        let rowIds = Set(draftReps.map(\.id))
+        draftStore.updateDraft(for: sessionExerciseId) { draft in
+            draft.dropSetWeightDrafts = draft.dropSetWeightDrafts.filter { rowIds.contains($0.key) }
+            draft.dropSetRepsDrafts = draft.dropSetRepsDrafts.filter { rowIds.contains($0.key) }
+
+            for rep in draftReps {
+                if draft.dropSetWeightDrafts[rep.id] == nil {
+                    draft.dropSetWeightDrafts[rep.id] = rep.weight == 0 ? "" : (weightFormatter.string(from: NSNumber(value: rep.weight)) ?? "")
+                }
+                if draft.dropSetRepsDrafts[rep.id] == nil {
+                    draft.dropSetRepsDrafts[rep.id] = rep.reps == 0 ? "" : String(rep.reps)
+                }
+            }
+        }
+    }
+
+    private func commitFocusedDropSetField() {
+        guard let focusedDropSetField else { return }
+        commitDropSetField(focusedDropSetField)
+        self.focusedDropSetField = nil
+    }
+
+    private func commitDropSetField(_ field: DropSetField) {
+        switch field {
+        case .weight(let rowId):
+            guard let index = draftReps.firstIndex(where: { $0.id == rowId }) else { return }
+            let text = (draftState?.dropSetWeightDrafts[rowId] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return }
+            guard let parsed = Double(text) else { return }
+            draftReps[index].weight = parsed
+            draftStore.updateDraft(for: sessionExerciseId) { draft in
+                draft.dropSetWeightDrafts[rowId] = weightFormatter.string(from: NSNumber(value: parsed)) ?? text
+            }
+
+        case .reps(let rowId):
+            guard let index = draftReps.firstIndex(where: { $0.id == rowId }) else { return }
+            let text = (draftState?.dropSetRepsDrafts[rowId] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return }
+            guard let parsed = Int(text) else { return }
+            draftReps[index].reps = parsed
+            draftStore.updateDraft(for: sessionExerciseId) { draft in
+                draft.dropSetRepsDrafts[rowId] = String(parsed)
+            }
+        }
+    }
+
+    private func commitAllDropSetDrafts() {
+        for rep in draftReps {
+            commitDropSetField(.weight(rep.id))
+            commitDropSetField(.reps(rep.id))
+        }
+    }
+
+    private func validateDropSetDraftsForCommit() -> Bool {
+        for rep in draftReps {
+            let weightText = (draftState?.dropSetWeightDrafts[rep.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let repsText = (draftState?.dropSetRepsDrafts[rep.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if weightText.isEmpty || repsText.isEmpty {
+                draftStore.updateDraft(for: sessionExerciseId) { draft in
+                    draft.dropSetInlineHint = "Complete weight and reps for each drop-set row."
+                }
+                return false
+            }
+            guard Double(weightText) != nil, Int(repsText) != nil else {
+                draftStore.updateDraft(for: sessionExerciseId) { draft in
+                    draft.dropSetInlineHint = "Use numeric values for drop-set rows."
+                }
+                return false
+            }
+        }
+
+        draftStore.updateDraft(for: sessionExerciseId) { draft in
+            draft.dropSetInlineHint = nil
+        }
+        return true
+    }
+
+    private func persistRepSnapshotsToDraftState() {
+        let snapshots = draftReps.map {
+            SessionExerciseDraftStore.RepDraftSnapshot(
+                id: $0.id,
+                weight: $0.weight,
+                reps: $0.reps,
+                unit: $0.unit
+            )
+        }
+        draftStore.updateDraft(for: sessionExerciseId) { draft in
+            draft.repDrafts = snapshots
+        }
+    }
+
+    private func seedDraftStateFromCurrentValues() {
+        var seeded = SessionExerciseDraftStore.SessionExerciseDraft()
+        seeded.hasSeeded = true
+        seeded.isDropSetEnabled = false
+        seeded.repDrafts = draftReps.map {
+            SessionExerciseDraftStore.RepDraftSnapshot(
+                id: $0.id,
+                weight: $0.weight,
+                reps: $0.reps,
+                unit: $0.unit
+            )
+        }
+        draftStore.setDraft(seeded, for: sessionExerciseId)
+    }
+
+    private func restoreDraftStateIfAvailable() -> Bool {
+        guard let storedDraft = draftStore.draft(for: sessionExerciseId) else { return false }
+        if !storedDraft.repDrafts.isEmpty {
+            draftReps = storedDraft.repDrafts.map {
+                RepDraft(id: $0.id, weight: $0.weight, reps: $0.reps, unit: $0.unit)
+            }
+            if let firstUnit = draftReps.first?.unit {
+                draftUnit = firstUnit
+            }
+        }
+        if storedDraft.isDropSetEnabled {
+            syncDropSetDraftsWithModel()
+        }
+        return true
+    }
+
+    // MARK: - Drop Set State Management Helpers
+
+    /// Handles drop set enabled/disabled state changes with appropriate sync and cleanup
+    private func handleDropSetEnabledChange(_ newValue: Bool) {
+        if newValue {
+            syncDropSetDraftsWithModel()
+        } else {
+            focusedDropSetField = nil
+        }
+    }
+
+    /// Handles changes to draft reps array - persists snapshots and syncs if needed
+    private func handleDraftRepsChange() {
+        persistRepSnapshotsToDraftState()
+        if isDropSetEnabled {
+            syncDropSetDraftsWithModel()
+        }
+    }
+
+    /// Handles focused field changes - commits the previous field when focus changes
+    private func handleFocusedFieldChange(oldValue: DropSetField?, newValue: DropSetField?) {
+        guard let oldValue, oldValue != newValue else { return }
+        commitDropSetField(oldValue)
     }
 
     private func startTimerIfNeeded() {
@@ -818,10 +1118,15 @@ struct SessionExerciseView: View {
             draftUnit = firstUnit
         }
         draftReps = copiedReps
-        isDropSet = sourceSet.isDropSet && copiedReps.count > 1
-        if !isDropSet {
+        let shouldUseDropSet = sourceSet.isDropSet && copiedReps.count > 1
+        draftStore.updateDraft(for: sessionExerciseId) { draft in
+            draft.isDropSetEnabled = shouldUseDropSet
+            draft.dropSetInlineHint = nil
+        }
+        if !shouldUseDropSet {
             trimToSingleRep()
         }
+        persistRepSnapshotsToDraftState()
         draftNotes = sourceSet.notes ?? ""
     }
 
@@ -832,7 +1137,7 @@ struct SessionExerciseView: View {
             return
         }
 
-        let useDropSet = isDropSet && draftReps.count > 1
+        let useDropSet = isDropSetEnabled && draftReps.count > 1
         guard let newSet = setService.addSet(sessionEntry: sessionEntry, notes: draftNotes, isDropSet: useDropSet) else { return }
 
         let repsToCreate = useDropSet ? draftReps : Array(draftReps.prefix(1))
@@ -1120,12 +1425,13 @@ private struct MoveSetExercisePickerView: View {
 }
 
 private struct RepDraft: Identifiable {
-    let id = UUID()
+    let id: UUID
     var weight: Double = 0
     var reps: Int = 0
     var unit: WeightUnit = .lb
 
-    init(weight: Double = 0, reps: Int = 0, unit: WeightUnit = .lb) {
+    init(id: UUID = UUID(), weight: Double = 0, reps: Int = 0, unit: WeightUnit = .lb) {
+        self.id = id
         self.weight = weight
         self.reps = reps
         self.unit = unit
@@ -1240,6 +1546,16 @@ private struct DurationWheelPicker: View {
         .frame(maxWidth: .infinity, alignment: .center)
     }
 }
+
+private extension View {
+    func screenContentPadding() -> some View {
+        self
+            .padding(.horizontal)
+            .padding(.top, 8)
+            .padding(.bottom, 96)
+    }
+}
+
 private func dismissKeyboard() {
 #if os(iOS)
     UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)

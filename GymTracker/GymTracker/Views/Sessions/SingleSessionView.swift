@@ -22,6 +22,8 @@ struct SingleSessionView: View {
     @Environment(\.editMode) private var editMode
     @State var syncingSplit: Bool = false
     @State private var isUnlockedForEditing: Bool = false
+    @StateObject private var sessionExerciseDraftStore = SessionExerciseDraftStore()
+    @State private var trackedSessionEntryIds: Set<UUID> = []
 
     private let cardCornerRadius: CGFloat = 16
     private let accentGreen = Color.green
@@ -57,6 +59,7 @@ struct SingleSessionView: View {
                                 navigationContext: SessionNavigationContext.forSession(session)
                             )
                             .appBackground()
+                            .environmentObject(sessionExerciseDraftStore)
                         } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: sessionEntry.isCompleted ? "checkmark.arrow.trianglehead.counterclockwise" : "square.and.pencil")
@@ -100,7 +103,7 @@ struct SingleSessionView: View {
                         .swipeActions(edge: .trailing, allowsFullSwipe: (editMode?.wrappedValue == .inactive)) {
                             if canModifySessionExercises {
                                 Button {
-                                    seService.removeExercise(session: session, sessionEntry: sessionEntry)
+                                    removeExerciseAndCleanupDraft(sessionEntry)
                                 } label: {
                                     Label("Remove", systemImage: "trash")
                                 }
@@ -152,10 +155,33 @@ struct SingleSessionView: View {
         .sheet(isPresented: $seService.addingExerciseSession) {
             addingExerciseSessionView(session: session)
         }
+        .onAppear {
+            trackedSessionEntryIds = Set(session.sessionEntries.map(\.id))
+        }
+        .onChange(of: session.sessionEntries.map(\.id)) { _, newIds in
+            let newSet = Set(newIds)
+            let removed = trackedSessionEntryIds.subtracting(newSet)
+            if !removed.isEmpty {
+                sessionExerciseDraftStore.clearDrafts(for: Array(removed))
+            }
+            trackedSessionEntryIds = newSet
+        }
+        .onChange(of: session.timestampDone) { oldValue, newValue in
+            let justFinished = oldValue == session.timestamp && newValue != session.timestamp
+            if justFinished {
+                sessionExerciseDraftStore.clearDrafts(for: session.sessionEntries.map(\.id))
+            }
+        }
     }
     
     func removeExercise(offsets: IndexSet) {
         guard canModifySessionExercises else { return }
+        let sortedEntries = session.sessionEntries.sorted { $0.order < $1.order }
+        let removedIds = offsets.compactMap { index -> UUID? in
+            guard sortedEntries.indices.contains(index) else { return nil }
+            return sortedEntries[index].id
+        }
+        sessionExerciseDraftStore.clearDrafts(for: removedIds)
         seService.removeExercise(session: session, offsets: offsets)
     }
     
@@ -164,6 +190,14 @@ struct SingleSessionView: View {
         withTransaction(Transaction(animation: .default)) {
             seService.moveExercise(session: session, from: source, to: destination)
         }
+    }
+
+    // MARK: - Draft Cleanup Helpers
+
+    /// Removes a single exercise and clears its draft state
+    private func removeExerciseAndCleanupDraft(_ sessionEntry: SessionEntry) {
+        sessionExerciseDraftStore.clearDraft(for: sessionEntry.id)
+        seService.removeExercise(session: session, sessionEntry: sessionEntry)
     }
 
     private var isSessionIncomplete: Bool {
@@ -347,6 +381,7 @@ struct SingleSessionView: View {
 
             if isSessionIncomplete {
                 Button {
+                    sessionExerciseDraftStore.clearDrafts(for: session.sessionEntries.map(\.id))
                     session.timestampDone = Date()
                 } label: {
                     Text("Finish Session")

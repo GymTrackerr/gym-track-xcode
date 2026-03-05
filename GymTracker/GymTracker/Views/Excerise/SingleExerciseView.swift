@@ -107,6 +107,7 @@ struct ExerciseDetailView: View {
     @State private var exerciseAliasDraft = ""
     @State private var isEditingAliases = false
     @State private var aliasError: String? = nil
+    @StateObject private var sessionExerciseDraftStore = SessionExerciseDraftStore()
     private let previousLogsSectionID = "previous-logs-section"
     
     private struct RepSample {
@@ -458,6 +459,7 @@ struct ExerciseDetailView: View {
                                         )
                                     )
                                     .appBackground()
+                                    .environmentObject(sessionExerciseDraftStore)
                                 } label: {
                                     HStack(spacing: 12) {
                                         VStack(alignment: .leading, spacing: 4) {

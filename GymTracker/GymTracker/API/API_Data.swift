@@ -12,7 +12,7 @@ class API_Data {
     
     func getURL() -> String {
         if (prodMode != true) {
-            return "http://localhost:3002/v1"
+            return "http://192.168.3.21:5002/v1"
         }
         else {
             return "https://api.trackerr.ca/v1"

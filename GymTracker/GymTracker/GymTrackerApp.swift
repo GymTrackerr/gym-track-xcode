@@ -37,6 +37,7 @@ struct GymTrackerApp: App {
         }
         
         let context = sharedModelContainer.mainContext
+        LegacyStoreRecoveryService.recoverIfNeeded(destinationContext: context)
 
         // Create — no currentUser passed
         let userService = UserService(context: context)
