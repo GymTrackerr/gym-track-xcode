@@ -33,6 +33,10 @@ final class NutritionBackupService {
         let mealEntries: Int
         let foodLogs: Int
         let targets: Int
+        let foodItems: Int
+        let mealRecipes: Int
+        let mealRecipeItems: Int
+        let nutritionLogEntries: Int
     }
 
     private let modelContext: ModelContext
@@ -48,6 +52,10 @@ final class NutritionBackupService {
     func exportNutritionJSON() throws -> URL {
         guard let userId = currentUserProvider()?.id else {
             throw BackupError.missingUser
+        }
+
+        if try shouldExportV2(userId: userId) {
+            return try exportV2NutritionJSON(userId: userId)
         }
 
         let foods = try fetchFoods(userId: userId)
@@ -75,6 +83,7 @@ final class NutritionBackupService {
             foodLogs: foodLogs.map(FoodLogBackupDTO.init),
             nutritionTargets: targets.map(NutritionTargetBackupDTO.init)
         )
+        try validateV1Payload(payload)
 
         do {
             let encoder = JSONEncoder()
@@ -97,215 +106,29 @@ final class NutritionBackupService {
         }
 
         let data = try readBackupData(from: url)
-        let payload = try decodeBackupPayload(from: data)
-
-        guard payload.schemaVersion == 1 else {
-            throw BackupError.invalidSchemaVersion(payload.schemaVersion)
-        }
-
-        // Allow restore into a different account by remapping imported ownership
-        // to the currently active user.
+        let schemaVersion = try decodeSchemaVersion(from: data)
 
         do {
-            // All upsert maps are scoped to current user to prevent cross-user mutation on ID collisions.
-            var maps = try buildImportMaps(userId: userId)
-
-            for dto in payload.foods {
-                let food: Food
-                if let existing = maps.foodsById[dto.id] {
-                    food = existing
-                } else {
-                    food = Food(
-                        userId: userId,
-                        name: dto.name,
-                        brand: dto.brand,
-                        referenceLabel: dto.referenceLabel,
-                        gramsPerReference: dto.gramsPerReference,
-                        kcalPerReference: dto.kcalPerReference,
-                        proteinPerReference: dto.proteinPerReference,
-                        carbPerReference: dto.carbPerReference,
-                        fatPerReference: dto.fatPerReference,
-                        isArchived: dto.isArchived,
-                        isFavorite: dto.isFavorite,
-                        kind: FoodKind(rawValue: dto.kindRaw) ?? .food,
-                        unit: FoodUnit(rawValue: dto.unitRaw) ?? .grams
-                    )
-                    food.id = dto.id
-                    modelContext.insert(food)
-                    maps.foodsById[dto.id] = food
-                }
-
-                food.userId = userId
-                food.name = dto.name
-                food.brand = dto.brand
-                food.referenceLabel = dto.referenceLabel
-                food.gramsPerReference = dto.gramsPerReference
-                food.kcalPerReference = dto.kcalPerReference
-                food.proteinPerReference = dto.proteinPerReference
-                food.carbPerReference = dto.carbPerReference
-                food.fatPerReference = dto.fatPerReference
-                food.isArchived = dto.isArchived
-                food.isFavorite = dto.isFavorite
-                food.kindRaw = dto.kindRaw
-                food.unitRaw = dto.unitRaw
-                food.createdAt = dto.createdAt
-                food.updatedAt = dto.updatedAt
+            switch schemaVersion {
+            case 1:
+                let payload = try decodeBackupPayload(from: data)
+                try validateV1Payload(payload)
+                let result = try importV1AsV2(payload: payload, userId: userId)
+                try modelContext.save()
+                return result
+            case 2:
+                let payload = try decodeV2BackupPayload(from: data)
+                let result = try importV2(payload: payload, userId: userId)
+                try modelContext.save()
+                return result
+            default:
+                throw BackupError.invalidSchemaVersion(schemaVersion)
             }
-
-            for dto in payload.meals {
-                let meal: Meal
-                if let existing = maps.mealsById[dto.id] {
-                    meal = existing
-                } else {
-                    meal = Meal(
-                        userId: userId,
-                        name: dto.name,
-                        defaultCategory: FoodLogCategory(rawValue: dto.defaultCategoryRaw) ?? .other
-                    )
-                    meal.id = dto.id
-                    modelContext.insert(meal)
-                    maps.mealsById[dto.id] = meal
-                }
-
-                meal.userId = userId
-                meal.name = dto.name
-                meal.defaultCategoryRaw = dto.defaultCategoryRaw
-                meal.createdAt = dto.createdAt
-                meal.updatedAt = dto.updatedAt
-            }
-
-            for dto in payload.mealItems {
-                guard let mealId = dto.mealId, let meal = maps.mealsById[mealId] else {
-                    throw BackupError.invalidBackup("Meal item \(dto.id) has missing meal reference.")
-                }
-                guard let food = maps.foodsById[dto.foodId] else {
-                    throw BackupError.invalidBackup("Meal item \(dto.id) has missing food reference.")
-                }
-
-                let item: MealItem
-                if let existing = maps.mealItemsById[dto.id] {
-                    item = existing
-                } else {
-                    item = MealItem(order: dto.order, grams: dto.grams, meal: meal, food: food)
-                    item.id = dto.id
-                    modelContext.insert(item)
-                    maps.mealItemsById[dto.id] = item
-                }
-
-                item.order = dto.order
-                item.grams = dto.grams
-                item.meal = meal
-                item.food = food
-                if !meal.items.contains(where: { $0.id == item.id }) {
-                    meal.items.append(item)
-                }
-            }
-
-            for dto in payload.mealEntries {
-                let templateMeal = dto.templateMealId.flatMap { maps.mealsById[$0] }
-                let entry: MealEntry
-                if let existing = maps.entriesById[dto.id] {
-                    entry = existing
-                } else {
-                    entry = MealEntry(
-                        userId: userId,
-                        timestamp: dto.timestamp,
-                        category: FoodLogCategory(rawValue: dto.categoryRaw) ?? .other,
-                        note: dto.note,
-                        templateMeal: templateMeal
-                    )
-                    entry.id = dto.id
-                    modelContext.insert(entry)
-                    maps.entriesById[dto.id] = entry
-                }
-
-                entry.userId = userId
-                entry.timestamp = dto.timestamp
-                entry.categoryRaw = dto.categoryRaw
-                entry.note = dto.note
-                entry.templateMeal = templateMeal
-            }
-
-            for dto in payload.foodLogs {
-                guard let food = maps.foodsById[dto.foodId] else {
-                    throw BackupError.invalidBackup("Food log \(dto.id) has missing food reference.")
-                }
-                let mealEntry = dto.mealEntryId.flatMap { maps.entriesById[$0] }
-                if dto.mealEntryId != nil, mealEntry == nil {
-                    throw BackupError.invalidBackup("Food log \(dto.id) has missing meal entry reference.")
-                }
-
-                let log: FoodLog
-                if let existing = maps.logsById[dto.id] {
-                    log = existing
-                } else {
-                    log = FoodLog(
-                        userId: userId,
-                        timestamp: dto.timestamp,
-                        category: FoodLogCategory(rawValue: dto.categoryRaw) ?? .other,
-                        grams: dto.grams,
-                        note: dto.note,
-                        quickCaloriesKcal: dto.quickCaloriesKcal,
-                        food: food,
-                        mealEntry: mealEntry
-                    )
-                    log.id = dto.id
-                    modelContext.insert(log)
-                    maps.logsById[dto.id] = log
-                }
-
-                log.userId = userId
-                log.timestamp = dto.timestamp
-                log.categoryRaw = dto.categoryRaw
-                log.grams = dto.grams
-                log.note = dto.note
-                log.quickCaloriesKcal = dto.quickCaloriesKcal
-                log.food = food
-                log.mealEntry = mealEntry
-                if let mealEntry, !mealEntry.logs.contains(where: { $0.id == log.id }) {
-                    mealEntry.logs.append(log)
-                }
-            }
-
-            for dto in payload.nutritionTargets {
-                let target: NutritionTarget
-                if let existing = maps.targetsById[dto.id] {
-                    target = existing
-                } else {
-                    target = NutritionTarget(
-                        calorieTarget: dto.calorieTarget,
-                        proteinTarget: dto.proteinTarget,
-                        carbTarget: dto.carbTarget,
-                        fatTarget: dto.fatTarget,
-                        isEnabled: dto.isEnabled
-                    )
-                    target.id = dto.id
-                    modelContext.insert(target)
-                    maps.targetsById[dto.id] = target
-                }
-
-                target.createdAt = dto.createdAt
-                target.updatedAt = dto.updatedAt
-                target.calorieTarget = dto.calorieTarget
-                target.proteinTarget = dto.proteinTarget
-                target.carbTarget = dto.carbTarget
-                target.fatTarget = dto.fatTarget
-                target.isEnabled = dto.isEnabled
-            }
-
-            try modelContext.save()
-
-            return ImportResult(
-                foods: payload.foods.count,
-                meals: payload.meals.count,
-                mealItems: payload.mealItems.count,
-                mealEntries: payload.mealEntries.count,
-                foodLogs: payload.foodLogs.count,
-                targets: payload.nutritionTargets.count
-            )
         } catch let error as BackupError {
+            modelContext.rollback()
             throw error
         } catch {
+            modelContext.rollback()
             throw BackupError.persistence("Could not import nutrition backup.")
         }
     }
@@ -327,6 +150,711 @@ final class NutritionBackupService {
             return try decoder.decode(NutritionBackupPayload.self, from: data)
         } catch {
             throw BackupError.invalidBackup("Backup file format is invalid.")
+        }
+    }
+
+    private func validateV1Payload(_ payload: NutritionBackupPayload) throws {
+        var foodIDs = Set<UUID>()
+        for food in payload.foods {
+            guard foodIDs.insert(food.id).inserted else {
+                throw BackupError.invalidBackup("Duplicate food id found in backup: \(food.id)")
+            }
+        }
+
+        var mealIDs = Set<UUID>()
+        for meal in payload.meals {
+            guard mealIDs.insert(meal.id).inserted else {
+                throw BackupError.invalidBackup("Duplicate meal id found in backup: \(meal.id)")
+            }
+        }
+
+        var mealEntryIDs = Set<UUID>()
+        for entry in payload.mealEntries {
+            guard mealEntryIDs.insert(entry.id).inserted else {
+                throw BackupError.invalidBackup("Duplicate meal entry id found in backup: \(entry.id)")
+            }
+            if let templateMealId = entry.templateMealId, !mealIDs.contains(templateMealId) {
+                throw BackupError.invalidBackup("Meal entry \(entry.id) references missing template meal \(templateMealId).")
+            }
+        }
+
+        var mealItemIDs = Set<UUID>()
+        for item in payload.mealItems {
+            guard mealItemIDs.insert(item.id).inserted else {
+                throw BackupError.invalidBackup("Duplicate meal item id found in backup: \(item.id)")
+            }
+            guard let mealId = item.mealId else {
+                throw BackupError.invalidBackup("Meal item \(item.id) is missing mealId.")
+            }
+            guard mealIDs.contains(mealId) else {
+                throw BackupError.invalidBackup("Meal item \(item.id) references missing meal \(mealId).")
+            }
+            guard foodIDs.contains(item.foodId) else {
+                throw BackupError.invalidBackup("Meal item \(item.id) references missing food \(item.foodId).")
+            }
+        }
+
+        var foodLogIDs = Set<UUID>()
+        for log in payload.foodLogs {
+            guard foodLogIDs.insert(log.id).inserted else {
+                throw BackupError.invalidBackup("Duplicate food log id found in backup: \(log.id)")
+            }
+            guard foodIDs.contains(log.foodId) else {
+                throw BackupError.invalidBackup("Food log \(log.id) references missing food \(log.foodId).")
+            }
+            if let mealEntryId = log.mealEntryId, !mealEntryIDs.contains(mealEntryId) {
+                throw BackupError.invalidBackup("Food log \(log.id) references missing meal entry \(mealEntryId).")
+            }
+        }
+
+        var targetIDs = Set<UUID>()
+        for target in payload.nutritionTargets {
+            guard targetIDs.insert(target.id).inserted else {
+                throw BackupError.invalidBackup("Duplicate nutrition target id found in backup: \(target.id)")
+            }
+        }
+    }
+
+    private func decodeSchemaVersion(from data: Data) throws -> Int {
+        guard
+            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let version = json["schemaVersion"] as? Int
+        else {
+            throw BackupError.invalidBackup("Backup file format is invalid.")
+        }
+        return version
+    }
+
+    private func decodeV2BackupPayload(from data: Data) throws -> NutritionBackupPayloadV2 {
+        do {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            return try decoder.decode(NutritionBackupPayloadV2.self, from: data)
+        } catch {
+            throw BackupError.invalidBackup("Backup file format is invalid.")
+        }
+    }
+
+    private func shouldExportV2(userId: UUID) throws -> Bool {
+        let hasFoodItems = !(try fetchFoodItems(userId: userId).isEmpty)
+        let hasMealRecipes = !(try fetchMealRecipes(userId: userId).isEmpty)
+        let hasNutritionLogs = !(try fetchNutritionLogEntries(userId: userId).isEmpty)
+        return hasFoodItems || hasMealRecipes || hasNutritionLogs
+    }
+
+    private func exportV2NutritionJSON(userId: UUID) throws -> URL {
+        let foodItems = try fetchFoodItems(userId: userId)
+        let mealRecipes = try fetchMealRecipes(userId: userId)
+        let mealRecipeItems = mealRecipes
+            .flatMap { $0.items }
+            .sorted { lhs, rhs in
+                if lhs.mealRecipe?.id == rhs.mealRecipe?.id {
+                    return lhs.order < rhs.order
+                }
+                return (lhs.mealRecipe?.id.uuidString ?? "") < (rhs.mealRecipe?.id.uuidString ?? "")
+            }
+        let nutritionLogs = try fetchNutritionLogEntries(userId: userId)
+        let targets = try fetchTargets()
+
+        let payload = NutritionBackupPayloadV2(
+            schemaVersion: 2,
+            exportedAt: Date(),
+            userId: userId,
+            foodItems: foodItems.map(FoodItemBackupDTO.init),
+            mealRecipes: mealRecipes.map(MealRecipeBackupDTO.init),
+            mealRecipeItems: mealRecipeItems.map(MealRecipeItemBackupDTO.init),
+            nutritionLogEntries: nutritionLogs.map(NutritionLogEntryBackupDTO.init),
+            nutritionTargets: targets.map(NutritionTargetBackupDTO.init)
+        )
+
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            encoder.dateEncodingStrategy = .iso8601
+            let data = try encoder.encode(payload)
+            let fileURL = backupURL()
+            try data.write(to: fileURL, options: .atomic)
+            return fileURL
+        } catch {
+            throw BackupError.persistence("Could not write nutrition backup file.")
+        }
+    }
+
+    private func importV1AsV2(payload: NutritionBackupPayload, userId: UUID) throws -> ImportResult {
+        let existingFoodItems = Dictionary(uniqueKeysWithValues: try fetchFoodItems(userId: userId).map { ($0.id, $0) })
+        let existingMealRecipes = Dictionary(uniqueKeysWithValues: try fetchMealRecipes(userId: userId).map { ($0.id, $0) })
+        let existingMealRecipeItems = Dictionary(uniqueKeysWithValues: try fetchMealRecipeItems(userId: userId).map { ($0.id, $0) })
+        let existingLogs = Dictionary(uniqueKeysWithValues: try fetchNutritionLogEntries(userId: userId).map { ($0.id, $0) })
+        let existingTargets = Dictionary(uniqueKeysWithValues: try fetchTargets().map { ($0.id, $0) })
+
+        var foodItemsById: [UUID: FoodItem] = existingFoodItems
+        for dto in payload.foods {
+            let item = foodItemsById[dto.id] ?? FoodItem(
+                userId: userId,
+                name: dto.name,
+                brand: dto.brand,
+                referenceLabel: dto.referenceLabel,
+                referenceQuantity: dto.gramsPerReference,
+                caloriesPerReference: dto.kcalPerReference,
+                proteinPerReference: dto.proteinPerReference,
+                carbsPerReference: dto.carbPerReference,
+                fatPerReference: dto.fatPerReference,
+                extraNutrients: nil,
+                isArchived: dto.isArchived,
+                isFavorite: dto.isFavorite,
+                kind: migrateFoodKind(dto.kindRaw),
+                unit: migrateFoodUnit(dto.unitRaw)
+            )
+            if foodItemsById[dto.id] == nil {
+                item.id = dto.id
+                modelContext.insert(item)
+            }
+            item.userId = userId
+            item.name = dto.name
+            item.brand = dto.brand
+            item.referenceLabel = dto.referenceLabel
+            item.referenceQuantity = max(0.0001, dto.gramsPerReference)
+            item.caloriesPerReference = max(0, dto.kcalPerReference)
+            item.proteinPerReference = max(0, dto.proteinPerReference)
+            item.carbsPerReference = max(0, dto.carbPerReference)
+            item.fatPerReference = max(0, dto.fatPerReference)
+            item.extraNutrients = nil
+            item.isArchived = dto.isArchived
+            item.isFavorite = dto.isFavorite
+            item.kind = migrateFoodKind(dto.kindRaw)
+            item.unit = migrateFoodUnit(dto.unitRaw)
+            item.createdAt = dto.createdAt
+            item.updatedAt = dto.updatedAt
+            foodItemsById[dto.id] = item
+        }
+
+        var mealRecipesById: [UUID: MealRecipe] = existingMealRecipes
+        for dto in payload.meals {
+            let recipe = mealRecipesById[dto.id] ?? MealRecipe(
+                userId: userId,
+                name: dto.name,
+                batchSize: 1,
+                servingUnitLabel: "serving",
+                defaultCategory: FoodLogCategory(rawValue: dto.defaultCategoryRaw) ?? .other,
+                cachedExtraNutrients: nil,
+                isArchived: false
+            )
+            if mealRecipesById[dto.id] == nil {
+                recipe.id = dto.id
+                modelContext.insert(recipe)
+            }
+            recipe.userId = userId
+            recipe.name = dto.name
+            recipe.batchSize = 1
+            recipe.servingUnitLabel = "serving"
+            recipe.defaultCategory = FoodLogCategory(rawValue: dto.defaultCategoryRaw) ?? .other
+            recipe.cachedExtraNutrients = nil
+            recipe.isArchived = false
+            recipe.createdAt = dto.createdAt
+            recipe.updatedAt = dto.updatedAt
+            mealRecipesById[dto.id] = recipe
+        }
+
+        for dto in payload.mealItems {
+            guard let mealId = dto.mealId, let mealRecipe = mealRecipesById[mealId] else {
+                throw BackupError.invalidBackup("Meal item \(dto.id) has missing meal reference.")
+            }
+            guard let foodItem = foodItemsById[dto.foodId] else {
+                throw BackupError.invalidBackup("Meal item \(dto.id) has missing food reference.")
+            }
+            let recipeItem = existingMealRecipeItems[dto.id] ?? MealRecipeItem(
+                amount: dto.grams,
+                amountUnit: .grams,
+                order: dto.order,
+                mealRecipe: mealRecipe,
+                foodItem: foodItem
+            )
+            if existingMealRecipeItems[dto.id] == nil {
+                recipeItem.id = dto.id
+                modelContext.insert(recipeItem)
+            }
+            recipeItem.amount = max(0, dto.grams)
+            recipeItem.amountUnit = .grams
+            recipeItem.order = dto.order
+            recipeItem.mealRecipe = mealRecipe
+            recipeItem.foodItem = foodItem
+        }
+
+        let foodBackupsById = Dictionary(uniqueKeysWithValues: payload.foods.map { ($0.id, $0) })
+        let logsByMealEntry = Dictionary(grouping: payload.foodLogs.filter { $0.mealEntryId != nil }) { $0.mealEntryId! }
+
+        for dto in payload.foodLogs where dto.mealEntryId == nil {
+            let draft = try buildImportedDraftFromV1Standalone(dto: dto, foodBackupsById: foodBackupsById, userId: userId)
+            let id = dto.id
+            if let existing = existingLogs[id] {
+                updateLog(existing, from: draft, userId: userId)
+            } else {
+                let log = createNutritionLogEntry(from: draft, userId: userId)
+                log.id = id
+                modelContext.insert(log)
+            }
+        }
+
+        for mealEntry in payload.mealEntries {
+            let childLogs = logsByMealEntry[mealEntry.id] ?? []
+            let mealRecipe = mealEntry.templateMealId.flatMap { mealRecipesById[$0] }
+            let draft = buildImportedDraftFromV1MealEntry(
+                mealEntry: mealEntry,
+                childLogs: childLogs,
+                foodBackupsById: foodBackupsById,
+                mealRecipe: mealRecipe
+            )
+            let id = mealEntry.id
+            if let existing = existingLogs[id] {
+                updateLog(existing, from: draft, userId: userId)
+            } else {
+                let log = createNutritionLogEntry(from: draft, userId: userId)
+                log.id = id
+                modelContext.insert(log)
+            }
+        }
+
+        for dto in payload.nutritionTargets {
+            let target = existingTargets[dto.id] ?? NutritionTarget(
+                calorieTarget: dto.calorieTarget,
+                proteinTarget: dto.proteinTarget,
+                carbTarget: dto.carbTarget,
+                fatTarget: dto.fatTarget,
+                isEnabled: dto.isEnabled
+            )
+            if existingTargets[dto.id] == nil {
+                target.id = dto.id
+                modelContext.insert(target)
+            }
+            target.createdAt = dto.createdAt
+            target.updatedAt = dto.updatedAt
+            target.calorieTarget = dto.calorieTarget
+            target.proteinTarget = dto.proteinTarget
+            target.carbTarget = dto.carbTarget
+            target.fatTarget = dto.fatTarget
+            target.isEnabled = dto.isEnabled
+        }
+
+        return ImportResult(
+            foods: payload.foods.count,
+            meals: payload.meals.count,
+            mealItems: payload.mealItems.count,
+            mealEntries: payload.mealEntries.count,
+            foodLogs: payload.foodLogs.count,
+            targets: payload.nutritionTargets.count,
+            foodItems: payload.foods.count,
+            mealRecipes: payload.meals.count,
+            mealRecipeItems: payload.mealItems.count,
+            nutritionLogEntries: payload.foodLogs.filter { $0.mealEntryId == nil }.count + payload.mealEntries.count
+        )
+    }
+
+    private func importV2(payload: NutritionBackupPayloadV2, userId: UUID) throws -> ImportResult {
+        let existingFoodItems = Dictionary(uniqueKeysWithValues: try fetchFoodItems(userId: userId).map { ($0.id, $0) })
+        let existingMealRecipes = Dictionary(uniqueKeysWithValues: try fetchMealRecipes(userId: userId).map { ($0.id, $0) })
+        let existingMealRecipeItems = Dictionary(uniqueKeysWithValues: try fetchMealRecipeItems(userId: userId).map { ($0.id, $0) })
+        let existingLogs = Dictionary(uniqueKeysWithValues: try fetchNutritionLogEntries(userId: userId).map { ($0.id, $0) })
+        let existingTargets = Dictionary(uniqueKeysWithValues: try fetchTargets().map { ($0.id, $0) })
+
+        var foodItemsById: [UUID: FoodItem] = existingFoodItems
+        for dto in payload.foodItems {
+            let item = foodItemsById[dto.id] ?? FoodItem(
+                userId: userId,
+                name: dto.name,
+                brand: dto.brand,
+                referenceLabel: dto.referenceLabel,
+                referenceQuantity: dto.referenceQuantity,
+                caloriesPerReference: dto.caloriesPerReference,
+                proteinPerReference: dto.proteinPerReference,
+                carbsPerReference: dto.carbsPerReference,
+                fatPerReference: dto.fatPerReference,
+                extraNutrients: dto.extraNutrients,
+                isArchived: dto.isArchived,
+                isFavorite: dto.isFavorite,
+                kind: FoodItemKind(rawValue: dto.kindRaw) ?? .food,
+                unit: FoodItemUnit(rawValue: dto.unitRaw) ?? .grams
+            )
+            if foodItemsById[dto.id] == nil {
+                item.id = dto.id
+                modelContext.insert(item)
+            }
+            item.userId = userId
+            item.name = dto.name
+            item.brand = dto.brand
+            item.referenceLabel = dto.referenceLabel
+            item.referenceQuantity = max(0.0001, dto.referenceQuantity)
+            item.caloriesPerReference = max(0, dto.caloriesPerReference)
+            item.proteinPerReference = max(0, dto.proteinPerReference)
+            item.carbsPerReference = max(0, dto.carbsPerReference)
+            item.fatPerReference = max(0, dto.fatPerReference)
+            item.extraNutrients = dto.extraNutrients
+            item.isArchived = dto.isArchived
+            item.isFavorite = dto.isFavorite
+            item.kind = FoodItemKind(rawValue: dto.kindRaw) ?? .food
+            item.unit = FoodItemUnit(rawValue: dto.unitRaw) ?? .grams
+            item.createdAt = dto.createdAt
+            item.updatedAt = dto.updatedAt
+            foodItemsById[dto.id] = item
+        }
+
+        var mealRecipesById: [UUID: MealRecipe] = existingMealRecipes
+        for dto in payload.mealRecipes {
+            let recipe = mealRecipesById[dto.id] ?? MealRecipe(
+                userId: userId,
+                name: dto.name,
+                batchSize: dto.batchSize,
+                servingUnitLabel: dto.servingUnitLabel,
+                defaultCategory: FoodLogCategory(rawValue: dto.defaultCategoryRaw) ?? .other,
+                cachedExtraNutrients: dto.cachedExtraNutrients,
+                isArchived: dto.isArchived
+            )
+            if mealRecipesById[dto.id] == nil {
+                recipe.id = dto.id
+                modelContext.insert(recipe)
+            }
+            recipe.userId = userId
+            recipe.name = dto.name
+            recipe.batchSize = max(0.0001, dto.batchSize)
+            recipe.servingUnitLabel = dto.servingUnitLabel
+            recipe.defaultCategory = FoodLogCategory(rawValue: dto.defaultCategoryRaw) ?? .other
+            recipe.cachedExtraNutrients = dto.cachedExtraNutrients
+            recipe.isArchived = dto.isArchived
+            recipe.createdAt = dto.createdAt
+            recipe.updatedAt = dto.updatedAt
+            mealRecipesById[dto.id] = recipe
+        }
+
+        for dto in payload.mealRecipeItems {
+            guard let mealRecipeId = dto.mealRecipeId, let mealRecipe = mealRecipesById[mealRecipeId] else {
+                throw BackupError.invalidBackup("Meal recipe item \(dto.id) has missing meal recipe reference.")
+            }
+            guard let foodItem = foodItemsById[dto.foodItemId] else {
+                throw BackupError.invalidBackup("Meal recipe item \(dto.id) has missing food item reference.")
+            }
+            let recipeItem = existingMealRecipeItems[dto.id] ?? MealRecipeItem(
+                amount: dto.amount,
+                amountUnit: FoodItemUnit(rawValue: dto.amountUnitRaw) ?? .grams,
+                order: dto.order,
+                mealRecipe: mealRecipe,
+                foodItem: foodItem
+            )
+            if existingMealRecipeItems[dto.id] == nil {
+                recipeItem.id = dto.id
+                modelContext.insert(recipeItem)
+            }
+            recipeItem.amount = max(0, dto.amount)
+            recipeItem.amountUnit = FoodItemUnit(rawValue: dto.amountUnitRaw) ?? .grams
+            recipeItem.order = dto.order
+            recipeItem.mealRecipe = mealRecipe
+            recipeItem.foodItem = foodItem
+        }
+
+        for dto in payload.nutritionLogEntries {
+            let draft = NutritionLogDraft(
+                logType: NutritionLogType(rawValue: dto.logTypeRaw) ?? .food,
+                creationMethod: LogCreationMethod(rawValue: dto.creationMethodRaw) ?? .importedBackup,
+                sourceItemId: dto.sourceItemId,
+                sourceMealId: dto.sourceMealId,
+                nameSnapshot: dto.nameSnapshot,
+                brandSnapshot: dto.brandSnapshot,
+                amount: dto.amount,
+                amountUnitSnapshot: dto.amountUnitSnapshot,
+                servingUnitLabelSnapshot: dto.servingUnitLabelSnapshot,
+                caloriesSnapshot: dto.caloriesSnapshot,
+                proteinSnapshot: dto.proteinSnapshot,
+                carbsSnapshot: dto.carbsSnapshot,
+                fatSnapshot: dto.fatSnapshot,
+                extraNutrientsSnapshot: dto.extraNutrientsSnapshot,
+                recipeItemsSnapshot: dto.recipeItemsSnapshot,
+                timestamp: dto.timestamp,
+                category: FoodLogCategory(rawValue: dto.categoryRaw) ?? .other,
+                note: dto.note
+            )
+            try validateDraft(draft)
+            if let existing = existingLogs[dto.id] {
+                updateLog(existing, from: draft, userId: userId)
+                existing.dayKey = dto.dayKey
+                existing.logDate = dto.logDate
+                existing.createdAt = dto.createdAt
+                existing.updatedAt = dto.updatedAt
+            } else {
+                let log = createNutritionLogEntry(from: draft, userId: userId)
+                log.id = dto.id
+                log.dayKey = dto.dayKey
+                log.logDate = dto.logDate
+                log.createdAt = dto.createdAt
+                log.updatedAt = dto.updatedAt
+                modelContext.insert(log)
+            }
+        }
+
+        for dto in payload.nutritionTargets {
+            let target = existingTargets[dto.id] ?? NutritionTarget(
+                calorieTarget: dto.calorieTarget,
+                proteinTarget: dto.proteinTarget,
+                carbTarget: dto.carbTarget,
+                fatTarget: dto.fatTarget,
+                isEnabled: dto.isEnabled
+            )
+            if existingTargets[dto.id] == nil {
+                target.id = dto.id
+                modelContext.insert(target)
+            }
+            target.createdAt = dto.createdAt
+            target.updatedAt = dto.updatedAt
+            target.calorieTarget = dto.calorieTarget
+            target.proteinTarget = dto.proteinTarget
+            target.carbTarget = dto.carbTarget
+            target.fatTarget = dto.fatTarget
+            target.isEnabled = dto.isEnabled
+        }
+
+        return ImportResult(
+            foods: 0,
+            meals: 0,
+            mealItems: 0,
+            mealEntries: 0,
+            foodLogs: 0,
+            targets: payload.nutritionTargets.count,
+            foodItems: payload.foodItems.count,
+            mealRecipes: payload.mealRecipes.count,
+            mealRecipeItems: payload.mealRecipeItems.count,
+            nutritionLogEntries: payload.nutritionLogEntries.count
+        )
+    }
+
+    private func buildImportedDraftFromV1Standalone(
+        dto: FoodLogBackupDTO,
+        foodBackupsById: [UUID: FoodBackupDTO],
+        userId: UUID
+    ) throws -> NutritionLogDraft {
+        let category = FoodLogCategory(rawValue: dto.categoryRaw) ?? .other
+        if let quick = dto.quickCaloriesKcal {
+            return NutritionLogDraft(
+                logType: .quickCalories,
+                creationMethod: .migratedV1,
+                sourceItemId: nil,
+                sourceMealId: nil,
+                nameSnapshot: "Quick Entry",
+                brandSnapshot: nil,
+                amount: max(0, quick),
+                amountUnitSnapshot: "kcal",
+                servingUnitLabelSnapshot: nil,
+                caloriesSnapshot: max(0, quick),
+                proteinSnapshot: 0,
+                carbsSnapshot: 0,
+                fatSnapshot: 0,
+                extraNutrientsSnapshot: nil,
+                recipeItemsSnapshot: nil,
+                timestamp: dto.timestamp,
+                category: category,
+                note: dto.note
+            )
+        }
+
+        guard let foodBackup = foodBackupsById[dto.foodId] else {
+            throw BackupError.invalidBackup("Food log \(dto.id) references missing food \(dto.foodId).")
+        }
+        let grams = max(0, dto.grams)
+        let reference = max(foodBackup.gramsPerReference, 0.0001)
+        let factor = grams / reference
+        let unit = migrateFoodUnit(foodBackup.unitRaw)
+
+        return NutritionLogDraft(
+            logType: .food,
+            creationMethod: .migratedV1,
+            sourceItemId: foodBackup.id,
+            sourceMealId: nil,
+            nameSnapshot: foodBackup.name,
+            brandSnapshot: foodBackup.brand,
+            amount: grams,
+            amountUnitSnapshot: unit.shortLabel,
+            servingUnitLabelSnapshot: nil,
+            caloriesSnapshot: max(0, foodBackup.kcalPerReference * factor),
+            proteinSnapshot: max(0, foodBackup.proteinPerReference * factor),
+            carbsSnapshot: max(0, foodBackup.carbPerReference * factor),
+            fatSnapshot: max(0, foodBackup.fatPerReference * factor),
+            extraNutrientsSnapshot: nil,
+            recipeItemsSnapshot: nil,
+            timestamp: dto.timestamp,
+            category: category,
+            note: dto.note
+        )
+    }
+
+    private func buildImportedDraftFromV1MealEntry(
+        mealEntry: MealEntryBackupDTO,
+        childLogs: [FoodLogBackupDTO],
+        foodBackupsById: [UUID: FoodBackupDTO],
+        mealRecipe: MealRecipe?
+    ) -> NutritionLogDraft {
+        let category = FoodLogCategory(rawValue: mealEntry.categoryRaw) ?? .other
+        let calories = childLogs.reduce(0) { partial, child in
+            if let quick = child.quickCaloriesKcal { return partial + quick }
+            guard let food = foodBackupsById[child.foodId] else { return partial }
+            let reference = max(food.gramsPerReference, 0.0001)
+            return partial + (max(0, child.grams) / reference) * food.kcalPerReference
+        }
+        let protein = childLogs.reduce(0) { partial, child in
+            guard child.quickCaloriesKcal == nil, let food = foodBackupsById[child.foodId] else { return partial }
+            let reference = max(food.gramsPerReference, 0.0001)
+            return partial + (max(0, child.grams) / reference) * food.proteinPerReference
+        }
+        let carbs = childLogs.reduce(0) { partial, child in
+            guard child.quickCaloriesKcal == nil, let food = foodBackupsById[child.foodId] else { return partial }
+            let reference = max(food.gramsPerReference, 0.0001)
+            return partial + (max(0, child.grams) / reference) * food.carbPerReference
+        }
+        let fat = childLogs.reduce(0) { partial, child in
+            guard child.quickCaloriesKcal == nil, let food = foodBackupsById[child.foodId] else { return partial }
+            let reference = max(food.gramsPerReference, 0.0001)
+            return partial + (max(0, child.grams) / reference) * food.fatPerReference
+        }
+
+        let snapshots: [RecipeItemSnapshot] = childLogs.compactMap { child in
+            guard let food = foodBackupsById[child.foodId] else { return nil }
+            let reference = max(food.gramsPerReference, 0.0001)
+            let factor = max(0, child.grams) / reference
+            return RecipeItemSnapshot(
+                name: food.name,
+                amount: max(0, child.grams),
+                amountUnit: migrateFoodUnit(food.unitRaw).shortLabel,
+                caloriesSnapshot: max(0, food.kcalPerReference * factor),
+                proteinSnapshot: max(0, food.proteinPerReference * factor),
+                carbsSnapshot: max(0, food.carbPerReference * factor),
+                fatSnapshot: max(0, food.fatPerReference * factor),
+                extraNutrientsSnapshot: nil
+            )
+        }
+
+        return NutritionLogDraft(
+            logType: .meal,
+            creationMethod: .migratedV1,
+            sourceItemId: nil,
+            sourceMealId: mealEntry.templateMealId,
+            nameSnapshot: mealRecipe?.name ?? "Meal",
+            brandSnapshot: nil,
+            amount: 1,
+            amountUnitSnapshot: mealRecipe?.servingUnitLabel ?? "serving",
+            servingUnitLabelSnapshot: mealRecipe?.servingUnitLabel ?? "serving",
+            caloriesSnapshot: max(0, calories),
+            proteinSnapshot: max(0, protein),
+            carbsSnapshot: max(0, carbs),
+            fatSnapshot: max(0, fat),
+            extraNutrientsSnapshot: nil,
+            recipeItemsSnapshot: snapshots.isEmpty ? nil : snapshots,
+            timestamp: mealEntry.timestamp,
+            category: category,
+            note: normalizedOptionalText(mealEntry.note)
+                ?? childLogs.compactMap { normalizedOptionalText($0.note) }.first
+        )
+    }
+
+    private func validateDraft(_ draft: NutritionLogDraft) throws {
+        if draft.nameSnapshot.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            throw BackupError.invalidBackup("Nutrition log entry is missing name snapshot.")
+        }
+        if draft.amountUnitSnapshot.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            throw BackupError.invalidBackup("Nutrition log entry is missing amount unit snapshot.")
+        }
+        if draft.caloriesSnapshot < 0 || draft.proteinSnapshot < 0 || draft.carbsSnapshot < 0 || draft.fatSnapshot < 0 {
+            throw BackupError.invalidBackup("Nutrition log entry has invalid negative macro snapshots.")
+        }
+        if draft.logType != .meal, draft.recipeItemsSnapshot != nil {
+            throw BackupError.invalidBackup("Only meal logs can include recipe item snapshots.")
+        }
+    }
+
+    private func createNutritionLogEntry(from draft: NutritionLogDraft, userId: UUID) -> NutritionLogEntry {
+        let dayKey = computeDayKey(timestamp: draft.timestamp)
+        let logDate = computeLogDate(timestamp: draft.timestamp)
+        return NutritionLogEntry(
+            userId: userId,
+            timestamp: draft.timestamp,
+            logType: draft.logType,
+            sourceItemId: draft.sourceItemId,
+            sourceMealId: draft.sourceMealId,
+            amount: draft.amount,
+            amountUnitSnapshot: draft.amountUnitSnapshot,
+            category: draft.category,
+            note: normalizedOptionalText(draft.note),
+            dayKey: dayKey,
+            logDate: logDate,
+            creationMethod: draft.creationMethod,
+            nameSnapshot: draft.nameSnapshot,
+            brandSnapshot: normalizedOptionalText(draft.brandSnapshot),
+            servingUnitLabelSnapshot: normalizedOptionalText(draft.servingUnitLabelSnapshot),
+            caloriesSnapshot: max(0, draft.caloriesSnapshot),
+            proteinSnapshot: max(0, draft.proteinSnapshot),
+            carbsSnapshot: max(0, draft.carbsSnapshot),
+            fatSnapshot: max(0, draft.fatSnapshot),
+            extraNutrientsSnapshot: draft.extraNutrientsSnapshot,
+            recipeItemsSnapshot: draft.recipeItemsSnapshot
+        )
+    }
+
+    private func updateLog(_ log: NutritionLogEntry, from draft: NutritionLogDraft, userId: UUID) {
+        log.userId = userId
+        log.timestamp = draft.timestamp
+        log.logType = draft.logType
+        log.sourceItemId = draft.sourceItemId
+        log.sourceMealId = draft.sourceMealId
+        log.amount = max(0, draft.amount)
+        log.amountUnitSnapshot = draft.amountUnitSnapshot
+        log.category = draft.category
+        log.note = normalizedOptionalText(draft.note)
+        log.dayKey = computeDayKey(timestamp: draft.timestamp)
+        log.logDate = computeLogDate(timestamp: draft.timestamp)
+        log.creationMethod = draft.creationMethod
+        log.nameSnapshot = draft.nameSnapshot
+        log.brandSnapshot = normalizedOptionalText(draft.brandSnapshot)
+        log.servingUnitLabelSnapshot = normalizedOptionalText(draft.servingUnitLabelSnapshot)
+        log.caloriesSnapshot = max(0, draft.caloriesSnapshot)
+        log.proteinSnapshot = max(0, draft.proteinSnapshot)
+        log.carbsSnapshot = max(0, draft.carbsSnapshot)
+        log.fatSnapshot = max(0, draft.fatSnapshot)
+        log.extraNutrientsSnapshot = draft.extraNutrientsSnapshot
+        log.recipeItemsSnapshot = draft.recipeItemsSnapshot
+        log.updatedAt = Date()
+    }
+
+    private func computeDayKey(timestamp: Date, timeZone: TimeZone = .current) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let components = calendar.dateComponents([.year, .month, .day], from: timestamp)
+        let year = components.year ?? 1970
+        let month = components.month ?? 1
+        let day = components.day ?? 1
+        return String(format: "%04d-%02d-%02d", year, month, day)
+    }
+
+    private func computeLogDate(timestamp: Date, timeZone: TimeZone = .current) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        return calendar.startOfDay(for: timestamp)
+    }
+
+    private func normalizedOptionalText(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func migrateFoodKind(_ rawValue: Int) -> FoodItemKind {
+        switch rawValue {
+        case FoodKind.drink.rawValue:
+            return .drink
+        default:
+            return .food
+        }
+    }
+
+    private func migrateFoodUnit(_ rawValue: Int) -> FoodItemUnit {
+        switch rawValue {
+        case FoodUnit.milliliters.rawValue:
+            return .milliliters
+        default:
+            return .grams
         }
     }
 
@@ -399,6 +927,41 @@ final class NutritionBackupService {
     private func fetchTargets() throws -> [NutritionTarget] {
         let descriptor = FetchDescriptor<NutritionTarget>(
             sortBy: [SortDescriptor(\.createdAt)]
+        )
+        return try modelContext.fetch(descriptor)
+    }
+
+    private func fetchFoodItems(userId: UUID) throws -> [FoodItem] {
+        let descriptor = FetchDescriptor<FoodItem>(
+            predicate: #Predicate<FoodItem> { item in
+                item.userId == userId
+            },
+            sortBy: [SortDescriptor(\.createdAt)]
+        )
+        return try modelContext.fetch(descriptor)
+    }
+
+    private func fetchMealRecipes(userId: UUID) throws -> [MealRecipe] {
+        let descriptor = FetchDescriptor<MealRecipe>(
+            predicate: #Predicate<MealRecipe> { item in
+                item.userId == userId
+            },
+            sortBy: [SortDescriptor(\.createdAt)]
+        )
+        return try modelContext.fetch(descriptor)
+    }
+
+    private func fetchMealRecipeItems(userId: UUID) throws -> [MealRecipeItem] {
+        let allItems = try modelContext.fetch(FetchDescriptor<MealRecipeItem>())
+        return allItems.filter { $0.mealRecipe?.userId == userId }
+    }
+
+    private func fetchNutritionLogEntries(userId: UUID) throws -> [NutritionLogEntry] {
+        let descriptor = FetchDescriptor<NutritionLogEntry>(
+            predicate: #Predicate<NutritionLogEntry> { item in
+                item.userId == userId
+            },
+            sortBy: [SortDescriptor(\.timestamp)]
         )
         return try modelContext.fetch(descriptor)
     }
@@ -636,3 +1199,153 @@ private struct NutritionTargetBackupDTO: Codable {
         isEnabled = target.isEnabled
     }
 }
+
+private struct NutritionBackupPayloadV2: Codable {
+    let schemaVersion: Int
+    let exportedAt: Date
+    let userId: UUID
+    let foodItems: [FoodItemBackupDTO]
+    let mealRecipes: [MealRecipeBackupDTO]
+    let mealRecipeItems: [MealRecipeItemBackupDTO]
+    let nutritionLogEntries: [NutritionLogEntryBackupDTO]
+    let nutritionTargets: [NutritionTargetBackupDTO]
+}
+
+private struct FoodItemBackupDTO: Codable {
+    let id: UUID
+    let userId: UUID
+    let name: String
+    let brand: String?
+    let referenceLabel: String?
+    let referenceQuantity: Double
+    let caloriesPerReference: Double
+    let proteinPerReference: Double
+    let carbsPerReference: Double
+    let fatPerReference: Double
+    let extraNutrients: [String: Double]?
+    let isArchived: Bool
+    let isFavorite: Bool
+    let kindRaw: Int
+    let unitRaw: Int
+    let createdAt: Date
+    let updatedAt: Date
+
+    init(_ item: FoodItem) {
+        id = item.id
+        userId = item.userId
+        name = item.name
+        brand = item.brand
+        referenceLabel = item.referenceLabel
+        referenceQuantity = item.referenceQuantity
+        caloriesPerReference = item.caloriesPerReference
+        proteinPerReference = item.proteinPerReference
+        carbsPerReference = item.carbsPerReference
+        fatPerReference = item.fatPerReference
+        extraNutrients = item.extraNutrients
+        isArchived = item.isArchived
+        isFavorite = item.isFavorite
+        kindRaw = item.kindRaw
+        unitRaw = item.unitRaw
+        createdAt = item.createdAt
+        updatedAt = item.updatedAt
+    }
+}
+
+private struct MealRecipeBackupDTO: Codable {
+    let id: UUID
+    let userId: UUID
+    let name: String
+    let batchSize: Double
+    let servingUnitLabel: String?
+    let defaultCategoryRaw: Int
+    let cachedExtraNutrients: [String: Double]?
+    let isArchived: Bool
+    let createdAt: Date
+    let updatedAt: Date
+
+    init(_ recipe: MealRecipe) {
+        id = recipe.id
+        userId = recipe.userId
+        name = recipe.name
+        batchSize = recipe.batchSize
+        servingUnitLabel = recipe.servingUnitLabel
+        defaultCategoryRaw = recipe.defaultCategoryRaw
+        cachedExtraNutrients = recipe.cachedExtraNutrients
+        isArchived = recipe.isArchived
+        createdAt = recipe.createdAt
+        updatedAt = recipe.updatedAt
+    }
+}
+
+private struct MealRecipeItemBackupDTO: Codable {
+    let id: UUID
+    let mealRecipeId: UUID?
+    let foodItemId: UUID
+    let amount: Double
+    let amountUnitRaw: Int
+    let order: Int
+
+    init(_ item: MealRecipeItem) {
+        id = item.id
+        mealRecipeId = item.mealRecipe?.id
+        foodItemId = item.foodItem.id
+        amount = item.amount
+        amountUnitRaw = item.amountUnitRaw
+        order = item.order
+    }
+}
+
+private struct NutritionLogEntryBackupDTO: Codable {
+    let id: UUID
+    let userId: UUID
+    let timestamp: Date
+    let logTypeRaw: Int
+    let sourceItemId: UUID?
+    let sourceMealId: UUID?
+    let amount: Double
+    let amountUnitSnapshot: String
+    let categoryRaw: Int
+    let note: String?
+    let dayKey: String
+    let logDate: Date
+    let creationMethodRaw: Int
+    let nameSnapshot: String
+    let brandSnapshot: String?
+    let servingUnitLabelSnapshot: String?
+    let caloriesSnapshot: Double
+    let proteinSnapshot: Double
+    let carbsSnapshot: Double
+    let fatSnapshot: Double
+    let extraNutrientsSnapshot: [String: Double]?
+    let recipeItemsSnapshot: [RecipeItemSnapshot]?
+    let createdAt: Date
+    let updatedAt: Date
+
+    init(_ log: NutritionLogEntry) {
+        id = log.id
+        userId = log.userId
+        timestamp = log.timestamp
+        logTypeRaw = log.logTypeRaw
+        sourceItemId = log.sourceItemId
+        sourceMealId = log.sourceMealId
+        amount = log.amount
+        amountUnitSnapshot = log.amountUnitSnapshot
+        categoryRaw = log.categoryRaw
+        note = log.note
+        dayKey = log.dayKey
+        logDate = log.logDate
+        creationMethodRaw = log.creationMethodRaw
+        nameSnapshot = log.nameSnapshot
+        brandSnapshot = log.brandSnapshot
+        servingUnitLabelSnapshot = log.servingUnitLabelSnapshot
+        caloriesSnapshot = log.caloriesSnapshot
+        proteinSnapshot = log.proteinSnapshot
+        carbsSnapshot = log.carbsSnapshot
+        fatSnapshot = log.fatSnapshot
+        extraNutrientsSnapshot = log.extraNutrientsSnapshot
+        recipeItemsSnapshot = log.recipeItemsSnapshot
+        createdAt = log.createdAt
+        updatedAt = log.updatedAt
+    }
+}
+

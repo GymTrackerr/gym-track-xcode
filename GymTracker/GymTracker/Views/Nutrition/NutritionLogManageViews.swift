@@ -13,6 +13,7 @@ enum FoodFilterKind: Int, CaseIterable, Identifiable {
     case all = 0
     case foods = 1
     case drinks = 2
+    case ingredients = 3
 
     var id: Int { rawValue }
 
@@ -24,6 +25,8 @@ enum FoodFilterKind: Int, CaseIterable, Identifiable {
             return "Foods"
         case .drinks:
             return "Drinks"
+        case .ingredients:
+            return "Ingredients"
         }
     }
 
@@ -35,6 +38,8 @@ enum FoodFilterKind: Int, CaseIterable, Identifiable {
             return "Food"
         case .drinks:
             return "Drink"
+        case .ingredients:
+            return "Ingredient"
         }
     }
 
@@ -46,10 +51,12 @@ enum FoodFilterKind: Int, CaseIterable, Identifiable {
             return "Foods"
         case .drinks:
             return "Drinks"
+        case .ingredients:
+            return "Ingredients"
         }
     }
 
-    var kind: FoodKind? {
+    var kind: FoodItemKind? {
         switch self {
         case .all:
             return nil
@@ -57,14 +64,16 @@ enum FoodFilterKind: Int, CaseIterable, Identifiable {
             return .food
         case .drinks:
             return .drink
+        case .ingredients:
+            return .ingredient
         }
     }
 }
 
 private struct FoodPickerSections {
-    let favorites: [Food]
-    let recent: [Food]
-    let all: [Food]
+    let favorites: [FoodItem]
+    let recent: [FoodItem]
+    let all: [FoodItem]
 }
 
 struct NutritionLogSheet: View {
@@ -74,9 +83,9 @@ struct NutritionLogSheet: View {
     let selectedDate: Date
 
     @State private var mode: NutritionLogMode = .food
-    @State private var selectedFood: Food?
-    @State private var selectedMeal: Meal?
-    @State private var grams: String = ""
+    @State private var selectedFood: FoodItem?
+    @State private var selectedMeal: MealRecipe?
+    @State private var amount: String = ""
     @State private var quickCalories: String = ""
     @State private var category: FoodLogCategory = .other
     @State private var selectedTime: Date = Date()
@@ -89,25 +98,19 @@ struct NutritionLogSheet: View {
     @State private var saveErrorMessage = ""
 
     private var amountUnitLabel: String {
-        if mode == .drink {
-            return selectedFood?.unit.shortLabel ?? FoodUnit.milliliters.shortLabel
-        }
-        return selectedFood?.unit.shortLabel ?? FoodUnit.grams.shortLabel
+        selectedFood?.unit.shortLabel ?? (mode == .drink ? FoodItemUnit.milliliters.shortLabel : FoodItemUnit.grams.shortLabel)
     }
 
     private var canSave: Bool {
         switch mode {
-        case .food:
-            let gramsValue = Double(grams.replacingOccurrences(of: ",", with: ".")) ?? 0
-            return selectedFood != nil && gramsValue > 0
-        case .drink:
-            let gramsValue = Double(grams.replacingOccurrences(of: ",", with: ".")) ?? 0
-            return selectedFood != nil && gramsValue > 0
+        case .food, .drink:
+            let value = Double(amount.replacingOccurrences(of: ",", with: ".")) ?? 0
+            return selectedFood != nil && value > 0
         case .meal:
             return selectedMeal != nil
         case .quickAdd:
-            let calories = Double(quickCalories.replacingOccurrences(of: ",", with: ".")) ?? 0
-            return calories > 0
+            let value = Double(quickCalories.replacingOccurrences(of: ",", with: ".")) ?? 0
+            return value > 0
         }
     }
 
@@ -124,13 +127,13 @@ struct NutritionLogSheet: View {
                 }
 
                 switch mode {
-                case .food:
-                    Section("Food") {
+                case .food, .drink:
+                    Section(mode == .drink ? "Drink" : "Food") {
                         Button {
                             showFoodPicker = true
                         } label: {
                             HStack {
-                                Text("Food")
+                                Text(mode == .drink ? "Drink" : "Food")
                                 Spacer()
                                 Text(selectedFood?.name ?? "Select")
                                     .foregroundStyle(selectedFood == nil ? .secondary : .primary)
@@ -141,27 +144,7 @@ struct NutritionLogSheet: View {
                         }
                         .buttonStyle(.plain)
 
-                        TextField("Amount (\(amountUnitLabel))", text: $grams)
-                            .keyboardType(.decimalPad)
-                    }
-                case .drink:
-                    Section("Drink") {
-                        Button {
-                            showFoodPicker = true
-                        } label: {
-                            HStack {
-                                Text("Drink")
-                                Spacer()
-                                Text(selectedFood?.name ?? "Select")
-                                    .foregroundStyle(selectedFood == nil ? .secondary : .primary)
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundStyle(.tertiary)
-                            }
-                        }
-                        .buttonStyle(.plain)
-
-                        TextField("Amount (\(amountUnitLabel))", text: $grams)
+                        TextField("Amount (\(amountUnitLabel))", text: $amount)
                             .keyboardType(.decimalPad)
                     }
                 case .meal:
@@ -210,16 +193,11 @@ struct NutritionLogSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
+                    Button("Cancel") { dismiss() }
                 }
-
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Save") {
-                        save()
-                    }
-                    .disabled(!canSave)
+                    Button("Save") { save() }
+                        .disabled(!canSave)
                 }
             }
             .onAppear {
@@ -290,32 +268,17 @@ struct NutritionLogSheet: View {
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
 
         switch mode {
-        case .food:
+        case .food, .drink:
             guard let selectedFood else {
                 throw NutritionService.NutritionError.validation("Select a food before saving.")
             }
             guard selectedFood.userId == currentUserId else {
                 throw NutritionService.NutritionError.validation("Selected food does not belong to the active user.")
             }
-            let gramsValue = Double(grams.replacingOccurrences(of: ",", with: ".")) ?? 0
+            let amountValue = Double(amount.replacingOccurrences(of: ",", with: ".")) ?? 0
             _ = try nutritionService.addFoodLog(
                 food: selectedFood,
-                grams: gramsValue,
-                timestamp: timestamp,
-                category: category,
-                note: trimmedNote
-            )
-        case .drink:
-            guard let selectedFood else {
-                throw NutritionService.NutritionError.validation("Select a drink before saving.")
-            }
-            guard selectedFood.userId == currentUserId else {
-                throw NutritionService.NutritionError.validation("Selected drink does not belong to the active user.")
-            }
-            let gramsValue = Double(grams.replacingOccurrences(of: ",", with: ".")) ?? 0
-            _ = try nutritionService.addFoodLog(
-                food: selectedFood,
-                grams: gramsValue,
+                grams: amountValue,
                 timestamp: timestamp,
                 category: category,
                 note: trimmedNote
@@ -329,6 +292,7 @@ struct NutritionLogSheet: View {
             }
             _ = try nutritionService.logMeal(
                 template: selectedMeal,
+                amount: 1,
                 timestamp: timestamp,
                 category: category,
                 note: trimmedNote
@@ -351,7 +315,7 @@ struct NutritionFoodPickerView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var nutritionService: NutritionService
 
-    let onSelect: (Food) -> Void
+    let onSelect: (FoodItem) -> Void
 
     @State private var filter: FoodFilterKind = .all
     @State private var searchText: String = ""
@@ -362,7 +326,7 @@ struct NutritionFoodPickerView: View {
     @State private var actionErrorMessage = ""
     private let initialFilter: FoodFilterKind
 
-    init(initialFilter: FoodFilterKind = .all, onSelect: @escaping (Food) -> Void) {
+    init(initialFilter: FoodFilterKind = .all, onSelect: @escaping (FoodItem) -> Void) {
         self.initialFilter = initialFilter
         self.onSelect = onSelect
     }
@@ -381,11 +345,7 @@ struct NutritionFoodPickerView: View {
             .filter { food in
                 !seenIds.contains(food.id)
             }
-        return FoodPickerSections(
-            favorites: favorites,
-            recent: recentWithoutFavorites,
-            all: allWithoutFavoritesAndRecent
-        )
+        return FoodPickerSections(favorites: favorites, recent: recentWithoutFavorites, all: allWithoutFavoritesAndRecent)
     }
 
     private var pickerTitle: String {
@@ -468,13 +428,13 @@ struct NutritionFoodPickerView: View {
         }
     }
 
-    private func matchesSearch(_ food: Food) -> Bool {
+    private func matchesSearch(_ food: FoodItem) -> Bool {
         searchText.isEmpty
             || food.name.localizedCaseInsensitiveContains(searchText)
             || (food.brand?.localizedCaseInsensitiveContains(searchText) ?? false)
     }
 
-    private func foodRow(_ food: Food) -> some View {
+    private func foodRow(_ food: FoodItem) -> some View {
         Button {
             onSelect(food)
             dismiss()
@@ -507,13 +467,13 @@ struct NutritionMealPickerView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var nutritionService: NutritionService
 
-    let onSelect: (Meal) -> Void
+    let onSelect: (MealRecipe) -> Void
 
     @State private var searchText: String = ""
     @State private var showCreateMeal = false
     @State private var dismissAfterCreate = false
 
-    private var filteredMeals: [Meal] {
+    private var filteredMeals: [MealRecipe] {
         nutritionService.fetchMeals(search: searchText)
     }
 
@@ -604,12 +564,12 @@ private struct ManageFoodsView: View {
     @State private var filter: FoodFilterKind = .all
     @State private var showArchived = false
     @State private var showCreateFood = false
-    @State private var editingFood: Food?
+    @State private var editingFood: FoodItem?
     @State private var showEditingFood = false
     @State private var showActionError = false
     @State private var actionErrorMessage = ""
 
-    private var foods: [Food] {
+    private var foods: [FoodItem] {
         nutritionService.fetchFoods(search: searchText, includeArchived: showArchived, kind: filter.kind)
     }
 
@@ -704,10 +664,10 @@ private struct ManageMealsView: View {
 
     @State private var searchText = ""
     @State private var showCreateMeal = false
-    @State private var editingMeal: Meal?
+    @State private var editingMeal: MealRecipe?
     @State private var showEditMeal = false
 
-    private var meals: [Meal] {
+    private var meals: [MealRecipe] {
         nutritionService.fetchMeals(search: searchText)
     }
 
@@ -765,11 +725,11 @@ struct NutritionFoodEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var nutritionService: NutritionService
 
-    let food: Food?
-    let preferredKind: FoodKind?
-    var onSaved: ((Food) -> Void)?
+    let food: FoodItem?
+    let preferredKind: FoodItemKind?
+    var onSaved: ((FoodItem) -> Void)?
 
-    init(food: Food? = nil, preferredKind: FoodKind? = nil, onSaved: ((Food) -> Void)? = nil) {
+    init(food: FoodItem? = nil, preferredKind: FoodItemKind? = nil, onSaved: ((FoodItem) -> Void)? = nil) {
         self.food = food
         self.preferredKind = preferredKind
         self.onSaved = onSaved
@@ -783,33 +743,23 @@ struct NutritionFoodEditorView: View {
     @State private var proteinPerReference = ""
     @State private var carbPerReference = ""
     @State private var fatPerReference = ""
-    @State private var isDrink = false
-    @State private var unit: FoodUnit = .grams
+    @State private var kind: FoodItemKind = .food
+    @State private var unit: FoodItemUnit = .grams
     @State private var errorText: String?
-
-    private var itemTitle: String {
-        isDrink ? "Drink" : "Food"
-    }
-
-    private var editorTitle: String {
-        if food == nil {
-            return isDrink ? "Add Drink" : "Add Food"
-        }
-        return isDrink ? "Edit Drink" : "Edit Food"
-    }
 
     var body: some View {
         Form {
-            Section(itemTitle) {
+            Section("Food") {
                 TextField("Name", text: $name)
                 TextField("Brand (optional)", text: $brand)
                 TextField("Reference label (optional)", text: $referenceLabel)
-                Toggle("This is a drink", isOn: $isDrink)
-                    .onChange(of: isDrink) {
-                        handleDrinkToggleChanged()
-                    }
+                Picker("Type", selection: $kind) {
+                    Text("Food").tag(FoodItemKind.food)
+                    Text("Drink").tag(FoodItemKind.drink)
+                    Text("Ingredient").tag(FoodItemKind.ingredient)
+                }
                 Picker("Unit", selection: $unit) {
-                    ForEach(FoodUnit.allCases) { value in
+                    ForEach(FoodItemUnit.allCases) { value in
                         Text(value.displayName).tag(value)
                     }
                 }
@@ -821,14 +771,10 @@ struct NutritionFoodEditorView: View {
             }
 
             Section("Nutrition Per Reference") {
-                TextField("Calories", text: $kcalPerReference)
-                    .keyboardType(.decimalPad)
-                TextField("Protein", text: $proteinPerReference)
-                    .keyboardType(.decimalPad)
-                TextField("Carbs", text: $carbPerReference)
-                    .keyboardType(.decimalPad)
-                TextField("Fat", text: $fatPerReference)
-                    .keyboardType(.decimalPad)
+                TextField("Calories", text: $kcalPerReference).keyboardType(.decimalPad)
+                TextField("Protein", text: $proteinPerReference).keyboardType(.decimalPad)
+                TextField("Carbs", text: $carbPerReference).keyboardType(.decimalPad)
+                TextField("Fat", text: $fatPerReference).keyboardType(.decimalPad)
             }
 
             if let errorText {
@@ -839,18 +785,13 @@ struct NutritionFoodEditorView: View {
                 }
             }
         }
-        .navigationTitle(editorTitle)
+        .navigationTitle(food == nil ? "Add Food" : "Edit Food")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
-                Button("Cancel") {
-                    dismiss()
-                }
+                Button("Cancel") { dismiss() }
             }
-
             ToolbarItem(placement: .topBarTrailing) {
-                Button("Save") {
-                    save()
-                }
+                Button("Save") { save() }
             }
         }
         .onAppear {
@@ -860,50 +801,43 @@ struct NutritionFoodEditorView: View {
 
     private func loadInitialValues() {
         guard let food else {
-            if preferredKind == .drink {
-                isDrink = true
-                unit = .milliliters
+            if let preferredKind {
+                kind = preferredKind
+                if preferredKind == .drink {
+                    unit = .milliliters
+                }
             }
             return
         }
+
         name = food.name
         brand = food.brand ?? ""
         referenceLabel = food.referenceLabel ?? ""
-        gramsPerReference = String(format: "%.0f", food.gramsPerReference)
-        kcalPerReference = String(format: "%.0f", food.kcalPerReference)
+        gramsPerReference = String(format: "%.0f", food.referenceQuantity)
+        kcalPerReference = String(format: "%.0f", food.caloriesPerReference)
         proteinPerReference = String(format: "%.0f", food.proteinPerReference)
-        carbPerReference = String(format: "%.0f", food.carbPerReference)
+        carbPerReference = String(format: "%.0f", food.carbsPerReference)
         fatPerReference = String(format: "%.0f", food.fatPerReference)
-        isDrink = food.kind == .drink
+        kind = food.kind
         unit = food.unit
     }
 
-    private func handleDrinkToggleChanged() {
-        if isDrink {
-            if unit == .grams {
-                unit = .milliliters
-            }
-        } else if unit == .milliliters {
-            unit = .grams
-        }
-    }
-
     private func save() {
-        let grams = Double(gramsPerReference.replacingOccurrences(of: ",", with: ".")) ?? 0
+        let reference = Double(gramsPerReference.replacingOccurrences(of: ",", with: ".")) ?? 0
         let kcal = Double(kcalPerReference.replacingOccurrences(of: ",", with: ".")) ?? 0
         let protein = Double(proteinPerReference.replacingOccurrences(of: ",", with: ".")) ?? 0
-        let carb = Double(carbPerReference.replacingOccurrences(of: ",", with: ".")) ?? 0
+        let carbs = Double(carbPerReference.replacingOccurrences(of: ",", with: ".")) ?? 0
         let fat = Double(fatPerReference.replacingOccurrences(of: ",", with: ".")) ?? 0
 
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             errorText = "Name is required."
             return
         }
-        guard grams > 0 else {
-            errorText = "Grams per reference must be greater than 0."
+        guard reference > 0 else {
+            errorText = "Reference amount must be greater than 0."
             return
         }
-        guard kcal >= 0, protein >= 0, carb >= 0, fat >= 0 else {
+        guard kcal >= 0, protein >= 0, carbs >= 0, fat >= 0 else {
             errorText = "Nutrition values cannot be negative."
             return
         }
@@ -914,12 +848,12 @@ struct NutritionFoodEditorView: View {
                 name: name,
                 brand: brand,
                 referenceLabel: referenceLabel,
-                gramsPerReference: grams,
+                gramsPerReference: reference,
                 kcalPerReference: kcal,
                 proteinPerReference: protein,
-                carbPerReference: carb,
+                carbPerReference: carbs,
                 fatPerReference: fat,
-                kind: isDrink ? .drink : .food,
+                kind: kind,
                 unit: unit
             )
 
@@ -934,12 +868,12 @@ struct NutritionFoodEditorView: View {
                 name: name,
                 brand: brand,
                 referenceLabel: referenceLabel,
-                gramsPerReference: grams,
+                gramsPerReference: reference,
                 kcalPerReference: kcal,
                 proteinPerReference: protein,
-                carbPerReference: carb,
+                carbPerReference: carbs,
                 fatPerReference: fat,
-                kind: isDrink ? .drink : .food,
+                kind: kind,
                 unit: unit
             )
 
@@ -969,8 +903,8 @@ struct NutritionMealTemplateEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var nutritionService: NutritionService
 
-    let meal: Meal?
-    var onSaved: ((Meal) -> Void)? = nil
+    let meal: MealRecipe?
+    var onSaved: ((MealRecipe) -> Void)? = nil
 
     @State private var name: String = ""
     @State private var defaultCategory: FoodLogCategory = .other
@@ -983,15 +917,12 @@ struct NutritionMealTemplateEditorView: View {
     @State private var errorText: String?
     @State private var didLoadInitialValues = false
 
-    init(
-        meal: Meal? = nil,
-        onSaved: ((Meal) -> Void)? = nil
-    ) {
+    init(meal: MealRecipe? = nil, onSaved: ((MealRecipe) -> Void)? = nil) {
         self.meal = meal
         self.onSaved = onSaved
     }
 
-    private var availableFoods: [Food] {
+    private var availableFoods: [FoodItem] {
         nutritionService.fetchFoods(search: nil, includeArchived: showArchivedFoods, kind: filter.kind)
     }
 
@@ -1086,17 +1017,11 @@ struct NutritionMealTemplateEditorView: View {
         .navigationTitle(meal == nil ? "Create Meal Template" : "Edit Meal Template")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
-                Button("Cancel") {
-                    dismiss()
-                }
+                Button("Cancel") { dismiss() }
             }
-
             ToolbarItem(placement: .topBarTrailing) {
-                Button("Save") {
-                    save()
-                }
+                Button("Save") { save() }
             }
-
             ToolbarItem(placement: .topBarTrailing) {
                 EditButton()
             }
@@ -1147,8 +1072,8 @@ struct NutritionMealTemplateEditorView: View {
                 .map {
                     MealTemplateDraftItem(
                         id: $0.id,
-                        foodId: $0.food.id,
-                        gramsText: String(format: "%.0f", $0.grams)
+                        foodId: $0.foodItem.id,
+                        gramsText: String(format: "%.0f", $0.amount)
                     )
                 }
 

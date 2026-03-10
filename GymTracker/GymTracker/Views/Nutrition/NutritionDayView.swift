@@ -7,22 +7,18 @@ struct NutritionDayView: View {
     @State private var showDatePickerSheet = false
     @State private var showLogSheet = false
     @State private var showManagePage = false
-    @State private var expandedMealEntryIDs: Set<UUID> = []
-    @State private var editingLog: FoodLog?
+    @State private var expandedMealLogIDs: Set<UUID> = []
+    @State private var editingLog: NutritionLogEntry?
     @State private var showTargetsSheet = false
     @State private var showCopyYesterdayConfirmation = false
     @State private var showErrorAlert = false
     @State private var errorMessage = ""
     @State private var showSaveTemplateAlert = false
-    @State private var mealEntryToSaveTemplate: MealEntry?
+    @State private var mealLogToSaveTemplate: NutritionLogEntry?
     @State private var mealTemplateName = ""
 
-    private var dayLogs: [FoodLog] {
+    private var dayLogs: [NutritionLogEntry] {
         nutritionService.dayLogs.sorted { $0.timestamp < $1.timestamp }
-    }
-
-    private var dayMealEntries: [MealEntry] {
-        nutritionService.dayMealEntries.sorted { $0.timestamp < $1.timestamp }
     }
 
     private var totalKcal: Double {
@@ -72,7 +68,6 @@ struct NutritionDayView: View {
     var body: some View {
         VStack(spacing: 12) {
             dayHeader
-
             dailySummary
 
             if dayLogs.isEmpty {
@@ -81,12 +76,12 @@ struct NutritionDayView: View {
             } else {
                 List {
                     ForEach(FoodLogCategory.displayOrder) { category in
-                        let standaloneLogs = standaloneLogs(for: category)
-                        let categoryMealEntries = mealEntries(for: category)
+                        let standalone = standaloneLogs(for: category)
+                        let meals = mealLogs(for: category)
 
-                        if !standaloneLogs.isEmpty || !categoryMealEntries.isEmpty {
+                        if !standalone.isEmpty || !meals.isEmpty {
                             Section {
-                                ForEach(standaloneLogs, id: \.id) { log in
+                                ForEach(standalone, id: \.id) { log in
                                     NutritionLogRow(log: log)
                                         .contentShape(Rectangle())
                                         .onTapGesture {
@@ -101,48 +96,51 @@ struct NutritionDayView: View {
                                         }
                                 }
 
-                                ForEach(categoryMealEntries, id: \.id) { entry in
-                                    let isExpanded = expandedMealEntryIDs.contains(entry.id)
+                                ForEach(meals, id: \.id) { log in
+                                    let isExpanded = expandedMealLogIDs.contains(log.id)
                                     VStack(alignment: .leading, spacing: 8) {
-                                        NutritionMealEntryHeaderRow(
-                                            entry: entry,
-                                            logs: logs(for: entry),
+                                        NutritionMealLogHeaderRow(
+                                            log: log,
                                             isExpanded: isExpanded,
                                             onSaveAsTemplate: {
-                                                mealEntryToSaveTemplate = entry
-                                                mealTemplateName = entry.templateMeal?.name ?? "Saved Meal"
+                                                mealLogToSaveTemplate = log
+                                                mealTemplateName = log.nameSnapshot
                                                 showSaveTemplateAlert = true
                                             }
                                         )
-                                            .contentShape(Rectangle())
-                                            .onTapGesture {
-                                                toggleMealEntry(entry.id)
+                                        .contentShape(Rectangle())
+                                        .onTapGesture {
+                                            toggleMealLog(log.id)
+                                        }
+                                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                            Button(role: .destructive) {
+                                                nutritionService.deleteMealEntry(log, selectedDate: selectedDate)
+                                                expandedMealLogIDs.remove(log.id)
+                                            } label: {
+                                                Label("Delete", systemImage: "trash")
                                             }
-                                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                                Button(role: .destructive) {
-                                                    nutritionService.deleteMealEntry(entry, selectedDate: selectedDate)
-                                                    expandedMealEntryIDs.remove(entry.id)
-                                                } label: {
-                                                    Label("Delete", systemImage: "trash")
-                                                }
-                                            }
+                                        }
 
                                         if isExpanded {
-                                            Divider()
-                                                .padding(.leading, 12)
-                                                .padding(.bottom, 4)
+                                            let items = log.recipeItemsSnapshot ?? []
+                                            if items.isEmpty {
+                                                Text("No meal item snapshot available")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                                    .padding(.leading, 24)
+                                            } else {
+                                                Divider()
+                                                    .padding(.leading, 12)
+                                                    .padding(.bottom, 4)
 
-                                            VStack(spacing: 10) {
-                                                ForEach(logs(for: entry), id: \.id) { log in
-                                                    NutritionLogRow(log: log)
-                                                        .contentShape(Rectangle())
-                                                        .onTapGesture {
-                                                            editingLog = log
-                                                        }
+                                                VStack(spacing: 8) {
+                                                    ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                                                        RecipeItemSnapshotRow(item: item)
+                                                    }
                                                 }
+                                                .padding(.top, 3)
+                                                .padding(.leading, 24)
                                             }
-                                            .padding(.top, 3)
-                                            .transition(.opacity)
                                         }
                                     }
                                     .padding(.vertical, 2)
@@ -179,7 +177,7 @@ struct NutritionDayView: View {
                 Button {
                     showLogSheet = true
                 } label: {
-                    Label("Log Food", systemImage: "plus.circle")
+                    Label("Log", systemImage: "plus.circle")
                 }
             }
 
@@ -222,7 +220,7 @@ struct NutritionDayView: View {
                 .presentationDetents([.medium, .large])
         }
         .sheet(item: $editingLog) { log in
-            EditFoodLogView(log: log, selectedDate: selectedDate)
+            EditNutritionLogView(log: log, selectedDate: selectedDate)
                 .presentationDetents([.medium, .large])
         }
         .confirmationDialog(
@@ -244,17 +242,17 @@ struct NutritionDayView: View {
         .alert("Save as Template", isPresented: $showSaveTemplateAlert) {
             TextField("Template Name", text: $mealTemplateName)
             Button("Save") {
-                guard let mealEntryToSaveTemplate else { return }
+                guard let mealLogToSaveTemplate else { return }
                 do {
-                    _ = try nutritionService.createMealTemplate(from: mealEntryToSaveTemplate, name: mealTemplateName)
+                    _ = try nutritionService.createMealTemplate(from: mealLogToSaveTemplate, name: mealTemplateName)
                 } catch {
                     errorMessage = error.localizedDescription
                     showErrorAlert = true
                 }
-                self.mealEntryToSaveTemplate = nil
+                self.mealLogToSaveTemplate = nil
             }
             Button("Cancel", role: .cancel) {
-                mealEntryToSaveTemplate = nil
+                mealLogToSaveTemplate = nil
             }
         } message: {
             Text("Create a reusable template from this logged meal.")
@@ -368,29 +366,21 @@ struct NutritionDayView: View {
         .padding(.horizontal)
     }
 
-    private func standaloneLogs(for category: FoodLogCategory) -> [FoodLog] {
-        dayLogs
-            .filter { $0.category == category && $0.mealEntry == nil }
+    private func standaloneLogs(for category: FoodLogCategory) -> [NutritionLogEntry] {
+        dayLogs.filter { $0.category == category && $0.logType != .meal }
             .sorted { $0.timestamp < $1.timestamp }
     }
 
-    private func mealEntries(for category: FoodLogCategory) -> [MealEntry] {
-        dayMealEntries
-            .filter { $0.category == category }
+    private func mealLogs(for category: FoodLogCategory) -> [NutritionLogEntry] {
+        dayLogs.filter { $0.category == category && $0.logType == .meal }
             .sorted { $0.timestamp < $1.timestamp }
     }
 
-    private func logs(for entry: MealEntry) -> [FoodLog] {
-        dayLogs
-            .filter { $0.mealEntry?.id == entry.id }
-            .sorted { $0.timestamp < $1.timestamp }
-    }
-
-    private func toggleMealEntry(_ id: UUID) {
-        if expandedMealEntryIDs.contains(id) {
-            expandedMealEntryIDs.remove(id)
+    private func toggleMealLog(_ id: UUID) {
+        if expandedMealLogIDs.contains(id) {
+            expandedMealLogIDs.remove(id)
         } else {
-            expandedMealEntryIDs.insert(id)
+            expandedMealLogIDs.insert(id)
         }
     }
 }
@@ -416,15 +406,10 @@ private struct NutritionMacroChip: View {
     }
 }
 
-private struct NutritionMealEntryHeaderRow: View {
-    let entry: MealEntry
-    let logs: [FoodLog]
+private struct NutritionMealLogHeaderRow: View {
+    let log: NutritionLogEntry
     let isExpanded: Bool
     let onSaveAsTemplate: () -> Void
-
-    private var totalKcal: Int {
-        Int(logs.reduce(0) { $0 + $1.kcal }.rounded())
-    }
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
@@ -434,7 +419,7 @@ private struct NutritionMealEntryHeaderRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    Text(entry.templateMeal?.name ?? "Meal")
+                    Text(log.nameSnapshot)
                         .font(.subheadline)
                         .fontWeight(.semibold)
 
@@ -447,11 +432,11 @@ private struct NutritionMealEntryHeaderRow: View {
                         .clipShape(Capsule())
                 }
 
-                Text(entry.timestamp, format: .dateTime.hour().minute())
+                Text(log.timestamp, format: .dateTime.hour().minute())
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                if let note = entry.note, !note.isEmpty {
+                if let note = log.note, !note.isEmpty {
                     Text(note)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -462,11 +447,11 @@ private struct NutritionMealEntryHeaderRow: View {
             Spacer()
 
             VStack(alignment: .trailing, spacing: 2) {
-                Text("\(totalKcal) kcal")
+                Text("\(Int(log.caloriesSnapshot.rounded())) kcal")
                     .font(.subheadline)
                     .fontWeight(.semibold)
 
-                Text("\(logs.count) item\(logs.count == 1 ? "" : "s")")
+                Text("\(displayAmount(log.amount)) \(log.servingUnitLabelSnapshot ?? log.amountUnitSnapshot)")
                     .font(.caption)
                     .foregroundStyle(.secondary.opacity(0.75))
             }
@@ -482,19 +467,26 @@ private struct NutritionMealEntryHeaderRow: View {
         }
         .padding(.vertical, 4)
     }
+
+    private func displayAmount(_ value: Double) -> String {
+        if value.truncatingRemainder(dividingBy: 1) == 0 {
+            return String(Int(value))
+        }
+        return SetDisplayFormatter.formatDecimal(value)
+    }
 }
 
 private struct NutritionLogRow: View {
-    let log: FoodLog
+    let log: NutritionLogEntry
 
     private var isQuickAdd: Bool {
-        log.quickCaloriesKcal != nil
+        log.logType == .quickCalories
     }
 
     var body: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(isQuickAdd ? "Quick Calories" : log.food.name)
+                Text(log.nameSnapshot)
                     .font(.body)
                     .fontWeight(.medium)
 
@@ -513,7 +505,7 @@ private struct NutritionLogRow: View {
             Spacer()
 
             VStack(alignment: .trailing, spacing: 2) {
-                Text("\(Int(log.kcal.rounded())) kcal")
+                Text("\(Int(log.caloriesSnapshot.rounded())) kcal")
                     .font(.subheadline)
                     .fontWeight(.semibold)
 
@@ -522,13 +514,54 @@ private struct NutritionLogRow: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    Text("\(Int(log.grams.rounded())) \(log.food.unit.shortLabel)")
+                    Text("\(displayAmount(log.amount)) \(log.amountUnitSnapshot)")
                         .font(.caption)
                         .foregroundStyle(.secondary.opacity(0.75))
                 }
             }
         }
         .padding(.vertical, 2)
+    }
+
+    private func displayAmount(_ value: Double) -> String {
+        if value.truncatingRemainder(dividingBy: 1) == 0 {
+            return String(Int(value))
+        }
+        return SetDisplayFormatter.formatDecimal(value)
+    }
+}
+
+private struct RecipeItemSnapshotRow: View {
+    let item: RecipeItemSnapshot
+
+    var body: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.name)
+                    .font(.subheadline)
+                Text("\(displayAmount(item.amount)) \(item.amountUnit)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("\(Int(item.caloriesSnapshot.rounded())) kcal")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                Text("P \(Int(item.proteinSnapshot.rounded()))  C \(Int(item.carbsSnapshot.rounded()))  F \(Int(item.fatSnapshot.rounded()))")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func displayAmount(_ value: Double) -> String {
+        if value.truncatingRemainder(dividingBy: 1) == 0 {
+            return String(Int(value))
+        }
+        return SetDisplayFormatter.formatDecimal(value)
     }
 }
 
@@ -539,23 +572,17 @@ private struct NutritionDatePickerSheet: View {
     var body: some View {
         NavigationStack {
             VStack {
-                DatePicker(
-                    "Date",
-                    selection: $selectedDate,
-                    displayedComponents: .date
-                )
-                .datePickerStyle(.graphical)
-                .labelsHidden()
-                .padding()
+                DatePicker("Date", selection: $selectedDate, displayedComponents: .date)
+                    .datePickerStyle(.graphical)
+                    .labelsHidden()
+                    .padding()
 
                 Spacer()
             }
             .navigationTitle("Select Date")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
+                    Button("Done") { dismiss() }
                 }
             }
         }
@@ -579,27 +606,19 @@ private struct NutritionTargetsView: View {
             Form {
                 Section("Targets") {
                     Toggle("Enable Targets", isOn: $isEnabled)
-                    TextField("Calories", text: $calories)
-                        .keyboardType(.decimalPad)
-                    TextField("Protein", text: $protein)
-                        .keyboardType(.decimalPad)
-                    TextField("Carbs", text: $carbs)
-                        .keyboardType(.decimalPad)
-                    TextField("Fat", text: $fat)
-                        .keyboardType(.decimalPad)
+                    TextField("Calories", text: $calories).keyboardType(.decimalPad)
+                    TextField("Protein", text: $protein).keyboardType(.decimalPad)
+                    TextField("Carbs", text: $carbs).keyboardType(.decimalPad)
+                    TextField("Fat", text: $fat).keyboardType(.decimalPad)
                 }
             }
             .navigationTitle("Nutrition Targets")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
+                    Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Save") {
-                        save()
-                    }
+                    Button("Save") { save() }
                 }
             }
             .onAppear {
@@ -653,14 +672,14 @@ private struct NutritionTargetsView: View {
     }
 }
 
-private struct EditFoodLogView: View {
+private struct EditNutritionLogView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var nutritionService: NutritionService
 
-    let log: FoodLog
+    let log: NutritionLogEntry
     let selectedDate: Date
 
-    @State private var grams = ""
+    @State private var amount = ""
     @State private var note = ""
     @State private var category: FoodLogCategory = .other
     @State private var selectedTime: Date = Date()
@@ -668,12 +687,12 @@ private struct EditFoodLogView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Food") {
-                    Text(log.food.name)
+                Section("Entry") {
+                    Text(log.nameSnapshot)
                 }
 
                 Section("Edit") {
-                    TextField("Grams", text: $grams)
+                    TextField("Amount", text: $amount)
                         .keyboardType(.decimalPad)
 
                     Picker("Category", selection: $category) {
@@ -689,39 +708,35 @@ private struct EditFoodLogView: View {
             }
             .navigationTitle("Edit Log")
             .onAppear {
-                grams = String(format: "%.0f", log.grams)
+                amount = String(format: "%.2f", log.amount)
                 note = log.note ?? ""
                 category = log.category
                 selectedTime = log.timestamp
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
+                    Button("Cancel") { dismiss() }
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Save") {
-                        save()
-                    }
-                    .disabled(!canSave)
+                    Button("Save") { save() }
+                        .disabled(!canSave)
                 }
             }
         }
     }
 
     private var canSave: Bool {
-        (Double(grams.replacingOccurrences(of: ",", with: ".")) ?? 0) > 0
+        (Double(amount.replacingOccurrences(of: ",", with: ".")) ?? 0) > 0
     }
 
     private func save() {
-        let gramsValue = Double(grams.replacingOccurrences(of: ",", with: ".")) ?? 0
+        let amountValue = Double(amount.replacingOccurrences(of: ",", with: ".")) ?? 0
         let pinnedTimestamp = nutritionService.dateByPinning(selectedTime, to: selectedDate)
 
         let didSave = nutritionService.updateFoodLog(
             log,
-            grams: gramsValue,
+            amount: amountValue,
             timestamp: pinnedTimestamp,
             category: category,
             note: note

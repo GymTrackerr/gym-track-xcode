@@ -1,14 +1,7 @@
-//
-//  NutritionService.swift
-//  GymTracker
-//
-//  Created by Daniel Kravec on 2026-02-23.
-//
 import Foundation
 import SwiftUI
 import SwiftData
 import Combine
-internal import CoreData
 
 class NutritionService: ServiceBase, ObservableObject {
     enum NutritionError: LocalizedError {
@@ -29,14 +22,13 @@ class NutritionService: ServiceBase, ObservableObject {
     }
 
     struct MealInputItem {
-        let food: Food
+        let food: FoodItem
         let grams: Double
     }
 
     struct DailyKcalPoint: Identifiable {
         let date: Date
         let kcal: Double
-
         var id: Date { date }
     }
 
@@ -50,10 +42,14 @@ class NutritionService: ServiceBase, ObservableObject {
 
         var displayName: String {
             switch self {
-            case .calories: return "Calories"
-            case .protein: return "Protein"
-            case .carbs: return "Carbs"
-            case .fat: return "Fat"
+            case .calories:
+                return "Calories"
+            case .protein:
+                return "Protein"
+            case .carbs:
+                return "Carbs"
+            case .fat:
+                return "Fat"
             }
         }
     }
@@ -61,14 +57,13 @@ class NutritionService: ServiceBase, ObservableObject {
     struct DailyNutritionPoint: Identifiable {
         let date: Date
         let value: Double
-
         var id: Date { date }
     }
 
-    @Published var foods: [Food] = []
-    @Published var meals: [Meal] = []
-    @Published var dayLogs: [FoodLog] = []
-    @Published var dayMealEntries: [MealEntry] = []
+    @Published var foods: [FoodItem] = []
+    @Published var meals: [MealRecipe] = []
+    @Published var dayLogs: [NutritionLogEntry] = []
+    @Published var dayMealEntries: [NutritionLogEntry] = []
     @Published var nutritionTarget: NutritionTarget?
 
     override func loadFeature() {
@@ -95,9 +90,9 @@ class NutritionService: ServiceBase, ObservableObject {
             return
         }
 
-        let descriptor = FetchDescriptor<Food>(
-            predicate: #Predicate<Food> { food in
-                food.userId == userId
+        let descriptor = FetchDescriptor<FoodItem>(
+            predicate: #Predicate<FoodItem> { item in
+                item.userId == userId
             },
             sortBy: [SortDescriptor(\.name)]
         )
@@ -110,36 +105,58 @@ class NutritionService: ServiceBase, ObservableObject {
         }
     }
 
-    func fetchFoods(search: String? = nil, includeArchived: Bool = false, kind: FoodKind? = nil) -> [Food] {
+    func loadMeals() {
+        guard let userId = currentUser?.id else {
+            meals = []
+            return
+        }
+
+        let descriptor = FetchDescriptor<MealRecipe>(
+            predicate: #Predicate<MealRecipe> { meal in
+                meal.userId == userId
+            },
+            sortBy: [SortDescriptor(\.name)]
+        )
+
+        do {
+            meals = try modelContext.fetch(descriptor)
+        } catch {
+            meals = []
+            print("Failed to fetch meals: \(error)")
+        }
+    }
+
+    func fetchFoods(search: String? = nil, includeArchived: Bool = false, kind: FoodItemKind? = nil) -> [FoodItem] {
         let query = search?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
         return foods
             .filter { includeArchived || !$0.isArchived }
-            .filter { food in
+            .filter { item in
                 guard let kind else { return true }
-                return food.kind == kind
+                return item.kind == kind
             }
-            .filter { food in
+            .filter { item in
                 guard !query.isEmpty else { return true }
-                return food.name.localizedCaseInsensitiveContains(query)
-                    || (food.brand?.localizedCaseInsensitiveContains(query) ?? false)
+                return item.name.localizedCaseInsensitiveContains(query)
+                    || (item.brand?.localizedCaseInsensitiveContains(query) ?? false)
             }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
-    func fetchFavoriteFoods(includeArchived: Bool = false, kind: FoodKind? = nil) -> [Food] {
+    func fetchFavoriteFoods(includeArchived: Bool = false, kind: FoodItemKind? = nil) -> [FoodItem] {
         fetchFoods(search: nil, includeArchived: includeArchived, kind: kind)
             .filter { $0.isFavorite }
     }
 
-    func fetchRecentFoods(days: Int = 14, includeArchived: Bool = false, kind: FoodKind? = nil) -> [Food] {
+    func fetchRecentFoods(days: Int = 14, includeArchived: Bool = false, kind: FoodItemKind? = nil) -> [FoodItem] {
         guard let userId = currentUser?.id else { return [] }
         let now = Date()
         let start = Calendar.current.date(byAdding: .day, value: -max(days, 1), to: now) ?? now
+        let foodLogTypeRaw = NutritionLogType.food.rawValue
 
-        let descriptor = FetchDescriptor<FoodLog>(
-            predicate: #Predicate<FoodLog> { log in
-                log.userId == userId && log.timestamp >= start
+        let descriptor = FetchDescriptor<NutritionLogEntry>(
+            predicate: #Predicate<NutritionLogEntry> { log in
+                log.userId == userId && log.timestamp >= start && log.logTypeRaw == foodLogTypeRaw
             },
             sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
         )
@@ -147,10 +164,11 @@ class NutritionService: ServiceBase, ObservableObject {
         do {
             let logs = try modelContext.fetch(descriptor)
             var seen: Set<UUID> = []
-            var ordered: [Food] = []
+            var ordered: [FoodItem] = []
 
             for log in logs {
-                let food = log.food
+                guard let sourceItemId = log.sourceItemId,
+                      let food = foods.first(where: { $0.id == sourceItemId }) else { continue }
                 if !includeArchived && food.isArchived { continue }
                 if let kind, food.kind != kind { continue }
                 if seen.contains(food.id) { continue }
@@ -175,9 +193,9 @@ class NutritionService: ServiceBase, ObservableObject {
         proteinPerReference: Double,
         carbPerReference: Double,
         fatPerReference: Double,
-        kind: FoodKind = .food,
-        unit: FoodUnit = .grams
-    ) -> Food? {
+        kind: FoodItemKind = .food,
+        unit: FoodItemUnit = .grams
+    ) -> FoodItem? {
         guard let userId = try? requireUserId() else { return nil }
 
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -187,16 +205,17 @@ class NutritionService: ServiceBase, ObservableObject {
             return nil
         }
 
-        let food = Food(
+        let food = FoodItem(
             userId: userId,
             name: trimmedName,
             brand: normalizedOptionalText(brand),
             referenceLabel: normalizedOptionalText(referenceLabel),
-            gramsPerReference: gramsPerReference,
-            kcalPerReference: kcalPerReference,
+            referenceQuantity: gramsPerReference,
+            caloriesPerReference: kcalPerReference,
             proteinPerReference: proteinPerReference,
-            carbPerReference: carbPerReference,
+            carbsPerReference: carbPerReference,
             fatPerReference: fatPerReference,
+            extraNutrients: nil,
             kind: kind,
             unit: unit
         )
@@ -213,35 +232,8 @@ class NutritionService: ServiceBase, ObservableObject {
         }
     }
 
-    @discardableResult
-    func addFood(
-        name: String,
-        brand: String?,
-        referenceLabel: String?,
-        gramsPerReference: Double,
-        kcalPerReference: Double,
-        proteinPerReference: Double,
-        carbPerReference: Double,
-        fatPerReference: Double,
-        kind: FoodKind = .food,
-        unit: FoodUnit = .grams
-    ) -> Food? {
-        createFood(
-            name: name,
-            brand: brand,
-            referenceLabel: referenceLabel,
-            gramsPerReference: gramsPerReference,
-            kcalPerReference: kcalPerReference,
-            proteinPerReference: proteinPerReference,
-            carbPerReference: carbPerReference,
-            fatPerReference: fatPerReference,
-            kind: kind,
-            unit: unit
-        )
-    }
-
     func updateFood(
-        _ food: Food,
+        _ food: FoodItem,
         name: String,
         brand: String?,
         referenceLabel: String?,
@@ -250,8 +242,8 @@ class NutritionService: ServiceBase, ObservableObject {
         proteinPerReference: Double,
         carbPerReference: Double,
         fatPerReference: Double,
-        kind: FoodKind? = nil,
-        unit: FoodUnit? = nil
+        kind: FoodItemKind? = nil,
+        unit: FoodItemUnit? = nil
     ) -> Bool {
         guard let userId = try? requireUserId() else { return false }
         guard food.userId == userId else { return false }
@@ -263,18 +255,17 @@ class NutritionService: ServiceBase, ObservableObject {
             return false
         }
 
-        food.update(
-            name: trimmedName,
-            brand: normalizedOptionalText(brand),
-            referenceLabel: normalizedOptionalText(referenceLabel),
-            gramsPerReference: gramsPerReference,
-            kcalPerReference: kcalPerReference,
-            proteinPerReference: proteinPerReference,
-            carbPerReference: carbPerReference,
-            fatPerReference: fatPerReference,
-            kind: kind,
-            unit: unit
-        )
+        food.name = trimmedName
+        food.brand = normalizedOptionalText(brand)
+        food.referenceLabel = normalizedOptionalText(referenceLabel)
+        food.referenceQuantity = gramsPerReference
+        food.caloriesPerReference = kcalPerReference
+        food.proteinPerReference = proteinPerReference
+        food.carbsPerReference = carbPerReference
+        food.fatPerReference = fatPerReference
+        if let kind { food.kind = kind }
+        if let unit { food.unit = unit }
+        food.updatedAt = Date()
 
         do {
             try modelContext.save()
@@ -286,7 +277,7 @@ class NutritionService: ServiceBase, ObservableObject {
         }
     }
 
-    func toggleFavorite(food: Food) {
+    func toggleFavorite(food: FoodItem) {
         food.isFavorite.toggle()
         food.updatedAt = Date()
 
@@ -298,7 +289,7 @@ class NutritionService: ServiceBase, ObservableObject {
         }
     }
 
-    func archiveFood(food: Food) throws {
+    func archiveFood(food: FoodItem) throws {
         food.isArchived = true
         food.updatedAt = Date()
 
@@ -310,7 +301,7 @@ class NutritionService: ServiceBase, ObservableObject {
         }
     }
 
-    func unarchiveFood(food: Food) throws {
+    func unarchiveFood(food: FoodItem) throws {
         food.isArchived = false
         food.updatedAt = Date()
 
@@ -322,76 +313,24 @@ class NutritionService: ServiceBase, ObservableObject {
         }
     }
 
-    func loadMeals() {
-        guard let userId = currentUser?.id else {
-            meals = []
-            return
-        }
-
-        let descriptor = FetchDescriptor<Meal>(
-            predicate: #Predicate<Meal> { meal in
-                meal.userId == userId
-            },
-            sortBy: [SortDescriptor(\.name)]
-        )
-
-        do {
-            meals = try modelContext.fetch(descriptor)
-        } catch {
-            meals = []
-            print("Failed to fetch meals: \(error)")
-        }
-    }
-
-    func getOrCreateTarget() throws -> NutritionTarget {
-        let descriptor = FetchDescriptor<NutritionTarget>(
-            sortBy: [SortDescriptor(\.createdAt)]
-        )
-
-        do {
-            let targets = try modelContext.fetch(descriptor)
-            if let first = targets.first {
-                nutritionTarget = first
-                return first
+    func fetchMeals(search: String? = nil) -> [MealRecipe] {
+        let query = search?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return meals
+            .filter { meal in
+                guard !query.isEmpty else { return true }
+                return meal.name.localizedCaseInsensitiveContains(query)
             }
-
-            let target = NutritionTarget()
-            modelContext.insert(target)
-            try modelContext.save()
-            nutritionTarget = target
-            return target
-        } catch {
-            throw NutritionError.persistence("Could not load nutrition targets. Please try again.")
-        }
-    }
-
-    func updateTarget(calories: Double, protein: Double, carbs: Double, fat: Double, enabled: Bool) throws {
-        guard calories >= 0, protein >= 0, carbs >= 0, fat >= 0 else {
-            throw NutritionError.validation("Targets cannot be negative.")
-        }
-
-        let target = try getOrCreateTarget()
-        target.calorieTarget = calories
-        target.proteinTarget = protein
-        target.carbTarget = carbs
-        target.fatTarget = fat
-        target.isEnabled = enabled
-        target.updatedAt = Date()
-
-        do {
-            try modelContext.save()
-            nutritionTarget = target
-        } catch {
-            throw NutritionError.persistence("Could not save nutrition targets. Please try again.")
-        }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
     @discardableResult
     func createMealTemplate(
         name: String,
         items: [MealInputItem],
-        defaultCategory: FoodLogCategory = .other
-    ) -> Meal? {
+        defaultCategory: FoodLogCategory = .other,
+        batchSize: Double = 1,
+        servingUnitLabel: String? = nil
+    ) -> MealRecipe? {
         guard let userId = try? requireUserId() else { return nil }
 
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -405,11 +344,25 @@ class NutritionService: ServiceBase, ObservableObject {
 
         guard !validItems.isEmpty else { return nil }
 
-        let meal = Meal(userId: userId, name: trimmedName, defaultCategory: defaultCategory)
+        let meal = MealRecipe(
+            userId: userId,
+            name: trimmedName,
+            batchSize: max(0.0001, batchSize),
+            servingUnitLabel: normalizedOptionalText(servingUnitLabel) ?? "serving",
+            defaultCategory: defaultCategory,
+            cachedExtraNutrients: nil,
+            isArchived: false
+        )
 
         for (index, item) in validItems.enumerated() {
-            let mealItem = MealItem(order: index, grams: item.grams, meal: meal, food: item.food)
-            meal.items.append(mealItem)
+            let recipeItem = MealRecipeItem(
+                amount: item.grams,
+                amountUnit: .grams,
+                order: index,
+                mealRecipe: meal,
+                foodItem: item.food
+            )
+            meal.items.append(recipeItem)
         }
 
         modelContext.insert(meal)
@@ -424,21 +377,13 @@ class NutritionService: ServiceBase, ObservableObject {
         }
     }
 
-    func fetchMeals(search: String? = nil) -> [Meal] {
-        let query = search?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return meals
-            .filter { meal in
-                guard !query.isEmpty else { return true }
-                return meal.name.localizedCaseInsensitiveContains(query)
-            }
-            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-    }
-
     func updateMeal(
-        _ meal: Meal,
+        _ meal: MealRecipe,
         name: String,
         items: [MealInputItem],
-        defaultCategory: FoodLogCategory = .other
+        defaultCategory: FoodLogCategory = .other,
+        batchSize: Double = 1,
+        servingUnitLabel: String? = nil
     ) -> Bool {
         guard let userId = try? requireUserId() else { return false }
         guard meal.userId == userId else { return false }
@@ -456,6 +401,8 @@ class NutritionService: ServiceBase, ObservableObject {
 
         meal.name = trimmedName
         meal.defaultCategory = defaultCategory
+        meal.batchSize = max(0.0001, batchSize)
+        meal.servingUnitLabel = normalizedOptionalText(servingUnitLabel) ?? "serving"
         meal.updatedAt = Date()
 
         for existingItem in meal.items {
@@ -464,8 +411,14 @@ class NutritionService: ServiceBase, ObservableObject {
         meal.items.removeAll()
 
         for (index, item) in validItems.enumerated() {
-            let mealItem = MealItem(order: index, grams: item.grams, meal: meal, food: item.food)
-            meal.items.append(mealItem)
+            let recipeItem = MealRecipeItem(
+                amount: item.grams,
+                amountUnit: .grams,
+                order: index,
+                mealRecipe: meal,
+                foodItem: item.food
+            )
+            meal.items.append(recipeItem)
         }
 
         do {
@@ -478,7 +431,7 @@ class NutritionService: ServiceBase, ObservableObject {
         }
     }
 
-    func deleteMeal(_ meal: Meal) {
+    func deleteMeal(_ meal: MealRecipe) {
         guard let userId = try? requireUserId(), meal.userId == userId else { return }
         modelContext.delete(meal)
 
@@ -491,200 +444,83 @@ class NutritionService: ServiceBase, ObservableObject {
     }
 
     @discardableResult
-    func logMeal(
-        template: Meal,
-        timestamp: Date,
-        category: FoodLogCategory,
-        note: String?
-    ) throws -> MealEntry {
-        let userId = try requireUserId()
-        try validateMealOwnership(template, expectedUserId: userId)
-
-        let sortedItems = template.items.sorted { $0.order < $1.order }
-        guard !sortedItems.isEmpty else {
-            throw NutritionError.validation("Meal template must include at least one item.")
-        }
-
-        let mealEntry = MealEntry(
-            userId: userId,
-            timestamp: timestamp,
-            category: category,
-            note: normalizedOptionalText(note),
-            templateMeal: template
-        )
-        modelContext.insert(mealEntry)
-
-        for item in sortedItems {
-            guard item.grams > 0 else { continue }
-            try validateFoodOwnership(item.food, expectedUserId: userId)
-
-            let log = FoodLog(
-                userId: userId,
-                timestamp: timestamp,
-                category: category,
-                grams: item.grams,
-                note: normalizedOptionalText(note),
-                food: item.food,
-                mealEntry: mealEntry
-            )
-            mealEntry.logs.append(log)
-            modelContext.insert(log)
-            try validateFoodLogOwnership(log, expectedUserId: userId)
-        }
-        try validateMealEntryOwnership(mealEntry, expectedUserId: userId)
-
-        do {
-            try modelContext.save()
-            loadDayData(for: timestamp)
-            loadFoods()
-            return mealEntry
-        } catch {
-            throw NutritionError.persistence("Could not log this meal. Please try again.")
-        }
-    }
-
-    func loadDayData(for selectedDate: Date) {
-        loadDayLogs(for: selectedDate)
-        loadDayMealEntries(for: selectedDate)
-    }
-
-    func loadDayLogs(for selectedDate: Date) {
-        guard let userId = currentUser?.id else {
-            dayLogs = []
-            return
-        }
-
-        let (dayStart, dayEnd) = dayRange(for: selectedDate)
-
-        let descriptor = FetchDescriptor<FoodLog>(
-            predicate: #Predicate<FoodLog> { log in
-                log.userId == userId
-                && log.timestamp >= dayStart
-                && log.timestamp < dayEnd
-            },
-            sortBy: [SortDescriptor(\.timestamp)]
-        )
-
-        do {
-            dayLogs = try modelContext.fetch(descriptor)
-        } catch {
-            dayLogs = []
-            print("Failed to fetch food logs: \(error)")
-        }
-    }
-
-    func loadDayMealEntries(for selectedDate: Date) {
-        guard let userId = currentUser?.id else {
-            dayMealEntries = []
-            return
-        }
-
-        let (dayStart, dayEnd) = dayRange(for: selectedDate)
-
-        let descriptor = FetchDescriptor<MealEntry>(
-            predicate: #Predicate<MealEntry> { entry in
-                entry.userId == userId
-                && entry.timestamp >= dayStart
-                && entry.timestamp < dayEnd
-            },
-            sortBy: [SortDescriptor(\.timestamp)]
-        )
-
-        do {
-            dayMealEntries = try modelContext.fetch(descriptor)
-        } catch {
-            dayMealEntries = []
-            print("Failed to fetch meal entries: \(error)")
-        }
-    }
-
-    @discardableResult
     func addFoodLog(
-        food: Food,
+        food: FoodItem,
         grams: Double,
         timestamp: Date,
         category: FoodLogCategory,
         note: String?
-    ) throws -> FoodLog {
-        let userId = try requireUserId()
-        guard grams > 0 else {
-            throw NutritionError.validation("Grams must be greater than 0.")
-        }
-        try validateFoodOwnership(food, expectedUserId: userId)
-
-        let log = FoodLog(
-            userId: userId,
+    ) throws -> NutritionLogEntry {
+        let draft = try buildFoodLogDraft(
+            food: food,
+            amount: grams,
             timestamp: timestamp,
             category: category,
-            grams: grams,
-            note: normalizedOptionalText(note),
-            quickCaloriesKcal: nil,
-            food: food,
-            mealEntry: nil
+            note: note
         )
-
-        modelContext.insert(log)
-        try validateFoodLogOwnership(log, expectedUserId: userId)
-
-        do {
-            try modelContext.save()
-            loadDayData(for: timestamp)
-            loadFoods()
-            return log
-        } catch {
-            throw NutritionError.persistence("Could not save this food log. Please try again.")
-        }
+        return try createNutritionLogEntry(from: draft)
     }
 
+    @discardableResult
+    func logMeal(
+        template: MealRecipe,
+        amount: Double = 1,
+        timestamp: Date,
+        category: FoodLogCategory,
+        note: String?
+    ) throws -> NutritionLogEntry {
+        let draft = try buildMealLogDraft(
+            meal: template,
+            amount: amount,
+            timestamp: timestamp,
+            category: category,
+            note: note
+        )
+        return try createNutritionLogEntry(from: draft)
+    }
+
+    @discardableResult
     func addQuickCaloriesLog(
         calories: Double,
         timestamp: Date,
         category: FoodLogCategory,
         note: String?
-    ) throws -> FoodLog {
-        guard calories > 0 else {
-            throw NutritionError.validation("Calories must be greater than 0.")
-        }
-        let userId = try requireUserId()
-
-        let quickFood = try getOrCreateQuickCaloriesFood()
-        let log = FoodLog(
-            userId: userId,
+    ) throws -> NutritionLogEntry {
+        let draft = try buildQuickEntryDraft(
+            calories: calories,
             timestamp: timestamp,
             category: category,
-            grams: calories,
-            note: normalizedOptionalText(note),
-            quickCaloriesKcal: calories,
-            food: quickFood,
-            mealEntry: nil
+            note: note
         )
-
-        modelContext.insert(log)
-        try validateFoodLogOwnership(log, expectedUserId: userId)
-
-        do {
-            try modelContext.save()
-            loadDayData(for: timestamp)
-            loadFoods()
-            return log
-        } catch {
-            throw NutritionError.persistence("Could not save quick calories. Please try again.")
-        }
+        return try createNutritionLogEntry(from: draft)
     }
 
     func updateFoodLog(
-        _ log: FoodLog,
-        grams: Double,
+        _ log: NutritionLogEntry,
+        amount: Double,
         timestamp: Date,
         category: FoodLogCategory,
         note: String?
     ) -> Bool {
-        guard grams > 0 else { return false }
+        guard amount > 0 else { return false }
 
-        log.grams = grams
+        let ratio: Double
+        if log.amount > 0 {
+            ratio = amount / log.amount
+        } else {
+            ratio = 1
+        }
+
+        log.amount = amount
         log.timestamp = timestamp
         log.category = category
         log.note = normalizedOptionalText(note)
+        log.caloriesSnapshot = max(0, log.caloriesSnapshot * ratio)
+        log.proteinSnapshot = max(0, log.proteinSnapshot * ratio)
+        log.carbsSnapshot = max(0, log.carbsSnapshot * ratio)
+        log.fatSnapshot = max(0, log.fatSnapshot * ratio)
+        updateLogDateMetadata(log)
+        log.updatedAt = Date()
 
         do {
             try modelContext.save()
@@ -696,15 +532,8 @@ class NutritionService: ServiceBase, ObservableObject {
         }
     }
 
-    func deleteFoodLog(_ log: FoodLog, selectedDate: Date) {
-        let parentEntry = log.mealEntry
-        let shouldDeleteParentEntry = (parentEntry?.logs.count ?? 0) <= 1
-
+    func deleteFoodLog(_ log: NutritionLogEntry, selectedDate: Date) {
         modelContext.delete(log)
-
-        if shouldDeleteParentEntry, let parentEntry {
-            modelContext.delete(parentEntry)
-        }
 
         do {
             try modelContext.save()
@@ -715,7 +544,7 @@ class NutritionService: ServiceBase, ObservableObject {
         }
     }
 
-    func deleteMealEntry(_ entry: MealEntry, selectedDate: Date) {
+    func deleteMealEntry(_ entry: NutritionLogEntry, selectedDate: Date) {
         modelContext.delete(entry)
 
         do {
@@ -727,16 +556,43 @@ class NutritionService: ServiceBase, ObservableObject {
         }
     }
 
+    func loadDayData(for selectedDate: Date) {
+        guard let userId = currentUser?.id else {
+            dayLogs = []
+            dayMealEntries = []
+            return
+        }
+
+        let (dayStart, dayEnd) = dayRange(for: selectedDate)
+        let descriptor = FetchDescriptor<NutritionLogEntry>(
+            predicate: #Predicate<NutritionLogEntry> { log in
+                log.userId == userId && log.timestamp >= dayStart && log.timestamp < dayEnd
+            },
+            sortBy: [SortDescriptor(\.timestamp)]
+        )
+
+        do {
+            let logs = try modelContext.fetch(descriptor)
+            dayLogs = logs.sorted { $0.timestamp < $1.timestamp }
+            dayMealEntries = dayLogs.filter { $0.logType == .meal }
+        } catch {
+            dayLogs = []
+            dayMealEntries = []
+            print("Failed to fetch day logs: \(error)")
+        }
+    }
+
     func copyStandaloneLogs(from sourceDate: Date, to targetDate: Date) throws -> Int {
         let userId = try requireUserId()
+        let mealLogTypeRaw = NutritionLogType.meal.rawValue
 
         let (sourceStart, sourceEnd) = dayRange(for: sourceDate)
-        let descriptor = FetchDescriptor<FoodLog>(
-            predicate: #Predicate<FoodLog> { log in
+        let descriptor = FetchDescriptor<NutritionLogEntry>(
+            predicate: #Predicate<NutritionLogEntry> { log in
                 log.userId == userId
                     && log.timestamp >= sourceStart
                     && log.timestamp < sourceEnd
-                    && log.mealEntry == nil
+                    && log.logTypeRaw != mealLogTypeRaw
             },
             sortBy: [SortDescriptor(\.timestamp)]
         )
@@ -747,18 +603,27 @@ class NutritionService: ServiceBase, ObservableObject {
 
             for sourceLog in sourceLogs {
                 let targetTimestamp = dateByPinning(sourceLog.timestamp, to: targetDate)
-                let newLog = FoodLog(
-                    userId: userId,
+                let draft = NutritionLogDraft(
+                    logType: sourceLog.logType,
+                    creationMethod: .manual,
+                    sourceItemId: sourceLog.sourceItemId,
+                    sourceMealId: sourceLog.sourceMealId,
+                    nameSnapshot: sourceLog.nameSnapshot,
+                    brandSnapshot: sourceLog.brandSnapshot,
+                    amount: sourceLog.amount,
+                    amountUnitSnapshot: sourceLog.amountUnitSnapshot,
+                    servingUnitLabelSnapshot: sourceLog.servingUnitLabelSnapshot,
+                    caloriesSnapshot: sourceLog.caloriesSnapshot,
+                    proteinSnapshot: sourceLog.proteinSnapshot,
+                    carbsSnapshot: sourceLog.carbsSnapshot,
+                    fatSnapshot: sourceLog.fatSnapshot,
+                    extraNutrientsSnapshot: sourceLog.extraNutrientsSnapshot,
+                    recipeItemsSnapshot: sourceLog.recipeItemsSnapshot,
                     timestamp: targetTimestamp,
                     category: sourceLog.category,
-                    grams: sourceLog.grams,
-                    note: sourceLog.note,
-                    quickCaloriesKcal: sourceLog.quickCaloriesKcal,
-                    food: sourceLog.food,
-                    mealEntry: nil
+                    note: sourceLog.note
                 )
-                try validateFoodOwnership(sourceLog.food, expectedUserId: userId)
-                try validateFoodLogOwnership(newLog, expectedUserId: userId)
+                let newLog = createNutritionLogEntry(from: draft, userId: userId)
                 modelContext.insert(newLog)
             }
 
@@ -771,40 +636,55 @@ class NutritionService: ServiceBase, ObservableObject {
         }
     }
 
-    func createMealTemplate(from entry: MealEntry, name: String) throws -> Meal {
-        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty else {
-            throw NutritionError.validation("Template name is required.")
+    func createMealTemplate(from entry: NutritionLogEntry, name: String) throws -> MealRecipe {
+        guard entry.logType == .meal else {
+            throw NutritionError.validation("Only meal logs can be saved as a template.")
         }
 
-        let items = entry.logs
-            .sorted { $0.timestamp < $1.timestamp }
-            .map { MealInputItem(food: $0.food, grams: $0.grams) }
+        let sourceMeal = entry.sourceMealId.flatMap { id in meals.first(where: { $0.id == id }) }
+        let fallbackName = entry.nameSnapshot
+        let finalName = name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? fallbackName : name
 
-        guard !items.isEmpty else {
-            throw NutritionError.validation("This meal entry has no items to save.")
+        if let sourceMeal {
+            let copiedItems = sourceMeal.items
+                .sorted { $0.order < $1.order }
+                .map { item in
+                    MealInputItem(food: item.foodItem, grams: item.amount)
+                }
+            if let created = createMealTemplate(
+                name: finalName,
+                items: copiedItems,
+                defaultCategory: sourceMeal.defaultCategory,
+                batchSize: sourceMeal.batchSize,
+                servingUnitLabel: sourceMeal.servingUnitLabel
+            ) {
+                return created
+            }
         }
 
-        guard let meal = createMealTemplate(name: trimmedName, items: items, defaultCategory: entry.category) else {
-            throw NutritionError.persistence("Could not save meal template. Please try again.")
+        throw NutritionError.validation("Unable to create template from this meal log.")
+    }
+
+    func totalKcal(for logs: [NutritionLogEntry]) -> Double {
+        logs.reduce(0) { $0 + $1.caloriesSnapshot }
+    }
+
+    func totalProtein(for logs: [NutritionLogEntry]) -> Double {
+        logs.reduce(0) { $0 + $1.proteinSnapshot }
+    }
+
+    func totalCarbs(for logs: [NutritionLogEntry]) -> Double {
+        logs.reduce(0) { $0 + $1.carbsSnapshot }
+    }
+
+    func totalFat(for logs: [NutritionLogEntry]) -> Double {
+        logs.reduce(0) { $0 + $1.fatSnapshot }
+    }
+
+    func totalOptionalNutrient(name: String, for logs: [NutritionLogEntry]) -> Double {
+        logs.reduce(0) { partial, log in
+            partial + (log.extraNutrientsSnapshot?[name] ?? 0)
         }
-        return meal
-    }
-
-    func totalKcal(for logs: [FoodLog]) -> Double {
-        logs.reduce(0) { $0 + $1.kcal }
-    }
-
-    func totalProtein(for logs: [FoodLog]) -> Double {
-        logs.reduce(0) { $0 + $1.protein }
-    }
-
-    func totalCarbs(for logs: [FoodLog]) -> Double {
-        logs.reduce(0) { $0 + $1.carbs }
-    }
-
-    func totalFat(for logs: [FoodLog]) -> Double {
-        logs.reduce(0) { $0 + $1.fat }
     }
 
     func dailyCaloriesSeries(endingOn endDate: Date, days: Int = 7) throws -> [DailyKcalPoint] {
@@ -824,14 +704,14 @@ class NutritionService: ServiceBase, ObservableObject {
         let startDay = calendar.date(byAdding: .day, value: -(clampedDays - 1), to: endDayStart) ?? endDayStart
         let rangeEnd = calendar.date(byAdding: .day, value: 1, to: endDayStart) ?? endDayStart
 
-        let descriptor = FetchDescriptor<FoodLog>(
-            predicate: #Predicate<FoodLog> { log in
+        let descriptor = FetchDescriptor<NutritionLogEntry>(
+            predicate: #Predicate<NutritionLogEntry> { log in
                 log.userId == userId && log.timestamp >= startDay && log.timestamp < rangeEnd
             },
             sortBy: [SortDescriptor(\.timestamp)]
         )
 
-        let fetchedLogs: [FoodLog]
+        let fetchedLogs: [NutritionLogEntry]
         do {
             fetchedLogs = try modelContext.fetch(descriptor)
         } catch {
@@ -852,10 +732,10 @@ class NutritionService: ServiceBase, ObservableObject {
         }
     }
 
-    func logsInDateInterval(_ interval: DateInterval) throws -> [FoodLog] {
+    func logsInDateInterval(_ interval: DateInterval) throws -> [NutritionLogEntry] {
         let userId = try requireUserId()
-        let descriptor = FetchDescriptor<FoodLog>(
-            predicate: #Predicate<FoodLog> { log in
+        let descriptor = FetchDescriptor<NutritionLogEntry>(
+            predicate: #Predicate<NutritionLogEntry> { log in
                 log.userId == userId && log.timestamp >= interval.start && log.timestamp < interval.end
             },
             sortBy: [SortDescriptor(\.timestamp)]
@@ -871,12 +751,9 @@ class NutritionService: ServiceBase, ObservableObject {
     func nutritionBounds(for metric: NutritionSeriesMetric) throws -> (oldest: Date?, newest: Date?) {
         let userId = try requireUserId()
 
-        // kcal/protein/carbs/fat are computed properties on FoodLog, so they
-        // cannot be used inside #Predicate.  Instead, fetch just the first and
-        // last log by timestamp (fetchLimit 1) to determine the date range.
         func boundDate(ascending: Bool) throws -> Date? {
-            var descriptor = FetchDescriptor<FoodLog>(
-                predicate: #Predicate<FoodLog> { log in log.userId == userId },
+            var descriptor = FetchDescriptor<NutritionLogEntry>(
+                predicate: #Predicate<NutritionLogEntry> { log in log.userId == userId },
                 sortBy: [SortDescriptor(\.timestamp, order: ascending ? .forward : .reverse)]
             )
             descriptor.fetchLimit = 1
@@ -922,22 +799,320 @@ class NutritionService: ServiceBase, ObservableObject {
         ) ?? day
     }
 
+    func getOrCreateTarget() throws -> NutritionTarget {
+        let descriptor = FetchDescriptor<NutritionTarget>(
+            sortBy: [SortDescriptor(\.createdAt)]
+        )
+
+        do {
+            let targets = try modelContext.fetch(descriptor)
+            if let first = targets.first {
+                nutritionTarget = first
+                return first
+            }
+
+            let target = NutritionTarget()
+            modelContext.insert(target)
+            try modelContext.save()
+            nutritionTarget = target
+            return target
+        } catch {
+            throw NutritionError.persistence("Could not load nutrition targets. Please try again.")
+        }
+    }
+
+    func updateTarget(calories: Double, protein: Double, carbs: Double, fat: Double, enabled: Bool) throws {
+        guard calories >= 0, protein >= 0, carbs >= 0, fat >= 0 else {
+            throw NutritionError.validation("Targets cannot be negative.")
+        }
+
+        let target = try getOrCreateTarget()
+        target.calorieTarget = calories
+        target.proteinTarget = protein
+        target.carbTarget = carbs
+        target.fatTarget = fat
+        target.isEnabled = enabled
+        target.updatedAt = Date()
+
+        do {
+            try modelContext.save()
+            nutritionTarget = target
+        } catch {
+            throw NutritionError.persistence("Could not save nutrition targets. Please try again.")
+        }
+    }
+
+    func buildFoodLogDraft(
+        food: FoodItem,
+        amount: Double,
+        timestamp: Date,
+        category: FoodLogCategory,
+        note: String?
+    ) throws -> NutritionLogDraft {
+        let userId = try requireUserId()
+        guard food.userId == userId else {
+            throw NutritionError.validation("Food ownership mismatch.")
+        }
+        guard amount > 0 else {
+            throw NutritionError.validation("Amount must be greater than 0.")
+        }
+
+        let factor = amount / max(food.referenceQuantity, 0.0001)
+        return NutritionLogDraft(
+            logType: .food,
+            creationMethod: .foodItem,
+            sourceItemId: food.id,
+            sourceMealId: nil,
+            nameSnapshot: food.name,
+            brandSnapshot: food.brand,
+            amount: amount,
+            amountUnitSnapshot: food.unit.shortLabel,
+            servingUnitLabelSnapshot: nil,
+            caloriesSnapshot: max(0, food.caloriesPerReference * factor),
+            proteinSnapshot: max(0, food.proteinPerReference * factor),
+            carbsSnapshot: max(0, food.carbsPerReference * factor),
+            fatSnapshot: max(0, food.fatPerReference * factor),
+            extraNutrientsSnapshot: scaledExtraNutrients(food.extraNutrients, by: factor),
+            recipeItemsSnapshot: nil,
+            timestamp: timestamp,
+            category: category,
+            note: note
+        )
+    }
+
+    func buildMealLogDraft(
+        meal: MealRecipe,
+        amount: Double,
+        timestamp: Date,
+        category: FoodLogCategory,
+        note: String?
+    ) throws -> NutritionLogDraft {
+        let userId = try requireUserId()
+        guard meal.userId == userId else {
+            throw NutritionError.validation("Meal ownership mismatch.")
+        }
+        guard amount > 0 else {
+            throw NutritionError.validation("Amount must be greater than 0.")
+        }
+
+        let perServing = calculateRecipePerServingNutrition(meal)
+        let recipeItems = calculateRecipeItemsSnapshot(meal)
+
+        return NutritionLogDraft(
+            logType: .meal,
+            creationMethod: .mealRecipe,
+            sourceItemId: nil,
+            sourceMealId: meal.id,
+            nameSnapshot: meal.name,
+            brandSnapshot: nil,
+            amount: amount,
+            amountUnitSnapshot: normalizedOptionalText(meal.servingUnitLabel) ?? "serving",
+            servingUnitLabelSnapshot: normalizedOptionalText(meal.servingUnitLabel),
+            caloriesSnapshot: max(0, perServing.calories * amount),
+            proteinSnapshot: max(0, perServing.protein * amount),
+            carbsSnapshot: max(0, perServing.carbs * amount),
+            fatSnapshot: max(0, perServing.fat * amount),
+            extraNutrientsSnapshot: scaledExtraNutrients(perServing.extraNutrients, by: amount),
+            recipeItemsSnapshot: recipeItems,
+            timestamp: timestamp,
+            category: category,
+            note: note
+        )
+    }
+
+    func buildQuickEntryDraft(
+        calories: Double,
+        timestamp: Date,
+        category: FoodLogCategory,
+        note: String?
+    ) throws -> NutritionLogDraft {
+        guard calories > 0 else {
+            throw NutritionError.validation("Calories must be greater than 0.")
+        }
+
+        return NutritionLogDraft(
+            logType: .quickCalories,
+            creationMethod: .quickEntry,
+            sourceItemId: nil,
+            sourceMealId: nil,
+            nameSnapshot: "Quick Entry",
+            brandSnapshot: nil,
+            amount: calories,
+            amountUnitSnapshot: "kcal",
+            servingUnitLabelSnapshot: nil,
+            caloriesSnapshot: calories,
+            proteinSnapshot: 0,
+            carbsSnapshot: 0,
+            fatSnapshot: 0,
+            extraNutrientsSnapshot: nil,
+            recipeItemsSnapshot: nil,
+            timestamp: timestamp,
+            category: category,
+            note: note
+        )
+    }
+
+    func buildImportedLogDraft(
+        logType: NutritionLogType,
+        sourceItemId: UUID?,
+        sourceMealId: UUID?,
+        nameSnapshot: String,
+        brandSnapshot: String?,
+        amount: Double,
+        amountUnitSnapshot: String,
+        servingUnitLabelSnapshot: String?,
+        caloriesSnapshot: Double,
+        proteinSnapshot: Double,
+        carbsSnapshot: Double,
+        fatSnapshot: Double,
+        extraNutrientsSnapshot: [String: Double]?,
+        recipeItemsSnapshot: [RecipeItemSnapshot]?,
+        timestamp: Date,
+        category: FoodLogCategory,
+        note: String?,
+        creationMethod: LogCreationMethod
+    ) -> NutritionLogDraft {
+        NutritionLogDraft(
+            logType: logType,
+            creationMethod: creationMethod,
+            sourceItemId: sourceItemId,
+            sourceMealId: sourceMealId,
+            nameSnapshot: nameSnapshot,
+            brandSnapshot: brandSnapshot,
+            amount: amount,
+            amountUnitSnapshot: amountUnitSnapshot,
+            servingUnitLabelSnapshot: servingUnitLabelSnapshot,
+            caloriesSnapshot: max(0, caloriesSnapshot),
+            proteinSnapshot: max(0, proteinSnapshot),
+            carbsSnapshot: max(0, carbsSnapshot),
+            fatSnapshot: max(0, fatSnapshot),
+            extraNutrientsSnapshot: extraNutrientsSnapshot,
+            recipeItemsSnapshot: recipeItemsSnapshot,
+            timestamp: timestamp,
+            category: category,
+            note: note
+        )
+    }
+
+    @discardableResult
+    func createNutritionLogEntry(from draft: NutritionLogDraft) throws -> NutritionLogEntry {
+        let userId = try requireUserId()
+        try validateDraft(draft)
+
+        let entry = createNutritionLogEntry(from: draft, userId: userId)
+        modelContext.insert(entry)
+
+        do {
+            try modelContext.save()
+            loadDayData(for: draft.timestamp)
+            loadFoods()
+            loadMeals()
+            return entry
+        } catch {
+            throw NutritionError.persistence("Could not save nutrition log entry. Please try again.")
+        }
+    }
+
+    func calculateRecipePerServingNutrition(_ meal: MealRecipe) -> NutritionFacts {
+        let sortedItems = meal.items.sorted { $0.order < $1.order }
+        guard !sortedItems.isEmpty else { return .zero }
+
+        var calories: Double = 0
+        var protein: Double = 0
+        var carbs: Double = 0
+        var fat: Double = 0
+        var extraNutrients: [String: Double] = [:]
+
+        for item in sortedItems {
+            let food = item.foodItem
+            let factor = item.amount / max(food.referenceQuantity, 0.0001)
+            calories += max(0, food.caloriesPerReference * factor)
+            protein += max(0, food.proteinPerReference * factor)
+            carbs += max(0, food.carbsPerReference * factor)
+            fat += max(0, food.fatPerReference * factor)
+
+            if let foodExtra = food.extraNutrients {
+                for (key, value) in foodExtra {
+                    extraNutrients[key, default: 0] += max(0, value * factor)
+                }
+            }
+        }
+
+        let servingCount = max(meal.batchSize, 0.0001)
+        let perServingExtras: [String: Double]? = extraNutrients.isEmpty
+            ? nil
+            : extraNutrients.mapValues { $0 / servingCount }
+
+        return NutritionFacts(
+            calories: calories / servingCount,
+            protein: protein / servingCount,
+            carbs: carbs / servingCount,
+            fat: fat / servingCount,
+            extraNutrients: perServingExtras
+        )
+    }
+
+    func calculateRecipeItemsSnapshot(_ meal: MealRecipe) -> [RecipeItemSnapshot] {
+        meal.items
+            .sorted { $0.order < $1.order }
+            .map { item in
+                let food = item.foodItem
+                let factor = item.amount / max(food.referenceQuantity, 0.0001)
+                return RecipeItemSnapshot(
+                    name: food.name,
+                    amount: item.amount,
+                    amountUnit: food.unit.shortLabel,
+                    caloriesSnapshot: max(0, food.caloriesPerReference * factor),
+                    proteinSnapshot: max(0, food.proteinPerReference * factor),
+                    carbsSnapshot: max(0, food.carbsPerReference * factor),
+                    fatSnapshot: max(0, food.fatPerReference * factor),
+                    extraNutrientsSnapshot: scaledExtraNutrients(food.extraNutrients, by: factor)
+                )
+            }
+    }
+
+    func computeDayKey(timestamp: Date, userTimeZone: TimeZone = .current) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = userTimeZone
+        let components = calendar.dateComponents([.year, .month, .day], from: timestamp)
+        return String(format: "%04d-%02d-%02d", components.year ?? 1970, components.month ?? 1, components.day ?? 1)
+    }
+
+    func computeLogDate(timestamp: Date, userTimeZone: TimeZone = .current) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = userTimeZone
+        return calendar.startOfDay(for: timestamp)
+    }
+
+    func updateLogDateMetadata(_ log: NutritionLogEntry, userTimeZone: TimeZone = .current) {
+        log.dayKey = computeDayKey(timestamp: log.timestamp, userTimeZone: userTimeZone)
+        log.logDate = computeLogDate(timestamp: log.timestamp, userTimeZone: userTimeZone)
+    }
+
     private func dayRange(for selectedDate: Date) -> (Date, Date) {
         let dayStart = Calendar.current.startOfDay(for: selectedDate)
         let dayEnd = Calendar.current.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
         return (dayStart, dayEnd)
     }
 
-    private func metricValue(for log: FoodLog, metric: NutritionSeriesMetric) -> Double {
+    private func metricValue(for log: NutritionLogEntry, metric: NutritionSeriesMetric) -> Double {
         switch metric {
         case .calories:
-            return log.kcal
+            return log.caloriesSnapshot
         case .protein:
-            return log.protein
+            return log.proteinSnapshot
         case .carbs:
-            return log.carbs
+            return log.carbsSnapshot
         case .fat:
-            return log.fat
+            return log.fatSnapshot
+        }
+    }
+
+    private func scaledExtraNutrients(_ input: [String: Double]?, by factor: Double) -> [String: Double]? {
+        guard let input else { return nil }
+        if input.isEmpty { return nil }
+        return input.reduce(into: [String: Double]()) { partial, pair in
+            partial[pair.key] = max(0, pair.value * factor)
         }
     }
 
@@ -947,76 +1122,48 @@ class NutritionService: ServiceBase, ObservableObject {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    private func getOrCreateQuickCaloriesFood() throws -> Food {
-        let userId = try requireUserId()
-
-        if let existing = foods.first(where: { $0.userId == userId && $0.name == "Quick Calories" }) {
-            return existing
+    private func validateDraft(_ draft: NutritionLogDraft) throws {
+        if draft.nameSnapshot.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            throw NutritionError.validation("Log name is required.")
         }
+        if draft.amount <= 0 {
+            throw NutritionError.validation("Amount must be greater than 0.")
+        }
+        if draft.amountUnitSnapshot.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            throw NutritionError.validation("Amount unit is required.")
+        }
+        if draft.caloriesSnapshot < 0 || draft.proteinSnapshot < 0 || draft.carbsSnapshot < 0 || draft.fatSnapshot < 0 {
+            throw NutritionError.validation("Macro snapshots cannot be negative.")
+        }
+        if draft.logType != .meal, draft.recipeItemsSnapshot != nil {
+            throw NutritionError.validation("Only meal logs can include recipe item snapshots.")
+        }
+    }
 
-        let descriptor = FetchDescriptor<Food>(
-            predicate: #Predicate<Food> { food in
-                food.userId == userId && food.name == "Quick Calories"
-            },
-            sortBy: [SortDescriptor(\.createdAt)]
+    private func createNutritionLogEntry(from draft: NutritionLogDraft, userId: UUID) -> NutritionLogEntry {
+        let entry = NutritionLogEntry(
+            userId: userId,
+            timestamp: draft.timestamp,
+            logType: draft.logType,
+            sourceItemId: draft.sourceItemId,
+            sourceMealId: draft.sourceMealId,
+            amount: draft.amount,
+            amountUnitSnapshot: draft.amountUnitSnapshot,
+            category: draft.category,
+            note: normalizedOptionalText(draft.note),
+            dayKey: computeDayKey(timestamp: draft.timestamp),
+            logDate: computeLogDate(timestamp: draft.timestamp),
+            creationMethod: draft.creationMethod,
+            nameSnapshot: draft.nameSnapshot,
+            brandSnapshot: normalizedOptionalText(draft.brandSnapshot),
+            servingUnitLabelSnapshot: normalizedOptionalText(draft.servingUnitLabelSnapshot),
+            caloriesSnapshot: max(0, draft.caloriesSnapshot),
+            proteinSnapshot: max(0, draft.proteinSnapshot),
+            carbsSnapshot: max(0, draft.carbsSnapshot),
+            fatSnapshot: max(0, draft.fatSnapshot),
+            extraNutrientsSnapshot: draft.extraNutrientsSnapshot,
+            recipeItemsSnapshot: draft.recipeItemsSnapshot
         )
-
-        do {
-            if let existing = try modelContext.fetch(descriptor).first {
-                try validateFoodOwnership(existing, expectedUserId: userId)
-                return existing
-            }
-
-            let quickFood = Food(
-                userId: userId,
-                name: "Quick Calories",
-                brand: nil,
-                referenceLabel: "1 kcal",
-                gramsPerReference: 1,
-                kcalPerReference: 1,
-                proteinPerReference: 0,
-                carbPerReference: 0,
-                fatPerReference: 0
-            )
-
-            modelContext.insert(quickFood)
-            try modelContext.save()
-            loadFoods()
-            try validateFoodOwnership(quickFood, expectedUserId: userId)
-            return quickFood
-        } catch {
-            throw NutritionError.persistence("Could not create quick calories helper food.")
-        }
-    }
-
-    private func validateFoodOwnership(_ food: Food, expectedUserId: UUID) throws {
-        guard food.userId == expectedUserId else {
-            throw NutritionError.validation("Food ownership mismatch. Please re-create this food under your active account.")
-        }
-    }
-
-    private func validateMealOwnership(_ meal: Meal, expectedUserId: UUID) throws {
-        guard meal.userId == expectedUserId else {
-            throw NutritionError.validation("Meal ownership mismatch. Please re-create this meal template under your active account.")
-        }
-    }
-
-    private func validateMealEntryOwnership(_ entry: MealEntry, expectedUserId: UUID) throws {
-        guard entry.userId == expectedUserId else {
-            throw NutritionError.validation("Meal entry ownership mismatch.")
-        }
-        if let templateMeal = entry.templateMeal {
-            try validateMealOwnership(templateMeal, expectedUserId: expectedUserId)
-        }
-    }
-
-    private func validateFoodLogOwnership(_ log: FoodLog, expectedUserId: UUID) throws {
-        guard log.userId == expectedUserId else {
-            throw NutritionError.validation("Food log ownership mismatch.")
-        }
-        try validateFoodOwnership(log.food, expectedUserId: expectedUserId)
-        if let mealEntry = log.mealEntry {
-            try validateMealEntryOwnership(mealEntry, expectedUserId: expectedUserId)
-        }
+        return entry
     }
 }

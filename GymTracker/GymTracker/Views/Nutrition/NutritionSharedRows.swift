@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct MealRowView: View {
-    let meal: Meal
+    let meal: MealRecipe
 
     var body: some View {
         HStack {
@@ -15,10 +15,10 @@ struct MealRowView: View {
 }
 
 struct FoodRowView<Trailing: View>: View {
-    let food: Food
+    let food: FoodItem
     let trailing: Trailing
 
-    init(food: Food, @ViewBuilder trailing: () -> Trailing) {
+    init(food: FoodItem, @ViewBuilder trailing: () -> Trailing) {
         self.food = food
         self.trailing = trailing()
     }

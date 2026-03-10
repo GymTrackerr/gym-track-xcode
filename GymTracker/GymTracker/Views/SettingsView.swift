@@ -313,7 +313,10 @@ struct SettingsView: View {
                 let imported = try backupService.importNutritionJSON(from: url)
                 nutritionService.loadFeature()
                 backupAlertTitle = "Import Complete"
-                exportErrorMessage = "Imported \(imported.foods) foods, \(imported.meals) meals, \(imported.foodLogs) logs."
+                exportErrorMessage = """
+                Imported legacy: \(imported.foods) foods, \(imported.meals) meals, \(imported.foodLogs) logs.
+                Imported v2: \(imported.foodItems) food items, \(imported.mealRecipes) meal recipes, \(imported.nutritionLogEntries) nutrition logs.
+                """
                 showExportErrorAlert = true
             } catch {
                 backupAlertTitle = "Couldn’t Import"

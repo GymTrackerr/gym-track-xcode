@@ -46,7 +46,7 @@ enum NutritionHistoryMetric: String, CaseIterable, Identifiable {
 
 enum NutritionChartCalculator {
     static func nutritionPoints(
-        logs: [FoodLog],
+        logs: [NutritionLogEntry],
         interval: DateInterval,
         timeframe: HistoryChartTimeframe,
         metric: NutritionHistoryMetric,
@@ -63,16 +63,16 @@ enum NutritionChartCalculator {
         }
     }
 
-    private static func metricValue(for log: FoodLog, metric: NutritionHistoryMetric) -> Double {
+    private static func metricValue(for log: NutritionLogEntry, metric: NutritionHistoryMetric) -> Double {
         switch metric {
         case .calories:
-            return log.kcal
+            return log.caloriesSnapshot
         case .protein:
-            return log.protein
+            return log.proteinSnapshot
         case .carbs:
-            return log.carbs
+            return log.carbsSnapshot
         case .fat:
-            return log.fat
+            return log.fatSnapshot
         }
     }
 }

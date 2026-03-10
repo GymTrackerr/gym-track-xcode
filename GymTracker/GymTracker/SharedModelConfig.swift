@@ -25,7 +25,11 @@ struct SharedModelConfig {
         Meal.self,
         MealItem.self,
         MealEntry.self,
-        NutritionTarget.self
+        NutritionTarget.self,
+        FoodItem.self,
+        MealRecipe.self,
+        MealRecipeItem.self,
+        NutritionLogEntry.self
     ])
     
     static func createSharedModelContainer() -> ModelContainer {

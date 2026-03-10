@@ -75,7 +75,7 @@ struct NutritionWeeklyCaloriesModule: View {
 
     @EnvironmentObject private var nutritionService: NutritionService
     @Environment(\.scenePhase) private var scenePhase
-    @Query(sort: [SortDescriptor(\FoodLog.timestamp, order: .reverse)]) private var logs: [FoodLog]
+    @Query(sort: [SortDescriptor(\NutritionLogEntry.timestamp, order: .reverse)]) private var logs: [NutritionLogEntry]
 
     @State private var selectedMetric: NutritionService.NutritionSeriesMetric = .calories
     @State private var points: [NutritionService.DailyNutritionPoint] = []
@@ -101,8 +101,8 @@ struct NutritionWeeklyCaloriesModule: View {
         logs.reduce(into: 0) { result, log in
             result ^= log.id.hashValue
             result ^= Int(log.timestamp.timeIntervalSince1970)
-            result ^= Int((log.grams * 10).rounded())
-            result ^= Int(((log.quickCaloriesKcal ?? -1) * 10).rounded())
+            result ^= Int((log.amount * 10).rounded())
+            result ^= Int((log.caloriesSnapshot * 10).rounded())
         }
     }
 
