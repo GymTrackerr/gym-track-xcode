@@ -19,6 +19,16 @@ final class User {
     
     var defaultTimer: Int = 90
     var showNutritionTab: Bool = true
+
+    // Phase 9 optional timer feedback settings (non-destructive)
+    var timerNotificationsEnabled: Bool?
+    var timerFinishedNotificationEnabled: Bool?
+    var awayTooLongEnabled: Bool?
+    var awayTooLongMinutes: Int?
+    var countdownHapticsEnabled: Bool?
+    var hapticAt30: Bool?
+    var hapticAt15: Bool?
+    var hapticAt5: Bool?
     
     init(name: String) {
         self.name = name

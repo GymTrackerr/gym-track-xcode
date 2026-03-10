@@ -8,12 +8,9 @@ import ActivityKit
 import WidgetKit
 import SwiftUI
 import AppIntents
-import Combine
 
 struct TimerActivityLiveView: View {
     let context: ActivityViewContext<TimerActivityAttributes>
-    @State private var updateTrigger = UUID()
-    @State private var lastDisplayedSeconds = -1
     
     private let helper: WidgetTimerHelper
     
@@ -21,57 +18,47 @@ struct TimerActivityLiveView: View {
         self.context = context
         self.helper = WidgetTimerHelper(context: context)
     }
-    
-    private var timer: Timer.TimerPublisher {
-        helper.getTimer(isPaused: context.state.isPaused)
-    }
-    
-    var remainingSeconds: Int {
-        helper.remainingSeconds
-    }
 
     var body: some View {
-        VStack(spacing: 8) {
-            
-            Text(context.attributes.title)
-                .font(.headline)
-            
-            Text(timeString(remainingSeconds))
-                .font(.system(size: 42, weight: .bold, design: .rounded))
-            
-            HStack {
-                if context.state.isPaused {
-                    Button(intent: ResumeTimerIntent()) {
-                        Text("Resume")
-                    }
-                    .buttonStyle(.borderedProminent)
+        TimelineView(.periodic(from: .now, by: 1)) { timeline in
+            let snapshot = helper.snapshot(at: timeline.date)
+            let remainingSeconds = snapshot.remainingSeconds
+
+            VStack(spacing: 8) {
+                Text(context.attributes.title)
+                    .font(.headline)
+
+                if snapshot.isPaused {
+                    Text(timeString(remainingSeconds))
+                        .font(.system(size: 42, weight: .bold, design: .rounded))
+//                        .monospacedDigit()
                 } else {
-                    Button(intent: PauseTimerIntent()) {
-                        Text("Pause")
+                    Text(timerInterval: Date()...snapshot.endDate, countsDown: true)
+                        .font(.system(size: 42, weight: .bold, design: .rounded))
+//                        .monospacedDigit()
+                }
+
+                HStack {
+                    if snapshot.isPaused {
+                        Button(intent: ResumeTimerIntent()) {
+                            Text("Resume")
+                        }
+                        .buttonStyle(.borderedProminent)
+                    } else {
+                        Button(intent: PauseTimerIntent()) {
+                            Text("Pause")
+                        }
+                        .buttonStyle(.borderedProminent)
                     }
-                    .buttonStyle(.borderedProminent)
+
+                    Button(intent: CancelTimerIntent()) {
+                        Text("Cancel")
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.red)
                 }
-                
-                Button(intent: CancelTimerIntent()) {
-                    Text("Cancel")
-                }
-                .buttonStyle(.bordered)
-                .tint(.red)
             }
-        }
-        .padding()
-        .id(updateTrigger)
-        .onReceive(timer.autoconnect()) { _ in
-            // Only update if seconds actually changed
-            if remainingSeconds != lastDisplayedSeconds {
-                lastDisplayedSeconds = remainingSeconds
-                updateTrigger = UUID()
-            }
-        }
-        .onAppear {
-            lastDisplayedSeconds = remainingSeconds
+            .padding()
         }
     }
 }
-
-

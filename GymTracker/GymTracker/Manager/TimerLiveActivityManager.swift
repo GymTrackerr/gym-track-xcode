@@ -52,7 +52,7 @@ final class LiveActivityManager: ObservableObject {
     }
     
     func start(length: Int, timerId: String = "") {
-        if activity != nil {
+        if activity != nil || !Activity<TimerActivityAttributes>.activities.isEmpty {
             end()
         }
 
@@ -67,9 +67,8 @@ final class LiveActivityManager: ObservableObject {
         startDate = Date()
         self.timerId = timerId
 
-        // Set stale date far in the future so the activity stays visible
-        // The app's ticker will keep updating it every second
-        let staleDate = Date().addingTimeInterval(24 * 3600) // 24 hours
+        // Running timers should expire close to completion if app is suspended.
+        let staleDate = Date().addingTimeInterval(TimeInterval(max(length, 1) + 5))
 
         let content = ActivityContent(
             state: TimerActivityAttributes.ContentState(
@@ -93,21 +92,30 @@ final class LiveActivityManager: ObservableObject {
     
     func update(remainingSeconds: Int, totalLength: Int, isPaused: Bool) {
         guard let act = activity else { return }
+        let clampedRemaining = max(remainingSeconds, 0)
+
+        if clampedRemaining == 0 {
+            // End from the live activity layer so dismissal still happens
+            // even when the service-side completion path is delayed.
+            end(after: 3)
+            return
+        }
         
-        // print("Updating live activity - remaining: \(remainingSeconds)s, total: \(totalLength)s, paused: \(isPaused)")
-        
-        // Always set stale date far in the future to keep activity visible
-        // The app's ticker (running every 1 second) will keep updating it
-        let staleDate = Date().addingTimeInterval(24 * 3600) // 24 hours in the future
+        let staleDate: Date
+        if isPaused {
+            staleDate = Date().addingTimeInterval(24 * 3600)
+        } else {
+            staleDate = Date().addingTimeInterval(TimeInterval(clampedRemaining + 5))
+        }
         
         // Store a fresh "now" timestamp so views can calculate elapsed time from this point
         let now = Date()
         
         let content = ActivityContent(
             state: TimerActivityAttributes.ContentState(
-                remainingSeconds: max(remainingSeconds, 0),
+                remainingSeconds: clampedRemaining,
                 isPaused: isPaused,
-                pausedAtSeconds: isPaused ? max(remainingSeconds, 0) : 0,
+                pausedAtSeconds: isPaused ? clampedRemaining : 0,
                 lastUpdateTime: now,
                 timerId: timerId
             ),
@@ -115,25 +123,18 @@ final class LiveActivityManager: ObservableObject {
         )
         
         // Save state and update widget
-        saveTimerStateToWidget(remainingSeconds: remainingSeconds, totalLength: totalLength, isPaused: isPaused)
+        saveTimerStateToWidget(remainingSeconds: clampedRemaining, totalLength: totalLength, isPaused: isPaused)
         requestWidgetUpdate()
         
         Task { await act.update(content) }
     }
     
     func end(after seconds: UInt64 = 0) {
-        guard let act = activity else {
-            // print("Cannot end activity - no activity exists")
-            return
-        }
-        
-        // print("Ending live activity after \(seconds) seconds")
-        
+        // Clear shared snapshot immediately so widget views stop rendering stale state.
+        clearTimerStateFromWidget()
+        requestWidgetUpdate()
+
         Task {
-            if seconds > 0 {
-                try? await Task.sleep(nanoseconds: seconds * 1_000_000_000)
-            }
-            
             let finalContent = ActivityContent(
                 state: TimerActivityAttributes.ContentState(
                     remainingSeconds: 0,
@@ -144,12 +145,21 @@ final class LiveActivityManager: ObservableObject {
                 ),
                 staleDate: nil
             )
-            
-            // Clear widget state and update
-            clearTimerStateFromWidget()
-            requestWidgetUpdate()
-            
-            await act.end(finalContent, dismissalPolicy: .immediate)
+
+            let dismissalPolicy: ActivityUIDismissalPolicy
+            if seconds > 0 {
+                dismissalPolicy = .after(Date().addingTimeInterval(TimeInterval(seconds)))
+            } else {
+                dismissalPolicy = .immediate
+            }
+
+            if let act = activity {
+                await act.end(finalContent, dismissalPolicy: dismissalPolicy)
+            } else {
+                for liveActivity in Activity<TimerActivityAttributes>.activities {
+                    await liveActivity.end(finalContent, dismissalPolicy: dismissalPolicy)
+                }
+            }
             self.activity = nil
         }
     }

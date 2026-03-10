@@ -148,4 +148,60 @@ class UserService: ServiceBase, ObservableObject {
             try? modelContext.save()
         }
     }
+
+    func setTimerNotificationsEnabled(_ isEnabled: Bool) {
+        withAnimation {
+            currentUser?.timerNotificationsEnabled = isEnabled
+            try? modelContext.save()
+        }
+    }
+
+    func setTimerFinishedNotificationEnabled(_ isEnabled: Bool) {
+        withAnimation {
+            currentUser?.timerFinishedNotificationEnabled = isEnabled
+            try? modelContext.save()
+        }
+    }
+
+    func setAwayTooLongEnabled(_ isEnabled: Bool) {
+        withAnimation {
+            currentUser?.awayTooLongEnabled = isEnabled
+            try? modelContext.save()
+        }
+    }
+
+    func setAwayTooLongMinutes(_ minutes: Int) {
+        withAnimation {
+            currentUser?.awayTooLongMinutes = max(1, minutes)
+            try? modelContext.save()
+        }
+    }
+
+    func setCountdownHapticsEnabled(_ isEnabled: Bool) {
+        withAnimation {
+            currentUser?.countdownHapticsEnabled = isEnabled
+            try? modelContext.save()
+        }
+    }
+
+    func setHapticAt30(_ isEnabled: Bool) {
+        withAnimation {
+            currentUser?.hapticAt30 = isEnabled
+            try? modelContext.save()
+        }
+    }
+
+    func setHapticAt15(_ isEnabled: Bool) {
+        withAnimation {
+            currentUser?.hapticAt15 = isEnabled
+            try? modelContext.save()
+        }
+    }
+
+    func setHapticAt5(_ isEnabled: Bool) {
+        withAnimation {
+            currentUser?.hapticAt5 = isEnabled
+            try? modelContext.save()
+        }
+    }
 }

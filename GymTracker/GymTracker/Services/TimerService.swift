@@ -10,6 +10,7 @@ import SwiftUI
 import SwiftData
 #if os(iOS)
 import ActivityKit
+import UserNotifications
 #endif
 
 class TimerService: ServiceBase, ObservableObject {
@@ -19,6 +20,16 @@ class TimerService: ServiceBase, ObservableObject {
     private var ticker: AnyCancellable?
     private var hadTimerBefore = false
     private var timerWasLocallyUpdated = false
+    private var isApplyingPendingTimerCommand = false
+    private var lastLiveActivitySyncAt = Date.distantPast
+    private var lastTimerStateSyncAt = Date.distantPast
+    private let liveActivityResyncInterval: TimeInterval = 2
+    private let appGroupIdentifier = "group.net.novapro.GymTracker"
+    private let pendingTimerControlCommandKey = "pendingTimerControlCommand"
+    private let timerFinishedNotificationId = "timer.finished.active"
+    private let awayTooLongNotificationId = "timer.away-too-long.active"
+    private var lastLifecycleEvent: TimerLifecycleEvent?
+    private var isAppInForeground = true
 
     override func loadFeature() {
         loadTimer()
@@ -53,6 +64,7 @@ class TimerService: ServiceBase, ObservableObject {
             .autoconnect()
             .sink { [weak self] _ in
                 guard let self else { return }
+                guard !self.isApplyingPendingTimerCommand else { return }
                 
                 if !self.timerWasLocallyUpdated {
                     self.loadTimer()   // Only reload if widget changed it
@@ -69,13 +81,18 @@ class TimerService: ServiceBase, ObservableObject {
                 }
                 
                 self.hadTimerBefore = true
+
+                if timer.updatedAt > self.lastTimerStateSyncAt {
+                    self.lastTimerStateSyncAt = timer.updatedAt
+                    self.syncLiveActivity(force: true)
+                }
                 
                 if !timer.isPaused, let remaining = self.remainingTime, remaining <= 0 {
                     self.handleTimerFinished()
                     return
                 }
                 
-                self.updateLiveActivity()
+                self.syncLiveActivity(force: false)
                 self.objectWillChange.send()
             }
     }
@@ -94,6 +111,7 @@ class TimerService: ServiceBase, ObservableObject {
     }
     
     private func handleTimerFinished() {
+        emitLifecycleEvent(.completed, completedAt: Date())
         pause()
         deleteTimerModel()
         endLiveActivity(after: 3)
@@ -122,6 +140,9 @@ class TimerService: ServiceBase, ObservableObject {
         
         saveChange()
         startLiveActivity()
+        syncLiveActivity(force: true)
+        lastTimerStateSyncAt = newTimer.updatedAt
+        emitLifecycleEvent(.started)
         
         if ticker == nil { startTicker() }
     }
@@ -133,7 +154,8 @@ class TimerService: ServiceBase, ObservableObject {
         timer.startTime = nil
         timer.isPaused = true
         saveChange()
-        updateLiveActivity()
+        syncLiveActivity(force: true)
+        emitLifecycleEvent(.paused)
     }
         
     func resume() {
@@ -142,7 +164,8 @@ class TimerService: ServiceBase, ObservableObject {
         timer.startTime = Date()
         timer.isPaused = false
         saveChange()
-        updateLiveActivity()
+        syncLiveActivity(force: true)
+        emitLifecycleEvent(.resumed)
     }
     
     func stop(delete: Bool = false) {
@@ -154,7 +177,10 @@ class TimerService: ServiceBase, ObservableObject {
             }
         }
       
-        if delete { deleteTimerModel() }
+        if delete {
+            emitLifecycleEvent(.cancelled, cancelledAt: Date())
+            deleteTimerModel()
+        }
 
         hadTimerBefore = false
         stopTicker()
@@ -177,7 +203,8 @@ class TimerService: ServiceBase, ObservableObject {
         if timer.elapsedTime < 0 { timer.elapsedTime = 0 }
         
         saveChange()
-        updateLiveActivity()
+        syncLiveActivity(force: true)
+        emitLifecycleEvent(.adjusted)
     }
         
     func subtract(seconds: Int) {
@@ -222,12 +249,240 @@ class TimerService: ServiceBase, ObservableObject {
     }
     
     func appDidEnterBackground() {
-        // Ticker keeps running to update live activity in background
+        isAppInForeground = false
+        syncLiveActivity(force: true)
+        emitLifecycleEvent(.appBackgrounded)
     }
 
     func appDidBecomeActive() {
+        isApplyingPendingTimerCommand = true
+        stopTicker()
+
+        isAppInForeground = true
         loadTimer()
+        applyPendingTimerControlCommandIfNeeded()
+        if let timer {
+            lastTimerStateSyncAt = timer.updatedAt
+            startTicker()
+        }
+        syncLiveActivity(force: true)
+        cancelAwayTooLongNotification()
+        emitLifecycleEvent(.appForegrounded)
+
+        isApplyingPendingTimerCommand = false
+    }
+
+    private func syncLiveActivity(force: Bool) {
+        guard let timer else { return }
+        if !force {
+            guard !timer.isPaused else { return }
+            let now = Date()
+            guard now.timeIntervalSince(lastLiveActivitySyncAt) >= liveActivityResyncInterval else { return }
+        }
         updateLiveActivity()
+        lastLiveActivitySyncAt = Date()
+    }
+
+    private func applyPendingTimerControlCommandIfNeeded() {
+        struct PendingTimerControlCommand: Codable {
+            let action: String
+            let remainingSeconds: Int?
+            let requestedAt: TimeInterval
+        }
+
+        guard
+            let defaults = UserDefaults(suiteName: appGroupIdentifier),
+            let data = defaults.data(forKey: pendingTimerControlCommandKey),
+            let command = try? JSONDecoder().decode(PendingTimerControlCommand.self, from: data)
+        else {
+            return
+        }
+
+        defaults.removeObject(forKey: pendingTimerControlCommandKey)
+
+        switch command.action {
+        case "pause":
+            guard let timer else { return }
+            let remaining = command.remainingSeconds ?? max(timer.timerLength - displayedTime, 0)
+            timer.elapsedTime = max(timer.timerLength - remaining, 0)
+            timer.startTime = nil
+            timer.isPaused = true
+            saveChange()
+            syncLiveActivity(force: true)
+            emitLifecycleEvent(.paused)
+
+        case "resume":
+            guard let timer else { return }
+            let remaining = command.remainingSeconds ?? max(timer.timerLength - displayedTime, 0)
+            timer.elapsedTime = max(timer.timerLength - remaining, 0)
+            timer.startTime = Date()
+            timer.isPaused = false
+            saveChange()
+            syncLiveActivity(force: true)
+            emitLifecycleEvent(.resumed)
+
+        case "cancel":
+            if timer != nil {
+                stop(delete: true)
+            }
+
+        default:
+            return
+        }
+    }
+
+    private func emitLifecycleEvent(
+        _ eventType: TimerLifecycleEventType,
+        completedAt: Date? = nil,
+        cancelledAt: Date? = nil
+    ) {
+        guard let timer else { return }
+
+        let event = TimerLifecycleEvent(
+            eventType: eventType,
+            timerId: timer.id.uuidString,
+            status: timerLifecycleStatus(for: eventType, timer: timer),
+            remainingDurationSeconds: max(remainingTime ?? 0, 0),
+            totalDurationSeconds: max(timer.timerLength, 0),
+            effectiveAt: Date(),
+            completedAt: completedAt,
+            cancelledAt: cancelledAt
+        )
+
+        lastLifecycleEvent = event
+        handleLifecycleEvent(event)
+    }
+
+    private func timerLifecycleStatus(for eventType: TimerLifecycleEventType, timer: TrackerTimer) -> TimerLifecycleStatus {
+        switch eventType {
+        case .completed:
+            return .completed
+        case .cancelled:
+            return .cancelled
+        default:
+            return timer.isPaused ? .paused : .running
+        }
+    }
+
+    private func handleLifecycleEvent(_ event: TimerLifecycleEvent) {
+        switch event.eventType {
+        case .started, .resumed, .adjusted:
+            scheduleTimerFinishedNotificationIfNeeded()
+            cancelAwayTooLongNotification()
+        case .paused, .cancelled, .completed:
+            cancelTimerFinishedNotification()
+            if event.eventType != .completed {
+                cancelAwayTooLongNotification()
+            } else {
+                scheduleAwayTooLongNotificationIfNeeded(completedAt: event.completedAt ?? event.effectiveAt)
+            }
+        case .appBackgrounded, .appForegrounded:
+            if event.eventType == .appForegrounded {
+                cancelAwayTooLongNotification()
+            }
+            break
+        }
+    }
+
+    private var timerNotificationsEnabled: Bool {
+        currentUser?.timerNotificationsEnabled ?? true
+    }
+
+    private var timerFinishedNotificationEnabled: Bool {
+        currentUser?.timerFinishedNotificationEnabled ?? true
+    }
+
+    private var awayTooLongEnabled: Bool {
+        currentUser?.awayTooLongEnabled ?? false
+    }
+
+    private var awayTooLongMinutes: Int {
+        max(currentUser?.awayTooLongMinutes ?? 10, 1)
+    }
+
+    private func scheduleTimerFinishedNotificationIfNeeded() {
+        #if os(iOS)
+        guard timerNotificationsEnabled, timerFinishedNotificationEnabled else {
+            cancelTimerFinishedNotification()
+            return
+        }
+        guard let timer, !timer.isPaused, let remaining = remainingTime, remaining > 0 else {
+            cancelTimerFinishedNotification()
+            return
+        }
+
+        let seconds = TimeInterval(max(remaining, 1))
+        Task {
+            let center = UNUserNotificationCenter.current()
+            let settings = await center.notificationSettings()
+            if settings.authorizationStatus == .notDetermined {
+                _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
+            }
+
+            center.removePendingNotificationRequests(withIdentifiers: [timerFinishedNotificationId])
+
+            let content = UNMutableNotificationContent()
+            content.title = "Timer Finished"
+            content.body = "Your workout timer is done."
+            content.sound = .default
+            content.userInfo = ["timerId": timer.id.uuidString]
+
+            let trigger = UNTimeIntervalNotificationTrigger(timeInterval: seconds, repeats: false)
+            let request = UNNotificationRequest(identifier: timerFinishedNotificationId, content: content, trigger: trigger)
+            try? await center.add(request)
+        }
+        #endif
+    }
+
+    private func cancelTimerFinishedNotification() {
+        #if os(iOS)
+        Task {
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [timerFinishedNotificationId])
+        }
+        #endif
+    }
+
+    private func scheduleAwayTooLongNotificationIfNeeded(completedAt: Date) {
+        #if os(iOS)
+        guard !isAppInForeground else {
+            cancelAwayTooLongNotification()
+            return
+        }
+        guard timerNotificationsEnabled, awayTooLongEnabled else {
+            cancelAwayTooLongNotification()
+            return
+        }
+
+        let delaySeconds = TimeInterval(awayTooLongMinutes * 60)
+        let fireIn = max(completedAt.addingTimeInterval(delaySeconds).timeIntervalSinceNow, 1)
+
+        Task {
+            let center = UNUserNotificationCenter.current()
+            let settings = await center.notificationSettings()
+            if settings.authorizationStatus == .notDetermined {
+                _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
+            }
+
+            center.removePendingNotificationRequests(withIdentifiers: [awayTooLongNotificationId])
+
+            let content = UNMutableNotificationContent()
+            content.title = "Still Away?"
+            content.body = "Your timer finished a while ago. Jump back in when you're ready."
+            content.sound = .default
+
+            let trigger = UNTimeIntervalNotificationTrigger(timeInterval: fireIn, repeats: false)
+            let request = UNNotificationRequest(identifier: awayTooLongNotificationId, content: content, trigger: trigger)
+            try? await center.add(request)
+        }
+        #endif
+    }
+
+    private func cancelAwayTooLongNotification() {
+        #if os(iOS)
+        Task {
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [awayTooLongNotificationId])
+        }
+        #endif
     }
 
 }

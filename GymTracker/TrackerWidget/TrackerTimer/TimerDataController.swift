@@ -12,34 +12,47 @@ import Foundation
 struct TimerDataController {
     private static let appGroupIdentifier = "group.net.novapro.GymTracker"
 
-    static let container: ModelContainer = {
+    static let container: ModelContainer? = {
         let schema = Schema([TrackerTimer.self])
-        let modelConfiguration = ModelConfiguration(
-            schema: schema,
-            url: containerURL()
-        )
-        
-        do {
-            let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
-            return container
-        } catch {
-            fatalError("Could not create shared ModelContainer: \(error)")
+        guard let url = containerURL() else {
+            print("TimerDataController: app group container URL unavailable.")
+            return nil
         }
+
+        let modelConfiguration = ModelConfiguration(schema: schema, url: url)
+        var lastError: Error?
+
+        for attempt in 1...3 {
+            do {
+                return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            } catch {
+                lastError = error
+                print("TimerDataController: container init attempt \(attempt) failed: \(error)")
+                Thread.sleep(forTimeInterval: 0.15)
+            }
+        }
+
+        print("TimerDataController: failed to initialize shared container after retries: \(String(describing: lastError))")
+        return nil
     }()
     
-    static var context: ModelContext {
-        container.mainContext
+    static var context: ModelContext? {
+        container?.mainContext
     }
 
-    private static func containerURL() -> URL {
+    private static func containerURL() -> URL? {
         guard let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else {
-            fatalError("Could not get shared container URL for app group: \(appGroupIdentifier)")
+            return nil
         }
         return url.appendingPathComponent("gym_tracker.sqlite")
     }
     
     static func fetchTimer(byId id: String) -> TrackerTimer? {
         guard let uuid = UUID(uuidString: id) else {
+            return nil
+        }
+        guard let context else {
+            print("TimerDataController: missing model context while fetching timer.")
             return nil
         }
         

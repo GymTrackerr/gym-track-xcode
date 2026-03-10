@@ -120,6 +120,15 @@ struct SettingsView: View {
                             userService.setShowNutritionTab(newValue)
                         }
                     ))
+
+                    NavigationLink {
+                        TimerFeedbackSettingsView()
+                    } label: {
+                        HStack {
+                            Image(systemName: "bell.badge")
+                            Text("Timer Feedback")
+                        }
+                    }
                 }
 
                 Section("Nutrition") {

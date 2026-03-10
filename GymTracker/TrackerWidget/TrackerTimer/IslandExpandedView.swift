@@ -8,13 +8,10 @@
 import SwiftUI
 import ActivityKit
 import WidgetKit
-import Combine
 import AppIntents
 
 struct IslandExpandedView: View {
     let context: ActivityViewContext<TimerActivityAttributes>
-    @State private var updateTrigger = UUID()
-    @State private var lastDisplayedSeconds = -1
     
     private let helper: WidgetTimerHelper
     
@@ -23,54 +20,61 @@ struct IslandExpandedView: View {
         self.helper = WidgetTimerHelper(context: context)
     }
     
-    private var timer: Timer.TimerPublisher {
-        helper.getTimer(isPaused: context.state.isPaused)
-    }
-    
-    var remainingSeconds: Int {
-        helper.remainingSeconds
-    }
-    
     var body: some View {
-        VStack(spacing: 12) {
-            Text(remainingSeconds > 0 ?
-                 timeString(remainingSeconds) : "DONE")
-            .font(.system(size: 32, weight: .bold, design: .rounded))
-            .foregroundColor(context.state.isPaused ? .orange : remainingSeconds <= 10 ? .red : .primary)
-            
-            HStack(spacing: 20) {
+        TimelineView(.periodic(from: .now, by: 1)) { timeline in
+            let snapshot = helper.snapshot(at: timeline.date)
+            let remainingSeconds = snapshot.remainingSeconds
+
+            VStack(spacing: 10) {
                 if remainingSeconds > 0 {
-                    if context.state.isPaused {
-                        Button(intent: ResumeTimerIntent()) {
-                            Text("Resume")
+                    countdownText(snapshot: snapshot)
+                        .foregroundColor(snapshot.isPaused ? .orange : (remainingSeconds <= 10 ? .red : .primary))
+                } else {
+                    Text("DONE")
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .foregroundColor(.red)
+                }
+
+                HStack(spacing: 12) {
+                    if remainingSeconds > 0 {
+                        if snapshot.isPaused {
+                            Button(intent: ResumeTimerIntent()) {
+                                Text("Resume")
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        } else {
+                            Button(intent: PauseTimerIntent()) {
+                                Text("Pause")
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
                         }
-                        .buttonStyle(.borderedProminent)
-                    } else {
-                        Button(intent: PauseTimerIntent()) {
-                            Text("Pause")
+
+                        Button(intent: CancelTimerIntent()) {
+                            Text("Cancel")
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .tint(.red)
                     }
-                    
-                    Button(intent: CancelTimerIntent()) {
-                        Text("Cancel")
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.red)
                 }
             }
+            .padding(.vertical, 4)
+            .padding(.horizontal, 8)
         }
-        .padding()
-        .id(updateTrigger)
-        .onReceive(timer.autoconnect()) { _ in
-            // Only update if seconds actually changed
-            if remainingSeconds != lastDisplayedSeconds {
-                lastDisplayedSeconds = remainingSeconds
-                updateTrigger = UUID()
-            }
-        }
-        .onAppear {
-            lastDisplayedSeconds = remainingSeconds
+    }
+
+    @ViewBuilder
+    private func countdownText(snapshot: WidgetTimerSnapshot) -> some View {
+        if snapshot.isPaused {
+            Text(timeString(snapshot.remainingSeconds))
+                .font(.system(size: 26, weight: .bold, design: .rounded))
+                .monospacedDigit()
+        } else {
+            Text(timerInterval: Date()...snapshot.endDate, countsDown: true)
+                .font(.system(size: 26, weight: .bold, design: .rounded))
+                .monospacedDigit()
         }
     }
 }

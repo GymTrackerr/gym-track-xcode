@@ -21,10 +21,35 @@ struct TrackerWidgetLiveActivity: Widget {
             } compactLeading: {
                 Text("⏱")
             } compactTrailing: {
-                Text(timeString(context.state.remainingSeconds))
+                DynamicIslandCompactTimerView(context: context)
             } minimal: {
                 Text("⏱")
             }
         }
     }
 }
+private struct DynamicIslandCompactTimerView: View {
+    let context: ActivityViewContext<TimerActivityAttributes>
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { timeline in
+            let helper = WidgetTimerHelper(context: context)
+            let snapshot = helper.snapshot(at: timeline.date)
+            Group {
+                if snapshot.isPaused {
+                    Text(timeString(snapshot.remainingSeconds))
+                } else {
+                    Text(timerInterval: Date()...snapshot.endDate, countsDown: true)
+                }
+            }
+            .font(.caption2)
+            .monospacedDigit()
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .multilineTextAlignment(.trailing)
+            .frame(width: 44, alignment: .trailing)
+        }
+        .frame(width: 44, alignment: .trailing)
+    }
+}
+

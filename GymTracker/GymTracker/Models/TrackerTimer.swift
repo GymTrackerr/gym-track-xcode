@@ -66,3 +66,32 @@ struct TrackerTimerDTO: Identifiable, Codable {
         timer.updatedAt = updatedAt
     }
 }
+
+enum TimerLifecycleStatus: String, Codable {
+    case running
+    case paused
+    case completed
+    case cancelled
+}
+
+enum TimerLifecycleEventType: String, Codable {
+    case started
+    case paused
+    case resumed
+    case adjusted
+    case cancelled
+    case completed
+    case appBackgrounded
+    case appForegrounded
+}
+
+struct TimerLifecycleEvent: Codable {
+    let eventType: TimerLifecycleEventType
+    let timerId: String
+    let status: TimerLifecycleStatus
+    let remainingDurationSeconds: Int
+    let totalDurationSeconds: Int
+    let effectiveAt: Date
+    let completedAt: Date?
+    let cancelledAt: Date?
+}

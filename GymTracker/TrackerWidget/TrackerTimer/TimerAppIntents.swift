@@ -6,76 +6,136 @@
 //
 
 import AppIntents
-import SwiftData
-import UserNotifications
+import ActivityKit
+import WidgetKit
+import Foundation
+
+@MainActor
+private enum TimerActivitySync {
+    private static let appGroupIdentifier = "group.net.novapro.GymTracker"
+    private static let pendingCommandKey = "pendingTimerControlCommand"
+
+    private struct RuntimeState {
+        var remainingSeconds: Int
+        var totalLength: Int
+        var isPaused: Bool
+        var timerId: String
+    }
+
+    private struct PendingTimerControlCommand: Codable {
+        let action: String
+        let remainingSeconds: Int?
+        let requestedAt: TimeInterval
+    }
+
+    private static func defaults() -> UserDefaults? {
+        UserDefaults(suiteName: appGroupIdentifier)
+    }
+
+    private static func currentState(at now: Date = Date()) -> RuntimeState? {
+        guard let activity = Activity<TimerActivityAttributes>.activities.first else {
+            return nil
+        }
+
+        let state = activity.content.state
+        let remaining: Int
+        if state.isPaused {
+            remaining = max(state.pausedAtSeconds, 0)
+        } else {
+            let elapsed = Int(now.timeIntervalSince(state.lastUpdateTime))
+            remaining = max(state.remainingSeconds - elapsed, 0)
+        }
+
+        return RuntimeState(
+            remainingSeconds: remaining,
+            totalLength: max(activity.attributes.totalLength, 0),
+            isPaused: state.isPaused,
+            timerId: state.timerId
+        )
+    }
+
+    private static func savePendingCommand(action: String, remainingSeconds: Int?) {
+        let command = PendingTimerControlCommand(
+            action: action,
+            remainingSeconds: remainingSeconds,
+            requestedAt: Date().timeIntervalSince1970
+        )
+        guard let data = try? JSONEncoder().encode(command) else { return }
+        defaults()?.set(data, forKey: pendingCommandKey)
+    }
+
+    private static func updateActivities(from state: RuntimeState) async {
+        let now = Date()
+        for activity in Activity<TimerActivityAttributes>.activities {
+            let content = ActivityContent(
+                state: TimerActivityAttributes.ContentState(
+                    remainingSeconds: state.remainingSeconds,
+                    isPaused: state.isPaused,
+                    pausedAtSeconds: state.isPaused ? state.remainingSeconds : 0,
+                    lastUpdateTime: now,
+                    timerId: state.timerId.isEmpty ? activity.content.state.timerId : state.timerId
+                ),
+                staleDate: now.addingTimeInterval(24 * 3600)
+            )
+            await activity.update(content)
+        }
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    static func pause() async {
+        guard var state = currentState() else { return }
+        guard !state.isPaused else { return }
+
+        state.isPaused = true
+        savePendingCommand(action: "pause", remainingSeconds: state.remainingSeconds)
+        await updateActivities(from: state)
+    }
+
+    static func resume() async {
+        guard var state = currentState() else { return }
+        guard state.isPaused else { return }
+
+        state.isPaused = false
+        savePendingCommand(action: "resume", remainingSeconds: state.remainingSeconds)
+        await updateActivities(from: state)
+    }
+
+    static func cancel() async {
+        savePendingCommand(action: "cancel", remainingSeconds: nil)
+
+        for activity in Activity<TimerActivityAttributes>.activities {
+            await activity.end(nil, dismissalPolicy: .immediate)
+        }
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+}
 
 struct PauseTimerIntent: AppIntent {
     static var title: LocalizedStringResource = "Pause Timer"
-    
+
     @MainActor
     func perform() async throws -> some IntentResult {
-        let context = TimerDataController.context
-        
-        let descriptor = FetchDescriptor<TrackerTimer>(
-            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
-        )
-
-        guard let timer = try? context.fetch(descriptor).first else {
-            return .result()
-        }
-
-        if let start = timer.startTime {
-            timer.elapsedTime += Int(Date().timeIntervalSince(start))
-        }
-        timer.isPaused = true
-        timer.startTime = nil
-        
-        try? context.save()
-
+        await TimerActivitySync.pause()
         return .result()
     }
 }
 
 struct ResumeTimerIntent: AppIntent {
-    static var title:LocalizedStringResource = "Resume Timer"
-    
+    static var title: LocalizedStringResource = "Resume Timer"
+
     @MainActor
     func perform() async throws -> some IntentResult {
-        let context = TimerDataController.context
-        
-        let descriptor = FetchDescriptor<TrackerTimer>(
-            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
-        )
-        
-        guard let timer = try? context.fetch(descriptor).first else {
-            return .result()
-        }
-
-        timer.isPaused = false
-        timer.startTime = Date()
-        
-        try? context.save()
-        
+        await TimerActivitySync.resume()
         return .result()
     }
 }
 
 struct CancelTimerIntent: AppIntent {
     static var title: LocalizedStringResource = "Cancel Timer"
-    
+
     @MainActor
     func perform() async throws -> some IntentResult {
-        let context = TimerDataController.context
-        
-        let descriptor = FetchDescriptor<TrackerTimer>(
-            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
-        )
-
-        if let timer = try? context.fetch(descriptor).first {
-            context.delete(timer)
-            try? context.save()
-        }
-        
+        await TimerActivitySync.cancel()
         return .result()
     }
 }
