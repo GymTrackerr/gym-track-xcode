@@ -129,13 +129,14 @@ struct NutritionDayView: View {
                                                     .foregroundStyle(.secondary)
                                                     .padding(.leading, 24)
                                             } else {
+                                                let displayScale = recipeItemDisplayScale(for: log, items: items)
                                                 Divider()
                                                     .padding(.leading, 12)
                                                     .padding(.bottom, 4)
 
                                                 VStack(spacing: 8) {
                                                     ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                                                        RecipeItemSnapshotRow(item: item)
+                                                        RecipeItemSnapshotRow(item: item, scale: displayScale)
                                                     }
                                                 }
                                                 .padding(.top, 3)
@@ -383,6 +384,30 @@ struct NutritionDayView: View {
             expandedMealLogIDs.insert(id)
         }
     }
+
+    private func recipeItemDisplayScale(for log: NutritionLogEntry, items: [RecipeItemSnapshot]) -> Double {
+        let snapshotCaloriesTotal = items.reduce(0) { $0 + $1.caloriesSnapshot }
+        if snapshotCaloriesTotal > 0 {
+            return max(0, log.caloriesSnapshot / snapshotCaloriesTotal)
+        }
+
+        let snapshotProteinTotal = items.reduce(0) { $0 + $1.proteinSnapshot }
+        if snapshotProteinTotal > 0 {
+            return max(0, log.proteinSnapshot / snapshotProteinTotal)
+        }
+
+        let snapshotCarbsTotal = items.reduce(0) { $0 + $1.carbsSnapshot }
+        if snapshotCarbsTotal > 0 {
+            return max(0, log.carbsSnapshot / snapshotCarbsTotal)
+        }
+
+        let snapshotFatTotal = items.reduce(0) { $0 + $1.fatSnapshot }
+        if snapshotFatTotal > 0 {
+            return max(0, log.fatSnapshot / snapshotFatTotal)
+        }
+
+        return 1
+    }
 }
 
 private struct NutritionMacroChip: View {
@@ -533,13 +558,14 @@ private struct NutritionLogRow: View {
 
 private struct RecipeItemSnapshotRow: View {
     let item: RecipeItemSnapshot
+    let scale: Double
 
     var body: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.name)
                     .font(.subheadline)
-                Text("\(displayAmount(item.amount)) \(item.amountUnit)")
+                Text("\(displayAmount(item.amount * scale)) \(item.amountUnit)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -547,10 +573,10 @@ private struct RecipeItemSnapshotRow: View {
             Spacer()
 
             VStack(alignment: .trailing, spacing: 2) {
-                Text("\(Int(item.caloriesSnapshot.rounded())) kcal")
+                Text("\(Int((item.caloriesSnapshot * scale).rounded())) kcal")
                     .font(.caption)
                     .fontWeight(.semibold)
-                Text("P \(Int(item.proteinSnapshot.rounded()))  C \(Int(item.carbsSnapshot.rounded()))  F \(Int(item.fatSnapshot.rounded()))")
+                Text("P \(Int((item.proteinSnapshot * scale).rounded()))  C \(Int((item.carbsSnapshot * scale).rounded()))  F \(Int((item.fatSnapshot * scale).rounded()))")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

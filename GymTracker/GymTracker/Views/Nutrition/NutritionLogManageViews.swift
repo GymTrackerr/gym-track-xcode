@@ -570,7 +570,6 @@ private struct ManageFoodsView: View {
     @State private var showArchived = false
     @State private var showCreateFood = false
     @State private var editingFood: FoodItem?
-    @State private var showEditingFood = false
     @State private var showActionError = false
     @State private var actionErrorMessage = ""
 
@@ -603,7 +602,6 @@ private struct ManageFoodsView: View {
                 ForEach(foods, id: \.id) { food in
                     Button {
                         editingFood = food
-                        showEditingFood = true
                     } label: {
                         FoodRowView(food: food) {
                             Button {
@@ -650,9 +648,9 @@ private struct ManageFoodsView: View {
             }
             .presentationDetents([.large])
         }
-        .sheet(isPresented: $showEditingFood) {
+        .sheet(item: $editingFood) { food in
             NavigationStack {
-                NutritionFoodEditorView(food: editingFood)
+                NutritionFoodEditorView(food: food)
             }
             .presentationDetents([.large])
         }
@@ -670,7 +668,6 @@ private struct ManageMealsView: View {
     @State private var searchText = ""
     @State private var showCreateMeal = false
     @State private var editingMeal: MealRecipe?
-    @State private var showEditMeal = false
 
     private var meals: [MealRecipe] {
         nutritionService.fetchMeals(search: searchText)
@@ -690,7 +687,6 @@ private struct ManageMealsView: View {
                 ForEach(meals, id: \.id) { meal in
                     Button {
                         editingMeal = meal
-                        showEditMeal = true
                     } label: {
                         MealRowView(meal: meal)
                     }
@@ -717,9 +713,9 @@ private struct ManageMealsView: View {
             }
             .presentationDetents([.large])
         }
-        .sheet(isPresented: $showEditMeal) {
+        .sheet(item: $editingMeal) { meal in
             NavigationStack {
-                NutritionMealTemplateEditorView(meal: editingMeal)
+                NutritionMealTemplateEditorView(meal: meal)
             }
             .presentationDetents([.large])
         }
