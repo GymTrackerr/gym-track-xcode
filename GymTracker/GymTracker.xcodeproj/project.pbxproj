@@ -89,19 +89,19 @@
 		65B6FECA2EE5F00500DB4EED /* Exceptions for "GymTracker" folder in "GymTrackerWatch Watch App" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				API/API_Base.swift,
-				API/API_Data.swift,
-				API/API_Helper.swift,
+				Core/Networking/API_Base.swift,
+				Core/Networking/API_Data.swift,
+				Core/Networking/API_Helper.swift,
+				Core/Persistence/ServiceBase.swift,
+				Features/Home/Views/StepBarGraph.swift,
+				Features/Timer/Models/TrackerTimer.swift,
+				Features/Timer/Services/TimerService.swift,
+				Features/Timer/Services/TimerServiceLiveActivity.swift,
+				Features/User/Models/User.swift,
+				Features/User/Services/UserService.swift,
 				GymTracker.icon,
-				Manager/HealthKitManager.swift,
-				Manager/MediaCache.swift,
-				Models/TrackerTimer.swift,
-				Models/User.swift,
-				Services/ServiceBase.swift,
-				Services/TimerService.swift,
-				Services/TimerServiceLiveActivity.swift,
-				Services/UserService.swift,
-				Views/Home/StepBarGraph.swift,
+				Integrations/HealthKit/Managers/HealthKitManager.swift,
+				Integrations/Media/MediaCache.swift,
 			);
 			target = 65B6FEB92EE5EF8500DB4EED /* GymTrackerWatch Watch App */;
 		};
@@ -134,13 +134,13 @@
 		65F66C422EE500F10089B62E /* Exceptions for "GymTracker" folder in "TrackerWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				API/API_Base.swift,
-				API/API_Data.swift,
-				API/API_Helper.swift,
-				Models/TrackerTimer.swift,
-				Models/User.swift,
-				Services/ServiceBase.swift,
-				Services/UserService.swift,
+				Core/Networking/API_Base.swift,
+				Core/Networking/API_Data.swift,
+				Core/Networking/API_Helper.swift,
+				Core/Persistence/ServiceBase.swift,
+				Features/Timer/Models/TrackerTimer.swift,
+				Features/User/Models/User.swift,
+				Features/User/Services/UserService.swift,
 			);
 			target = 65F66C192EE4FD780089B62E /* TrackerWidgetExtension */;
 		};
