@@ -125,6 +125,15 @@ struct SingleDayView: View {
         }
         .navigationTitle(routine.name)
         .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                NavigationLink {
+                    RoutineHistoryChartView(routine: routine)
+                        .appBackground()
+                } label: {
+                    Label("Charts", systemImage: "chart.bar.xaxis")
+                }
+            }
+            
         #if os(iOS)
             ToolbarItem(placement: .navigationBarTrailing) {
                 EditButton()

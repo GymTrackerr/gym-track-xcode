@@ -512,6 +512,15 @@ struct ExerciseDetailView: View {
                 }
             }
             .toolbar {
+                ToolbarItemGroup(placement: .topBarLeading) {
+                    NavigationLink {
+                        ExerciseHistoryChartView(exercise: exercise)
+                            .appBackground()
+                    } label: {
+                        Label("Charts", systemImage: "chart.bar.xaxis")
+                    }
+                }
+                
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button {
                         isEditingAliases.toggle()

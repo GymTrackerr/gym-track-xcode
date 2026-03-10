@@ -303,7 +303,7 @@ struct HistoryChartView<FilterControls: View>: View {
 
     private var currentWindowAverageValue: Double {
         let points = cachedPoints.filter { point in
-            point.startDate >= currentWindowInterval.start && point.startDate < currentWindowInterval.end && point.value > 0
+            point.startDate >= visibleInterval.start && point.startDate < visibleInterval.end && point.value > 0
         }
         guard !points.isEmpty else { return 0 }
         return points.reduce(0.0) { $0 + $1.value } / Double(points.count)

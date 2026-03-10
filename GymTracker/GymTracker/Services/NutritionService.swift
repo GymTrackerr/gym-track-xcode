@@ -357,7 +357,7 @@ class NutritionService: ServiceBase, ObservableObject {
         for (index, item) in validItems.enumerated() {
             let recipeItem = MealRecipeItem(
                 amount: item.grams,
-                amountUnit: .grams,
+                amountUnit: item.food.unit,
                 order: index,
                 mealRecipe: meal,
                 foodItem: item.food
@@ -413,7 +413,7 @@ class NutritionService: ServiceBase, ObservableObject {
         for (index, item) in validItems.enumerated() {
             let recipeItem = MealRecipeItem(
                 amount: item.grams,
-                amountUnit: .grams,
+                amountUnit: item.food.unit,
                 order: index,
                 mealRecipe: meal,
                 foodItem: item.food
@@ -503,22 +503,32 @@ class NutritionService: ServiceBase, ObservableObject {
         note: String?
     ) -> Bool {
         guard amount > 0 else { return false }
-
-        let ratio: Double
-        if log.amount > 0 {
-            ratio = amount / log.amount
-        } else {
-            ratio = 1
-        }
+        let previousAmount = log.amount
 
         log.amount = amount
         log.timestamp = timestamp
         log.category = category
         log.note = normalizedOptionalText(note)
-        log.caloriesSnapshot = max(0, log.caloriesSnapshot * ratio)
-        log.proteinSnapshot = max(0, log.proteinSnapshot * ratio)
-        log.carbsSnapshot = max(0, log.carbsSnapshot * ratio)
-        log.fatSnapshot = max(0, log.fatSnapshot * ratio)
+        switch log.logType {
+        case .quickCalories:
+            // Quick entries are calorie-only by definition.
+            log.caloriesSnapshot = max(0, amount)
+            log.proteinSnapshot = 0
+            log.carbsSnapshot = 0
+            log.fatSnapshot = 0
+        case .food, .meal:
+            let ratio: Double
+            if previousAmount > 0 {
+                ratio = amount / previousAmount
+            } else {
+                ratio = 1
+            }
+            // Scale parent snapshots only. Keep recipeItemsSnapshot immutable.
+            log.caloriesSnapshot = max(0, log.caloriesSnapshot * ratio)
+            log.proteinSnapshot = max(0, log.proteinSnapshot * ratio)
+            log.carbsSnapshot = max(0, log.carbsSnapshot * ratio)
+            log.fatSnapshot = max(0, log.fatSnapshot * ratio)
+        }
         updateLogDateMetadata(log)
         log.updatedAt = Date()
 

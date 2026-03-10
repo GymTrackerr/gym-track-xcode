@@ -86,6 +86,7 @@ struct NutritionLogSheet: View {
     @State private var selectedFood: FoodItem?
     @State private var selectedMeal: MealRecipe?
     @State private var amount: String = ""
+    @State private var mealServings: Double = 1
     @State private var quickCalories: String = ""
     @State private var category: FoodLogCategory = .other
     @State private var selectedTime: Date = Date()
@@ -107,7 +108,7 @@ struct NutritionLogSheet: View {
             let value = Double(amount.replacingOccurrences(of: ",", with: ".")) ?? 0
             return selectedFood != nil && value > 0
         case .meal:
-            return selectedMeal != nil
+            return selectedMeal != nil && mealServings > 0
         case .quickAdd:
             let value = Double(quickCalories.replacingOccurrences(of: ",", with: ".")) ?? 0
             return value > 0
@@ -169,6 +170,9 @@ struct NutritionLogSheet: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
+
+                        TextField("Servings", value: $mealServings, format: .number)
+                            .keyboardType(.decimalPad)
                     }
                 case .quickAdd:
                     Section("Quick Add") {
@@ -205,9 +209,10 @@ struct NutritionLogSheet: View {
                 nutritionService.loadMeals()
                 selectedTime = Date()
                 category = nutritionService.defaultCategory(for: Date())
+                mealServings = 1
             }
             .navigationDestination(isPresented: $showFoodPicker) {
-                NutritionFoodPickerView(initialFilter: mode == .drink ? .drinks : .all) { food in
+                NutritionFoodPickerView(initialFilter: mode == .drink ? .drinks : .foods) { food in
                     selectedFood = food
                 }
             }
@@ -292,7 +297,7 @@ struct NutritionLogSheet: View {
             }
             _ = try nutritionService.logMeal(
                 template: selectedMeal,
-                amount: 1,
+                amount: mealServings,
                 timestamp: timestamp,
                 category: category,
                 note: trimmedNote
@@ -908,6 +913,8 @@ struct NutritionMealTemplateEditorView: View {
 
     @State private var name: String = ""
     @State private var defaultCategory: FoodLogCategory = .other
+    @State private var batchSizeText: String = "1"
+    @State private var servingUnitLabel: String = "serving"
     @State private var draftItems: [MealTemplateDraftItem] = []
     @State private var filter: FoodFilterKind = .all
     @State private var showArchivedFoods = false
@@ -938,6 +945,9 @@ struct NutritionMealTemplateEditorView: View {
         List {
             Section("Meal") {
                 TextField("Name", text: $name)
+                TextField("Batch Size", text: $batchSizeText)
+                    .keyboardType(.decimalPad)
+                TextField("Serving Unit Label", text: $servingUnitLabel)
                 Picker("Default Category", selection: $defaultCategory) {
                     ForEach(FoodLogCategory.displayOrder) { item in
                         Text(item.displayName).tag(item)
@@ -1065,6 +1075,8 @@ struct NutritionMealTemplateEditorView: View {
             name = meal.name
         }
         defaultCategory = meal.defaultCategory
+        batchSizeText = String(format: "%.2f", meal.batchSize)
+        servingUnitLabel = meal.servingUnitLabel ?? "serving"
 
         if draftItems.isEmpty {
             draftItems = meal.items
@@ -1106,9 +1118,18 @@ struct NutritionMealTemplateEditorView: View {
 
     private func save() {
         let items = resolvedItems()
+        let batchSize = Double(batchSizeText.replacingOccurrences(of: ",", with: ".")) ?? 0
 
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             errorText = "Meal name is required."
+            return
+        }
+        guard batchSize > 0 else {
+            errorText = "Batch size must be greater than 0."
+            return
+        }
+        guard !servingUnitLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            errorText = "Serving unit label is required."
             return
         }
 
@@ -1118,14 +1139,27 @@ struct NutritionMealTemplateEditorView: View {
         }
 
         if let meal {
-            if nutritionService.updateMeal(meal, name: name, items: items, defaultCategory: defaultCategory) {
+            if nutritionService.updateMeal(
+                meal,
+                name: name,
+                items: items,
+                defaultCategory: defaultCategory,
+                batchSize: batchSize,
+                servingUnitLabel: servingUnitLabel
+            ) {
                 onSaved?(meal)
                 dismiss()
             } else {
                 errorText = "Could not update template."
             }
         } else {
-            if let createdMeal = nutritionService.createMealTemplate(name: name, items: items, defaultCategory: defaultCategory) {
+            if let createdMeal = nutritionService.createMealTemplate(
+                name: name,
+                items: items,
+                defaultCategory: defaultCategory,
+                batchSize: batchSize,
+                servingUnitLabel: servingUnitLabel
+            ) {
                 onSaved?(createdMeal)
                 dismiss()
             } else {
