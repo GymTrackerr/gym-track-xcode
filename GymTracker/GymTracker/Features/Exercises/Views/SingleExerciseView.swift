@@ -430,6 +430,24 @@ struct ExerciseDetailView: View {
                 .padding(.horizontal)
                 .padding(.bottom, 12)
 
+                NavigationLink {
+                    ExerciseProgressionDefaultEditorView(exercise: exercise)
+                        .appBackground()
+                } label: {
+                    HStack {
+                        Image(systemName: "chart.line.uptrend.xyaxis")
+                        Text("Exercise Progression Defaults")
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundStyle(Color.primary)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.accentColor)
+                    .cornerRadius(14)
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 12)
+
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Previous Logs")
                         .font(.headline)

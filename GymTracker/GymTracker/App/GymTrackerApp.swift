@@ -25,6 +25,7 @@ struct GymTrackerApp: App {
     @StateObject var programService: ProgramService
     @StateObject var defaultContentSeeder: DefaultContentSeeder
     @StateObject var progressionEvaluationService: ProgressionEvaluationService
+    @StateObject var progressionDefaultsService: ProgressionDefaultsService
     
     @StateObject var watchSessionManager: WatchSessionManager
     @StateObject var healthKitManager = HealthKitManager()
@@ -58,6 +59,8 @@ struct GymTrackerApp: App {
         let programService = ProgramService(context: context)
         let defaultContentSeeder = DefaultContentSeeder(context: context)
         let progressionEvaluationService = ProgressionEvaluationService(context: context)
+        let progressionDefaultsService = ProgressionDefaultsService(context: context, setService: setService)
+        sessionService.progressionDefaultsService = progressionDefaultsService
 
         // Bind AFTER creation
         dashboardService.bind(to: userService)
@@ -72,6 +75,7 @@ struct GymTrackerApp: App {
         programService.bind(to: userService)
         defaultContentSeeder.bind(to: userService)
         progressionEvaluationService.bind(to: userService)
+        progressionDefaultsService.bind(to: userService)
 
         self._dashboardService = StateObject(wrappedValue: dashboardService)
         self._userService = StateObject(wrappedValue: userService)
@@ -86,6 +90,7 @@ struct GymTrackerApp: App {
         self._programService = StateObject(wrappedValue: programService)
         self._defaultContentSeeder = StateObject(wrappedValue: defaultContentSeeder)
         self._progressionEvaluationService = StateObject(wrappedValue: progressionEvaluationService)
+        self._progressionDefaultsService = StateObject(wrappedValue: progressionDefaultsService)
 
         self._watchSessionManager = StateObject(
             wrappedValue: WatchSessionManager(
@@ -118,6 +123,7 @@ struct GymTrackerApp: App {
                 .environmentObject(programService)
                 .environmentObject(defaultContentSeeder)
                 .environmentObject(progressionEvaluationService)
+                .environmentObject(progressionDefaultsService)
         }
         .modelContainer(sharedModelContainer)
     }

@@ -25,6 +25,7 @@ struct SettingsView: View {
     @EnvironmentObject var sessionService: SessionService
     @EnvironmentObject var exerciseSplitDayService: ExerciseSplitDayService
     @EnvironmentObject var sessionExerciseService: SessionExerciseService
+    @EnvironmentObject var progressionDefaultsService: ProgressionDefaultsService
     @State private var shareItem: BackupShareItem?
     @State private var showImportPicker = false
     @State private var importTarget: BackupImportTarget = .nutrition
@@ -127,6 +128,15 @@ struct SettingsView: View {
                         HStack {
                             Image(systemName: "bell.badge")
                             Text("Timer Feedback")
+                        }
+                    }
+
+                    NavigationLink {
+                        ProgressionDefaultsSettingsView()
+                    } label: {
+                        HStack {
+                            Image(systemName: "chart.line.uptrend.xyaxis")
+                            Text("Progression Defaults")
                         }
                     }
                 }

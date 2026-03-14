@@ -227,11 +227,13 @@ class SetService: ServiceBase, ObservableObject {
     }
 
     func mostRecentRep(for exercise: Exercise) -> SessionRep? {
+        let exerciseKind = exercise.setDisplayKind
         for entry in recentEntries(for: exercise) {
             let sortedSets = entry.sets.sorted { $0.timestamp > $1.timestamp }
             for sessionSet in sortedSets {
+                guard SetDisplayFormatter.isMeaningfulSet(sessionSet, exerciseKind: exerciseKind) else { continue }
                 for rep in sessionSet.sessionReps.reversed() {
-                    if rep.weight > 0 || rep.count > 0 {
+                    if rep.weight > 0 {
                         return rep
                     }
                 }

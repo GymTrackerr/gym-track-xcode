@@ -24,6 +24,8 @@ struct SharedModelConfig {
         ProgramDayExerciseOverride.self,
         ProgressionProfile.self,
         ProgressionState.self,
+        ExerciseProgressionDefault.self,
+        UserProgressionDefault.self,
         TrackerTimer.self,
         Food.self,
         FoodLog.self,

@@ -16,6 +16,7 @@ class SessionService : ServiceBase, ObservableObject {
     @Published var create_notes: String = ""
     @Published var creating_session: Bool = false
     @Published var selected_splitDay: Routine? = nil
+    var progressionDefaultsService: ProgressionDefaultsService?
 
     private static let poundsFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
@@ -183,6 +184,7 @@ class SessionService : ServiceBase, ObservableObject {
 
             if let routine = selected_splitDay {
                 createSessionExercise(session: newItem, routine: routine)
+                applyDefaultsToSessionEntries(session: newItem)
             }
         
             do {
@@ -223,6 +225,7 @@ class SessionService : ServiceBase, ObservableObject {
             newItem.programBlockIndex = programDay.blockIndex
 
             createSessionExercise(session: newItem, routine: routine)
+            applyDefaultsToSessionEntries(session: newItem)
             applyProgramDayOverrides(session: newItem, programDay: programDay)
 
             do {
@@ -285,12 +288,24 @@ class SessionService : ServiceBase, ObservableObject {
                 entries: sortedEntries,
                 matchedSessionEntryIds: &matchedSessionEntryIds
             ) else { continue }
-            entry.appliedSetsTarget = override.setsTarget
-            entry.appliedRepsTarget = override.repsTarget
-            entry.appliedRepsLow = override.repsLow
-            entry.appliedRepsHigh = override.repsHigh
-            entry.appliedProgression = override.progression
-            entry.appliedProgressionNameSnapshot = override.progression?.name
+            if let defaultsService = progressionDefaultsService {
+                defaultsService.mergeProgramOverride(override, into: entry)
+            } else {
+                entry.appliedSetsTarget = override.setsTarget
+                entry.appliedRepsTarget = override.repsTarget
+                entry.appliedRepsLow = override.repsLow
+                entry.appliedRepsHigh = override.repsHigh
+                entry.appliedProgression = override.progression
+                entry.appliedProgressionNameSnapshot = override.progression?.name
+            }
+        }
+    }
+
+    private func applyDefaultsToSessionEntries(session: Session) {
+        guard let defaultsService = progressionDefaultsService else { return }
+        let sortedEntries = session.sessionEntries.sorted { $0.order < $1.order }
+        for entry in sortedEntries {
+            _ = defaultsService.applyDefaultsIfAvailable(to: entry)
         }
     }
 
