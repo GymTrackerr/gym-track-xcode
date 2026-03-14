@@ -9,6 +9,8 @@ final class Program {
     var notes: String
     var isArchived: Bool = false
     var isActive: Bool = false
+    var isBuiltIn: Bool = false
+    var builtInKey: String? = nil
     var startDate: Date?
     var timestamp: Date
 
@@ -24,6 +26,8 @@ final class Program {
         notes: String = "",
         isArchived: Bool = false,
         isActive: Bool = false,
+        isBuiltIn: Bool = false,
+        builtInKey: String? = nil,
         startDate: Date? = nil
     ) {
         self.user_id = user_id
@@ -31,6 +35,8 @@ final class Program {
         self.notes = notes
         self.isArchived = isArchived
         self.isActive = isActive
+        self.isBuiltIn = isBuiltIn
+        self.builtInKey = builtInKey
         self.startDate = startDate
         self.timestamp = Date()
         self.programDays = []

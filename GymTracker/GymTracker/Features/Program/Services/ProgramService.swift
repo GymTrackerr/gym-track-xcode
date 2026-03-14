@@ -75,6 +75,8 @@ final class ProgramService: ServiceBase, ObservableObject {
         name: String,
         notes: String = "",
         isActive: Bool = false,
+        isBuiltIn: Bool = false,
+        builtInKey: String? = nil,
         startDate: Date? = nil
     ) -> Program? {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -87,6 +89,8 @@ final class ProgramService: ServiceBase, ObservableObject {
             notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
             isArchived: false,
             isActive: isActive,
+            isBuiltIn: isBuiltIn,
+            builtInKey: builtInKey,
             startDate: startDate
         )
         modelContext.insert(created)
@@ -109,6 +113,7 @@ final class ProgramService: ServiceBase, ObservableObject {
         isActive: Bool,
         startDate: Date?
     ) -> Bool {
+        guard !program.isBuiltIn else { return false }
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return false }
 
@@ -129,6 +134,7 @@ final class ProgramService: ServiceBase, ObservableObject {
 
     @discardableResult
     func archiveProgram(_ program: Program) -> Bool {
+        guard !program.isBuiltIn else { return false }
         program.isArchived = true
         program.isActive = false
         do {
@@ -155,6 +161,7 @@ final class ProgramService: ServiceBase, ObservableObject {
     }
 
     func canDeleteProgramPermanently(_ program: Program) -> Bool {
+        if program.isBuiltIn { return false }
         if !program.sessions.isEmpty { return false }
         if program.programDays.contains(where: { !$0.sessions.isEmpty }) { return false }
         return true
@@ -183,6 +190,7 @@ final class ProgramService: ServiceBase, ObservableObject {
         blockIndex: Int?,
         routine: Routine?
     ) -> ProgramDay? {
+        guard !program.isBuiltIn else { return nil }
         guard let userId = currentUser?.id else { return nil }
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTitle.isEmpty else { return nil }
@@ -220,6 +228,7 @@ final class ProgramService: ServiceBase, ObservableObject {
         order: Int,
         routine: Routine?
     ) -> Bool {
+        guard programDay.program?.isBuiltIn != true else { return false }
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTitle.isEmpty else { return false }
 
@@ -241,6 +250,7 @@ final class ProgramService: ServiceBase, ObservableObject {
 
     @discardableResult
     func removeProgramDay(_ programDay: ProgramDay) -> Bool {
+        guard programDay.program?.isBuiltIn != true else { return false }
         // Keep historical links intact by preventing removal once any session references this day.
         guard programDay.sessions.isEmpty else { return false }
 
@@ -255,6 +265,7 @@ final class ProgramService: ServiceBase, ObservableObject {
     }
 
     func moveProgramDays(in program: Program, from source: IndexSet, to destination: Int) {
+        guard !program.isBuiltIn else { return }
         var days = program.programDays.sorted { $0.order < $1.order }
         days.move(fromOffsets: source, toOffset: destination)
         for (index, day) in days.enumerated() {
@@ -275,6 +286,7 @@ final class ProgramService: ServiceBase, ObservableObject {
         repsHigh: Int? = nil,
         notes: String = ""
     ) -> ProgramDayExerciseOverride? {
+        guard programDay.program?.isBuiltIn != true else { return nil }
         guard let userId = currentUser?.id else { return nil }
 
         let nextOrder = (programDay.exerciseOverrides.map(\.order).max() ?? -1) + 1
@@ -313,6 +325,7 @@ final class ProgramService: ServiceBase, ObservableObject {
         notes: String,
         order: Int
     ) -> Bool {
+        guard overrideModel.programDay.program?.isBuiltIn != true else { return false }
         overrideModel.exercise = exercise
         overrideModel.progression = progression
         overrideModel.setsTarget = setsTarget
@@ -332,6 +345,7 @@ final class ProgramService: ServiceBase, ObservableObject {
 
     @discardableResult
     func removeOverride(_ overrideModel: ProgramDayExerciseOverride) -> Bool {
+        guard overrideModel.programDay.program?.isBuiltIn != true else { return false }
         modelContext.delete(overrideModel)
         do {
             try modelContext.save()
@@ -342,6 +356,7 @@ final class ProgramService: ServiceBase, ObservableObject {
     }
 
     func moveOverrides(in programDay: ProgramDay, from source: IndexSet, to destination: Int) {
+        guard programDay.program?.isBuiltIn != true else { return }
         var overrides = programDay.exerciseOverrides.sorted { $0.order < $1.order }
         overrides.move(fromOffsets: source, toOffset: destination)
         for (index, overrideModel) in overrides.enumerated() {
@@ -431,11 +446,73 @@ final class ProgramService: ServiceBase, ObservableObject {
     }
 
     func statusText(for program: Program) -> String {
+        if program.isBuiltIn {
+            return "Built-In"
+        }
         if program.isActive {
             return "Active"
         }
 
         return "Program"
+    }
+
+    @discardableResult
+    func duplicateProgramForEditing(_ program: Program) -> Program? {
+        guard let userId = currentUser?.id else { return nil }
+
+        let duplicate = Program(
+            user_id: userId,
+            name: "\(program.name) Copy",
+            notes: program.notes,
+            isArchived: false,
+            isActive: false,
+            isBuiltIn: false,
+            builtInKey: nil,
+            startDate: program.startDate
+        )
+        modelContext.insert(duplicate)
+
+        let sortedDays = program.programDays.sorted { $0.order < $1.order }
+        for day in sortedDays {
+            let duplicatedDay = ProgramDay(
+                user_id: userId,
+                program: duplicate,
+                routine: day.routine,
+                weekIndex: day.weekIndex,
+                dayIndex: day.dayIndex,
+                blockIndex: day.blockIndex,
+                title: day.title,
+                order: day.order
+            )
+            modelContext.insert(duplicatedDay)
+            duplicate.programDays.append(duplicatedDay)
+
+            let sortedOverrides = day.exerciseOverrides.sorted { $0.order < $1.order }
+            for override in sortedOverrides {
+                let duplicatedOverride = ProgramDayExerciseOverride(
+                    user_id: userId,
+                    programDay: duplicatedDay,
+                    exercise: override.exercise,
+                    progression: override.progression,
+                    setsTarget: override.setsTarget,
+                    repsTarget: override.repsTarget,
+                    repsLow: override.repsLow,
+                    repsHigh: override.repsHigh,
+                    notes: override.notes,
+                    order: override.order
+                )
+                modelContext.insert(duplicatedOverride)
+                duplicatedDay.exerciseOverrides.append(duplicatedOverride)
+            }
+        }
+
+        do {
+            try modelContext.save()
+            loadPrograms()
+            return duplicate
+        } catch {
+            return nil
+        }
     }
 
     func weekDayText(for program: Program) -> String? {

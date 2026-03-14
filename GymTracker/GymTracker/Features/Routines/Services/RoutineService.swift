@@ -81,6 +81,7 @@ class RoutineService : ServiceBase, ObservableObject {
 
     @discardableResult
     func setAliases(for routine: Routine, aliases: [String]) -> Bool {
+        guard !routine.isBuiltIn else { return false }
         routine.aliases = Array(Set(aliases)).sorted()
         do {
             try modelContext.save()
@@ -122,6 +123,8 @@ class RoutineService : ServiceBase, ObservableObject {
         withAnimation {
             var failed = false
             for index in offsets {
+                guard routines.indices.contains(index) else { continue }
+                if routines[index].isBuiltIn { continue }
                 do {
                     try delete(routines[index])
                 } catch {
@@ -177,6 +180,11 @@ class RoutineService : ServiceBase, ObservableObject {
     }
 
     func moveSplitDay(from source: IndexSet, to destination: Int) {
+        let hasBuiltInSource = source.contains { index in
+            routines.indices.contains(index) && routines[index].isBuiltIn
+        }
+        if hasBuiltInSource { return }
+
         withAnimation {
             routines.move(fromOffsets: source, toOffset: destination)
             renumberSplitDays()
@@ -191,6 +199,14 @@ class RoutineService : ServiceBase, ObservableObject {
     }
 
     func delete(_ routine: Routine) throws {
+        if routine.isBuiltIn {
+            throw NSError(
+                domain: "RoutineService",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Built-in routines are read-only. Duplicate to edit."]
+            )
+        }
+
         // If routine has session history → archive
         if !routine.sessions.isEmpty {
             routine.isArchived = true
@@ -204,12 +220,44 @@ class RoutineService : ServiceBase, ObservableObject {
     }
 
     func willArchiveOnDelete(_ routine: Routine) -> Bool {
-        !routine.sessions.isEmpty
+        if routine.isBuiltIn { return false }
+        return !routine.sessions.isEmpty
     }
 
     func restore(_ routine: Routine) throws {
         routine.isArchived = false
         try modelContext.save()
         loadSplitDays()
+    }
+
+    @discardableResult
+    func duplicateRoutineForEditing(_ routine: Routine) -> Routine? {
+        guard let userId = currentUser?.id else { return nil }
+
+        let nextOrder = (routines.map { $0.order }.max() ?? -1) + 1
+        let duplicate = Routine(
+            order: nextOrder,
+            name: "\(routine.name) Copy",
+            user_id: userId,
+            isBuiltIn: false,
+            builtInKey: nil
+        )
+        duplicate.aliases = routine.aliases
+        modelContext.insert(duplicate)
+
+        let sortedSplits = routine.exerciseSplits.sorted { $0.order < $1.order }
+        for split in sortedSplits {
+            let duplicatedSplit = ExerciseSplitDay(order: split.order, routine: duplicate, exercise: split.exercise)
+            modelContext.insert(duplicatedSplit)
+            duplicate.exerciseSplits.append(duplicatedSplit)
+        }
+
+        do {
+            try modelContext.save()
+            loadSplitDays()
+            return duplicate
+        } catch {
+            return nil
+        }
     }
 }

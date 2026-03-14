@@ -16,6 +16,8 @@ final class Routine {
     var name: String
     var timestamp: Date
     var isArchived: Bool = false
+    var isBuiltIn: Bool = false
+    var builtInKey: String? = nil
     var aliases: [String] = []
     
     @Relationship(deleteRule: .cascade)
@@ -27,10 +29,18 @@ final class Routine {
     @Relationship(deleteRule: .nullify, inverse: \ProgramDay.routine)
     var programDays: [ProgramDay] = []
     
-    init(order: Int, name: String, user_id: UUID) {
+    init(
+        order: Int,
+        name: String,
+        user_id: UUID,
+        isBuiltIn: Bool = false,
+        builtInKey: String? = nil
+    ) {
         self.order = order
         self.name = name
         self.user_id = user_id
+        self.isBuiltIn = isBuiltIn
+        self.builtInKey = builtInKey
         self.timestamp = Date()
         self.exerciseSplits = []
         self.sessions = []

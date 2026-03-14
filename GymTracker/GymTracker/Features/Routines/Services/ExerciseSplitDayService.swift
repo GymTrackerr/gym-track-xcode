@@ -16,6 +16,7 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
     @Published var removingExercises: [Exercise] = []
     
     func renumberExercises(routine: Routine) {
+        guard !routine.isBuiltIn else { return }
         let exercises = routine.exerciseSplits.sorted { $0.order < $1.order }
         
         for (i, exercise) in exercises.enumerated() {
@@ -52,6 +53,10 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
     }
     
     func confirmEditing(routine: Routine) {
+        guard !routine.isBuiltIn else {
+            endEditing()
+            return
+        }
         // adding exercises
         for (_, exercise) in addingExercises.enumerated() {
             addExercise(routine: routine, exercise: exercise)
@@ -69,6 +74,7 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
     }
     
     func syncSplitWithSession(routine: Routine, session: Session) {
+        guard !routine.isBuiltIn else { return }
         for (_, exerciseSplit) in routine.exerciseSplits.enumerated() {
             removeExercise(routine: routine, exercise: exerciseSplit.exercise)
         }
@@ -81,6 +87,7 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
     }
     
     func addExercises(routine: Routine) {
+        guard !routine.isBuiltIn else { return }
         for (_, exercise) in addingExercises.enumerated() {
             // if it has relationship already, dont do?
             addExercise(routine: routine, exercise: exercise)
@@ -88,6 +95,7 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
     }
     
     func addExercise(routine: Routine, exercise: Exercise)  {
+        guard !routine.isBuiltIn else { return }
         // adds relations automatically
         // TODO: why cant i just do the count? not order
         guard !routine.exerciseSplits.contains(where: { $0.exercise.id == exercise.id }) else { return }
@@ -106,6 +114,7 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
     }
     
     func removeExercise(routine:Routine, exercise: Exercise) {
+        guard !routine.isBuiltIn else { return }
         withAnimation {
             let esd = routine.exerciseSplits.first(where: { $0.exercise == exercise })
             if let esd = esd {
@@ -117,6 +126,7 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
     }
     
     func removeExercise(routine: Routine, splitIds: [UUID]) {
+        guard !routine.isBuiltIn else { return }
         guard !splitIds.isEmpty else { return }
         
         withAnimation {
@@ -132,6 +142,7 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
     }
     
     func moveExercise(routine: Routine, from source: IndexSet, to destination: Int) {
+        guard !routine.isBuiltIn else { return }
         var exercises = routine.exerciseSplits.sorted { $0.order < $1.order }
         
         exercises.move(fromOffsets: source, toOffset: destination)
@@ -144,6 +155,7 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
     }
     
     func addRestoredExerciseSplit(routine: Routine, exerciseSplit: ExerciseSplitDay) {
+        guard !routine.isBuiltIn else { return }
         // Re-add the split back to the routine
         if !routine.exerciseSplits.contains(where: { $0.id == exerciseSplit.id }) {
             routine.exerciseSplits.append(exerciseSplit)

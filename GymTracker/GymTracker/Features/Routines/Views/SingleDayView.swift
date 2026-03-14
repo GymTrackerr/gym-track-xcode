@@ -21,16 +21,22 @@ struct SingleDayView: View {
     
     @State var searchResults: [Exercise] = []
     @State private var routineAliasDraft: String = ""
+    @State private var duplicatedRoutine: Routine?
     @EnvironmentObject var toastManager: ActionToastManager
     @Environment(\.editMode) private var editMode
 
     var body: some View {
         VStack {
-            if (editMode?.wrappedValue == .inactive){
+            if (editMode?.wrappedValue == .inactive) || routine.isBuiltIn {
                 VStack(alignment: .leading) {
                     Text("Routine: \(routine.name)")
                     Text("Order: \(routine.order)")
                     Text("Date: \(routine.timestamp.formatted(date: .numeric, time: .omitted))")
+                    if routine.isBuiltIn {
+                        Text("Starter routine (read-only). Duplicate to customize.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
                     if !routine.aliases.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -135,17 +141,27 @@ struct SingleDayView: View {
             }
             
         #if os(iOS)
-            ToolbarItem(placement: .navigationBarTrailing) {
-                EditButton()
+            if !routine.isBuiltIn {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    EditButton()
+                }
             }
         #endif
-            ToolbarItem {
-                Button {
-                    exerciseService.editingContent = ""
-                    performSearch()
-                    esdService.addingExerciseSplit = true
-                } label: {
-                    Label("Add Exercise", systemImage: "plus.circle")
+            if routine.isBuiltIn {
+                ToolbarItem {
+                    Button("Duplicate to Edit") {
+                        duplicatedRoutine = splitDayService.duplicateRoutineForEditing(routine)
+                    }
+                }
+            } else {
+                ToolbarItem {
+                    Button {
+                        exerciseService.editingContent = ""
+                        performSearch()
+                        esdService.addingExerciseSplit = true
+                    } label: {
+                        Label("Add Exercise", systemImage: "plus.circle")
+                    }
                 }
             }
         }
@@ -226,6 +242,10 @@ struct SingleDayView: View {
                 }
             }
         }
+        .navigationDestination(item: $duplicatedRoutine) { duplicated in
+            SingleDayView(routine: duplicated)
+                .appBackground()
+        }
     }
 
     func removeExerciseEditing(exercise: Exercise) {
@@ -249,6 +269,7 @@ struct SingleDayView: View {
         searchResults = exerciseService.search(query: exerciseService.editingContent)
     }
     func removeExercise(offsets: IndexSet) {
+        guard !routine.isBuiltIn else { return }
         let sortedSplits = routine.exerciseSplits.sorted { $0.order < $1.order }
         let splitIds = offsets.compactMap { index in
             sortedSplits.indices.contains(index) ? sortedSplits[index].id : nil
@@ -257,6 +278,7 @@ struct SingleDayView: View {
     }
     
     func moveExercise(from source: IndexSet, to destination: Int) {
+        guard !routine.isBuiltIn else { return }
         withTransaction(Transaction(animation: .default)) {
             esdService.moveExercise(routine: routine, from: source, to: destination)
         }
@@ -319,6 +341,11 @@ struct SingleDayLabelView: View {
                     Text("Day #\(routine.order+1)")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                    if routine.isBuiltIn {
+                        Text("Starter")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
 
                     Spacer()
                     Text(routine.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))

@@ -39,6 +39,7 @@ final class ProgressionProfile {
     var defaultRepsLow: Int?
     var defaultRepsHigh: Int?
     var isBuiltIn: Bool = false
+    var builtInKey: String? = nil
     var isArchived: Bool = false
 
     @Relationship(deleteRule: .nullify, inverse: \ProgramDayExerciseOverride.progression)
@@ -74,6 +75,7 @@ final class ProgressionProfile {
         defaultRepsLow: Int? = nil,
         defaultRepsHigh: Int? = nil,
         isBuiltIn: Bool = false,
+        builtInKey: String? = nil,
         isArchived: Bool = false
     ) {
         self.user_id = user_id
@@ -87,6 +89,7 @@ final class ProgressionProfile {
         self.defaultRepsLow = defaultRepsLow
         self.defaultRepsHigh = defaultRepsHigh
         self.isBuiltIn = isBuiltIn
+        self.builtInKey = builtInKey
         self.isArchived = isArchived
         self.overrides = []
         self.states = []

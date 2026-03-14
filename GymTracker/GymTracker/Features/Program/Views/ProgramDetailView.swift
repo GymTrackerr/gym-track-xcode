@@ -9,6 +9,7 @@ struct ProgramDetailView: View {
 
     @State private var openedSession: Session?
     @State private var openedProgramDay: ProgramDay?
+    @State private var openedProgram: Program?
 
     @State private var nameText: String
     @State private var notesText: String
@@ -47,31 +48,33 @@ struct ProgramDetailView: View {
         .navigationTitle(program.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                EditButton()
-            }
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Button {
-                    showingAddDaySheet = true
-                } label: {
-                    Label("Add Day", systemImage: "plus")
+            if !program.isBuiltIn {
+                ToolbarItem(placement: .topBarLeading) {
+                    EditButton()
                 }
-
-                Menu {
-                    Button(role: .destructive) {
-                        showingArchiveConfirm = true
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button {
+                        showingAddDaySheet = true
                     } label: {
-                        Label("Archive Program", systemImage: "archivebox")
+                        Label("Add Day", systemImage: "plus")
                     }
 
-                    Button(role: .destructive) {
-                        showingDeleteConfirm = true
+                    Menu {
+                        Button(role: .destructive) {
+                            showingArchiveConfirm = true
+                        } label: {
+                            Label("Archive Program", systemImage: "archivebox")
+                        }
+
+                        Button(role: .destructive) {
+                            showingDeleteConfirm = true
+                        } label: {
+                            Label("Delete Permanently", systemImage: "trash")
+                        }
+                        .disabled(!programService.canDeleteProgramPermanently(program))
                     } label: {
-                        Label("Delete Permanently", systemImage: "trash")
+                        Image(systemName: "ellipsis.circle")
                     }
-                    .disabled(!programService.canDeleteProgramPermanently(program))
-                } label: {
-                    Image(systemName: "ellipsis.circle")
                 }
             }
         }
@@ -85,6 +88,10 @@ struct ProgramDetailView: View {
         }
         .navigationDestination(item: $openedSession) { session in
             SingleSessionView(session: session)
+                .appBackground()
+        }
+        .navigationDestination(item: $openedProgram) { nextProgram in
+            ProgramDetailView(program: nextProgram)
                 .appBackground()
         }
         .alert("Archive Program?", isPresented: $showingArchiveConfirm) {
@@ -112,31 +119,51 @@ struct ProgramDetailView: View {
     private var metadataSection: some View {
         Section {
             VStack(alignment: .leading, spacing: 10) {
-                TextField("Program Name", text: $nameText)
-                    .textFieldStyle(.roundedBorder)
+                if program.isBuiltIn {
+                    Text(program.name)
+                        .font(.headline)
+                    Text("Built-in template. Duplicate to customize.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if !program.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text(program.notes)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
 
-                TextField("Notes", text: $notesText, axis: .vertical)
-                    .lineLimit(2...5)
-                    .textFieldStyle(.roundedBorder)
+                    Button("Duplicate to Edit") {
+                        if let duplicated = programService.duplicateProgramForEditing(program) {
+                            openedProgram = duplicated
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                } else {
+                    TextField("Program Name", text: $nameText)
+                        .textFieldStyle(.roundedBorder)
 
-                Toggle("Active", isOn: $isActive)
+                    TextField("Notes", text: $notesText, axis: .vertical)
+                        .lineLimit(2...5)
+                        .textFieldStyle(.roundedBorder)
 
-                Toggle("Has Start Date", isOn: $hasStartDate)
+                    Toggle("Active", isOn: $isActive)
 
-                if hasStartDate {
-                    DatePicker("Start Date", selection: $startDate, displayedComponents: .date)
+                    Toggle("Has Start Date", isOn: $hasStartDate)
+
+                    if hasStartDate {
+                        DatePicker("Start Date", selection: $startDate, displayedComponents: .date)
+                    }
+
+                    Button("Save Program") {
+                        _ = programService.updateProgram(
+                            program,
+                            name: nameText,
+                            notes: notesText,
+                            isActive: isActive,
+                            startDate: hasStartDate ? startDate : nil
+                        )
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
-
-                Button("Save Program") {
-                    _ = programService.updateProgram(
-                        program,
-                        name: nameText,
-                        notes: notesText,
-                        isActive: isActive,
-                        startDate: hasStartDate ? startDate : nil
-                    )
-                }
-                .buttonStyle(.borderedProminent)
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -159,7 +186,9 @@ struct ProgramDetailView: View {
             ForEach(sortedProgramDays, id: \.id) { day in
                 VStack(alignment: .leading, spacing: 8) {
                     Button {
-                        openedProgramDay = day
+                        if !program.isBuiltIn {
+                            openedProgramDay = day
+                        }
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(day.title)
@@ -188,13 +217,15 @@ struct ProgramDetailView: View {
                         .buttonStyle(.borderedProminent)
                         .disabled(day.routine == nil)
 
-                        Button(role: .destructive) {
-                            _ = programService.removeProgramDay(day)
-                        } label: {
-                            Image(systemName: "trash")
-                                .frame(width: 32, height: 32)
+                        if !program.isBuiltIn {
+                            Button(role: .destructive) {
+                                _ = programService.removeProgramDay(day)
+                            } label: {
+                                Image(systemName: "trash")
+                                    .frame(width: 32, height: 32)
+                            }
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.bordered)
                     }
                 }
                 .padding(12)
@@ -205,13 +236,17 @@ struct ProgramDetailView: View {
                 .listRowBackground(Color.clear)
             }
             .onMove { source, destination in
-                programService.moveProgramDays(in: program, from: source, to: destination)
+                if !program.isBuiltIn {
+                    programService.moveProgramDays(in: program, from: source, to: destination)
+                }
             }
             .onDelete { offsets in
-                let current = sortedProgramDays
-                for index in offsets {
-                    guard current.indices.contains(index) else { continue }
-                    _ = programService.removeProgramDay(current[index])
+                if !program.isBuiltIn {
+                    let current = sortedProgramDays
+                    for index in offsets {
+                        guard current.indices.contains(index) else { continue }
+                        _ = programService.removeProgramDay(current[index])
+                    }
                 }
             }
         }
