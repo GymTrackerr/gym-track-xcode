@@ -23,6 +23,9 @@ final class Routine {
     
     @Relationship(deleteRule: .nullify)
     var sessions: [Session] = []
+
+    @Relationship(deleteRule: .nullify, inverse: \ProgramDay.routine)
+    var programDays: [ProgramDay] = []
     
     init(order: Int, name: String, user_id: UUID) {
         self.order = order
@@ -31,5 +34,6 @@ final class Routine {
         self.timestamp = Date()
         self.exerciseSplits = []
         self.sessions = []
+        self.programDays = []
     }
 }

@@ -19,6 +19,11 @@ final class Session {
     
     var routine: Routine?
     var routine_id: UUID? { routine?.id }
+
+    var program: Program?
+    var programDay: ProgramDay?
+    var programWeekIndex: Int?
+    var programBlockIndex: Int?
     
     @Relationship(deleteRule: .cascade)
     var sessionEntries: [SessionEntry]
@@ -28,6 +33,10 @@ final class Session {
         self.user_id = user_id
         self.notes = notes
         self.routine = routine
+        self.program = nil
+        self.programDay = nil
+        self.programWeekIndex = nil
+        self.programBlockIndex = nil
         self.timestampDone = timestamp
         self.sessionEntries = []
     }

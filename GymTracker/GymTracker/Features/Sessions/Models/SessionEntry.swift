@@ -19,6 +19,14 @@ final class SessionEntry {
     var exercise: Exercise
     
     var session: Session
+
+    var appliedSetsTarget: Int?
+    var appliedRepsTarget: Int?
+    var appliedRepsLow: Int?
+    var appliedRepsHigh: Int?
+    var appliedProgression: ProgressionProfile?
+    var appliedProgressionNameSnapshot: String?
+    var suggestedWeight: Double?
     
     @Relationship(deleteRule: .cascade)
     var sets: [SessionSet]
@@ -31,6 +39,13 @@ final class SessionEntry {
         self.order = order
         self.session = session
         self.exercise = exercise
+        self.appliedSetsTarget = nil
+        self.appliedRepsTarget = nil
+        self.appliedRepsLow = nil
+        self.appliedRepsHigh = nil
+        self.appliedProgression = nil
+        self.appliedProgressionNameSnapshot = nil
+        self.suggestedWeight = nil
         self.sets = []
     }
     
