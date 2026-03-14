@@ -22,6 +22,7 @@ struct GymTrackerApp: App {
     @StateObject var exerciseSplitDayService: ExerciseSplitDayService
     @StateObject var sessionExerciseService: SessionExerciseService
     @StateObject var nutritionService: NutritionService
+    @StateObject var progressionEvaluationService: ProgressionEvaluationService
     
     @StateObject var watchSessionManager: WatchSessionManager
     @StateObject var healthKitManager = HealthKitManager()
@@ -52,6 +53,7 @@ struct GymTrackerApp: App {
         let exerciseSplitDayService = ExerciseSplitDayService(context: context)
         let sessionExerciseService = SessionExerciseService(context: context)
         let nutritionService = NutritionService(context: context)
+        let progressionEvaluationService = ProgressionEvaluationService(context: context)
 
         // Bind AFTER creation
         dashboardService.bind(to: userService)
@@ -63,6 +65,7 @@ struct GymTrackerApp: App {
         exerciseSplitDayService.bind(to: userService)
         sessionExerciseService.bind(to: userService)
         nutritionService.bind(to: userService)
+        progressionEvaluationService.bind(to: userService)
 
         self._dashboardService = StateObject(wrappedValue: dashboardService)
         self._userService = StateObject(wrappedValue: userService)
@@ -74,6 +77,7 @@ struct GymTrackerApp: App {
         self._exerciseSplitDayService = StateObject(wrappedValue: exerciseSplitDayService)
         self._sessionExerciseService = StateObject(wrappedValue: sessionExerciseService)
         self._nutritionService = StateObject(wrappedValue: nutritionService)
+        self._progressionEvaluationService = StateObject(wrappedValue: progressionEvaluationService)
 
         self._watchSessionManager = StateObject(
             wrappedValue: WatchSessionManager(
@@ -103,6 +107,7 @@ struct GymTrackerApp: App {
                 .environmentObject(setService)
                 .environmentObject(timerService)
                 .environmentObject(nutritionService)
+                .environmentObject(progressionEvaluationService)
         }
         .modelContainer(sharedModelContainer)
     }

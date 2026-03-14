@@ -10,7 +10,7 @@ final class ProgressionState {
     var exercise: Exercise?
     var progression: ProgressionProfile?
 
-    var workingWeight: Double
+    var workingWeight: Double?
     var successCount: Int
     var lastEvaluatedSessionEntryId: UUID?
     var lastAdvancedAt: Date?
@@ -19,7 +19,7 @@ final class ProgressionState {
         user_id: UUID,
         exercise: Exercise? = nil,
         progression: ProgressionProfile? = nil,
-        workingWeight: Double = 0,
+        workingWeight: Double? = nil,
         successCount: Int = 0,
         lastEvaluatedSessionEntryId: UUID? = nil,
         lastAdvancedAt: Date? = nil

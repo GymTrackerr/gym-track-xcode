@@ -16,6 +16,7 @@ struct SingleSessionView: View {
     @EnvironmentObject var exerciseService: ExerciseService
     @EnvironmentObject var splitDayService: RoutineService
     @EnvironmentObject var timerService: TimerService
+    @EnvironmentObject var progressionEvaluationService: ProgressionEvaluationService
 
     @Bindable var session: Session
     let navigationContext: SessionNavigationContext
@@ -383,6 +384,7 @@ struct SingleSessionView: View {
                 Button {
                     sessionExerciseDraftStore.clearDrafts(for: session.sessionEntries.map(\.id))
                     session.timestampDone = Date()
+                    progressionEvaluationService.evaluateSessionIfNeeded(session)
                 } label: {
                     Text("Finish Session")
                         .frame(maxWidth: .infinity)
