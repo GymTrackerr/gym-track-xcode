@@ -203,6 +203,42 @@ class SessionService : ServiceBase, ObservableObject {
         
         return newItem
     }
+
+    func addSession(programDay: ProgramDay, notes: String = "") -> Session? {
+        let trimmedNotes = notes.trimmingCharacters(in: .whitespaces)
+        guard let userId = currentUser?.id else { return nil }
+        guard let routine = programDay.routine else { return nil }
+        guard programDay.user_id == userId else { return nil }
+
+        let newItem = Session(timestamp: Date(), user_id: userId, routine: routine, notes: trimmedNotes)
+        var failed = false
+
+        withAnimation {
+            modelContext.insert(newItem)
+            try? modelContext.save()
+
+            newItem.program = programDay.program
+            newItem.programDay = programDay
+            newItem.programWeekIndex = programDay.weekIndex
+            newItem.programBlockIndex = programDay.blockIndex
+
+            createSessionExercise(session: newItem, routine: routine)
+            applyProgramDayOverrides(session: newItem, programDay: programDay)
+
+            do {
+                try modelContext.save()
+                loadSessions()
+            } catch {
+                print("Failed to save program-based session: \(error)")
+                failed = true
+            }
+        }
+
+        if failed {
+            return nil
+        }
+        return newItem
+    }
     
     func updateSessionToSplitDay(session: Session) -> Session? {
 //        withAnimation {
@@ -236,6 +272,41 @@ class SessionService : ServiceBase, ObservableObject {
             modelContext.insert(newSessionEntry)
             session.sessionEntries.append(newSessionEntry)
         }
+    }
+
+    private func applyProgramDayOverrides(session: Session, programDay: ProgramDay) {
+        let sortedEntries = session.sessionEntries.sorted { $0.order < $1.order }
+        let sortedOverrides = programDay.exerciseOverrides.sorted { $0.order < $1.order }
+
+        for override in sortedOverrides {
+            guard let entry = resolveSessionEntry(for: override, entries: sortedEntries) else { continue }
+            entry.appliedSetsTarget = override.setsTarget
+            entry.appliedRepsTarget = override.repsTarget
+            entry.appliedRepsLow = override.repsLow
+            entry.appliedRepsHigh = override.repsHigh
+            entry.appliedProgression = override.progression
+            entry.appliedProgressionNameSnapshot = override.progression?.name
+        }
+    }
+
+    private func resolveSessionEntry(
+        for override: ProgramDayExerciseOverride,
+        entries: [SessionEntry]
+    ) -> SessionEntry? {
+        if let exercise = override.exercise {
+            if let exactMatch = entries.first(where: { $0.exercise.id == exercise.id && $0.order == override.order }) {
+                return exactMatch
+            }
+            if let exerciseMatch = entries.first(where: { $0.exercise.id == exercise.id }) {
+                return exerciseMatch
+            }
+        }
+
+        if let orderMatch = entries.first(where: { $0.order == override.order }) {
+            return orderMatch
+        }
+
+        return nil
     }
     
     func removeSession(session: Session) {
