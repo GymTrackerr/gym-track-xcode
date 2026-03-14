@@ -41,6 +41,19 @@ struct SessionExerciseView: View {
         case reps(UUID)
     }
 
+    private struct TargetChecklistRow: Identifiable {
+        let id: Int
+        let order: Int
+        let weight: Double?
+        let repsTarget: Int?
+        let repsLow: Int?
+        let repsHigh: Int?
+
+        var autofillReps: Int? {
+            repsTarget ?? repsHigh ?? repsLow
+        }
+    }
+
     private var sessionExerciseId: UUID { sessionEntry.id }
 
     private var draftState: SessionExerciseDraftStore.SessionExerciseDraft? {
@@ -88,6 +101,11 @@ struct SessionExerciseView: View {
                     }
                 } else {
                     if canEditSession {
+                        if !targetChecklistRows.isEmpty {
+                            sectionCard {
+                                todaysTargetsCard
+                            }
+                        }
                         sectionCard {
                             addSetForm
                         }
@@ -247,6 +265,88 @@ struct SessionExerciseView: View {
             }
         }
         .buttonStyle(.plain)
+    }
+
+    private var targetChecklistRows: [TargetChecklistRow] {
+        guard sessionEntry.exercise.cardio == false else { return [] }
+        guard let setsTarget = sessionEntry.appliedSetsTarget, setsTarget > 0 else { return [] }
+
+        let hasRepsTarget = sessionEntry.appliedRepsTarget != nil
+            || sessionEntry.appliedRepsLow != nil
+            || sessionEntry.appliedRepsHigh != nil
+        guard hasRepsTarget else { return [] }
+
+        return (0..<setsTarget).map { index in
+            TargetChecklistRow(
+                id: index,
+                order: index,
+                weight: sessionEntry.suggestedWeight,
+                repsTarget: sessionEntry.appliedRepsTarget,
+                repsLow: sessionEntry.appliedRepsLow,
+                repsHigh: sessionEntry.appliedRepsHigh
+            )
+        }
+    }
+
+    private var targetCompletionStates: [Bool] {
+        let exerciseKind = sessionEntry.exercise.setDisplayKind
+        let meaningfulSets = sessionEntry.sets
+            .sorted { $0.order < $1.order }
+            .filter { SetDisplayFormatter.isMeaningfulSet($0, exerciseKind: exerciseKind) }
+
+        return targetChecklistRows.map { target in
+            guard meaningfulSets.indices.contains(target.order) else { return false }
+            let candidateSet = meaningfulSets[target.order]
+            return set(candidateSet, matches: target)
+        }
+    }
+
+    private var nextSuggestedTargetIndex: Int? {
+        targetCompletionStates.firstIndex(of: false)
+    }
+
+    private var todaysTargetsCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Today's Targets")
+                .font(.headline)
+
+            ForEach(targetChecklistRows) { row in
+                let isCompleted = targetCompletionStates.indices.contains(row.order) ? targetCompletionStates[row.order] : false
+                let isSuggested = nextSuggestedTargetIndex == row.order
+
+                HStack(spacing: 12) {
+                    Image(systemName: isCompleted ? "checkmark.square.fill" : "square")
+                        .foregroundStyle(isCompleted ? Color.green : Color.secondary)
+
+                    setBadge(text: "\(row.order + 1)")
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(targetDescription(for: row))
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+
+                        if isSuggested && !isCompleted {
+                            Text("Next target")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Spacer()
+                }
+                .padding(12)
+                .background(Color.gray.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(isSuggested && !isCompleted ? Color.green.opacity(0.35) : Color.clear, lineWidth: 1)
+                )
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    applyTargetDraftAutofill(row)
+                }
+            }
+        }
     }
 
     private var addSetForm: some View {
@@ -1145,6 +1245,79 @@ struct SessionExerciseView: View {
             _ = setService.addRep(sessionSet: newSet, weight: draft.weight, reps: draft.reps, unit: draft.unit)
         }
 
+    }
+
+    private func applyTargetDraftAutofill(_ target: TargetChecklistRow) {
+        guard canEditSession else { return }
+        guard sessionEntry.exercise.cardio == false else { return }
+
+        if draftReps.isEmpty {
+            draftReps = [RepDraft(unit: draftUnit)]
+        }
+
+        if let reps = target.autofillReps {
+            draftReps[0].reps = reps
+        }
+
+        if let weight = target.weight {
+            draftReps[0].weight = weight
+        }
+
+        persistRepSnapshotsToDraftState()
+    }
+
+    private func set(_ sessionSet: SessionSet, matches target: TargetChecklistRow) -> Bool {
+        guard let rep = firstRepForTargetMatching(in: sessionSet) else { return false }
+
+        let repsMatch: Bool
+        if let exact = target.repsTarget {
+            repsMatch = rep.count == exact
+        } else if let low = target.repsLow, let high = target.repsHigh {
+            repsMatch = rep.count >= low && rep.count <= high
+        } else if let high = target.repsHigh {
+            repsMatch = rep.count == high
+        } else if let low = target.repsLow {
+            repsMatch = rep.count == low
+        } else {
+            repsMatch = true
+        }
+
+        let weightMatch: Bool
+        if let targetWeight = target.weight {
+            weightMatch = abs(rep.weight - targetWeight) < 0.0001
+        } else {
+            weightMatch = true
+        }
+
+        return repsMatch && weightMatch
+    }
+
+    private func firstRepForTargetMatching(in sessionSet: SessionSet) -> SessionRep? {
+        if let firstMeaningful = sessionSet.sessionReps.first(where: { $0.count > 0 || $0.weight > 0 }) {
+            return firstMeaningful
+        }
+        return sessionSet.sessionReps.first
+    }
+
+    private func targetDescription(for target: TargetChecklistRow) -> String {
+        let repsText: String
+        if let repsTarget = target.repsTarget {
+            repsText = "\(repsTarget)"
+        } else if let low = target.repsLow, let high = target.repsHigh {
+            repsText = "\(low)-\(high)"
+        } else if let high = target.repsHigh {
+            repsText = "\(high)"
+        } else if let low = target.repsLow {
+            repsText = "\(low)"
+        } else {
+            repsText = "-"
+        }
+
+        if let weight = target.weight {
+            return "\(weight.clean) x \(repsText)"
+        }
+
+        return "\(repsText) reps"
     }
 
     private func addCardioSetFromDraft() {

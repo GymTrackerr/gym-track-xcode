@@ -277,9 +277,14 @@ class SessionService : ServiceBase, ObservableObject {
     private func applyProgramDayOverrides(session: Session, programDay: ProgramDay) {
         let sortedEntries = session.sessionEntries.sorted { $0.order < $1.order }
         let sortedOverrides = programDay.exerciseOverrides.sorted { $0.order < $1.order }
+        var matchedSessionEntryIds: Set<UUID> = []
 
         for override in sortedOverrides {
-            guard let entry = resolveSessionEntry(for: override, entries: sortedEntries) else { continue }
+            guard let entry = resolveSessionEntry(
+                for: override,
+                entries: sortedEntries,
+                matchedSessionEntryIds: &matchedSessionEntryIds
+            ) else { continue }
             entry.appliedSetsTarget = override.setsTarget
             entry.appliedRepsTarget = override.repsTarget
             entry.appliedRepsLow = override.repsLow
@@ -291,18 +296,30 @@ class SessionService : ServiceBase, ObservableObject {
 
     private func resolveSessionEntry(
         for override: ProgramDayExerciseOverride,
-        entries: [SessionEntry]
+        entries: [SessionEntry],
+        matchedSessionEntryIds: inout Set<UUID>
     ) -> SessionEntry? {
+        func firstUnmatched(_ candidates: [SessionEntry]) -> SessionEntry? {
+            candidates.first { matchedSessionEntryIds.contains($0.id) == false }
+        }
+
         if let exercise = override.exercise {
-            if let exactMatch = entries.first(where: { $0.exercise.id == exercise.id && $0.order == override.order }) {
+            let exactMatches = entries.filter { $0.exercise.id == exercise.id && $0.order == override.order }
+            if let exactMatch = firstUnmatched(exactMatches) {
+                matchedSessionEntryIds.insert(exactMatch.id)
                 return exactMatch
             }
-            if let exerciseMatch = entries.first(where: { $0.exercise.id == exercise.id }) {
+
+            let exerciseMatches = entries.filter { $0.exercise.id == exercise.id }
+            if let exerciseMatch = firstUnmatched(exerciseMatches) {
+                matchedSessionEntryIds.insert(exerciseMatch.id)
                 return exerciseMatch
             }
         }
 
-        if let orderMatch = entries.first(where: { $0.order == override.order }) {
+        let orderMatches = entries.filter { $0.order == override.order }
+        if let orderMatch = firstUnmatched(orderMatches) {
+            matchedSessionEntryIds.insert(orderMatch.id)
             return orderMatch
         }
 
