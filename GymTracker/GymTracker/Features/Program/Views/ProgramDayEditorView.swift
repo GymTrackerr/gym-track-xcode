@@ -8,19 +8,15 @@ struct ProgramDayEditorView: View {
     @State private var openedOverride: ProgramDayExerciseOverride?
 
     @State private var titleText: String
-    @State private var weekIndexText: String
-    @State private var dayIndexText: String
-    @State private var blockIndexText: String
-    @State private var orderText: String
+    @State private var weekNumberText: String
+    @State private var selectedWeekday: Int
     @State private var selectedRoutineId: UUID?
 
     init(programDay: ProgramDay) {
         self.programDay = programDay
         _titleText = State(initialValue: programDay.title)
-        _weekIndexText = State(initialValue: String(programDay.weekIndex))
-        _dayIndexText = State(initialValue: String(programDay.dayIndex))
-        _blockIndexText = State(initialValue: programDay.blockIndex.map(String.init) ?? "")
-        _orderText = State(initialValue: String(programDay.order))
+        _weekNumberText = State(initialValue: String(programDay.weekIndex + 1))
+        _selectedWeekday = State(initialValue: programDay.dayIndex)
         _selectedRoutineId = State(initialValue: programDay.routine?.id)
     }
 
@@ -34,16 +30,19 @@ struct ProgramDayEditorView: View {
 
     var body: some View {
         List {
-            Section("Day Metadata") {
+            Section("Workout") {
                 TextField("Title", text: $titleText)
-                TextField("Week Index", text: $weekIndexText)
+                TextField("Week Number", text: $weekNumberText)
                     .keyboardType(.numberPad)
-                TextField("Day Index", text: $dayIndexText)
-                    .keyboardType(.numberPad)
-                TextField("Block Index", text: $blockIndexText)
-                    .keyboardType(.numberPad)
-                TextField("Order", text: $orderText)
-                    .keyboardType(.numberPad)
+                Picker("Weekday", selection: $selectedWeekday) {
+                    Text("Sunday").tag(0)
+                    Text("Monday").tag(1)
+                    Text("Tuesday").tag(2)
+                    Text("Wednesday").tag(3)
+                    Text("Thursday").tag(4)
+                    Text("Friday").tag(5)
+                    Text("Saturday").tag(6)
+                }
 
                 Picker("Routine", selection: $selectedRoutineId) {
                     Text("None").tag(UUID?.none)
@@ -83,7 +82,7 @@ struct ProgramDayEditorView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .navigationTitle("Program Day")
+        .navigationTitle("Workout")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -107,10 +106,10 @@ struct ProgramDayEditorView: View {
         _ = programService.updateProgramDay(
             programDay,
             title: titleText,
-            weekIndex: parseInt(weekIndexText) ?? programDay.weekIndex,
-            dayIndex: parseInt(dayIndexText) ?? programDay.dayIndex,
-            blockIndex: parseOptionalInt(blockIndexText),
-            order: parseInt(orderText) ?? programDay.order,
+            weekIndex: max(0, (parseInt(weekNumberText) ?? (programDay.weekIndex + 1)) - 1),
+            dayIndex: selectedWeekday,
+            blockIndex: programDay.blockIndex,
+            order: programDay.order,
             routine: selectedRoutine
         )
 
@@ -145,9 +144,4 @@ struct ProgramDayEditorView: View {
         Int(text.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
-    private func parseOptionalInt(_ text: String) -> Int? {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        return Int(trimmed)
-    }
 }

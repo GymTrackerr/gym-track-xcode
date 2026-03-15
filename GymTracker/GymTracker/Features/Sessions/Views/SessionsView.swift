@@ -167,19 +167,60 @@ struct SessionsView: View {
 struct CreateSessionSheetView: View {
     @EnvironmentObject var sessionService: SessionService
     @EnvironmentObject var splitDayService: RoutineService
+    @EnvironmentObject var programService: ProgramService
     @Binding var openedSession: Session?
     @Binding var isPresented: Bool
-    
+
+    @State private var mode: SessionStartMode = .freestyle
+    @State private var selectedRoutineId: UUID?
+    @State private var selectedProgramId: UUID?
+    @State private var selectedProgramDayId: UUID?
+
+    private enum SessionStartMode: String, CaseIterable, Identifiable {
+        case freestyle = "Freestyle"
+        case routine = "Routine"
+        case program = "Program"
+
+        var id: String { rawValue }
+    }
+
+    private var selectedProgram: Program? {
+        programService.programs.first(where: { $0.id == selectedProgramId })
+    }
+
+    private var selectedProgramDay: ProgramDay? {
+        selectedProgram?.programDays.first(where: { $0.id == selectedProgramDayId })
+    }
+
+    private var sortedProgramDays: [ProgramDay] {
+        guard let selectedProgram else { return [] }
+        return selectedProgram.programDays.sorted { lhs, rhs in
+            if lhs.weekIndex != rhs.weekIndex { return lhs.weekIndex < rhs.weekIndex }
+            if lhs.dayIndex != rhs.dayIndex { return lhs.dayIndex < rhs.dayIndex }
+            return lhs.order < rhs.order
+        }
+    }
+
+    private var canStart: Bool {
+        switch mode {
+        case .freestyle:
+            return true
+        case .routine:
+            return selectedRoutineId != nil
+        case .program:
+            return selectedProgramDay?.routine != nil
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             VStack(alignment: .leading, spacing: 12) {
                 Text("New Session")
                     .font(.title2)
                     .fontWeight(.bold)
                     .foregroundColor(.primary)
-//
-                Text("Select a split and add notes to get started")
+
+                Text("Choose freestyle, routine, or program workout")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -188,55 +229,35 @@ struct CreateSessionSheetView: View {
             
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 16) {
-                    // Split Day Selection
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Workout Split")
+                        Text("Start Type")
                             .font(.subheadline)
                             .fontWeight(.semibold)
                             .foregroundColor(.primary)
                             .padding(.horizontal, 16)
-                        
-                        VStack(spacing: 8) {
-                            ForEach(splitDayService.routines, id: \.id) { routine in
-                                Button {
-                                    if sessionService.selected_splitDay == routine {
-                                        sessionService.selected_splitDay = nil
-                                    } else {
-                                        sessionService.selected_splitDay = routine
-                                    }
-                                } label: {
-                                    HStack(spacing: 12) {
-                                        Image(systemName: sessionService.selected_splitDay == routine
-                                              ? "checkmark.circle.fill"
-                                              : "circle")
-                                        .font(.title3)
-                                        .foregroundStyle(sessionService.selected_splitDay == routine ? .green : .gray.opacity(0.5))
-                                        
-                                        Text(routine.name)
-                                            .font(.body)
-                                            .fontWeight(.medium)
-                                            .foregroundColor(.primary)
-                                        
-                                        Spacer()
-                                    }
-                                    .padding(12)
-                                    .frame(maxWidth: .infinity)
-                                    .glassEffect(in: .rect(cornerRadius: 12.0))
-                                }
-                                .buttonStyle(.plain)
+
+                        Picker("Start Type", selection: $mode) {
+                            ForEach(SessionStartMode.allCases) { item in
+                                Text(item.rawValue).tag(item)
                             }
                         }
+                        .pickerStyle(.segmented)
                         .padding(.horizontal, 16)
                     }
-                    
-                    // Notes Section
+
+                    if mode == .routine {
+                        routineSelectionSection
+                    } else if mode == .program {
+                        programSelectionSection
+                    }
+
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Notes")
                             .font(.subheadline)
                             .fontWeight(.semibold)
                             .foregroundColor(.primary)
                             .padding(.horizontal, 16)
-                        
+
                         TextField("e.g., Feeling strong today, focus on form.", text: $sessionService.create_notes)
                             .padding(12)
                             .font(.body)
@@ -249,12 +270,10 @@ struct CreateSessionSheetView: View {
             }
             
             Spacer()
-            
-            // Start Session Button
+
             VStack(spacing: 10) {
                 Button {
-                    openedSession = sessionService.addSession()
-                    isPresented = false
+                    startSession()
                 } label: {
                     HStack {
                         Image(systemName: "play.fill")
@@ -269,11 +288,10 @@ struct CreateSessionSheetView: View {
                     .cornerRadius(12)
                 }
                 .buttonStyle(.plain)
+                .disabled(!canStart)
                 
                 Button {
-                    isPresented = false
-                    sessionService.create_notes = ""
-                    sessionService.selected_splitDay = nil
+                    cancelAndDismiss()
                 } label: {
                     Text("Cancel")
                         .font(.body)
@@ -285,11 +303,134 @@ struct CreateSessionSheetView: View {
                 .buttonStyle(.plain)
             }
             .padding(16)
-//        .navigationTitle("New Session")
+        }
+        .onAppear {
+            if let preselectedRoutine = sessionService.selected_splitDay {
+                mode = .routine
+                selectedRoutineId = preselectedRoutine.id
+            } else if let currentProgram = programService.currentProgram() {
+                mode = .program
+                selectedProgramId = currentProgram.id
+                if let nextWorkout = programService.nextScheduledDay(for: currentProgram) {
+                    selectedProgramDayId = nextWorkout.id
+                }
+            }
+        }
+    }
 
+    private var routineSelectionSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Routine")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.primary)
+                .padding(.horizontal, 16)
+
+            VStack(spacing: 8) {
+                ForEach(splitDayService.routines, id: \.id) { routine in
+                    Button {
+                        selectedRoutineId = (selectedRoutineId == routine.id) ? nil : routine.id
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: selectedRoutineId == routine.id ? "checkmark.circle.fill" : "circle")
+                                .font(.title3)
+                                .foregroundStyle(selectedRoutineId == routine.id ? .green : .gray.opacity(0.5))
+
+                            Text(routine.name)
+                                .font(.body)
+                                .fontWeight(.medium)
+                                .foregroundColor(.primary)
+
+                            Spacer()
+                        }
+                        .padding(12)
+                        .frame(maxWidth: .infinity)
+                        .glassEffect(in: .rect(cornerRadius: 12.0))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+
+    private var programSelectionSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Program")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.primary)
+                .padding(.horizontal, 16)
+
+            VStack(alignment: .leading, spacing: 10) {
+                Picker("Program", selection: $selectedProgramId) {
+                    Text("Select Program").tag(UUID?.none)
+                    ForEach(programService.programs, id: \.id) { program in
+                        Text(program.name).tag(Optional(program.id))
+                    }
+                }
+                .onChange(of: selectedProgramId) { _, newProgramId in
+                    guard let newProgramId,
+                          let program = programService.programs.first(where: { $0.id == newProgramId }) else {
+                        selectedProgramDayId = nil
+                        return
+                    }
+                    selectedProgramDayId = programService.nextScheduledDay(for: program)?.id
+                }
+
+                if let program = selectedProgram,
+                   let nextWorkout = programService.nextScheduledDay(for: program) {
+                    Button {
+                        selectedProgramDayId = nextWorkout.id
+                    } label: {
+                        Label("Use Next Workout: \(nextWorkout.title)", systemImage: "arrow.forward.circle")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                if !sortedProgramDays.isEmpty {
+                    Picker("Workout", selection: $selectedProgramDayId) {
+                        Text("Select Workout").tag(UUID?.none)
+                        ForEach(sortedProgramDays, id: \.id) { day in
+                            Text("Week \(day.weekIndex + 1) · \(day.title)").tag(Optional(day.id))
+                        }
+                    }
+                }
+            }
+            .padding(12)
+            .glassEffect(in: .rect(cornerRadius: 12.0))
+            .padding(.horizontal, 16)
+        }
+    }
+
+    private func startSession() {
+        switch mode {
+        case .freestyle:
+            sessionService.selected_splitDay = nil
+            openedSession = sessionService.addSession()
+        case .routine:
+            let routine = splitDayService.routines.first(where: { $0.id == selectedRoutineId })
+            sessionService.selected_splitDay = routine
+            openedSession = sessionService.addSession()
+        case .program:
+            guard let programDay = selectedProgramDay else { return }
+            openedSession = sessionService.addSession(
+                programDay: programDay,
+                notes: sessionService.create_notes
+            )
+            sessionService.create_notes = ""
+            sessionService.selected_splitDay = nil
         }
 
-//        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-//        .glassEffect(in: .rect(cornerRadi´us: 20.0))
+        if openedSession != nil {
+            isPresented = false
+        }
+    }
+
+    private func cancelAndDismiss() {
+        isPresented = false
+        sessionService.create_notes = ""
+        sessionService.selected_splitDay = nil
     }
 }

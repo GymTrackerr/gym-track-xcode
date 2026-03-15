@@ -8,6 +8,9 @@ struct ProgramBlockEditorView: View {
     @State private var notesText: String
     @State private var startWeekText: String
     @State private var endWeekText: String
+    @State private var scheduleMode: ProgramScheduleMode
+    @State private var rotationOnDays: Int
+    @State private var rotationOffDays: Int
     @State private var showingAddTemplateDay = false
     @State private var openedTemplateDay: ProgramBlockTemplateDay?
 
@@ -15,8 +18,11 @@ struct ProgramBlockEditorView: View {
         self.block = block
         _titleText = State(initialValue: block.title)
         _notesText = State(initialValue: block.notes)
-        _startWeekText = State(initialValue: String(block.startWeekIndex))
-        _endWeekText = State(initialValue: String(block.endWeekIndex))
+        _startWeekText = State(initialValue: String(block.startWeekIndex + 1))
+        _endWeekText = State(initialValue: String(block.endWeekIndex + 1))
+        _scheduleMode = State(initialValue: block.resolvedScheduleMode)
+        _rotationOnDays = State(initialValue: block.rotationOnDays ?? 3)
+        _rotationOffDays = State(initialValue: block.rotationOffDays ?? 1)
     }
 
     private var sortedTemplateDays: [ProgramBlockTemplateDay] {
@@ -35,19 +41,31 @@ struct ProgramBlockEditorView: View {
                     TextField("Notes", text: $notesText, axis: .vertical)
                         .lineLimit(2...4)
                         .textFieldStyle(.roundedBorder)
-                    TextField("Start Week Index", text: $startWeekText)
+                    TextField("Start Week", text: $startWeekText)
                         .keyboardType(.numberPad)
                         .textFieldStyle(.roundedBorder)
-                    TextField("End Week Index", text: $endWeekText)
+                    TextField("End Week", text: $endWeekText)
                         .keyboardType(.numberPad)
                         .textFieldStyle(.roundedBorder)
+                    Picker("Schedule Type", selection: $scheduleMode) {
+                        Text("Calendar").tag(ProgramScheduleMode.calendar)
+                        Text("Rotation").tag(ProgramScheduleMode.rotation)
+                    }
+                    .pickerStyle(.segmented)
+                    if scheduleMode == .rotation {
+                        Stepper("On Days: \(rotationOnDays)", value: $rotationOnDays, in: 1...7)
+                        Stepper("Off Days: \(rotationOffDays)", value: $rotationOffDays, in: 0...6)
+                    }
                     Button("Save Block") {
                         _ = programService.updateBlock(
                             block,
                             title: titleText,
                             notes: notesText,
-                            startWeekIndex: Int(startWeekText) ?? 0,
-                            endWeekIndex: Int(endWeekText) ?? 0
+                            startWeekIndex: max(0, (Int(startWeekText) ?? 1) - 1),
+                            endWeekIndex: max(0, (Int(endWeekText) ?? 1) - 1),
+                            scheduleMode: scheduleMode,
+                            rotationOnDays: scheduleMode == .rotation ? rotationOnDays : nil,
+                            rotationOffDays: scheduleMode == .rotation ? rotationOffDays : nil
                         )
                     }
                     .buttonStyle(.borderedProminent)
@@ -57,9 +75,9 @@ struct ProgramBlockEditorView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
 
-            Section("Weekly Template") {
+            Section(scheduleMode == .calendar ? "Weekly Workouts" : "Workout Rotation") {
                 if sortedTemplateDays.isEmpty {
-                    ContentUnavailableView("No template days yet", systemImage: "calendar")
+                    ContentUnavailableView("No workouts yet", systemImage: "calendar")
                         .frame(maxWidth: .infinity)
                 }
                 ForEach(sortedTemplateDays, id: \.id) { templateDay in
@@ -69,9 +87,15 @@ struct ProgramBlockEditorView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(templateDay.title)
                                 .font(.headline)
-                            Text("Weekday \(templateDay.weekDayIndex + 1)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            if scheduleMode == .calendar {
+                                Text("Weekday: \(weekdayLabel(for: templateDay.weekDayIndex))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text("Rotation order: \(templateDay.order + 1)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                             Text(templateDay.routine?.name ?? "No routine assigned")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -101,7 +125,7 @@ struct ProgramBlockEditorView: View {
                 Button {
                     showingAddTemplateDay = true
                 } label: {
-                    Label("Add Template Day", systemImage: "plus")
+                    Label("Add Workout", systemImage: "plus")
                 }
             }
         }
@@ -116,6 +140,12 @@ struct ProgramBlockEditorView: View {
     }
 }
 
+private func weekdayLabel(for dayIndex: Int) -> String {
+    let labels = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    guard labels.indices.contains(dayIndex) else { return "Day \(dayIndex + 1)" }
+    return labels[dayIndex]
+}
+
 private struct AddTemplateDaySheet: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var programService: ProgramService
@@ -123,7 +153,7 @@ private struct AddTemplateDaySheet: View {
     @Bindable var block: ProgramBlock
 
     @State private var titleText: String = ""
-    @State private var weekDayText: String = "0"
+    @State private var selectedWeekday: Int = 1
     @State private var notesText: String = ""
     @State private var selectedRoutineId: UUID?
 
@@ -134,10 +164,23 @@ private struct AddTemplateDaySheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Template Day") {
+                Section("Workout") {
                     TextField("Title", text: $titleText)
-                    TextField("Weekday Index (0-6)", text: $weekDayText)
-                        .keyboardType(.numberPad)
+                    if block.resolvedScheduleMode == .calendar {
+                        Picker("Weekday", selection: $selectedWeekday) {
+                            Text("Sunday").tag(0)
+                            Text("Monday").tag(1)
+                            Text("Tuesday").tag(2)
+                            Text("Wednesday").tag(3)
+                            Text("Thursday").tag(4)
+                            Text("Friday").tag(5)
+                            Text("Saturday").tag(6)
+                        }
+                    } else {
+                        Text("Rotation order is managed by list order.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     TextField("Notes", text: $notesText, axis: .vertical)
                         .lineLimit(2...4)
                 }
@@ -150,7 +193,7 @@ private struct AddTemplateDaySheet: View {
                     }
                 }
             }
-            .navigationTitle("Add Template Day")
+            .navigationTitle("Add Workout")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -162,7 +205,7 @@ private struct AddTemplateDaySheet: View {
                         _ = programService.addTemplateDay(
                             to: block,
                             title: titleText,
-                            weekDayIndex: Int(weekDayText) ?? 0,
+                            weekDayIndex: block.resolvedScheduleMode == .calendar ? selectedWeekday : 0,
                             routine: routine,
                             notes: notesText
                         )
@@ -180,14 +223,14 @@ private struct ProgramBlockTemplateDayEditorView: View {
     @Bindable var templateDay: ProgramBlockTemplateDay
 
     @State private var titleText: String
-    @State private var weekDayText: String
+    @State private var selectedWeekday: Int
     @State private var notesText: String
     @State private var selectedRoutineId: UUID?
 
     init(templateDay: ProgramBlockTemplateDay) {
         self.templateDay = templateDay
         _titleText = State(initialValue: templateDay.title)
-        _weekDayText = State(initialValue: String(templateDay.weekDayIndex))
+        _selectedWeekday = State(initialValue: templateDay.weekDayIndex)
         _notesText = State(initialValue: templateDay.notes)
         _selectedRoutineId = State(initialValue: templateDay.routine?.id)
     }
@@ -198,10 +241,23 @@ private struct ProgramBlockTemplateDayEditorView: View {
 
     var body: some View {
         Form {
-            Section("Template Day") {
+            Section("Workout") {
                 TextField("Title", text: $titleText)
-                TextField("Weekday Index (0-6)", text: $weekDayText)
-                    .keyboardType(.numberPad)
+                if templateDay.block?.resolvedScheduleMode == .calendar {
+                    Picker("Weekday", selection: $selectedWeekday) {
+                        Text("Sunday").tag(0)
+                        Text("Monday").tag(1)
+                        Text("Tuesday").tag(2)
+                        Text("Wednesday").tag(3)
+                        Text("Thursday").tag(4)
+                        Text("Friday").tag(5)
+                        Text("Saturday").tag(6)
+                    }
+                } else {
+                    Text("Rotation order is managed by list order.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 TextField("Notes", text: $notesText, axis: .vertical)
                     .lineLimit(2...4)
             }
@@ -219,7 +275,7 @@ private struct ProgramBlockTemplateDayEditorView: View {
                     _ = programService.updateTemplateDay(
                         templateDay,
                         title: titleText,
-                        weekDayIndex: Int(weekDayText) ?? 0,
+                        weekDayIndex: templateDay.block?.resolvedScheduleMode == .calendar ? selectedWeekday : templateDay.weekDayIndex,
                         routine: routine,
                         notes: notesText
                     )

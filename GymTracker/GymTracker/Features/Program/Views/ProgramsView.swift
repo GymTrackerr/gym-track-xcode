@@ -15,6 +15,7 @@ struct ProgramsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
+                currentProgramWorkflowSection
                 programsSection
                 routinesSection
             }
@@ -64,6 +65,92 @@ struct ProgramsView: View {
         }
     }
 
+    private var currentProgramWorkflowSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Current Program")
+                .font(.headline)
+
+            if let current = programService.currentProgram() {
+                let currentWeek = programService.effectiveCurrentWeek(for: current)
+                let currentBlock = programService.currentBlock(for: current)
+                let nextWorkout = programService.nextScheduledDay(for: current)
+                let programProgress = programService.programProgress(for: current)
+                let blockProgress = currentBlock.map { programService.blockProgress(for: current, block: $0) }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text(current.name)
+                            .font(.headline)
+                            .lineLimit(1)
+                        Spacer()
+                        Text("Current")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.gray.opacity(0.14))
+                            .clipShape(Capsule())
+                    }
+
+                    Text("Week \(currentWeek + 1)")
+                        .font(.subheadline.weight(.semibold))
+
+                    if let block = currentBlock {
+                        Text("Block: \(block.title)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("Block: None")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if let nextWorkout {
+                        Text("Next Workout: \(nextWorkout.title)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("Next Workout: Not available")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    HStack(spacing: 10) {
+                        progressChip(
+                            title: "Program",
+                            completed: programProgress.completed,
+                            total: programProgress.total
+                        )
+                        if let blockProgress {
+                            progressChip(
+                                title: "Block",
+                                completed: blockProgress.completed,
+                                total: blockProgress.total
+                            )
+                        }
+                    }
+
+                    Button {
+                        startNextWorkout(for: current)
+                    } label: {
+                        Label("Start Next Workout", systemImage: "play.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(nextWorkout == nil)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(Color.gray.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            } else {
+                ContentUnavailableView("No current program", systemImage: "calendar.badge.exclamationmark")
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            }
+        }
+    }
+
     private var programsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Programs")
@@ -82,36 +169,36 @@ struct ProgramsView: View {
                             Button {
                                 openedProgram = program
                             } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack {
-                                    Text(program.name)
-                                        .font(.headline)
-                                        .lineLimit(1)
-                                    Spacer()
-                                    if program.isCurrent {
-                                        Text("Current")
-                                            .font(.caption.weight(.semibold))
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Text(program.name)
+                                            .font(.headline)
+                                            .lineLimit(1)
+                                        Spacer()
+                                        if program.isCurrent {
+                                            Text("Current")
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(.secondary)
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 4)
+                                                .background(Color.gray.opacity(0.14))
+                                                .clipShape(Capsule())
+                                        }
+                                    }
+
+                                    if let nextDayText = programService.nextScheduledDayText(for: program) {
+                                        Text(nextDayText)
+                                            .font(.caption)
                                             .foregroundStyle(.secondary)
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 4)
-                                            .background(Color.gray.opacity(0.14))
-                                            .clipShape(Capsule())
+                                    }
+
+                                    if let block = programService.currentBlock(for: program) {
+                                        Text("Block: \(block.title)")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
                                     }
                                 }
-
-                                if let nextDayText = programService.nextScheduledDayText(for: program) {
-                                    Text(nextDayText)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-
-                                if let block = programService.currentBlock(for: program) {
-                                    Text("Block: \(block.title)")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                }
-                            }
                             }
                             .buttonStyle(.plain)
 
@@ -187,6 +274,20 @@ struct ProgramsView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func progressChip(title: String, completed: Int, total: Int) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text("\(completed)/\(total)")
+                .font(.subheadline.weight(.semibold))
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(Color.gray.opacity(0.14))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private var archivedProgramsSection: some View {
@@ -286,6 +387,12 @@ struct ProgramsView: View {
                 }
             }
         }
+    }
+
+    private func startNextWorkout(for program: Program) {
+        guard let next = programService.nextScheduledDay(for: program) else { return }
+        guard let session = sessionService.addSession(programDay: next) else { return }
+        openedSession = session
     }
 }
 

@@ -1,6 +1,13 @@
 import Foundation
 import SwiftData
 
+enum ProgramScheduleMode: Int, CaseIterable, Identifiable {
+    case calendar = 0
+    case rotation = 1
+
+    var id: Int { rawValue }
+}
+
 @Model
 final class ProgramBlock {
     var id: UUID = UUID()
@@ -10,6 +17,9 @@ final class ProgramBlock {
     var startWeekIndex: Int
     var endWeekIndex: Int
     var order: Int
+    var scheduleMode: Int
+    var rotationOnDays: Int?
+    var rotationOffDays: Int?
     var isArchived: Bool
     var timestamp: Date
 
@@ -29,6 +39,9 @@ final class ProgramBlock {
         startWeekIndex: Int,
         endWeekIndex: Int,
         order: Int,
+        scheduleMode: ProgramScheduleMode = .calendar,
+        rotationOnDays: Int? = nil,
+        rotationOffDays: Int? = nil,
         isArchived: Bool = false
     ) {
         self.user_id = user_id
@@ -38,9 +51,17 @@ final class ProgramBlock {
         self.startWeekIndex = startWeekIndex
         self.endWeekIndex = endWeekIndex
         self.order = order
+        self.scheduleMode = scheduleMode.rawValue
+        self.rotationOnDays = rotationOnDays
+        self.rotationOffDays = rotationOffDays
         self.isArchived = isArchived
         self.timestamp = Date()
         self.templateDays = []
         self.materializedProgramDays = []
+    }
+
+    var resolvedScheduleMode: ProgramScheduleMode {
+        get { ProgramScheduleMode(rawValue: scheduleMode) ?? .calendar }
+        set { scheduleMode = newValue.rawValue }
     }
 }
