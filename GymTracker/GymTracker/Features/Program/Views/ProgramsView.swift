@@ -7,6 +7,7 @@ struct ProgramsView: View {
 
     @State private var openedSession: Session?
     @State private var openedRoutine: Routine?
+    @State private var openedProgram: Program?
     @State private var showingCreateSession = false
     @State private var showingCreateProgram = false
 
@@ -50,6 +51,10 @@ struct ProgramsView: View {
             SingleDayView(routine: routine)
                 .appBackground()
         }
+        .navigationDestination(item: $openedProgram) { program in
+            ProgramDetailView(program: program)
+                .appBackground()
+        }
         .navigationDestination(item: $openedSession) { session in
             SingleSessionView(session: session)
                 .appBackground()
@@ -68,35 +73,62 @@ struct ProgramsView: View {
             } else {
                 VStack(spacing: 8) {
                     ForEach(programService.programs, id: \.id) { program in
-                        NavigationLink {
-                            ProgramDetailView(program: program)
-                                .appBackground()
-                        } label: {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Button {
+                                openedProgram = program
+                            } label: {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(program.name)
-                                    .font(.headline)
-                                    .lineLimit(1)
+                                HStack {
+                                    Text(program.name)
+                                        .font(.headline)
+                                        .lineLimit(1)
+                                    Spacer()
+                                    if program.isCurrent {
+                                        Text("Current")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(.secondary)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
+                                            .background(Color.gray.opacity(0.14))
+                                            .clipShape(Capsule())
+                                    }
+                                }
 
-                                if let weekDayText = programService.weekDayText(for: program) {
-                                    Text(weekDayText)
+                                if let nextDayText = programService.nextScheduledDayText(for: program) {
+                                    Text(nextDayText)
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
 
-                                if let nextRoutineText = programService.nextRoutineText(for: program) {
-                                    Text(nextRoutineText)
+                                if let block = programService.currentBlock(for: program) {
+                                    Text("Block: \(block.title)")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                         .lineLimit(1)
                                 }
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(12)
-                            .background(Color.gray.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+
+                            if !program.isCurrent {
+                                Button("Set Current") {
+                                    _ = programService.setCurrentProgram(program)
+                                }
+                                .buttonStyle(.bordered)
+                            }
                         }
-                        .buttonStyle(.plain)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                        .background(Color.gray.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .contextMenu {
+                            Button {
+                                _ = programService.setCurrentProgram(program)
+                            } label: {
+                                Label("Set Current", systemImage: "checkmark.circle")
+                            }
+                            .disabled(program.isCurrent)
+
                             Button(role: .destructive) {
                                 _ = programService.archiveProgram(program)
                             } label: {

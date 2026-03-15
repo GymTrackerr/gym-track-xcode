@@ -75,6 +75,7 @@ final class ProgramService: ServiceBase, ObservableObject {
         name: String,
         notes: String = "",
         isActive: Bool = false,
+        isCurrent: Bool = false,
         isBuiltIn: Bool = false,
         builtInKey: String? = nil,
         startDate: Date? = nil
@@ -89,6 +90,7 @@ final class ProgramService: ServiceBase, ObservableObject {
             notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
             isArchived: false,
             isActive: isActive,
+            isCurrent: isCurrent,
             isBuiltIn: isBuiltIn,
             builtInKey: builtInKey,
             startDate: startDate
@@ -96,6 +98,9 @@ final class ProgramService: ServiceBase, ObservableObject {
         modelContext.insert(created)
 
         do {
+            if isCurrent {
+                enforceSingleCurrentProgram(for: userId, keep: created)
+            }
             try modelContext.save()
             loadPrograms()
             loadArchivedPrograms()
@@ -111,7 +116,8 @@ final class ProgramService: ServiceBase, ObservableObject {
         name: String,
         notes: String,
         isActive: Bool,
-        startDate: Date?
+        startDate: Date?,
+        isCurrent: Bool
     ) -> Bool {
         guard !program.isBuiltIn else { return false }
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -121,8 +127,12 @@ final class ProgramService: ServiceBase, ObservableObject {
         program.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         program.isActive = isActive
         program.startDate = startDate
+        program.isCurrent = isCurrent
 
         do {
+            if isCurrent {
+                enforceSingleCurrentProgram(for: program.user_id, keep: program)
+            }
             try modelContext.save()
             loadPrograms()
             loadArchivedPrograms()
@@ -137,6 +147,7 @@ final class ProgramService: ServiceBase, ObservableObject {
         guard !program.isBuiltIn else { return false }
         program.isArchived = true
         program.isActive = false
+        program.isCurrent = false
         do {
             try modelContext.save()
             loadPrograms()
@@ -466,9 +477,11 @@ final class ProgramService: ServiceBase, ObservableObject {
             notes: program.notes,
             isArchived: false,
             isActive: false,
+            isCurrent: false,
             isBuiltIn: false,
             builtInKey: nil,
-            startDate: program.startDate
+            startDate: program.startDate,
+            currentWeekOverride: nil
         )
         modelContext.insert(duplicate)
 
@@ -513,6 +526,363 @@ final class ProgramService: ServiceBase, ObservableObject {
         } catch {
             return nil
         }
+    }
+
+    func currentProgram() -> Program? {
+        guard let userId = currentUser?.id else { return nil }
+        return programs.first(where: { $0.user_id == userId && $0.isCurrent })
+    }
+
+    @discardableResult
+    func setCurrentProgram(_ program: Program?) -> Bool {
+        guard let userId = currentUser?.id else { return false }
+        for item in programs where item.user_id == userId {
+            item.isCurrent = item.id == program?.id
+        }
+        do {
+            try modelContext.save()
+            loadPrograms()
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    func computedCurrentWeek(for program: Program, now: Date = Date()) -> Int {
+        guard let startDate = program.startDate else { return 0 }
+        let calendar = Calendar.current
+        let startWeek = calendar.dateInterval(of: .weekOfYear, for: startDate)?.start ?? startDate
+        let nowWeek = calendar.dateInterval(of: .weekOfYear, for: now)?.start ?? now
+        let components = calendar.dateComponents([.weekOfYear], from: startWeek, to: nowWeek)
+        return max(0, components.weekOfYear ?? 0)
+    }
+
+    func effectiveCurrentWeek(for program: Program, now: Date = Date()) -> Int {
+        if let override = program.currentWeekOverride {
+            return max(0, override)
+        }
+        return computedCurrentWeek(for: program, now: now)
+    }
+
+    @discardableResult
+    func setManualCurrentWeek(_ week: Int?, for program: Program) -> Bool {
+        guard !program.isBuiltIn else { return false }
+        program.currentWeekOverride = week.map { max(0, $0) }
+        do {
+            try modelContext.save()
+            loadPrograms()
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    func currentBlock(for program: Program) -> ProgramBlock? {
+        let week = effectiveCurrentWeek(for: program)
+        return program.blocks
+            .filter { $0.isArchived == false }
+            .sorted { $0.order < $1.order }
+            .first(where: { week >= $0.startWeekIndex && week <= $0.endWeekIndex })
+    }
+
+    func nextScheduledDay(for program: Program) -> ProgramDay? {
+        let currentWeek = effectiveCurrentWeek(for: program)
+        let todayWeekdayIndex = Calendar.current.component(.weekday, from: Date()) - 1
+        let sorted = program.programDays.sorted(by: { lhs, rhs in
+            if lhs.weekIndex != rhs.weekIndex { return lhs.weekIndex < rhs.weekIndex }
+            if lhs.dayIndex != rhs.dayIndex { return lhs.dayIndex < rhs.dayIndex }
+            return lhs.order < rhs.order
+        })
+
+        if let currentWeekCandidate = sorted.first(where: { day in
+            day.weekIndex == currentWeek && day.dayIndex >= todayWeekdayIndex
+        }) {
+            return currentWeekCandidate
+        }
+
+        return sorted.first(where: { $0.weekIndex > currentWeek })
+    }
+
+    func nextScheduledDayText(for program: Program) -> String? {
+        guard let day = nextScheduledDay(for: program) else { return nil }
+        let weekdayLabel = weekdayLabel(for: day.dayIndex)
+        let routineName = day.routine?.name ?? "No routine"
+        return "\(weekdayLabel) · Week \(day.weekIndex + 1) · \(routineName)"
+    }
+
+    @discardableResult
+    func addBlock(
+        to program: Program,
+        title: String,
+        notes: String = "",
+        startWeekIndex: Int,
+        endWeekIndex: Int
+    ) -> ProgramBlock? {
+        guard !program.isBuiltIn else { return nil }
+        guard let userId = currentUser?.id else { return nil }
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let nextOrder = (program.blocks.map(\.order).max() ?? -1) + 1
+        let block = ProgramBlock(
+            user_id: userId,
+            program: program,
+            title: trimmed,
+            notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
+            startWeekIndex: max(0, startWeekIndex),
+            endWeekIndex: max(startWeekIndex, endWeekIndex),
+            order: nextOrder
+        )
+        modelContext.insert(block)
+        do {
+            try modelContext.save()
+            loadPrograms()
+            return block
+        } catch {
+            return nil
+        }
+    }
+
+    @discardableResult
+    func updateBlock(
+        _ block: ProgramBlock,
+        title: String,
+        notes: String,
+        startWeekIndex: Int,
+        endWeekIndex: Int
+    ) -> Bool {
+        guard block.program?.isBuiltIn != true else { return false }
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        block.title = trimmed
+        block.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        block.startWeekIndex = max(0, startWeekIndex)
+        block.endWeekIndex = max(block.startWeekIndex, endWeekIndex)
+        do {
+            try modelContext.save()
+            loadPrograms()
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    @discardableResult
+    func removeBlock(_ block: ProgramBlock) -> Bool {
+        guard block.program?.isBuiltIn != true else { return false }
+        let generatedRows = block.materializedProgramDays.filter { $0.isGeneratedFromTemplate }
+        if generatedRows.contains(where: { !$0.sessions.isEmpty }) { return false }
+        for row in generatedRows {
+            modelContext.delete(row)
+        }
+        modelContext.delete(block)
+        do {
+            try modelContext.save()
+            loadPrograms()
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    @discardableResult
+    func addTemplateDay(
+        to block: ProgramBlock,
+        title: String,
+        weekDayIndex: Int,
+        routine: Routine?,
+        notes: String = ""
+    ) -> ProgramBlockTemplateDay? {
+        guard block.program?.isBuiltIn != true else { return nil }
+        guard let userId = currentUser?.id else { return nil }
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let nextOrder = (block.templateDays.map(\.order).max() ?? -1) + 1
+        let day = ProgramBlockTemplateDay(
+            user_id: userId,
+            block: block,
+            routine: routine,
+            title: trimmed,
+            weekDayIndex: max(0, min(6, weekDayIndex)),
+            order: nextOrder,
+            notes: notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+        modelContext.insert(day)
+        do {
+            try modelContext.save()
+            loadPrograms()
+            return day
+        } catch {
+            return nil
+        }
+    }
+
+    @discardableResult
+    func updateTemplateDay(
+        _ templateDay: ProgramBlockTemplateDay,
+        title: String,
+        weekDayIndex: Int,
+        routine: Routine?,
+        notes: String
+    ) -> Bool {
+        guard templateDay.block?.program?.isBuiltIn != true else { return false }
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        templateDay.title = trimmed
+        templateDay.weekDayIndex = max(0, min(6, weekDayIndex))
+        templateDay.routine = routine
+        templateDay.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            try modelContext.save()
+            loadPrograms()
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    @discardableResult
+    func removeTemplateDay(_ templateDay: ProgramBlockTemplateDay) -> Bool {
+        guard templateDay.block?.program?.isBuiltIn != true else { return false }
+        let generatedRows = templateDay.materializedProgramDays.filter { $0.isGeneratedFromTemplate }
+        if generatedRows.contains(where: { !$0.sessions.isEmpty }) { return false }
+        for row in generatedRows {
+            modelContext.delete(row)
+        }
+        modelContext.delete(templateDay)
+        do {
+            try modelContext.save()
+            loadPrograms()
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    @discardableResult
+    func materializeTemplateSchedule(for program: Program) -> Bool {
+        guard !program.isBuiltIn else { return false }
+        let blocks = program.blocks.filter { !$0.isArchived }.sorted { $0.order < $1.order }
+        var desiredByKey: [String: MaterializedTemplateCandidate] = [:]
+        for block in blocks {
+            guard block.endWeekIndex >= block.startWeekIndex else { continue }
+            let templateDays = block.templateDays.sorted { $0.order < $1.order }
+            for templateDay in templateDays {
+                for week in block.startWeekIndex...block.endWeekIndex {
+                    let candidate = MaterializedTemplateCandidate(
+                        generationKey: generationKey(
+                            programId: program.id,
+                            blockId: block.id,
+                            templateDayId: templateDay.id,
+                            weekIndex: week
+                        ),
+                        block: block,
+                        templateDay: templateDay,
+                        routine: templateDay.routine,
+                        weekIndex: week,
+                        dayIndex: templateDay.weekDayIndex,
+                        order: templateDay.order,
+                        title: templateDay.title
+                    )
+                    if desiredByKey[candidate.generationKey] == nil {
+                        desiredByKey[candidate.generationKey] = candidate
+                    }
+                }
+            }
+        }
+        let desired = desiredByKey.values.sorted { lhs, rhs in
+            if lhs.weekIndex != rhs.weekIndex { return lhs.weekIndex < rhs.weekIndex }
+            if lhs.dayIndex != rhs.dayIndex { return lhs.dayIndex < rhs.dayIndex }
+            return lhs.order < rhs.order
+        }
+        let existingGenerated = program.programDays.filter { $0.isGeneratedFromTemplate }
+        var existingByKey: [String: ProgramDay] = [:]
+        for day in existingGenerated {
+            guard let key = day.generationKey else { continue }
+            existingByKey[key] = day
+        }
+
+        for candidate in desired {
+            if let existing = existingByKey[candidate.generationKey] {
+                existing.sourceBlock = candidate.block
+                existing.sourceTemplateDay = candidate.templateDay
+                existing.routine = candidate.routine
+                existing.weekIndex = candidate.weekIndex
+                existing.dayIndex = candidate.dayIndex
+                existing.order = candidate.order
+                existing.title = candidate.title
+            } else {
+                let created = ProgramDay(
+                    user_id: program.user_id,
+                    program: program,
+                    routine: candidate.routine,
+                    sourceBlock: candidate.block,
+                    sourceTemplateDay: candidate.templateDay,
+                    isGeneratedFromTemplate: true,
+                    generationKey: candidate.generationKey,
+                    weekIndex: candidate.weekIndex,
+                    dayIndex: candidate.dayIndex,
+                    blockIndex: candidate.block.order,
+                    title: candidate.title,
+                    order: candidate.order
+                )
+                modelContext.insert(created)
+                program.programDays.append(created)
+            }
+        }
+
+        for staleDay in existingGenerated {
+            guard let key = staleDay.generationKey else { continue }
+            guard desiredByKey[key] == nil else { continue }
+            if staleDay.sessions.isEmpty {
+                modelContext.delete(staleDay)
+            }
+        }
+
+        do {
+            try modelContext.save()
+            loadPrograms()
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private func generationKey(
+        programId: UUID,
+        blockId: UUID,
+        templateDayId: UUID,
+        weekIndex: Int
+    ) -> String {
+        "\(programId.uuidString)|\(blockId.uuidString)|\(templateDayId.uuidString)|w\(weekIndex)"
+    }
+
+    private func enforceSingleCurrentProgram(for userId: UUID, keep: Program) {
+        let descriptor = FetchDescriptor<Program>(
+            predicate: #Predicate<Program> { program in
+                program.user_id == userId
+            }
+        )
+        let matches = (try? modelContext.fetch(descriptor)) ?? []
+        for match in matches where match.id != keep.id {
+            match.isCurrent = false
+        }
+    }
+
+    private func weekdayLabel(for dayIndex: Int) -> String {
+        let labels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+        guard labels.indices.contains(dayIndex) else { return "Day \(dayIndex + 1)" }
+        return labels[dayIndex]
+    }
+
+    private struct MaterializedTemplateCandidate {
+        let generationKey: String
+        let block: ProgramBlock
+        let templateDay: ProgramBlockTemplateDay
+        let routine: Routine?
+        let weekIndex: Int
+        let dayIndex: Int
+        let order: Int
+        let title: String
     }
 
     func weekDayText(for program: Program) -> String? {

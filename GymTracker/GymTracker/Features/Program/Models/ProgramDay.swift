@@ -9,6 +9,10 @@ final class ProgramDay {
     // Optional so routine deletion can safely nullify without cascading program data.
     var routine: Routine?
     var program: Program?
+    var sourceBlock: ProgramBlock?
+    var sourceTemplateDay: ProgramBlockTemplateDay?
+    var isGeneratedFromTemplate: Bool
+    var generationKey: String?
 
     var weekIndex: Int
     var dayIndex: Int
@@ -26,6 +30,10 @@ final class ProgramDay {
         user_id: UUID,
         program: Program? = nil,
         routine: Routine? = nil,
+        sourceBlock: ProgramBlock? = nil,
+        sourceTemplateDay: ProgramBlockTemplateDay? = nil,
+        isGeneratedFromTemplate: Bool = false,
+        generationKey: String? = nil,
         weekIndex: Int,
         dayIndex: Int,
         blockIndex: Int? = nil,
@@ -35,6 +43,10 @@ final class ProgramDay {
         self.user_id = user_id
         self.program = program
         self.routine = routine
+        self.sourceBlock = sourceBlock
+        self.sourceTemplateDay = sourceTemplateDay
+        self.isGeneratedFromTemplate = isGeneratedFromTemplate
+        self.generationKey = generationKey
         self.weekIndex = weekIndex
         self.dayIndex = dayIndex
         self.blockIndex = blockIndex

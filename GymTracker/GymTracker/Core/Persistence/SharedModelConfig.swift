@@ -20,6 +20,8 @@ struct SharedModelConfig {
         Routine.self,
         ExerciseSplitDay.self,
         Program.self,
+        ProgramBlock.self,
+        ProgramBlockTemplateDay.self,
         ProgramDay.self,
         ProgramDayExerciseOverride.self,
         ProgressionProfile.self,
