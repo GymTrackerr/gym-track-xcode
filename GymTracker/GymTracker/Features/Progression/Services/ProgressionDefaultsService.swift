@@ -16,23 +16,22 @@ final class ProgressionDefaultsService: ServiceBase, ObservableObject {
 
         let exerciseDefault = fetchExerciseDefault(userId: userId, exerciseId: entry.exercise.id)
         let userDefault = fetchUserDefault(userId: userId)
-        let resolvedSetsTarget: Int?
-        let resolvedRepsTarget: Int?
+        let resolvedSetsTarget = exerciseDefault?.setsTarget ?? userDefault?.setsTarget
+        let resolvedProgression = exerciseDefault?.progression ?? userDefault?.progression
+
+        let explicitRepsTarget = exerciseDefault?.repsTarget ?? userDefault?.repsTarget
+        let explicitRepsLow = exerciseDefault?.repsLow ?? userDefault?.repsLow
+        let explicitRepsHigh = exerciseDefault?.repsHigh ?? userDefault?.repsHigh
+
+        let resolvedRepsTarget = explicitRepsTarget ?? resolvedProgression?.defaultRepsTarget
         let resolvedRepsLow: Int?
         let resolvedRepsHigh: Int?
-        let resolvedProgression: ProgressionProfile?
-        if let exerciseDefault {
-            resolvedSetsTarget = exerciseDefault.setsTarget
-            resolvedRepsTarget = exerciseDefault.repsTarget
-            resolvedRepsLow = exerciseDefault.repsLow
-            resolvedRepsHigh = exerciseDefault.repsHigh
-            resolvedProgression = exerciseDefault.progression
+        if explicitRepsTarget == nil && explicitRepsLow == nil && explicitRepsHigh == nil {
+            resolvedRepsLow = resolvedProgression?.defaultRepsLow
+            resolvedRepsHigh = resolvedProgression?.defaultRepsHigh
         } else {
-            resolvedSetsTarget = userDefault?.setsTarget
-            resolvedRepsTarget = userDefault?.repsTarget
-            resolvedRepsLow = userDefault?.repsLow
-            resolvedRepsHigh = userDefault?.repsHigh
-            resolvedProgression = userDefault?.progression
+            resolvedRepsLow = explicitRepsLow
+            resolvedRepsHigh = explicitRepsHigh
         }
 
         let hasUsefulDefaults = resolvedSetsTarget != nil

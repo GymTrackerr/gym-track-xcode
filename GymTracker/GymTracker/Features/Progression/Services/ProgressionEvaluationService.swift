@@ -22,7 +22,7 @@ final class ProgressionEvaluationService: ServiceBase, ObservableObject {
         guard let userId = currentUser?.id else { return }
         guard userId == entry.session.user_id else { return }
 
-        guard let repsThreshold = repsThreshold(for: entry) else { return }
+        guard let repsThreshold = repsThreshold(for: entry, progression: progression) else { return }
         guard let setsTarget = entry.appliedSetsTarget, setsTarget > 0 else { return }
 
         let state = resolveOrCreateState(userId: userId, exercise: exercise, progression: progression)
@@ -31,32 +31,27 @@ final class ProgressionEvaluationService: ServiceBase, ObservableObject {
         }
 
         let requiredSets = requiredMeaningfulSets(for: entry, setsTarget: setsTarget)
-        var highestSuccessfulWeight: Double? = nil
-        var success = requiredSets.count == setsTarget
-
+        var successfulSetResults: [(reps: Int, weight: Double)] = []
         for sessionSet in requiredSets {
-            guard let setResult = evaluatedSetResult(sessionSet) else {
-                success = false
-                break
-            }
-
-            if setResult.reps < repsThreshold {
-                success = false
-                break
-            }
-
+            guard let setResult = evaluatedSetResult(sessionSet) else { continue }
+            if setResult.reps < repsThreshold { continue }
             if let suggestedWeight = entry.suggestedWeight,
                setResult.weight + weightEpsilon < suggestedWeight {
-                success = false
-                break
+                continue
             }
-
-            if let currentHighest = highestSuccessfulWeight {
-                highestSuccessfulWeight = max(currentHighest, setResult.weight)
-            } else {
-                highestSuccessfulWeight = setResult.weight
-            }
+            successfulSetResults.append(setResult)
         }
+
+        let successPolicy = progression.progressionSuccessPolicy
+        let success: Bool
+        switch successPolicy {
+        case .allTargetsMet:
+            success = requiredSets.count == setsTarget && successfulSetResults.count == setsTarget
+        case .anyTopSetMet:
+            success = !successfulSetResults.isEmpty
+        }
+
+        let highestSuccessfulWeight = successfulSetResults.map(\.weight).max()
 
         if success {
             state.successCount += 1
@@ -91,24 +86,25 @@ final class ProgressionEvaluationService: ServiceBase, ObservableObject {
         state.lastEvaluatedSessionEntryId = entry.id
     }
 
-    private func repsThreshold(for entry: SessionEntry) -> Int? {
-        if let repsTarget = entry.appliedRepsTarget {
-            return repsTarget
+    private func repsThreshold(for entry: SessionEntry, progression: ProgressionProfile) -> Int? {
+        switch progression.progressionType {
+        case .doubleProgression:
+            if let repsLow = entry.appliedRepsLow, let repsHigh = entry.appliedRepsHigh {
+                return max(repsLow, repsHigh)
+            }
+            if let repsHigh = entry.appliedRepsHigh { return repsHigh }
+            if let repsLow = entry.appliedRepsLow { return repsLow }
+            return entry.appliedRepsTarget
+        case .linear, .custom:
+            // Custom currently uses the same threshold semantics as linear in v1.
+            if let repsTarget = entry.appliedRepsTarget { return repsTarget }
+            if let repsLow = entry.appliedRepsLow, let repsHigh = entry.appliedRepsHigh {
+                return max(repsLow, repsHigh)
+            }
+            if let repsHigh = entry.appliedRepsHigh { return repsHigh }
+            if let repsLow = entry.appliedRepsLow { return repsLow }
+            return nil
         }
-
-        if let repsLow = entry.appliedRepsLow, let repsHigh = entry.appliedRepsHigh {
-            return max(repsLow, repsHigh)
-        }
-
-        if let repsHigh = entry.appliedRepsHigh {
-            return repsHigh
-        }
-
-        if let repsLow = entry.appliedRepsLow {
-            return repsLow
-        }
-
-        return nil
     }
 
     private func requiredMeaningfulSets(for entry: SessionEntry, setsTarget: Int) -> [SessionSet] {

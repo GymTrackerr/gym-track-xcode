@@ -17,6 +17,7 @@ class SessionService : ServiceBase, ObservableObject {
     @Published var creating_session: Bool = false
     @Published var selected_splitDay: Routine? = nil
     var progressionDefaultsService: ProgressionDefaultsService?
+    var setService: SetService?
 
     private static let poundsFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
@@ -297,6 +298,7 @@ class SessionService : ServiceBase, ObservableObject {
                 entry.appliedRepsHigh = override.repsHigh
                 entry.appliedProgression = override.progression
                 entry.appliedProgressionNameSnapshot = override.progression?.name
+                entry.suggestedWeight = recomputedSuggestedWeight(for: entry)
             }
         }
     }
@@ -336,6 +338,33 @@ class SessionService : ServiceBase, ObservableObject {
         if let orderMatch = firstUnmatched(orderMatches) {
             matchedSessionEntryIds.insert(orderMatch.id)
             return orderMatch
+        }
+
+        return nil
+    }
+
+    private func recomputedSuggestedWeight(for entry: SessionEntry) -> Double? {
+        guard let userId = currentUser?.id else { return nil }
+        guard entry.session.user_id == userId else { return nil }
+
+        if let progression = entry.appliedProgression {
+            let exerciseId = entry.exercise.id
+            let progressionId = progression.id
+            let descriptor = FetchDescriptor<ProgressionState>(
+                predicate: #Predicate<ProgressionState> { state in
+                    state.user_id == userId
+                        && state.exercise?.id == exerciseId
+                        && state.progression?.id == progressionId
+                }
+            )
+            if let state = ((try? modelContext.fetch(descriptor)) ?? []).first,
+               let workingWeight = state.workingWeight {
+                return workingWeight
+            }
+        }
+
+        if let fallbackRep = setService?.mostRecentRep(for: entry.exercise), fallbackRep.weight > 0 {
+            return fallbackRep.weight
         }
 
         return nil

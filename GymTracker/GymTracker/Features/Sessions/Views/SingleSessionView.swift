@@ -416,7 +416,7 @@ struct SingleSessionView: View {
                 .font(.headline)
 
             VStack(spacing: 12) {
-                SessionSelectSplit()
+                SessionRoutineDropdownPicker(initialRoutineId: session.routine?.id)
                     .onChange(of: sessionService.selected_splitDay?.id) { _, _ in
                         _ = sessionService.updateSessionToSplitDay(session: session)
                     }

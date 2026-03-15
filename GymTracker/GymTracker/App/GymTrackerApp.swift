@@ -61,6 +61,7 @@ struct GymTrackerApp: App {
         let progressionEvaluationService = ProgressionEvaluationService(context: context)
         let progressionDefaultsService = ProgressionDefaultsService(context: context, setService: setService)
         sessionService.progressionDefaultsService = progressionDefaultsService
+        sessionService.setService = setService
 
         // Bind AFTER creation
         dashboardService.bind(to: userService)

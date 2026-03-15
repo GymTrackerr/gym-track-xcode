@@ -16,6 +16,7 @@ final class DebugHarness {
         ExerciseMergeDebug.runSamples()
         ExerciseBackupDebug.runSamples()
         SessionExerciseTransferDebug.runSamples()
+        Phase9HardeningDebug.runSamples()
         print("=== DEBUG done ===")
     }
 }

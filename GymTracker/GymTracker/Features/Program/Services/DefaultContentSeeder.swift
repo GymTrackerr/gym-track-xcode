@@ -443,8 +443,8 @@ final class DefaultContentSeeder: ServiceBase, ObservableObject {
                     routineBuiltInKey: "builtin.routine.full_body_a",
                     overrides: [
                         .init(order: 0, exerciseRef: .named("Barbell Squat"), progression: profileByKey["builtin.progression.linear"], setsTarget: 3, repsTarget: 5, repsLow: nil, repsHigh: nil, notes: ""),
-                        .init(order: 1, exerciseRef: .named("Bench Press"), progression: profileByKey["builtin.progression.linear"], setsTarget: 3, repsTarget: 5, repsLow: nil, repsHigh: nil, notes: ""),
-                        .init(order: 2, exerciseRef: .named("Barbell Row"), progression: profileByKey["builtin.progression.two_success"], setsTarget: 3, repsTarget: 8, repsLow: nil, repsHigh: nil, notes: "")
+                        .init(order: 1, exerciseRef: .named("Dumbbell Bench Press"), progression: profileByKey["builtin.progression.linear"], setsTarget: 3, repsTarget: 5, repsLow: nil, repsHigh: nil, notes: ""),
+                        .init(order: 2, exerciseRef: .named("Lying T-Bar Row"), progression: profileByKey["builtin.progression.two_success"], setsTarget: 3, repsTarget: 8, repsLow: nil, repsHigh: nil, notes: "")
                     ]
                 ),
                 BuiltInProgramDayDefinition(
@@ -456,8 +456,8 @@ final class DefaultContentSeeder: ServiceBase, ObservableObject {
                     routineBuiltInKey: "builtin.routine.full_body_b",
                     overrides: [
                         .init(order: 0, exerciseRef: .named("Deadlift"), progression: profileByKey["builtin.progression.linear"], setsTarget: 1, repsTarget: 5, repsLow: nil, repsHigh: nil, notes: ""),
-                        .init(order: 1, exerciseRef: .named("Overhead Press"), progression: profileByKey["builtin.progression.linear"], setsTarget: 3, repsTarget: 5, repsLow: nil, repsHigh: nil, notes: ""),
-                        .init(order: 2, exerciseRef: .named("Lat Pulldown"), progression: profileByKey["builtin.progression.two_success"], setsTarget: 3, repsTarget: nil, repsLow: 8, repsHigh: 12, notes: "")
+                        .init(order: 1, exerciseRef: .named("Barbell Shoulder Press"), progression: profileByKey["builtin.progression.linear"], setsTarget: 3, repsTarget: 5, repsLow: nil, repsHigh: nil, notes: ""),
+                        .init(order: 2, exerciseRef: .named("Wide-Grip Lat Pulldown"), progression: profileByKey["builtin.progression.two_success"], setsTarget: 3, repsTarget: nil, repsLow: 8, repsHigh: 12, notes: "")
                     ]
                 )
             ]
@@ -481,7 +481,7 @@ final class DefaultContentSeeder: ServiceBase, ObservableObject {
                     routineBuiltInKey: "builtin.routine.push",
                     overrides: [
                         .init(order: 0, exerciseRef: .named("Bench Press"), progression: profileByKey["builtin.progression.two_success"], setsTarget: 4, repsTarget: nil, repsLow: 6, repsHigh: 8, notes: ""),
-                        .init(order: 1, exerciseRef: .named("Overhead Press"), progression: profileByKey["builtin.progression.two_success"], setsTarget: 3, repsTarget: nil, repsLow: 8, repsHigh: 10, notes: ""),
+                        .init(order: 1, exerciseRef: .named("Barbell Shoulder Press"), progression: profileByKey["builtin.progression.two_success"], setsTarget: 3, repsTarget: nil, repsLow: 8, repsHigh: 10, notes: ""),
                         .init(order: 2, exerciseRef: .named("Triceps Pushdown"), progression: profileByKey["builtin.progression.double"], setsTarget: 3, repsTarget: nil, repsLow: 10, repsHigh: 15, notes: "")
                     ]
                 ),
@@ -493,8 +493,8 @@ final class DefaultContentSeeder: ServiceBase, ObservableObject {
                     blockIndex: nil,
                     routineBuiltInKey: "builtin.routine.pull",
                     overrides: [
-                        .init(order: 0, exerciseRef: .named("Barbell Row"), progression: profileByKey["builtin.progression.two_success"], setsTarget: 4, repsTarget: nil, repsLow: 6, repsHigh: 8, notes: ""),
-                        .init(order: 1, exerciseRef: .named("Lat Pulldown"), progression: profileByKey["builtin.progression.double"], setsTarget: 3, repsTarget: nil, repsLow: 8, repsHigh: 12, notes: ""),
+                        .init(order: 0, exerciseRef: .named("Barbell Rear Delt Row"), progression: profileByKey["builtin.progression.two_success"], setsTarget: 4, repsTarget: nil, repsLow: 6, repsHigh: 8, notes: ""),
+                        .init(order: 1, exerciseRef: .named("Wide-Grip Lat Pulldown"), progression: profileByKey["builtin.progression.double"], setsTarget: 3, repsTarget: nil, repsLow: 8, repsHigh: 12, notes: ""),
                         .init(order: 2, exerciseRef: .named("Barbell Curl"), progression: profileByKey["builtin.progression.double"], setsTarget: 3, repsTarget: nil, repsLow: 10, repsHigh: 15, notes: "")
                     ]
                 ),

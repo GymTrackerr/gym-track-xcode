@@ -203,8 +203,10 @@ final class ProgramService: ServiceBase, ObservableObject {
     ) -> ProgramDay? {
         guard !program.isBuiltIn else { return nil }
         guard let userId = currentUser?.id else { return nil }
+        guard program.user_id == userId else { return nil }
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTitle.isEmpty else { return nil }
+        guard isValidRoutineForProgramOwner(routine, ownerId: userId) else { return nil }
 
         let nextOrder = (program.programDays.map(\.order).max() ?? -1) + 1
         let created = ProgramDay(
@@ -240,8 +242,11 @@ final class ProgramService: ServiceBase, ObservableObject {
         routine: Routine?
     ) -> Bool {
         guard programDay.program?.isBuiltIn != true else { return false }
+        guard let userId = currentUser?.id else { return false }
+        guard programDay.user_id == userId else { return false }
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTitle.isEmpty else { return false }
+        guard isValidRoutineForProgramOwner(routine, ownerId: userId) else { return false }
 
         programDay.title = trimmedTitle
         programDay.weekIndex = max(0, weekIndex)
@@ -868,6 +873,11 @@ final class ProgramService: ServiceBase, ObservableObject {
         }
     }
 
+    private func isValidRoutineForProgramOwner(_ routine: Routine?, ownerId: UUID) -> Bool {
+        guard let routine else { return true }
+        return routine.user_id == ownerId
+    }
+
     private func weekdayLabel(for dayIndex: Int) -> String {
         let labels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
         guard labels.indices.contains(dayIndex) else { return "Day \(dayIndex + 1)" }
@@ -885,37 +895,4 @@ final class ProgramService: ServiceBase, ObservableObject {
         let title: String
     }
 
-    func weekDayText(for program: Program) -> String? {
-        if let latestSessionDay = latestProgramDayFromSession(for: program) {
-            return "Week \(latestSessionDay.weekIndex + 1) · Day \(latestSessionDay.dayIndex + 1)"
-        }
-
-        guard let firstDay = firstProgramDay(for: program) else { return nil }
-        return "Week \(firstDay.weekIndex + 1) · Day \(firstDay.dayIndex + 1)"
-    }
-
-    func nextRoutineText(for program: Program) -> String? {
-        if let latestSessionDay = latestProgramDayFromSession(for: program) {
-            return latestSessionDay.routine?.name
-        }
-
-        return firstProgramDay(for: program)?.routine?.name
-    }
-
-    private func firstProgramDay(for program: Program) -> ProgramDay? {
-        program.programDays
-            .sorted(by: { lhs, rhs in
-                if lhs.weekIndex != rhs.weekIndex { return lhs.weekIndex < rhs.weekIndex }
-                if lhs.dayIndex != rhs.dayIndex { return lhs.dayIndex < rhs.dayIndex }
-                return lhs.order < rhs.order
-            })
-            .first
-    }
-
-    private func latestProgramDayFromSession(for program: Program) -> ProgramDay? {
-        program.sessions
-            .sorted(by: { $0.timestamp > $1.timestamp })
-            .first?
-            .programDay
-    }
 }
