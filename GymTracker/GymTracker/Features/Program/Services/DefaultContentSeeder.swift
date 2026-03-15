@@ -77,6 +77,7 @@ final class DefaultContentSeeder: ServiceBase, ObservableObject {
             let profile = upsertProgressionProfile(definition: definition, userId: userId)
             map[definition.key] = profile
         }
+        reconcileStaleBuiltInProgressionProfiles(userId: userId, validKeys: Set(builtIns.map(\.key)))
         return map
     }
 
@@ -142,6 +143,7 @@ final class DefaultContentSeeder: ServiceBase, ObservableObject {
             let program = upsertProgram(definition: definition, userId: userId)
             upsertProgramDays(program: program, definition: definition, userId: userId)
         }
+        reconcileStaleBuiltInPrograms(userId: userId, validKeys: Set(builtIns.map(\.key)))
     }
 
     private func seedBuiltInRoutines(userId: UUID) {
@@ -218,6 +220,7 @@ final class DefaultContentSeeder: ServiceBase, ObservableObject {
             let routine = upsertBuiltInRoutine(definition: definition, userId: userId)
             upsertBuiltInRoutineExercises(routine: routine, definition: definition, userId: userId)
         }
+        reconcileStaleBuiltInRoutines(userId: userId, validKeys: Set(builtIns.map(\.key)))
     }
 
     private func upsertBuiltInRoutine(definition: BuiltInRoutineDefinition, userId: UUID) -> Routine {
@@ -261,7 +264,8 @@ final class DefaultContentSeeder: ServiceBase, ObservableObject {
         definition: BuiltInRoutineDefinition,
         userId: UUID
     ) {
-        let existingByOrder = Dictionary(uniqueKeysWithValues: routine.exerciseSplits.map { ($0.order, $0) })
+        // Temporary limitation: reconciliation is order-based until stable child definition keys are persisted.
+        let existingByOrder = firstByOrder(routine.exerciseSplits)
 
         for (index, exerciseRef) in definition.exercises.enumerated() {
             guard let resolvedExercise = resolveExercise(reference: exerciseRef, userId: userId) else {
@@ -276,6 +280,9 @@ final class DefaultContentSeeder: ServiceBase, ObservableObject {
                 routine.exerciseSplits.append(created)
             }
         }
+
+        // Conservative behavior: do not prune stale routine exercise splits in this phase.
+        // Historical interpretation can depend on routine structure in edge cases.
     }
 
     private func upsertProgram(definition: BuiltInProgramDefinition, userId: UUID) -> Program {
@@ -318,7 +325,9 @@ final class DefaultContentSeeder: ServiceBase, ObservableObject {
     }
 
     private func upsertProgramDays(program: Program, definition: BuiltInProgramDefinition, userId: UUID) {
-        let existingByOrder = Dictionary(uniqueKeysWithValues: program.programDays.map { ($0.order, $0) })
+        // Temporary limitation: reconciliation is order-based until stable child definition keys are persisted.
+        let existingByOrder = firstByOrder(program.programDays)
+        let validDayOrders = Set(definition.days.map(\.order))
 
         for dayDefinition in definition.days {
             let programDay: ProgramDay
@@ -348,10 +357,20 @@ final class DefaultContentSeeder: ServiceBase, ObservableObject {
 
             upsertOverrides(programDay: programDay, definitions: dayDefinition.overrides, userId: userId)
         }
+
+        let staleDays = program.programDays.filter { validDayOrders.contains($0.order) == false }
+        for staleDay in staleDays {
+            // Never delete day rows linked to historical sessions.
+            if staleDay.sessions.isEmpty {
+                modelContext.delete(staleDay)
+            }
+        }
     }
 
     private func upsertOverrides(programDay: ProgramDay, definitions: [BuiltInOverrideDefinition], userId: UUID) {
-        let existingByOrder = Dictionary(uniqueKeysWithValues: programDay.exerciseOverrides.map { ($0.order, $0) })
+        // Temporary limitation: reconciliation is order-based until stable child definition keys are persisted.
+        let existingByOrder = firstByOrder(programDay.exerciseOverrides)
+        let validOverrideOrders = Set(definitions.map(\.order))
 
         for overrideDefinition in definitions {
             let resolvedExercise = resolveExercise(reference: overrideDefinition.exerciseRef, userId: userId)
@@ -381,6 +400,82 @@ final class DefaultContentSeeder: ServiceBase, ObservableObject {
                 programDay.exerciseOverrides.append(created)
             }
         }
+
+        let staleOverrides = programDay.exerciseOverrides.filter { validOverrideOrders.contains($0.order) == false }
+        for staleOverride in staleOverrides {
+            modelContext.delete(staleOverride)
+        }
+    }
+
+    private func reconcileStaleBuiltInProgressionProfiles(userId: UUID, validKeys: Set<String>) {
+        let descriptor = FetchDescriptor<ProgressionProfile>(
+            predicate: #Predicate<ProgressionProfile> { profile in
+                profile.user_id == userId
+                    && profile.isBuiltIn == true
+            }
+        )
+        let persistedBuiltIns = (try? modelContext.fetch(descriptor)) ?? []
+        for profile in persistedBuiltIns {
+            guard let key = profile.builtInKey else {
+                profile.isArchived = true
+                continue
+            }
+            if validKeys.contains(key) == false {
+                profile.isArchived = true
+            }
+        }
+    }
+
+    private func reconcileStaleBuiltInRoutines(userId: UUID, validKeys: Set<String>) {
+        let descriptor = FetchDescriptor<Routine>(
+            predicate: #Predicate<Routine> { routine in
+                routine.user_id == userId
+                    && routine.isBuiltIn == true
+            }
+        )
+        let persistedBuiltIns = (try? modelContext.fetch(descriptor)) ?? []
+        for routine in persistedBuiltIns {
+            guard let key = routine.builtInKey else {
+                routine.isArchived = true
+                continue
+            }
+            if validKeys.contains(key) == false {
+                routine.isArchived = true
+            }
+        }
+    }
+
+    private func reconcileStaleBuiltInPrograms(userId: UUID, validKeys: Set<String>) {
+        let descriptor = FetchDescriptor<Program>(
+            predicate: #Predicate<Program> { program in
+                program.user_id == userId
+                    && program.isBuiltIn == true
+            }
+        )
+        let persistedBuiltIns = (try? modelContext.fetch(descriptor)) ?? []
+        for program in persistedBuiltIns {
+            guard let key = program.builtInKey else {
+                program.isArchived = true
+                program.isActive = false
+                program.isCurrent = false
+                continue
+            }
+            if validKeys.contains(key) == false {
+                program.isArchived = true
+                program.isActive = false
+                program.isCurrent = false
+            }
+        }
+    }
+
+    private func firstByOrder<T: AnyObject & HasOrder>(_ items: [T]) -> [Int: T] {
+        var result: [Int: T] = [:]
+        for item in items {
+            if result[item.order] == nil {
+                result[item.order] = item
+            }
+        }
+        return result
     }
 
     private func resolveBuiltInRoutine(key: String, userId: UUID) -> Routine? {
@@ -528,6 +623,14 @@ private struct BuiltInProgressionProfileDefinition {
     let defaultRepsLow: Int?
     let defaultRepsHigh: Int?
 }
+
+private protocol HasOrder: AnyObject {
+    var order: Int { get }
+}
+
+extension ProgramDay: HasOrder {}
+extension ProgramDayExerciseOverride: HasOrder {}
+extension ExerciseSplitDay: HasOrder {}
 
 private struct BuiltInProgramDefinition {
     let key: String
