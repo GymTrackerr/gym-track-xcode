@@ -5,12 +5,7 @@ struct ExerciseProgressionDefaultEditorView: View {
 
     @Bindable var exercise: Exercise
 
-    @State private var selectedProgressionId: UUID?
-    @State private var setsTargetText: String = ""
-    @State private var repsMode: RepsInputMode = .none
-    @State private var repsTargetText: String = ""
-    @State private var repsLowText: String = ""
-    @State private var repsHighText: String = ""
+    @State private var formState = ProgressionDefaultsFormState()
 
     private var profiles: [ProgressionProfile] {
         progressionDefaultsService.availableProfiles()
@@ -24,34 +19,11 @@ struct ExerciseProgressionDefaultEditorView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Exercise Default") {
-                Picker("Progression", selection: $selectedProgressionId) {
-                    Text("None").tag(UUID?.none)
-                    ForEach(profiles, id: \.id) { profile in
-                        Text(profile.name).tag(Optional(profile.id))
-                    }
-                }
-
-                TextField("Sets Target", text: $setsTargetText)
-                    .keyboardType(.numberPad)
-
-                Picker("Reps Mode", selection: $repsMode) {
-                    ForEach(RepsInputMode.allCases) { mode in
-                        Text(mode.rawValue).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-
-                if repsMode == .fixed {
-                    TextField("Reps Target", text: $repsTargetText)
-                        .keyboardType(.numberPad)
-                } else if repsMode == .range {
-                    TextField("Reps Low", text: $repsLowText)
-                        .keyboardType(.numberPad)
-                    TextField("Reps High", text: $repsHighText)
-                        .keyboardType(.numberPad)
-                }
-            }
+            ProgressionDefaultsFormSection(
+                title: "Exercise Default",
+                formState: $formState,
+                profiles: profiles
+            )
 
             Section {
                 Button("Save Default") {
@@ -71,64 +43,36 @@ struct ExerciseProgressionDefaultEditorView: View {
 
     private func loadFromModel() {
         guard let model = progressionDefaultsService.currentExerciseDefault(for: exercise) else {
-            selectedProgressionId = nil
-            setsTargetText = ""
-            repsMode = .none
-            repsTargetText = ""
-            repsLowText = ""
-            repsHighText = ""
+            formState.setValues(
+                progressionId: nil,
+                setsTarget: nil,
+                repsTarget: nil,
+                repsLow: nil,
+                repsHigh: nil
+            )
             return
         }
 
-        selectedProgressionId = model.progression?.id
-        setsTargetText = model.setsTarget.map(String.init) ?? ""
-        if let repsTarget = model.repsTarget {
-            repsMode = .fixed
-            repsTargetText = String(repsTarget)
-            repsLowText = ""
-            repsHighText = ""
-        } else if model.repsLow != nil || model.repsHigh != nil {
-            repsMode = .range
-            repsTargetText = ""
-            repsLowText = model.repsLow.map(String.init) ?? ""
-            repsHighText = model.repsHigh.map(String.init) ?? ""
-        } else {
-            repsMode = .none
-            repsTargetText = ""
-            repsLowText = ""
-            repsHighText = ""
-        }
+        formState.setValues(
+            progressionId: model.progression?.id,
+            setsTarget: model.setsTarget,
+            repsTarget: model.repsTarget,
+            repsLow: model.repsLow,
+            repsHigh: model.repsHigh
+        )
     }
 
     private func save() {
-        let progression = profiles.first(where: { $0.id == selectedProgressionId })
-        let setsTarget = parseInt(setsTargetText)
-
-        let repsTarget: Int?
-        let repsLow: Int?
-        let repsHigh: Int?
-        switch repsMode {
-        case .none:
-            repsTarget = nil
-            repsLow = nil
-            repsHigh = nil
-        case .fixed:
-            repsTarget = parseInt(repsTargetText)
-            repsLow = nil
-            repsHigh = nil
-        case .range:
-            repsTarget = nil
-            repsLow = parseInt(repsLowText)
-            repsHigh = parseInt(repsHighText)
-        }
+        let progression = profiles.first(where: { $0.id == formState.selectedProgressionId })
+        let parsed = formState.parsed
 
         _ = progressionDefaultsService.upsertExerciseDefault(
             for: exercise,
             progression: progression,
-            setsTarget: setsTarget,
-            repsTarget: repsTarget,
-            repsLow: repsLow,
-            repsHigh: repsHigh
+            setsTarget: parsed.setsTarget,
+            repsTarget: parsed.repsTarget,
+            repsLow: parsed.repsLow,
+            repsHigh: parsed.repsHigh
         )
         loadFromModel()
     }
@@ -136,11 +80,5 @@ struct ExerciseProgressionDefaultEditorView: View {
     private func clear() {
         _ = progressionDefaultsService.removeExerciseDefault(for: exercise)
         loadFromModel()
-    }
-
-    private func parseInt(_ text: String) -> Int? {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        return Int(trimmed)
     }
 }

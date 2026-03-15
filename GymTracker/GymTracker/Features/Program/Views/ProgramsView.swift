@@ -10,6 +10,7 @@ struct ProgramsView: View {
     @State private var openedProgram: Program?
     @State private var showingCreateSession = false
     @State private var showingCreateProgram = false
+    @State private var showingArchivedPrograms = false
 
     var body: some View {
         ScrollView {
@@ -34,6 +35,8 @@ struct ProgramsView: View {
         }
         .onAppear {
             programService.loadPrograms()
+            programService.loadArchivedPrograms()
+            programService.loadProgressionSummary()
             splitDayService.loadSplitDays()
         }
         .sheet(isPresented: $showingCreateProgram) {
@@ -65,6 +68,8 @@ struct ProgramsView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Programs")
                 .font(.headline)
+
+            progressionSummaryCard
 
             if programService.programs.isEmpty {
                 ContentUnavailableView("No programs yet", systemImage: "calendar")
@@ -145,7 +150,96 @@ struct ProgramsView: View {
                     }
                 }
             }
+
+            archivedProgramsSection
         }
+    }
+
+    @ViewBuilder
+    private var progressionSummaryCard: some View {
+        if programService.progressionSummary.hasContent {
+            HStack(spacing: 8) {
+                compactSummaryMetric(
+                    title: "Ready",
+                    value: programService.progressionSummary.readyToIncrease
+                )
+                compactSummaryMetric(
+                    title: "In Progress",
+                    value: programService.progressionSummary.inProgress
+                )
+                compactSummaryMetric(
+                    title: "Recent",
+                    value: programService.progressionSummary.recentlyAdvanced
+                )
+            }
+            .padding(10)
+            .background(Color.gray.opacity(0.1))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+    }
+
+    private func compactSummaryMetric(title: String, value: Int) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("\(value)")
+                .font(.headline)
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var archivedProgramsSection: some View {
+        DisclosureGroup(isExpanded: $showingArchivedPrograms) {
+            if programService.archivedPrograms.isEmpty {
+                Text("No archived programs")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 4)
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(programService.archivedPrograms, id: \.id) { program in
+                        HStack(spacing: 12) {
+                            Button {
+                                openedProgram = program
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(program.name)
+                                        .font(.subheadline.weight(.semibold))
+                                        .lineLimit(1)
+                                    Text("Archived")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .buttonStyle(.plain)
+
+                            Button("Restore") {
+                                _ = programService.restoreProgram(program)
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        .padding(12)
+                        .background(Color.gray.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                }
+                .padding(.top, 4)
+            }
+        } label: {
+            HStack {
+                Text("Archived Programs")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Text("\(programService.archivedPrograms.count)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(12)
+        .background(Color.gray.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private var routinesSection: some View {
