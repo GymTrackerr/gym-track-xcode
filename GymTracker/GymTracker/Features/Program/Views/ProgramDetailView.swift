@@ -236,6 +236,16 @@ struct ProgramDetailView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                if let blockProgress = programService.currentBlockProgressText(for: program) {
+                    Text(blockProgress)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if let workoutProgress = programService.currentWorkoutProgressText(for: program) {
+                    Text(workoutProgress)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
                 if !program.isBuiltIn {
                     HStack(spacing: 8) {
@@ -262,10 +272,31 @@ struct ProgramDetailView: View {
                     Button("Start Next Workout") {
                         guard let nextWorkout = programService.prepareScheduleForSessionStart(for: program) else { return }
                         guard let session = sessionService.addSession(programDay: nextWorkout) else { return }
-                        openedSession = session
+                        _ = programService.advanceProgramStateAfterStartingSession(for: program, startedProgramDay: nextWorkout)
+                        openedSession = nil
+                        DispatchQueue.main.async {
+                            openedSession = session
+                        }
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(programService.nextScheduledDay(for: program) == nil)
+
+                    HStack(spacing: 8) {
+                        Button("Skip Workout") {
+                            _ = programService.skipCurrentWorkout(for: program)
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button("Postpone") {
+                            _ = programService.postponeCurrentWorkout(for: program)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
+                    Button("Restart Program") {
+                        _ = programService.restartProgramState(for: program)
+                    }
+                    .buttonStyle(.bordered)
                 }
             }
             .padding(12)
@@ -367,7 +398,10 @@ struct ProgramDetailView: View {
                     HStack(spacing: 10) {
                         Button {
                             guard let session = sessionService.addSession(programDay: day) else { return }
-                            openedSession = session
+                            openedSession = nil
+                            DispatchQueue.main.async {
+                                openedSession = session
+                            }
                         } label: {
                             Label("Start Session", systemImage: "play.fill")
                                 .frame(maxWidth: .infinity)

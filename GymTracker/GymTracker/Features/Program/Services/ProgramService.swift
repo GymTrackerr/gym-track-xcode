@@ -553,6 +553,9 @@ final class ProgramService: ServiceBase, ObservableObject {
         for item in programs where item.user_id == userId {
             item.isCurrent = item.id == program?.id
         }
+        if let program {
+            initializeProgramStateIfNeeded(for: program)
+        }
         do {
             try modelContext.save()
             if let program {
@@ -600,6 +603,10 @@ final class ProgramService: ServiceBase, ObservableObject {
     }
 
     func nextScheduledDay(for program: Program) -> ProgramDay? {
+        if let stateResolved = nextScheduledDayFromProgramState(for: program) {
+            return stateResolved
+        }
+
         let sorted = sortedEligibleProgramDays(for: program)
         guard !sorted.isEmpty else { return nil }
 
@@ -650,6 +657,34 @@ final class ProgramService: ServiceBase, ObservableObject {
         let weekdayLabel = weekdayLabel(for: day.dayIndex)
         let routineName = day.routine?.name ?? "No routine"
         return "\(weekdayLabel) · Week \(day.weekIndex + 1) · \(routineName)"
+    }
+
+    func currentBlockProgressText(for program: Program) -> String? {
+        let blocks = sortedNonArchivedBlocks(for: program)
+        guard !blocks.isEmpty else { return nil }
+        let blockIndex = min(max(program.currentBlockIndex ?? 0, 0), blocks.count - 1)
+        return "Block \(blockIndex + 1) of \(blocks.count)"
+    }
+
+    func currentWorkoutProgressText(for program: Program) -> String? {
+        guard let block = currentStateBlock(for: program) else { return nil }
+        let workouts = blockWorkouts(for: program, block: block)
+        guard !workouts.isEmpty else { return nil }
+        let workoutIndex = min(max(program.currentWorkoutIndex ?? 0, 0), workouts.count - 1)
+        return "Workout \(workoutIndex + 1) of \(workouts.count)"
+    }
+
+    @discardableResult
+    func prepareScheduleForSessionStart(for program: Program) -> ProgramDay? {
+        let didInitializeState = initializeProgramStateIfNeeded(for: program)
+        let didMaterialize = ensureMaterializationHorizonIfNeededForMutation(for: program)
+        if didInitializeState {
+            guard persistProgramMutationsAndRefresh() else { return nil }
+        } else if didMaterialize {
+            refreshProgramCollections()
+        }
+        let resolvedProgram = programById(program.id) ?? program
+        return nextScheduledDay(for: resolvedProgram)
     }
 
     private func sortedEligibleProgramDays(for program: Program) -> [ProgramDay] {
@@ -722,9 +757,228 @@ final class ProgramService: ServiceBase, ObservableObject {
     private var continuousWeeksAheadDefault: Int { 12 }
 
     @discardableResult
-    func prepareScheduleForSessionStart(for program: Program) -> ProgramDay? {
+    func skipCurrentWorkout(for program: Program) -> Bool {
+        let didInitializeState = initializeProgramStateIfNeeded(for: program)
+        let didAdvance = advanceProgramState(
+            for: program,
+            completedProgramDayId: nil,
+            updateCompletionReference: false
+        )
+        if didAdvance {
+            refreshProgramCollections()
+            return true
+        }
+        if didInitializeState {
+            return persistProgramMutationsAndRefresh()
+        }
+        return false
+    }
+
+    @discardableResult
+    func postponeCurrentWorkout(for program: Program) -> Bool {
+        _ = initializeProgramStateIfNeeded(for: program)
+        program.lastProgressedAt = Date()
+        return persistProgramMutationsAndRefresh()
+    }
+
+    @discardableResult
+    func restartProgramState(for program: Program) -> Bool {
+        let blocks = sortedNonArchivedBlocks(for: program)
+        guard !blocks.isEmpty else { return false }
+        program.currentBlockIndex = 0
+        program.currentWorkoutIndex = 0
+        program.lastCompletedProgramDayId = nil
+        program.lastProgressedAt = Date()
+        if program.startedAt == nil {
+            program.startedAt = Date()
+        }
+        do {
+            try modelContext.save()
+            loadPrograms()
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    @discardableResult
+    func advanceProgramStateIfNeeded(afterCompleting session: Session) -> Bool {
+        guard let program = session.program, let completedDay = session.programDay else { return false }
+        guard program.user_id == session.user_id else { return false }
+        initializeProgramStateIfNeeded(for: program)
+        if !hasProgramState(program) {
+            alignStateWithProgramDay(program: program, day: completedDay)
+        }
+        let currentPlannedDay = nextScheduledDayFromProgramState(for: program)
+        if currentPlannedDay?.id != completedDay.id {
+            // If state was already advanced when starting this session, only update completion metadata.
+            program.lastCompletedProgramDayId = completedDay.id
+            program.lastProgressedAt = Date()
+            return persistProgramMutationsAndRefresh()
+        }
+        let didAdvance = advanceProgramState(
+            for: program,
+            completedProgramDayId: completedDay.id,
+            updateCompletionReference: true
+        )
+        if didAdvance { refreshProgramCollections() }
+        return didAdvance
+    }
+
+    @discardableResult
+    func advanceProgramStateAfterStartingSession(for program: Program, startedProgramDay: ProgramDay) -> Bool {
+        guard let userId = currentUser?.id else { return false }
+        guard program.user_id == userId else { return false }
+        guard startedProgramDay.user_id == userId else { return false }
+
+        initializeProgramStateIfNeeded(for: program)
+
+        if !hasProgramState(program) {
+            alignStateWithProgramDay(program: program, day: startedProgramDay)
+        } else if let currentPlannedDay = nextScheduledDayFromProgramState(for: program),
+                  currentPlannedDay.id != startedProgramDay.id {
+            alignStateWithProgramDay(program: program, day: startedProgramDay)
+        }
+
+        let didAdvance = advanceProgramState(
+            for: program,
+            completedProgramDayId: nil,
+            updateCompletionReference: false
+        )
+        if didAdvance { refreshProgramCollections() }
+        return didAdvance
+    }
+
+    @discardableResult
+    private func initializeProgramStateIfNeeded(for program: Program) -> Bool {
+        let blocks = sortedNonArchivedBlocks(for: program)
+        guard !blocks.isEmpty else { return false }
+        guard !hasProgramState(program) else { return false }
+
+        program.currentBlockIndex = 0
+        program.currentWorkoutIndex = 0
+        program.lastCompletedProgramDayId = nil
+        program.lastProgressedAt = Date()
+        if program.startedAt == nil {
+            program.startedAt = Date()
+        }
+        return true
+    }
+
+    private func hasProgramState(_ program: Program) -> Bool {
+        program.currentBlockIndex != nil && program.currentWorkoutIndex != nil
+    }
+
+    private func nextScheduledDayFromProgramState(for program: Program) -> ProgramDay? {
+        guard hasProgramState(program) else { return nil }
         ensureMaterializationHorizonIfNeededForMutation(for: program)
-        return nextScheduledDay(for: program)
+        guard let block = currentStateBlock(for: program) else { return nil }
+        let workouts = blockWorkouts(for: program, block: block)
+        guard !workouts.isEmpty else { return nil }
+        let workoutIndex = max(program.currentWorkoutIndex ?? 0, 0)
+        let clampedIndex = min(workoutIndex, workouts.count - 1)
+        return workouts[clampedIndex]
+    }
+
+    private func currentStateBlock(for program: Program) -> ProgramBlock? {
+        let blocks = sortedNonArchivedBlocks(for: program)
+        guard !blocks.isEmpty else { return nil }
+        let index = min(max(program.currentBlockIndex ?? 0, 0), blocks.count - 1)
+        return blocks[index]
+    }
+
+    private func alignStateWithProgramDay(program: Program, day: ProgramDay) {
+        let blocks = sortedNonArchivedBlocks(for: program)
+        guard !blocks.isEmpty else { return }
+        guard let blockIndex = blockIndex(for: day, in: program, blocks: blocks) else { return }
+        let block = blocks[blockIndex]
+        let workouts = blockWorkouts(for: program, block: block)
+        let workoutIndex = workouts.firstIndex(where: { $0.id == day.id }) ?? 0
+        program.currentBlockIndex = blockIndex
+        program.currentWorkoutIndex = workoutIndex
+    }
+
+    private func advanceProgramState(
+        for program: Program,
+        completedProgramDayId: UUID?,
+        updateCompletionReference: Bool
+    ) -> Bool {
+        let blocks = sortedNonArchivedBlocks(for: program)
+        guard !blocks.isEmpty else { return false }
+        var blockIndex = min(max(program.currentBlockIndex ?? 0, 0), blocks.count - 1)
+        let currentBlock = blocks[blockIndex]
+        let workouts = blockWorkouts(for: program, block: currentBlock)
+        guard !workouts.isEmpty else { return false }
+
+        var workoutIndex = max(program.currentWorkoutIndex ?? 0, 0)
+        workoutIndex += 1
+
+        if workoutIndex >= workouts.count {
+            let nextBlockIndex = blockIndex + 1
+            if nextBlockIndex < blocks.count {
+                blockIndex = nextBlockIndex
+                workoutIndex = 0
+            } else if program.resolvedProgramLengthMode == .fixedLength {
+                // Phase 14 fixed-length policy: wrap to the first block when finishing the last block.
+                blockIndex = 0
+                workoutIndex = 0
+            } else {
+                // Phase 14 continuous policy: stay on last block and continue naturally.
+                blockIndex = blocks.count - 1
+                ensureMaterializationHorizonIfNeededForMutation(for: program)
+                let tailWorkouts = blockWorkouts(for: program, block: blocks[blockIndex])
+                if tailWorkouts.isEmpty {
+                    workoutIndex = 0
+                } else {
+                    workoutIndex = min(workoutIndex, tailWorkouts.count - 1)
+                }
+            }
+        }
+
+        program.currentBlockIndex = blockIndex
+        program.currentWorkoutIndex = workoutIndex
+        if updateCompletionReference {
+            program.lastCompletedProgramDayId = completedProgramDayId
+        }
+        program.lastProgressedAt = Date()
+
+        do {
+            try modelContext.save()
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private func blockIndex(for day: ProgramDay, in program: Program, blocks: [ProgramBlock]) -> Int? {
+        if let sourceBlockId = day.sourceBlock?.id, let idx = blocks.firstIndex(where: { $0.id == sourceBlockId }) {
+            return idx
+        }
+        if let dayBlockIndex = day.blockIndex, let idx = blocks.firstIndex(where: { $0.order == dayBlockIndex }) {
+            return idx
+        }
+        if let idx = blocks.firstIndex(where: { day.weekIndex >= $0.startWeekIndex && day.weekIndex <= $0.endWeekIndex }) {
+            return idx
+        }
+        if program.resolvedProgramLengthMode == .continuous, let last = blocks.indices.last {
+            return last
+        }
+        return nil
+    }
+
+    private func blockWorkouts(for program: Program, block: ProgramBlock) -> [ProgramDay] {
+        program.programDays
+            .filter { $0.routine != nil }
+            .filter { day in
+                if let sourceBlock = day.sourceBlock, sourceBlock.id == block.id { return true }
+                if let dayBlockIndex = day.blockIndex, dayBlockIndex == block.order { return true }
+                return day.weekIndex >= block.startWeekIndex && day.weekIndex <= block.endWeekIndex
+            }
+            .sorted { lhs, rhs in
+                if lhs.weekIndex != rhs.weekIndex { return lhs.weekIndex < rhs.weekIndex }
+                if lhs.dayIndex != rhs.dayIndex { return lhs.dayIndex < rhs.dayIndex }
+                return lhs.order < rhs.order
+            }
     }
 
     @discardableResult
@@ -739,6 +993,32 @@ final class ProgramService: ServiceBase, ObservableObject {
             weekRange: currentWeek...targetWeek,
             pruneStaleGeneratedRows: false
         )
+    }
+
+    @discardableResult
+    private func persistProgramMutationsAndRefresh() -> Bool {
+        do {
+            try modelContext.save()
+            refreshProgramCollections()
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private func refreshProgramCollections() {
+        loadPrograms()
+        loadArchivedPrograms()
+    }
+
+    private func programById(_ id: UUID) -> Program? {
+        guard let userId = currentUser?.id else { return nil }
+        let descriptor = FetchDescriptor<Program>(
+            predicate: #Predicate<Program> { program in
+                program.user_id == userId && program.id == id
+            }
+        )
+        return try? modelContext.fetch(descriptor).first
     }
 
     @discardableResult

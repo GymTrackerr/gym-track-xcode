@@ -20,6 +20,11 @@ final class Program {
     var isBuiltIn: Bool = false
     var builtInKey: String? = nil
     var lengthMode: Int
+    var currentBlockIndex: Int?
+    var currentWorkoutIndex: Int?
+    var lastCompletedProgramDayId: UUID?
+    var lastProgressedAt: Date?
+    var startedAt: Date?
     var startDate: Date?
     var currentWeekOverride: Int?
     var timestamp: Date
@@ -43,6 +48,11 @@ final class Program {
         isBuiltIn: Bool = false,
         builtInKey: String? = nil,
         lengthMode: ProgramLengthMode = .fixedLength,
+        currentBlockIndex: Int? = nil,
+        currentWorkoutIndex: Int? = nil,
+        lastCompletedProgramDayId: UUID? = nil,
+        lastProgressedAt: Date? = nil,
+        startedAt: Date? = nil,
         startDate: Date? = nil,
         currentWeekOverride: Int? = nil
     ) {
@@ -55,6 +65,11 @@ final class Program {
         self.isBuiltIn = isBuiltIn
         self.builtInKey = builtInKey
         self.lengthMode = lengthMode.rawValue
+        self.currentBlockIndex = currentBlockIndex
+        self.currentWorkoutIndex = currentWorkoutIndex
+        self.lastCompletedProgramDayId = lastCompletedProgramDayId
+        self.lastProgressedAt = lastProgressedAt
+        self.startedAt = startedAt
         self.startDate = startDate
         self.currentWeekOverride = currentWeekOverride
         self.timestamp = Date()

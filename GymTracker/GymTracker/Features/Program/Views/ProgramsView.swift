@@ -76,6 +76,8 @@ struct ProgramsView: View {
                 let nextWorkout = programService.nextScheduledDay(for: current)
                 let programProgress = programService.programProgress(for: current)
                 let blockProgress = currentBlock.map { programService.blockProgress(for: current, block: $0) }
+                let blockProgressText = programService.currentBlockProgressText(for: current)
+                let workoutProgressText = programService.currentWorkoutProgressText(for: current)
 
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
@@ -119,6 +121,17 @@ struct ProgramsView: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    if let blockProgressText {
+                        Text(blockProgressText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let workoutProgressText {
+                        Text(workoutProgressText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
                     HStack(spacing: 10) {
                         progressChip(
                             title: "Program",
@@ -142,6 +155,18 @@ struct ProgramsView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(nextWorkout == nil)
+
+                    HStack(spacing: 8) {
+                        Button("Skip") {
+                            _ = programService.skipCurrentWorkout(for: current)
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button("Postpone") {
+                            _ = programService.postponeCurrentWorkout(for: current)
+                        }
+                        .buttonStyle(.bordered)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(12)
@@ -404,7 +429,11 @@ struct ProgramsView: View {
     private func startNextWorkout(for program: Program) {
         guard let next = programService.prepareScheduleForSessionStart(for: program) else { return }
         guard let session = sessionService.addSession(programDay: next) else { return }
-        openedSession = session
+        _ = programService.advanceProgramStateAfterStartingSession(for: program, startedProgramDay: next)
+        openedSession = nil
+        DispatchQueue.main.async {
+            openedSession = session
+        }
     }
 }
 

@@ -311,7 +311,7 @@ struct CreateSessionSheetView: View {
             } else if let currentProgram = programService.currentProgram() {
                 mode = .program
                 selectedProgramId = currentProgram.id
-                if let nextWorkout = programService.nextScheduledDay(for: currentProgram) {
+                if let nextWorkout = programService.prepareScheduleForSessionStart(for: currentProgram) {
                     selectedProgramDayId = nextWorkout.id
                 }
             }
@@ -375,11 +375,11 @@ struct CreateSessionSheetView: View {
                         selectedProgramDayId = nil
                         return
                     }
-                    selectedProgramDayId = programService.nextScheduledDay(for: program)?.id
+                    selectedProgramDayId = programService.prepareScheduleForSessionStart(for: program)?.id
                 }
 
                 if let program = selectedProgram,
-                   let nextWorkout = programService.nextScheduledDay(for: program) {
+                   let nextWorkout = programService.prepareScheduleForSessionStart(for: program) {
                     Button {
                         selectedProgramDayId = nextWorkout.id
                     } label: {
@@ -419,6 +419,9 @@ struct CreateSessionSheetView: View {
                 programDay: programDay,
                 notes: sessionService.create_notes
             )
+            if openedSession != nil, let program = selectedProgram {
+                _ = programService.advanceProgramStateAfterStartingSession(for: program, startedProgramDay: programDay)
+            }
             sessionService.create_notes = ""
             sessionService.selected_splitDay = nil
         }
