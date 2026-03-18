@@ -289,16 +289,24 @@ struct SessionExerciseView: View {
     }
 
     private var targetCompletionStates: [Bool] {
-        let exerciseKind = sessionEntry.exercise.setDisplayKind
-        let meaningfulSets = sessionEntry.sets
-            .sorted { $0.order < $1.order }
-            .filter { SetDisplayFormatter.isMeaningfulSet($0, exerciseKind: exerciseKind) }
-
         return targetChecklistRows.map { target in
-            guard meaningfulSets.indices.contains(target.order) else { return false }
-            let candidateSet = meaningfulSets[target.order]
+            guard targetMeaningfulSets.indices.contains(target.order) else { return false }
+            let candidateSet = targetMeaningfulSets[target.order]
             return set(candidateSet, matches: target)
         }
+    }
+
+    private var targetAttemptedStates: [Bool] {
+        return targetChecklistRows.map { target in
+            targetMeaningfulSets.indices.contains(target.order)
+        }
+    }
+
+    private var targetMeaningfulSets: [SessionSet] {
+        let exerciseKind = sessionEntry.exercise.setDisplayKind
+        return sessionEntry.sets
+            .sorted { $0.order < $1.order }
+            .filter { SetDisplayFormatter.isMeaningfulSet($0, exerciseKind: exerciseKind) }
     }
 
     private var nextSuggestedTargetIndex: Int? {
@@ -312,11 +320,13 @@ struct SessionExerciseView: View {
 
             ForEach(targetChecklistRows) { row in
                 let isCompleted = targetCompletionStates.indices.contains(row.order) ? targetCompletionStates[row.order] : false
+                let isAttempted = targetAttemptedStates.indices.contains(row.order) ? targetAttemptedStates[row.order] : false
+                let isMissed = isAttempted && !isCompleted
                 let isSuggested = nextSuggestedTargetIndex == row.order
 
                 HStack(spacing: 12) {
                     Image(systemName: isCompleted ? "checkmark.square.fill" : "square")
-                        .foregroundStyle(isCompleted ? Color.green : Color.secondary)
+                        .foregroundStyle(isCompleted ? Color.green : (isMissed ? Color.orange : Color.secondary))
 
                     setBadge(text: "\(row.order + 1)")
 
@@ -325,7 +335,11 @@ struct SessionExerciseView: View {
                             .font(.subheadline)
                             .fontWeight(.semibold)
 
-                        if isSuggested && !isCompleted {
+                        if isMissed {
+                            Text("Missed target")
+                                .font(.caption2)
+                                .foregroundStyle(.orange)
+                        } else if isSuggested && !isCompleted {
                             Text("Next target")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
@@ -339,7 +353,12 @@ struct SessionExerciseView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
-                        .stroke(isSuggested && !isCompleted ? Color.green.opacity(0.35) : Color.clear, lineWidth: 1)
+                        .stroke(
+                            isMissed
+                                ? Color.orange.opacity(0.45)
+                                : (isSuggested && !isCompleted ? Color.green.opacity(0.35) : Color.clear),
+                            lineWidth: 1
+                        )
                 )
                 .contentShape(Rectangle())
                 .onTapGesture {

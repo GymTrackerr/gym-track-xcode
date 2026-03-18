@@ -1,6 +1,13 @@
 import Foundation
 import SwiftData
 
+enum ProgramLengthMode: Int, CaseIterable, Identifiable {
+    case fixedLength = 0
+    case continuous = 1
+
+    var id: Int { rawValue }
+}
+
 @Model
 final class Program {
     var id: UUID = UUID()
@@ -12,6 +19,7 @@ final class Program {
     var isCurrent: Bool = false
     var isBuiltIn: Bool = false
     var builtInKey: String? = nil
+    var lengthMode: Int
     var startDate: Date?
     var currentWeekOverride: Int?
     var timestamp: Date
@@ -34,6 +42,7 @@ final class Program {
         isCurrent: Bool = false,
         isBuiltIn: Bool = false,
         builtInKey: String? = nil,
+        lengthMode: ProgramLengthMode = .fixedLength,
         startDate: Date? = nil,
         currentWeekOverride: Int? = nil
     ) {
@@ -45,11 +54,17 @@ final class Program {
         self.isCurrent = isCurrent
         self.isBuiltIn = isBuiltIn
         self.builtInKey = builtInKey
+        self.lengthMode = lengthMode.rawValue
         self.startDate = startDate
         self.currentWeekOverride = currentWeekOverride
         self.timestamp = Date()
         self.programDays = []
         self.blocks = []
         self.sessions = []
+    }
+
+    var resolvedProgramLengthMode: ProgramLengthMode {
+        get { ProgramLengthMode(rawValue: lengthMode) ?? .fixedLength }
+        set { lengthMode = newValue.rawValue }
     }
 }

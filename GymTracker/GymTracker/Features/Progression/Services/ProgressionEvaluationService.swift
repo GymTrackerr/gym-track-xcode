@@ -146,16 +146,107 @@ final class ProgressionEvaluationService: ServiceBase, ObservableObject {
             return first
         }
 
+        let history = historicalEntries(userId: userId, exerciseId: exercise.id)
+        let matchingProgressionHistory = history.filter { $0.appliedProgression?.id == progression.id }
+
         let created = ProgressionState(
             user_id: userId,
             exercise: exercise,
             progression: progression,
-            workingWeight: nil,
-            successCount: 0,
+            workingWeight: backfilledWorkingWeight(
+                history: history,
+                matchingProgressionHistory: matchingProgressionHistory,
+                exerciseKind: exercise.setDisplayKind
+            ),
+            successCount: backfilledSuccessCount(
+                matchingProgressionHistory: matchingProgressionHistory,
+                progression: progression
+            ),
             lastEvaluatedSessionEntryId: nil,
             lastAdvancedAt: nil
         )
         modelContext.insert(created)
         return created
+    }
+
+    private func backfilledWorkingWeight(
+        history: [SessionEntry],
+        matchingProgressionHistory: [SessionEntry],
+        exerciseKind: SetDisplayExerciseKind
+    ) -> Double? {
+        let preferredHistory = matchingProgressionHistory.isEmpty ? history : matchingProgressionHistory
+
+        for entry in preferredHistory {
+            let sortedSets = entry.sets.sorted { lhs, rhs in
+                if lhs.timestamp != rhs.timestamp { return lhs.timestamp > rhs.timestamp }
+                return lhs.order > rhs.order
+            }
+            for sessionSet in sortedSets {
+                guard SetDisplayFormatter.isMeaningfulSet(sessionSet, exerciseKind: exerciseKind) else { continue }
+                if let rep = sessionSet.sessionReps.reversed().first(where: { $0.weight > 0 }) {
+                    return rep.weight
+                }
+            }
+        }
+        return nil
+    }
+
+    private func backfilledSuccessCount(
+        matchingProgressionHistory: [SessionEntry],
+        progression: ProgressionProfile
+    ) -> Int {
+        guard !matchingProgressionHistory.isEmpty else { return 0 }
+        let requiredSuccesses = max(progression.requiredSuccessSessions, 1)
+        guard requiredSuccesses > 1 else { return 0 }
+
+        var streak = 0
+        for entry in matchingProgressionHistory {
+            guard let isSuccess = highConfidenceSuccess(for: entry, progression: progression) else { break }
+            if isSuccess {
+                streak += 1
+                if streak >= requiredSuccesses {
+                    return requiredSuccesses - 1
+                }
+            } else {
+                break
+            }
+        }
+
+        if streak > 0 {
+            return min(streak, requiredSuccesses - 1)
+        }
+        return 0
+    }
+
+    private func highConfidenceSuccess(for entry: SessionEntry, progression: ProgressionProfile) -> Bool? {
+        guard let setsTarget = entry.appliedSetsTarget, setsTarget > 0 else { return nil }
+        guard let repsThreshold = repsThreshold(for: entry, progression: progression) else { return nil }
+
+        let requiredSets = requiredMeaningfulSets(for: entry, setsTarget: setsTarget)
+        let successfulSetCount = requiredSets.reduce(into: 0) { partialResult, sessionSet in
+            guard let setResult = evaluatedSetResult(sessionSet) else { return }
+            if setResult.reps >= repsThreshold {
+                partialResult += 1
+            }
+        }
+
+        switch progression.progressionSuccessPolicy {
+        case .allTargetsMet:
+            return requiredSets.count == setsTarget && successfulSetCount == setsTarget
+        case .anyTopSetMet:
+            return successfulSetCount > 0
+        }
+    }
+
+    private func historicalEntries(userId: UUID, exerciseId: UUID) -> [SessionEntry] {
+        let descriptor = FetchDescriptor<SessionEntry>(
+            predicate: #Predicate<SessionEntry> { entry in
+                entry.session.user_id == userId
+                && entry.exercise.id == exerciseId
+                && entry.session.timestampDone > entry.session.timestamp
+            },
+            sortBy: [SortDescriptor(\.session.timestamp, order: .reverse)]
+        )
+        return (try? modelContext.fetch(descriptor)) ?? []
     }
 }

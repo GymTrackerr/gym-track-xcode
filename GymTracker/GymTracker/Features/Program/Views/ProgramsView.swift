@@ -95,6 +95,10 @@ struct ProgramsView: View {
                     Text("Week \(currentWeek + 1)")
                         .font(.subheadline.weight(.semibold))
 
+                    Text("Mode: \(programLengthModeLabel(for: current))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
                     if let block = currentBlock {
                         Text("Block: \(block.title)")
                             .font(.caption)
@@ -191,6 +195,10 @@ struct ProgramsView: View {
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
+
+                                    Text(programLengthModeLabel(for: program))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
 
                                     if let block = programService.currentBlock(for: program) {
                                         Text("Block: \(block.title)")
@@ -343,6 +351,10 @@ struct ProgramsView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
+    private func programLengthModeLabel(for program: Program) -> String {
+        program.resolvedProgramLengthMode == .continuous ? "Continuous" : "Fixed Length"
+    }
+
     private var routinesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Routines")
@@ -390,7 +402,7 @@ struct ProgramsView: View {
     }
 
     private func startNextWorkout(for program: Program) {
-        guard let next = programService.nextScheduledDay(for: program) else { return }
+        guard let next = programService.prepareScheduleForSessionStart(for: program) else { return }
         guard let session = sessionService.addSession(programDay: next) else { return }
         openedSession = session
     }

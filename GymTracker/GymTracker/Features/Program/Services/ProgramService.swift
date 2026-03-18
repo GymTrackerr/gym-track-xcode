@@ -102,6 +102,9 @@ final class ProgramService: ServiceBase, ObservableObject {
                 enforceSingleCurrentProgram(for: userId, keep: created)
             }
             try modelContext.save()
+            if isCurrent || isActive {
+                ensureMaterializationHorizonIfNeededForMutation(for: created)
+            }
             loadPrograms()
             loadArchivedPrograms()
             return created
@@ -117,7 +120,8 @@ final class ProgramService: ServiceBase, ObservableObject {
         notes: String,
         isActive: Bool,
         startDate: Date?,
-        isCurrent: Bool
+        isCurrent: Bool,
+        lengthMode: ProgramLengthMode
     ) -> Bool {
         guard !program.isBuiltIn else { return false }
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -128,12 +132,16 @@ final class ProgramService: ServiceBase, ObservableObject {
         program.isActive = isActive
         program.startDate = startDate
         program.isCurrent = isCurrent
+        program.resolvedProgramLengthMode = lengthMode
 
         do {
             if isCurrent {
                 enforceSingleCurrentProgram(for: program.user_id, keep: program)
             }
             try modelContext.save()
+            if isCurrent || isActive {
+                ensureMaterializationHorizonIfNeededForMutation(for: program)
+            }
             loadPrograms()
             loadArchivedPrograms()
             return true
@@ -485,6 +493,7 @@ final class ProgramService: ServiceBase, ObservableObject {
             isCurrent: false,
             isBuiltIn: false,
             builtInKey: nil,
+            lengthMode: program.resolvedProgramLengthMode,
             startDate: program.startDate,
             currentWeekOverride: nil
         )
@@ -546,6 +555,9 @@ final class ProgramService: ServiceBase, ObservableObject {
         }
         do {
             try modelContext.save()
+            if let program {
+                ensureMaterializationHorizonIfNeededForMutation(for: program)
+            }
             loadPrograms()
             return true
         } catch {
@@ -584,51 +596,41 @@ final class ProgramService: ServiceBase, ObservableObject {
 
     func currentBlock(for program: Program) -> ProgramBlock? {
         let week = effectiveCurrentWeek(for: program)
-        return program.blocks
-            .filter { $0.isArchived == false }
-            .sorted { $0.order < $1.order }
-            .first(where: { week >= $0.startWeekIndex && week <= $0.endWeekIndex })
+        return resolvedBlock(for: program, weekIndex: week)
     }
 
     func nextScheduledDay(for program: Program) -> ProgramDay? {
-        let sorted = program.programDays.sorted(by: { lhs, rhs in
-            if lhs.weekIndex != rhs.weekIndex { return lhs.weekIndex < rhs.weekIndex }
-            if lhs.dayIndex != rhs.dayIndex { return lhs.dayIndex < rhs.dayIndex }
-            return lhs.order < rhs.order
-        })
+        let sorted = sortedEligibleProgramDays(for: program)
         guard !sorted.isEmpty else { return nil }
-
-        if let latestProgramSession = program.sessions
-            .filter({ $0.programDay != nil })
-            .sorted(by: { $0.timestamp > $1.timestamp })
-            .first,
-           let latestProgramDay = latestProgramSession.programDay,
-           let latestIndex = sorted.firstIndex(where: { $0.id == latestProgramDay.id }) {
-            let nextIndex = sorted.index(after: latestIndex)
-            if nextIndex < sorted.endIndex {
-                return sorted[nextIndex]
-            }
-            return sorted.first
-        }
 
         let currentWeek = effectiveCurrentWeek(for: program)
         let todayWeekdayIndex = Calendar.current.component(.weekday, from: Date()) - 1
-        if let currentWeekCandidate = sorted.first(where: { day in
-            day.weekIndex == currentWeek && day.dayIndex >= todayWeekdayIndex
-        }) {
-            return currentWeekCandidate
+
+        guard let block = resolvedBlock(for: program, weekIndex: currentWeek) else {
+            return sorted.first
         }
 
-        return sorted.first(where: { $0.weekIndex > currentWeek }) ?? sorted.first
+        switch block.resolvedScheduleMode {
+        case .calendar:
+            return calendarNextDay(
+                sorted: sorted,
+                currentWeek: currentWeek,
+                todayWeekdayIndex: todayWeekdayIndex
+            )
+        case .rotation:
+            return rotationNextDay(
+                sorted: sorted,
+                program: program,
+                currentWeek: currentWeek,
+                todayWeekdayIndex: todayWeekdayIndex
+            )
+        }
     }
 
     func programProgress(for program: Program) -> (completed: Int, total: Int) {
         let total = program.programDays.count
         guard total > 0 else { return (0, 0) }
-        let completed = Set(
-            program.sessions
-                .compactMap { $0.programDay?.id }
-        ).count
+        let completed = completedProgramDayIds(for: program).count
         return (min(completed, total), total)
     }
 
@@ -639,12 +641,7 @@ final class ProgramService: ServiceBase, ObservableObject {
         let total = blockDays.count
         guard total > 0 else { return (0, 0) }
         let blockDayIds = Set(blockDays.map(\.id))
-        let completed = Set<UUID>(
-            program.sessions.compactMap { session in
-                guard let dayId = session.programDay?.id, blockDayIds.contains(dayId) else { return nil }
-                return dayId
-            }
-        ).count
+        let completed = completedProgramDayIds(for: program).intersection(blockDayIds).count
         return (min(completed, total), total)
     }
 
@@ -653,6 +650,95 @@ final class ProgramService: ServiceBase, ObservableObject {
         let weekdayLabel = weekdayLabel(for: day.dayIndex)
         let routineName = day.routine?.name ?? "No routine"
         return "\(weekdayLabel) · Week \(day.weekIndex + 1) · \(routineName)"
+    }
+
+    private func sortedEligibleProgramDays(for program: Program) -> [ProgramDay] {
+        program.programDays
+            .filter { $0.routine != nil }
+            .sorted(by: { lhs, rhs in
+                if lhs.weekIndex != rhs.weekIndex { return lhs.weekIndex < rhs.weekIndex }
+                if lhs.dayIndex != rhs.dayIndex { return lhs.dayIndex < rhs.dayIndex }
+                return lhs.order < rhs.order
+            })
+    }
+
+    private func calendarNextDay(
+        sorted: [ProgramDay],
+        currentWeek: Int,
+        todayWeekdayIndex: Int
+    ) -> ProgramDay? {
+        if let currentWeekCandidate = sorted.first(where: { day in
+            day.weekIndex == currentWeek && day.dayIndex >= todayWeekdayIndex
+        }) {
+            return currentWeekCandidate
+        }
+        return sorted.first(where: { $0.weekIndex > currentWeek }) ?? sorted.first
+    }
+
+    private func rotationNextDay(
+        sorted: [ProgramDay],
+        program: Program,
+        currentWeek: Int,
+        todayWeekdayIndex: Int
+    ) -> ProgramDay? {
+        if let nextAfterLatest = nextDayAfterLatestCompleted(sorted: sorted, program: program) {
+            return nextAfterLatest
+        }
+
+        if let inCurrentWeek = sorted.first(where: { day in
+            day.weekIndex == currentWeek && day.dayIndex >= todayWeekdayIndex
+        }) {
+            return inCurrentWeek
+        }
+
+        return sorted.first(where: { $0.weekIndex > currentWeek }) ?? sorted.first
+    }
+
+    private func nextDayAfterLatestCompleted(sorted: [ProgramDay], program: Program) -> ProgramDay? {
+        guard let latestProgramSession = latestProgramSession(for: program),
+            let latestProgramDay = latestProgramSession.programDay,
+            let latestIndex = sorted.firstIndex(where: { $0.id == latestProgramDay.id }) else {
+            return nil
+        }
+
+        let nextIndex = sorted.index(after: latestIndex)
+        if nextIndex < sorted.endIndex {
+            return sorted[nextIndex]
+        }
+        return sorted.first
+    }
+
+    private func completedProgramDayIds(for program: Program) -> Set<UUID> {
+        Set(program.sessions.compactMap { $0.programDay?.id })
+    }
+
+    private func latestProgramSession(for program: Program) -> Session? {
+        program.sessions
+            .filter { $0.programDay != nil }
+            .sorted { $0.timestamp > $1.timestamp }
+            .first
+    }
+
+    private var continuousWeeksAheadDefault: Int { 12 }
+
+    @discardableResult
+    func prepareScheduleForSessionStart(for program: Program) -> ProgramDay? {
+        ensureMaterializationHorizonIfNeededForMutation(for: program)
+        return nextScheduledDay(for: program)
+    }
+
+    @discardableResult
+    private func ensureMaterializationHorizonIfNeededForMutation(for program: Program) -> Bool {
+        guard program.resolvedProgramLengthMode == .continuous else { return true }
+        let currentWeek = effectiveCurrentWeek(for: program)
+        let targetWeek = currentWeek + continuousWeeksAheadDefault
+        let maxMaterializedWeek = program.programDays.map(\.weekIndex).max() ?? -1
+        if maxMaterializedWeek >= targetWeek { return true }
+        return materializeTemplateSchedule(
+            for: program,
+            weekRange: currentWeek...targetWeek,
+            pruneStaleGeneratedRows: false
+        )
     }
 
     @discardableResult
@@ -816,29 +902,92 @@ final class ProgramService: ServiceBase, ObservableObject {
     }
 
     @discardableResult
-    func materializeTemplateSchedule(for program: Program) -> Bool {
+    func materializeTemplateSchedule(
+        for program: Program,
+        weekRange: ClosedRange<Int>? = nil,
+        pruneStaleGeneratedRows: Bool? = nil
+    ) -> Bool {
         guard !program.isBuiltIn else { return false }
-        let blocks = program.blocks.filter { !$0.isArchived }.sorted { $0.order < $1.order }
         var desiredByKey: [String: MaterializedTemplateCandidate] = [:]
-        for block in blocks {
-            guard block.endWeekIndex >= block.startWeekIndex else { continue }
-            let templateDays = block.templateDays.sorted { $0.order < $1.order }
-            switch block.resolvedScheduleMode {
-            case .calendar:
-                for templateDay in templateDays {
-                    for week in block.startWeekIndex...block.endWeekIndex {
+        let nonArchivedBlocks = sortedNonArchivedBlocks(for: program)
+        if nonArchivedBlocks.isEmpty { return false }
+
+        if program.resolvedProgramLengthMode == .continuous {
+            let targetRange: ClosedRange<Int>
+            if let weekRange {
+                targetRange = weekRange
+            } else {
+                let currentWeek = effectiveCurrentWeek(for: program)
+                targetRange = currentWeek...(currentWeek + continuousWeeksAheadDefault)
+            }
+
+            addContinuousCandidates(
+                to: &desiredByKey,
+                program: program,
+                weekRange: targetRange
+            )
+        } else {
+            for block in nonArchivedBlocks {
+                guard block.endWeekIndex >= block.startWeekIndex else { continue }
+                let effectiveRange = intersectWeekRange(
+                    left: block.startWeekIndex...block.endWeekIndex,
+                    right: weekRange
+                )
+                guard let effectiveRange else { continue }
+
+                let templateDays = block.templateDays.sorted { $0.order < $1.order }
+                switch block.resolvedScheduleMode {
+                case .calendar:
+                    for templateDay in templateDays {
+                        for week in effectiveRange {
+                            let candidate = MaterializedTemplateCandidate(
+                                generationKey: generationKey(
+                                    programId: program.id,
+                                    blockId: block.id,
+                                    templateDayId: templateDay.id,
+                                    weekIndex: week
+                                ),
+                                block: block,
+                                templateDay: templateDay,
+                                routine: templateDay.routine,
+                                weekIndex: week,
+                                dayIndex: templateDay.weekDayIndex,
+                                order: templateDay.order,
+                                title: templateDay.title
+                            )
+                            if desiredByKey[candidate.generationKey] == nil {
+                                desiredByKey[candidate.generationKey] = candidate
+                            }
+                        }
+                    }
+                case .rotation:
+                    guard !templateDays.isEmpty else { continue }
+                    let onDays = max(block.rotationOnDays ?? templateDays.count, 1)
+                    let offDays = max(block.rotationOffDays ?? 0, 0)
+                    let totalBlockDays = ((block.endWeekIndex - block.startWeekIndex) + 1) * 7
+                    var workoutSequenceIndex = 0
+                    for offset in 0..<totalBlockDays {
+                        let cycleLength = max(onDays + offDays, 1)
+                        let cycleDay = offset % cycleLength
+                        let isWorkoutDay = cycleDay < onDays
+                        if !isWorkoutDay { continue }
+                        let templateDay = templateDays[workoutSequenceIndex % templateDays.count]
+                        workoutSequenceIndex += 1
+                        let week = block.startWeekIndex + (offset / 7)
+                        guard effectiveRange.contains(week) else { continue }
+                        let weekDay = offset % 7
                         let candidate = MaterializedTemplateCandidate(
                             generationKey: generationKey(
                                 programId: program.id,
                                 blockId: block.id,
                                 templateDayId: templateDay.id,
                                 weekIndex: week
-                            ),
+                            ) + "|d\(weekDay)",
                             block: block,
                             templateDay: templateDay,
                             routine: templateDay.routine,
                             weekIndex: week,
-                            dayIndex: templateDay.weekDayIndex,
+                            dayIndex: weekDay,
                             order: templateDay.order,
                             title: templateDay.title
                         )
@@ -847,42 +996,9 @@ final class ProgramService: ServiceBase, ObservableObject {
                         }
                     }
                 }
-            case .rotation:
-                guard !templateDays.isEmpty else { continue }
-                let onDays = max(block.rotationOnDays ?? templateDays.count, 1)
-                let offDays = max(block.rotationOffDays ?? 0, 0)
-                let totalBlockDays = ((block.endWeekIndex - block.startWeekIndex) + 1) * 7
-                var workoutSequenceIndex = 0
-                for offset in 0..<totalBlockDays {
-                    let cycleLength = max(onDays + offDays, 1)
-                    let cycleDay = offset % cycleLength
-                    let isWorkoutDay = cycleDay < onDays
-                    if !isWorkoutDay { continue }
-                    let templateDay = templateDays[workoutSequenceIndex % templateDays.count]
-                    workoutSequenceIndex += 1
-                    let week = block.startWeekIndex + (offset / 7)
-                    let weekDay = offset % 7
-                    let candidate = MaterializedTemplateCandidate(
-                        generationKey: generationKey(
-                            programId: program.id,
-                            blockId: block.id,
-                            templateDayId: templateDay.id,
-                            weekIndex: week
-                        ) + "|d\(weekDay)",
-                        block: block,
-                        templateDay: templateDay,
-                        routine: templateDay.routine,
-                        weekIndex: week,
-                        dayIndex: weekDay,
-                        order: templateDay.order,
-                        title: templateDay.title
-                    )
-                    if desiredByKey[candidate.generationKey] == nil {
-                        desiredByKey[candidate.generationKey] = candidate
-                    }
-                }
             }
         }
+
         let desired = desiredByKey.values.sorted { lhs, rhs in
             if lhs.weekIndex != rhs.weekIndex { return lhs.weekIndex < rhs.weekIndex }
             if lhs.dayIndex != rhs.dayIndex { return lhs.dayIndex < rhs.dayIndex }
@@ -924,11 +1040,14 @@ final class ProgramService: ServiceBase, ObservableObject {
             }
         }
 
-        for staleDay in existingGenerated {
-            guard let key = staleDay.generationKey else { continue }
-            guard desiredByKey[key] == nil else { continue }
-            if staleDay.sessions.isEmpty {
-                modelContext.delete(staleDay)
+        let shouldPrune = pruneStaleGeneratedRows ?? (program.resolvedProgramLengthMode == .fixedLength)
+        if shouldPrune {
+            for staleDay in existingGenerated {
+                guard let key = staleDay.generationKey else { continue }
+                guard desiredByKey[key] == nil else { continue }
+                if staleDay.sessions.isEmpty {
+                    modelContext.delete(staleDay)
+                }
             }
         }
 
@@ -948,6 +1067,125 @@ final class ProgramService: ServiceBase, ObservableObject {
         weekIndex: Int
     ) -> String {
         "\(programId.uuidString)|\(blockId.uuidString)|\(templateDayId.uuidString)|w\(weekIndex)"
+    }
+
+    private func sortedNonArchivedBlocks(for program: Program) -> [ProgramBlock] {
+        program.blocks
+            .filter { !$0.isArchived }
+            .sorted { lhs, rhs in
+                if lhs.order != rhs.order { return lhs.order < rhs.order }
+                return lhs.startWeekIndex < rhs.startWeekIndex
+            }
+    }
+
+    private func resolvedBlock(for program: Program, weekIndex: Int) -> ProgramBlock? {
+        let blocks = sortedNonArchivedBlocks(for: program)
+        guard !blocks.isEmpty else { return nil }
+
+        if let exact = blocks.first(where: { weekIndex >= $0.startWeekIndex && weekIndex <= $0.endWeekIndex }) {
+            return exact
+        }
+
+        guard program.resolvedProgramLengthMode == .continuous else { return nil }
+
+        if weekIndex < blocks[0].startWeekIndex {
+            return blocks[0]
+        }
+        if let last = blocks.last, weekIndex > last.endWeekIndex {
+            return last
+        }
+
+        // Continuous fallback for gaps: carry forward the last block whose start is before the target week.
+        return blocks
+            .filter { $0.startWeekIndex <= weekIndex }
+            .sorted { $0.startWeekIndex > $1.startWeekIndex }
+            .first ?? blocks[0]
+    }
+
+    private func intersectWeekRange(left: ClosedRange<Int>, right: ClosedRange<Int>?) -> ClosedRange<Int>? {
+        guard let right else { return left }
+        let lower = max(left.lowerBound, right.lowerBound)
+        let upper = min(left.upperBound, right.upperBound)
+        guard lower <= upper else { return nil }
+        return lower...upper
+    }
+
+    private func addContinuousCandidates(
+        to desiredByKey: inout [String: MaterializedTemplateCandidate],
+        program: Program,
+        weekRange: ClosedRange<Int>
+    ) {
+        // Phase 13 rule:
+        // - continuous calendar uses resolved block per week
+        // - continuous rotation keeps cadence anchored to program start (no unnecessary reset at block boundaries)
+        for week in weekRange {
+            guard let block = resolvedBlock(for: program, weekIndex: week) else { continue }
+            let templateDays = block.templateDays.sorted { $0.order < $1.order }
+            guard !templateDays.isEmpty else { continue }
+            if block.resolvedScheduleMode == .calendar {
+                for templateDay in templateDays {
+                    let candidate = MaterializedTemplateCandidate(
+                        generationKey: generationKey(
+                            programId: program.id,
+                            blockId: block.id,
+                            templateDayId: templateDay.id,
+                            weekIndex: week
+                        ),
+                        block: block,
+                        templateDay: templateDay,
+                        routine: templateDay.routine,
+                        weekIndex: week,
+                        dayIndex: templateDay.weekDayIndex,
+                        order: templateDay.order,
+                        title: templateDay.title
+                    )
+                    if desiredByKey[candidate.generationKey] == nil {
+                        desiredByKey[candidate.generationKey] = candidate
+                    }
+                }
+            }
+        }
+
+        let maxAbsoluteDay = max((weekRange.upperBound + 1) * 7 - 1, 0)
+        var globalWorkoutOrdinal = 0
+        for absoluteDay in 0...maxAbsoluteDay {
+            let week = absoluteDay / 7
+            let weekDay = absoluteDay % 7
+            guard let block = resolvedBlock(for: program, weekIndex: week) else { continue }
+            guard block.resolvedScheduleMode == .rotation else { continue }
+            let templateDays = block.templateDays.sorted { $0.order < $1.order }
+            guard !templateDays.isEmpty else { continue }
+
+            let onDays = max(block.rotationOnDays ?? templateDays.count, 1)
+            let offDays = max(block.rotationOffDays ?? 0, 0)
+            let cycleLength = max(onDays + offDays, 1)
+            let cycleDay = absoluteDay % cycleLength
+            let isWorkoutDay = cycleDay < onDays
+            if !isWorkoutDay { continue }
+
+            let templateDay = templateDays[globalWorkoutOrdinal % templateDays.count]
+            globalWorkoutOrdinal += 1
+
+            guard weekRange.contains(week) else { continue }
+            let candidate = MaterializedTemplateCandidate(
+                generationKey: generationKey(
+                    programId: program.id,
+                    blockId: block.id,
+                    templateDayId: templateDay.id,
+                    weekIndex: week
+                ) + "|d\(weekDay)",
+                block: block,
+                templateDay: templateDay,
+                routine: templateDay.routine,
+                weekIndex: week,
+                dayIndex: weekDay,
+                order: templateDay.order,
+                title: templateDay.title
+            )
+            if desiredByKey[candidate.generationKey] == nil {
+                desiredByKey[candidate.generationKey] = candidate
+            }
+        }
     }
 
     private func enforceSingleCurrentProgram(for userId: UUID, keep: Program) {

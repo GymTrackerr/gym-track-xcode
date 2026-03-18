@@ -291,6 +291,7 @@ final class DefaultContentSeeder: ServiceBase, ObservableObject {
             existing.notes = definition.notes
             existing.isActive = definition.isActive
             existing.startDate = definition.startDate
+            existing.resolvedProgramLengthMode = .fixedLength
             existing.isArchived = false
             existing.isBuiltIn = true
             existing.builtInKey = definition.key
@@ -305,6 +306,7 @@ final class DefaultContentSeeder: ServiceBase, ObservableObject {
             isActive: definition.isActive,
             isBuiltIn: true,
             builtInKey: definition.key,
+            lengthMode: .fixedLength,
             startDate: definition.startDate
         )
         modelContext.insert(created)

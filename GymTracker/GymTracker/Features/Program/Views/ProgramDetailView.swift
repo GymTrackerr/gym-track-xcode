@@ -15,6 +15,7 @@ struct ProgramDetailView: View {
     @State private var notesText: String
     @State private var isActive: Bool
     @State private var isCurrent: Bool
+    @State private var lengthMode: ProgramLengthMode
     @State private var hasStartDate: Bool
     @State private var startDate: Date
 
@@ -30,6 +31,7 @@ struct ProgramDetailView: View {
         _notesText = State(initialValue: program.notes)
         _isActive = State(initialValue: program.isActive)
         _isCurrent = State(initialValue: program.isCurrent)
+        _lengthMode = State(initialValue: program.resolvedProgramLengthMode)
         _hasStartDate = State(initialValue: program.startDate != nil)
         _startDate = State(initialValue: program.startDate ?? Date())
     }
@@ -174,6 +176,11 @@ struct ProgramDetailView: View {
 
                     Toggle("Active", isOn: $isActive)
                     Toggle("Current Program", isOn: $isCurrent)
+                    Picker("Program Length", selection: $lengthMode) {
+                        Text("Fixed Length").tag(ProgramLengthMode.fixedLength)
+                        Text("Continuous").tag(ProgramLengthMode.continuous)
+                    }
+                    .pickerStyle(.segmented)
 
                     Toggle("Has Start Date", isOn: $hasStartDate)
 
@@ -188,7 +195,8 @@ struct ProgramDetailView: View {
                             notes: notesText,
                             isActive: isActive,
                             startDate: hasStartDate ? startDate : nil,
-                            isCurrent: isCurrent
+                            isCurrent: isCurrent,
+                            lengthMode: lengthMode
                         )
                     }
                     .buttonStyle(.borderedProminent)
@@ -252,7 +260,7 @@ struct ProgramDetailView: View {
                     .buttonStyle(.borderedProminent)
 
                     Button("Start Next Workout") {
-                        guard let nextWorkout = programService.nextScheduledDay(for: program) else { return }
+                        guard let nextWorkout = programService.prepareScheduleForSessionStart(for: program) else { return }
                         guard let session = sessionService.addSession(programDay: nextWorkout) else { return }
                         openedSession = session
                     }
