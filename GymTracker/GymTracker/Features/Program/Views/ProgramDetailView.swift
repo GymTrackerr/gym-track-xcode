@@ -100,7 +100,7 @@ struct ProgramDetailView: View {
             }
         }
         .sheet(isPresented: $showingAddDaySheet) {
-            AddProgramDaySheet(program: program)
+            AddProgramWorkoutSheet(program: program)
                 .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showingAddBlockSheet) {
@@ -219,7 +219,7 @@ struct ProgramDetailView: View {
                 Text("Current Week: \(currentWeek + 1)")
                     .font(.subheadline.weight(.semibold))
                 if let block = programService.currentBlock(for: program) {
-                    Text("Current Block: \(block.title)")
+                    Text("Current Block: \(programService.displayBlockName(block))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
@@ -228,7 +228,7 @@ struct ProgramDetailView: View {
                         .foregroundStyle(.secondary)
                 }
                 if let nextDay = programService.nextScheduledDay(for: program) {
-                    Text("Next Workout: \(nextDay.title) · Week \(nextDay.weekIndex + 1)")
+                    Text("Next Workout: \(programService.displayWorkoutName(for: nextDay)) · Week \(nextDay.weekIndex + 1)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
@@ -263,11 +263,6 @@ struct ProgramDetailView: View {
                         }
                         .buttonStyle(.bordered)
                     }
-
-                    Button("Apply Blocks/Templates to Schedule") {
-                        _ = programService.materializeTemplateSchedule(for: program)
-                    }
-                    .buttonStyle(.borderedProminent)
 
                     Button("Start Next Workout") {
                         guard let nextWorkout = programService.prepareScheduleForSessionStart(for: program) else { return }
@@ -324,7 +319,7 @@ struct ProgramDetailView: View {
                     }
                 } label: {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(block.title)
+                        Text(programService.displayBlockName(block))
                             .font(.headline)
                         Text("Weeks \(block.startWeekIndex + 1)-\(block.endWeekIndex + 1)")
                             .font(.caption)
@@ -371,18 +366,9 @@ struct ProgramDetailView: View {
                         }
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text(day.title)
-                                    .font(.headline)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                Text(day.isGeneratedFromTemplate ? "Generated" : "Manual")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(Color.gray.opacity(0.14))
-                                    .clipShape(Capsule())
-                            }
+                            Text(programService.displayWorkoutName(for: day))
+                                .font(.headline)
+                                .frame(maxWidth: .infinity, alignment: .leading)
 
                             Text("Week \(day.weekIndex + 1) · \(weekdayLabel(for: day.dayIndex))")
                                 .font(.caption)
@@ -451,17 +437,29 @@ private func weekdayLabel(for dayIndex: Int) -> String {
     return labels[dayIndex]
 }
 
-private struct AddProgramDaySheet: View {
+private struct AddProgramWorkoutSheet: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var programService: ProgramService
 
     @Bindable var program: Program
 
     @State private var titleText: String = ""
-    @State private var weekNumberText: String = "1"
+    @State private var selectedBlockId: UUID?
     @State private var selectedWeekday: Int = 1
-    @State private var blockNumberText: String = ""
     @State private var selectedRoutineId: UUID?
+
+    private var blocks: [ProgramBlock] {
+        program.blocks
+            .filter { !$0.isArchived }
+            .sorted { lhs, rhs in
+                if lhs.order != rhs.order { return lhs.order < rhs.order }
+                return lhs.startWeekIndex < rhs.startWeekIndex
+            }
+    }
+
+    private var selectedBlock: ProgramBlock? {
+        blocks.first(where: { $0.id == selectedBlockId })
+    }
 
     private var routines: [Routine] {
         programService.activeRoutines()
@@ -471,20 +469,27 @@ private struct AddProgramDaySheet: View {
         NavigationStack {
             Form {
                 Section("Workout") {
-                    TextField("Title", text: $titleText)
-                    TextField("Week Number", text: $weekNumberText)
-                        .keyboardType(.numberPad)
-                    Picker("Weekday", selection: $selectedWeekday) {
-                        Text("Sunday").tag(0)
-                        Text("Monday").tag(1)
-                        Text("Tuesday").tag(2)
-                        Text("Wednesday").tag(3)
-                        Text("Thursday").tag(4)
-                        Text("Friday").tag(5)
-                        Text("Saturday").tag(6)
+                    TextField("Workout Name (optional)", text: $titleText)
+                    Picker("Block", selection: $selectedBlockId) {
+                        ForEach(blocks, id: \.id) { block in
+                            Text(programService.displayBlockName(block)).tag(Optional(block.id))
+                        }
                     }
-                    TextField("Block Number (optional)", text: $blockNumberText)
-                        .keyboardType(.numberPad)
+                    if selectedBlock?.resolvedScheduleMode == .calendar {
+                        Picker("Weekday", selection: $selectedWeekday) {
+                            Text("Sunday").tag(0)
+                            Text("Monday").tag(1)
+                            Text("Tuesday").tag(2)
+                            Text("Wednesday").tag(3)
+                            Text("Thursday").tag(4)
+                            Text("Friday").tag(5)
+                            Text("Saturday").tag(6)
+                        }
+                    } else {
+                        Text("Rotation schedule uses workout order in the block.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Section("Routine") {
@@ -504,33 +509,30 @@ private struct AddProgramDaySheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {
-                        addProgramDay()
+                        addWorkout()
                     }
-                    .disabled(titleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(selectedBlock == nil)
                 }
+            }
+        }
+        .onAppear {
+            if selectedBlockId == nil {
+                selectedBlockId = blocks.first?.id
             }
         }
     }
 
-    private func addProgramDay() {
+    private func addWorkout() {
+        guard let block = selectedBlock else { return }
         let routine = routines.first(where: { $0.id == selectedRoutineId })
-
-        _ = programService.addProgramDay(
-            to: program,
+        let weekDayIndex = block.resolvedScheduleMode == .calendar ? selectedWeekday : 0
+        _ = programService.addTemplateDay(
+            to: block,
             title: titleText,
-            weekIndex: max(0, (Int(weekNumberText.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 1) - 1),
-            dayIndex: selectedWeekday,
-            blockIndex: parseOptionalInt(blockNumberText).map { max(0, $0 - 1) },
+            weekDayIndex: weekDayIndex,
             routine: routine
         )
-
         dismiss()
-    }
-
-    private func parseOptionalInt(_ text: String) -> Int? {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        return Int(trimmed)
     }
 }
 
@@ -542,8 +544,7 @@ private struct AddProgramBlockSheet: View {
 
     @State private var titleText: String = ""
     @State private var notesText: String = ""
-    @State private var startWeekText: String = "1"
-    @State private var endWeekText: String = "4"
+    @State private var durationWeeks: Int = 4
     @State private var scheduleMode: ProgramScheduleMode = .calendar
     @State private var rotationOnDays: Int = 3
     @State private var rotationOffDays: Int = 1
@@ -552,13 +553,10 @@ private struct AddProgramBlockSheet: View {
         NavigationStack {
             Form {
                 Section("Block") {
-                    TextField("Title", text: $titleText)
+                    TextField("Block Name (optional)", text: $titleText)
                     TextField("Notes", text: $notesText, axis: .vertical)
                         .lineLimit(2...4)
-                    TextField("Start Week", text: $startWeekText)
-                        .keyboardType(.numberPad)
-                    TextField("End Week", text: $endWeekText)
-                        .keyboardType(.numberPad)
+                    Stepper("Duration: \(durationWeeks) week\(durationWeeks == 1 ? "" : "s")", value: $durationWeeks, in: 1...52)
                     Picker("Schedule Type", selection: $scheduleMode) {
                         Text("Calendar").tag(ProgramScheduleMode.calendar)
                         Text("Rotation").tag(ProgramScheduleMode.rotation)
@@ -579,21 +577,26 @@ private struct AddProgramBlockSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {
+                        let nextStart = nextBlockStartWeekIndex()
                         _ = programService.addBlock(
                             to: program,
                             title: titleText,
                             notes: notesText,
-                            startWeekIndex: max(0, (Int(startWeekText) ?? 1) - 1),
-                            endWeekIndex: max(0, (Int(endWeekText) ?? 1) - 1),
+                            startWeekIndex: nextStart,
+                            endWeekIndex: nextStart + max(durationWeeks - 1, 0),
                             scheduleMode: scheduleMode,
                             rotationOnDays: scheduleMode == .rotation ? rotationOnDays : nil,
                             rotationOffDays: scheduleMode == .rotation ? rotationOffDays : nil
                         )
                         dismiss()
                     }
-                    .disabled(titleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
         }
+    }
+
+    private func nextBlockStartWeekIndex() -> Int {
+        let maxEndWeek = program.blocks.map(\.endWeekIndex).max() ?? -1
+        return maxEndWeek + 1
     }
 }

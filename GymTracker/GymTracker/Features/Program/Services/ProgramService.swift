@@ -96,12 +96,14 @@ final class ProgramService: ServiceBase, ObservableObject {
             startDate: startDate
         )
         modelContext.insert(created)
+        createInitialBlockIfNeeded(for: created, userId: userId)
 
         do {
             if isCurrent {
                 enforceSingleCurrentProgram(for: userId, keep: created)
             }
             try modelContext.save()
+            _ = materializeTemplateSchedule(for: created)
             if isCurrent || isActive {
                 ensureMaterializationHorizonIfNeededForMutation(for: created)
             }
@@ -212,8 +214,6 @@ final class ProgramService: ServiceBase, ObservableObject {
         guard !program.isBuiltIn else { return nil }
         guard let userId = currentUser?.id else { return nil }
         guard program.user_id == userId else { return nil }
-        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedTitle.isEmpty else { return nil }
         guard isValidRoutineForProgramOwner(routine, ownerId: userId) else { return nil }
 
         let nextOrder = (program.programDays.map(\.order).max() ?? -1) + 1
@@ -224,7 +224,7 @@ final class ProgramService: ServiceBase, ObservableObject {
             weekIndex: max(0, weekIndex),
             dayIndex: max(0, dayIndex),
             blockIndex: blockIndex,
-            title: trimmedTitle,
+            title: storedWorkoutTitle(from: title, routine: routine),
             order: nextOrder
         )
         modelContext.insert(created)
@@ -252,11 +252,9 @@ final class ProgramService: ServiceBase, ObservableObject {
         guard programDay.program?.isBuiltIn != true else { return false }
         guard let userId = currentUser?.id else { return false }
         guard programDay.user_id == userId else { return false }
-        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedTitle.isEmpty else { return false }
         guard isValidRoutineForProgramOwner(routine, ownerId: userId) else { return false }
 
-        programDay.title = trimmedTitle
+        programDay.title = storedWorkoutTitle(from: title, routine: routine)
         programDay.weekIndex = max(0, weekIndex)
         programDay.dayIndex = max(0, dayIndex)
         programDay.blockIndex = blockIndex
@@ -1034,13 +1032,11 @@ final class ProgramService: ServiceBase, ObservableObject {
     ) -> ProgramBlock? {
         guard !program.isBuiltIn else { return nil }
         guard let userId = currentUser?.id else { return nil }
-        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
         let nextOrder = (program.blocks.map(\.order).max() ?? -1) + 1
         let block = ProgramBlock(
             user_id: userId,
             program: program,
-            title: trimmed,
+            title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
             startWeekIndex: max(0, startWeekIndex),
             endWeekIndex: max(startWeekIndex, endWeekIndex),
@@ -1052,6 +1048,7 @@ final class ProgramService: ServiceBase, ObservableObject {
         modelContext.insert(block)
         do {
             try modelContext.save()
+            _ = materializeTemplateSchedule(for: program)
             loadPrograms()
             return block
         } catch {
@@ -1071,9 +1068,7 @@ final class ProgramService: ServiceBase, ObservableObject {
         rotationOffDays: Int?
     ) -> Bool {
         guard block.program?.isBuiltIn != true else { return false }
-        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
-        block.title = trimmed
+        block.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
         block.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         block.startWeekIndex = max(0, startWeekIndex)
         block.endWeekIndex = max(block.startWeekIndex, endWeekIndex)
@@ -1082,6 +1077,9 @@ final class ProgramService: ServiceBase, ObservableObject {
         block.rotationOffDays = rotationOffDays
         do {
             try modelContext.save()
+            if let program = block.program {
+                _ = materializeTemplateSchedule(for: program)
+            }
             loadPrograms()
             return true
         } catch {
@@ -1092,6 +1090,7 @@ final class ProgramService: ServiceBase, ObservableObject {
     @discardableResult
     func removeBlock(_ block: ProgramBlock) -> Bool {
         guard block.program?.isBuiltIn != true else { return false }
+        let parentProgram = block.program
         let generatedRows = block.materializedProgramDays.filter { $0.isGeneratedFromTemplate }
         if generatedRows.contains(where: { !$0.sessions.isEmpty }) { return false }
         for row in generatedRows {
@@ -1100,6 +1099,9 @@ final class ProgramService: ServiceBase, ObservableObject {
         modelContext.delete(block)
         do {
             try modelContext.save()
+            if let parentProgram {
+                _ = materializeTemplateSchedule(for: parentProgram)
+            }
             loadPrograms()
             return true
         } catch {
@@ -1117,14 +1119,12 @@ final class ProgramService: ServiceBase, ObservableObject {
     ) -> ProgramBlockTemplateDay? {
         guard block.program?.isBuiltIn != true else { return nil }
         guard let userId = currentUser?.id else { return nil }
-        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
         let nextOrder = (block.templateDays.map(\.order).max() ?? -1) + 1
         let day = ProgramBlockTemplateDay(
             user_id: userId,
             block: block,
             routine: routine,
-            title: trimmed,
+            title: storedWorkoutTitle(from: title, routine: routine),
             weekDayIndex: max(0, min(6, weekDayIndex)),
             order: nextOrder,
             notes: notes.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1132,6 +1132,9 @@ final class ProgramService: ServiceBase, ObservableObject {
         modelContext.insert(day)
         do {
             try modelContext.save()
+            if let program = block.program {
+                _ = materializeTemplateSchedule(for: program)
+            }
             loadPrograms()
             return day
         } catch {
@@ -1148,14 +1151,15 @@ final class ProgramService: ServiceBase, ObservableObject {
         notes: String
     ) -> Bool {
         guard templateDay.block?.program?.isBuiltIn != true else { return false }
-        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
-        templateDay.title = trimmed
+        templateDay.title = storedWorkoutTitle(from: title, routine: routine)
         templateDay.weekDayIndex = max(0, min(6, weekDayIndex))
         templateDay.routine = routine
         templateDay.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
             try modelContext.save()
+            if let program = templateDay.block?.program {
+                _ = materializeTemplateSchedule(for: program)
+            }
             loadPrograms()
             return true
         } catch {
@@ -1166,6 +1170,7 @@ final class ProgramService: ServiceBase, ObservableObject {
     @discardableResult
     func removeTemplateDay(_ templateDay: ProgramBlockTemplateDay) -> Bool {
         guard templateDay.block?.program?.isBuiltIn != true else { return false }
+        let parentProgram = templateDay.block?.program
         let generatedRows = templateDay.materializedProgramDays.filter { $0.isGeneratedFromTemplate }
         if generatedRows.contains(where: { !$0.sessions.isEmpty }) { return false }
         for row in generatedRows {
@@ -1174,6 +1179,9 @@ final class ProgramService: ServiceBase, ObservableObject {
         modelContext.delete(templateDay)
         do {
             try modelContext.save()
+            if let parentProgram {
+                _ = materializeTemplateSchedule(for: parentProgram)
+            }
             loadPrograms()
             return true
         } catch {
@@ -1233,7 +1241,7 @@ final class ProgramService: ServiceBase, ObservableObject {
                                 weekIndex: week,
                                 dayIndex: templateDay.weekDayIndex,
                                 order: templateDay.order,
-                                title: templateDay.title
+                                title: storedWorkoutTitle(from: templateDay.title, routine: templateDay.routine)
                             )
                             if desiredByKey[candidate.generationKey] == nil {
                                 desiredByKey[candidate.generationKey] = candidate
@@ -1269,7 +1277,7 @@ final class ProgramService: ServiceBase, ObservableObject {
                             weekIndex: week,
                             dayIndex: weekDay,
                             order: templateDay.order,
-                            title: templateDay.title
+                            title: storedWorkoutTitle(from: templateDay.title, routine: templateDay.routine)
                         )
                         if desiredByKey[candidate.generationKey] == nil {
                             desiredByKey[candidate.generationKey] = candidate
@@ -1417,7 +1425,7 @@ final class ProgramService: ServiceBase, ObservableObject {
                         weekIndex: week,
                         dayIndex: templateDay.weekDayIndex,
                         order: templateDay.order,
-                        title: templateDay.title
+                        title: storedWorkoutTitle(from: templateDay.title, routine: templateDay.routine)
                     )
                     if desiredByKey[candidate.generationKey] == nil {
                         desiredByKey[candidate.generationKey] = candidate
@@ -1460,7 +1468,7 @@ final class ProgramService: ServiceBase, ObservableObject {
                 weekIndex: week,
                 dayIndex: weekDay,
                 order: templateDay.order,
-                title: templateDay.title
+                title: storedWorkoutTitle(from: templateDay.title, routine: templateDay.routine)
             )
             if desiredByKey[candidate.generationKey] == nil {
                 desiredByKey[candidate.generationKey] = candidate
@@ -1480,9 +1488,54 @@ final class ProgramService: ServiceBase, ObservableObject {
         }
     }
 
+    func displayBlockName(_ block: ProgramBlock) -> String {
+        let trimmed = block.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Block \(block.order + 1)" : trimmed
+    }
+
+    func displayWorkoutName(for programDay: ProgramDay) -> String {
+        let trimmed = programDay.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { return trimmed }
+        let routineName = programDay.routine?.name.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !routineName.isEmpty { return routineName }
+        return "Workout \(programDay.order + 1)"
+    }
+
+    func displayWorkoutName(for templateDay: ProgramBlockTemplateDay) -> String {
+        let trimmed = templateDay.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { return trimmed }
+        let routineName = templateDay.routine?.name.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !routineName.isEmpty { return routineName }
+        return "Workout \(templateDay.order + 1)"
+    }
+
     private func isValidRoutineForProgramOwner(_ routine: Routine?, ownerId: UUID) -> Bool {
         guard let routine else { return true }
         return routine.user_id == ownerId
+    }
+
+    private func createInitialBlockIfNeeded(for program: Program, userId: UUID) {
+        guard program.blocks.isEmpty else { return }
+        let block = ProgramBlock(
+            user_id: userId,
+            program: program,
+            title: "",
+            notes: "",
+            startWeekIndex: 0,
+            endWeekIndex: 3,
+            order: 0,
+            scheduleMode: .calendar
+        )
+        modelContext.insert(block)
+    }
+
+    private func storedWorkoutTitle(from title: String, routine: Routine?) -> String {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedTitle.isEmpty {
+            return trimmedTitle
+        }
+        let routineName = routine?.name.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return routineName
     }
 
     private func weekdayLabel(for dayIndex: Int) -> String {

@@ -36,7 +36,7 @@ struct ProgramBlockEditorView: View {
         List {
             Section("Block") {
                 VStack(alignment: .leading, spacing: 10) {
-                    TextField("Title", text: $titleText)
+                    TextField("Block Name (optional)", text: $titleText)
                         .textFieldStyle(.roundedBorder)
                     TextField("Notes", text: $notesText, axis: .vertical)
                         .lineLimit(2...4)
@@ -85,7 +85,7 @@ struct ProgramBlockEditorView: View {
                         openedTemplateDay = templateDay
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(templateDay.title)
+                            Text(programService.displayWorkoutName(for: templateDay))
                                 .font(.headline)
                             if scheduleMode == .calendar {
                                 Text("Weekday: \(weekdayLabel(for: templateDay.weekDayIndex))")
@@ -118,7 +118,7 @@ struct ProgramBlockEditorView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .navigationTitle(block.title)
+        .navigationTitle(programService.displayBlockName(block))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -165,7 +165,7 @@ private struct AddTemplateDaySheet: View {
         NavigationStack {
             Form {
                 Section("Workout") {
-                    TextField("Title", text: $titleText)
+                    TextField("Workout Name (optional)", text: $titleText)
                     if block.resolvedScheduleMode == .calendar {
                         Picker("Weekday", selection: $selectedWeekday) {
                             Text("Sunday").tag(0)
@@ -211,7 +211,6 @@ private struct AddTemplateDaySheet: View {
                         )
                         dismiss()
                     }
-                    .disabled(titleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
         }
@@ -242,7 +241,7 @@ private struct ProgramBlockTemplateDayEditorView: View {
     var body: some View {
         Form {
             Section("Workout") {
-                TextField("Title", text: $titleText)
+                TextField("Workout Name (optional)", text: $titleText)
                 if templateDay.block?.resolvedScheduleMode == .calendar {
                     Picker("Weekday", selection: $selectedWeekday) {
                         Text("Sunday").tag(0)
@@ -270,7 +269,7 @@ private struct ProgramBlockTemplateDayEditorView: View {
                 }
             }
             Section {
-                Button("Save Template Day") {
+                Button("Save Workout") {
                     let routine = routines.first(where: { $0.id == selectedRoutineId })
                     _ = programService.updateTemplateDay(
                         templateDay,
@@ -283,7 +282,7 @@ private struct ProgramBlockTemplateDayEditorView: View {
                 .buttonStyle(.borderedProminent)
             }
         }
-        .navigationTitle(templateDay.title)
+        .navigationTitle(programService.displayWorkoutName(for: templateDay))
         .navigationBarTitleDisplayMode(.inline)
     }
 }

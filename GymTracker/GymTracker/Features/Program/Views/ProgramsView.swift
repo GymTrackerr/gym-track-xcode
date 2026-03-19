@@ -102,7 +102,7 @@ struct ProgramsView: View {
                         .foregroundStyle(.secondary)
 
                     if let block = currentBlock {
-                        Text("Block: \(block.title)")
+                        Text("Block: \(programService.displayBlockName(block))")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {
@@ -112,7 +112,7 @@ struct ProgramsView: View {
                     }
 
                     if let nextWorkout {
-                        Text("Next Workout: \(nextWorkout.title)")
+                        Text("Next Workout: \(programService.displayWorkoutName(for: nextWorkout))")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {
@@ -226,7 +226,7 @@ struct ProgramsView: View {
                                         .foregroundStyle(.secondary)
 
                                     if let block = programService.currentBlock(for: program) {
-                                        Text("Block: \(block.title)")
+                                        Text("Block: \(programService.displayBlockName(block))")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                             .lineLimit(1)
