@@ -6,6 +6,7 @@ enum HealthHistoryMetric: String, CaseIterable, Identifiable {
     case activeEnergy
     case restingEnergy
     case totalUsedCalories
+    case weight
 
     var id: String { rawValue }
 
@@ -16,6 +17,7 @@ enum HealthHistoryMetric: String, CaseIterable, Identifiable {
         case .activeEnergy: return "Active"
         case .restingEnergy: return "Resting"
         case .totalUsedCalories: return "Used"
+        case .weight: return "Weight"
         }
     }
 }
@@ -77,8 +79,27 @@ enum HealthHistoryChartSupport {
 
         let buckets = HistoryChartCalculator.bucketIntervals(interval: interval, timeframe: timeframe)
         
-        return buckets.map { bucket in
+        return buckets.compactMap { bucket in
             let bucketSummaries = summaries.filter { $0.dayStart >= bucket.start && $0.dayStart < bucket.end }
+
+            if metric == .weight {
+                let weightSamples = bucketSummaries.compactMap(\.bodyWeightKg)
+                guard !weightSamples.isEmpty else {
+                    return nil
+                }
+
+                let value: Double
+                switch aggregationMode {
+                case .total:
+                    value = weightSamples.last ?? 0
+                case .averagePerDay:
+                    let total = weightSamples.reduce(0, +)
+                    value = total / Double(weightSamples.count)
+                }
+
+                return HistoryChartPoint(startDate: bucket.start, endDate: bucket.end, value: value)
+            }
+
             let total = bucketSummaries.reduce(0.0) { $0 + metricValue(for: $1, metric: metric) }
             
             let value: Double
@@ -109,6 +130,8 @@ enum HealthHistoryChartSupport {
             return summary.restingEnergyKcal
         case .totalUsedCalories:
             return summary.activeEnergyKcal + summary.restingEnergyKcal
+        case .weight:
+            return summary.bodyWeightKg ?? 0
         }
     }
 }

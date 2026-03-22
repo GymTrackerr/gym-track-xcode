@@ -23,6 +23,8 @@ struct HistoryChartSummaryDetail: Identifiable {
 struct HistoryChartView<FilterControls: View>: View {
     let navigationTitle: String
     let filterStateToken: Int
+    let chartStyle: HistoryChartRenderStyle
+    let treatZeroAsMissingInLineStyles: Bool
     let filterControls: () -> FilterControls
     let pointsProvider: (DateInterval, HistoryChartTimeframe) -> [HistoryChartPoint]
     let loadIntervalProvider: HistoryChartLoadIntervalProvider
@@ -54,6 +56,8 @@ struct HistoryChartView<FilterControls: View>: View {
     init(
         navigationTitle: String,
         filterStateToken: Int,
+        chartStyle: HistoryChartRenderStyle = .bar,
+        treatZeroAsMissingInLineStyles: Bool = false,
         filterControls: @escaping () -> FilterControls,
         pointsProvider: @escaping (DateInterval, HistoryChartTimeframe) -> [HistoryChartPoint],
         loadIntervalProvider: @escaping HistoryChartLoadIntervalProvider = { interval, timeframe in
@@ -66,6 +70,8 @@ struct HistoryChartView<FilterControls: View>: View {
     ) {
         self.navigationTitle = navigationTitle
         self.filterStateToken = filterStateToken
+        self.chartStyle = chartStyle
+        self.treatZeroAsMissingInLineStyles = treatZeroAsMissingInLineStyles
         self.filterControls = filterControls
         self.pointsProvider = pointsProvider
         self.loadIntervalProvider = loadIntervalProvider
@@ -83,23 +89,82 @@ struct HistoryChartView<FilterControls: View>: View {
                 summaryHeader
 
                 Chart(cachedPoints) { point in
-                    if point.segments.isEmpty {
-                        BarMark(
-                            x: .value("Date", point.date),
-                            y: .value("Value", point.value),
-                            width: .fixed(barWidth)
-                        )
-                        .cornerRadius(1.5)
-                        .foregroundStyle(selectedPointId == nil || selectedPointId == point.id ? Color.blue : Color.blue.opacity(0.45))
-                    } else {
-                        ForEach(point.segments.filter { $0.value != 0 }) { segment in
+                    switch chartStyle {
+                    case .bar:
+                        if point.segments.isEmpty {
                             BarMark(
                                 x: .value("Date", point.date),
-                                y: .value("Value", segment.value),
+                                y: .value("Value", point.value),
                                 width: .fixed(barWidth)
                             )
                             .cornerRadius(1.5)
-                            .foregroundStyle(segmentColor(for: segment.style).opacity(selectedPointId == nil || selectedPointId == point.id ? 1 : 0.45))
+                            .foregroundStyle(selectedPointId == nil || selectedPointId == point.id ? Color.blue : Color.blue.opacity(0.45))
+                        } else {
+                            ForEach(point.segments.filter { $0.value != 0 }) { segment in
+                                BarMark(
+                                    x: .value("Date", point.date),
+                                    y: .value("Value", segment.value),
+                                    width: .fixed(barWidth)
+                                )
+                                .cornerRadius(1.5)
+                                .foregroundStyle(segmentColor(for: segment.style).opacity(selectedPointId == nil || selectedPointId == point.id ? 1 : 0.45))
+                            }
+                        }
+
+                    case .line:
+                        if shouldRenderLinePoint(point) {
+                            LineMark(
+                                x: .value("Date", point.date),
+                                y: .value("Value", point.plottedValue)
+                            )
+                            .interpolationMethod(.linear)
+                            .lineStyle(StrokeStyle(lineWidth: 2.2))
+                            .foregroundStyle(selectedPointId == nil || selectedPointId == point.id ? Color.blue : Color.blue.opacity(0.45))
+
+                            PointMark(
+                                x: .value("Date", point.date),
+                                y: .value("Value", point.plottedValue)
+                            )
+                            .symbolSize(selectedPointId == point.id ? 55 : 22)
+                            .foregroundStyle(selectedPointId == nil || selectedPointId == point.id ? Color.blue : Color.blue.opacity(0.45))
+                        }
+
+                    case .barLine:
+                        if point.segments.isEmpty {
+                            BarMark(
+                                x: .value("Date", point.date),
+                                y: .value("Value", point.value),
+                                width: .fixed(barWidth)
+                            )
+                            .cornerRadius(1.5)
+                            .foregroundStyle((selectedPointId == nil || selectedPointId == point.id ? Color.blue : Color.blue.opacity(0.45)).opacity(0.35))
+                        } else {
+                            ForEach(point.segments.filter { $0.value != 0 }) { segment in
+                                BarMark(
+                                    x: .value("Date", point.date),
+                                    y: .value("Value", segment.value),
+                                    width: .fixed(barWidth)
+                                )
+                                .cornerRadius(1.5)
+                                .foregroundStyle(segmentColor(for: segment.style).opacity(selectedPointId == nil || selectedPointId == point.id ? 0.45 : 0.22))
+                            }
+                        }
+
+                        if shouldRenderLinePoint(point) {
+                            LineMark(
+                                x: .value("Date", point.date),
+                                y: .value("Value", point.plottedValue)
+                            )
+                            .interpolationMethod(.linear)
+                            .lineStyle(StrokeStyle(lineWidth: 2.2))
+                            .foregroundStyle(selectedPointId == nil || selectedPointId == point.id ? barLineSeriesColor : barLineSeriesColor.opacity(0.45))
+
+                            PointMark(
+                                x: .value("Date", point.date),
+                                y: .value("Value", point.plottedValue)
+                            )
+                            .symbolSize(selectedPointId == point.id ? 50 : 18)
+                            .foregroundStyle(selectedPointId == nil || selectedPointId == point.id ? barLineSeriesColor : barLineSeriesColor.opacity(0.45))
                         }
                     }
                 }
@@ -717,6 +782,17 @@ struct HistoryChartView<FilterControls: View>: View {
         case .neutral:
             return .gray
         }
+    }
+
+    private var barLineSeriesColor: Color {
+        Color(red: 0.85, green: 0.1, blue: 0.1)
+    }
+
+    private func shouldRenderLinePoint(_ point: HistoryChartPoint) -> Bool {
+        if treatZeroAsMissingInLineStyles {
+            return point.plottedValue != 0
+        }
+        return true
     }
 
 }

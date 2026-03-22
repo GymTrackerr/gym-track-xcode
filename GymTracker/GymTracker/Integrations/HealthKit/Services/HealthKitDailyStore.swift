@@ -24,6 +24,7 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
 
     private let staleInterval: TimeInterval = 15 * 60
     private let batchingThreshold = 3
+    private var isRunningSchemaUpgrade = false
 
     private struct DailyAggregateSnapshot: Sendable {
         let userId: String
@@ -33,6 +34,8 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         let activeEnergyKcal: Double
         let restingEnergyKcal: Double
         let sleepSeconds: TimeInterval
+        let bodyWeightKg: Double
+        let schemaVersion: Double
 
         init(from aggregate: HealthKitDailyAggregateData) {
             self.userId = aggregate.userId
@@ -42,6 +45,8 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
             self.activeEnergyKcal = aggregate.activeEnergyKcal
             self.restingEnergyKcal = aggregate.restingEnergyKcal
             self.sleepSeconds = aggregate.sleepSeconds
+            self.bodyWeightKg = aggregate.bodyWeightKg
+            self.schemaVersion = aggregate.schemaVersion
         }
 
         func asAggregate() -> HealthKitDailyAggregateData {
@@ -52,7 +57,9 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
                 steps: steps,
                 activeEnergyKcal: activeEnergyKcal,
                 restingEnergyKcal: restingEnergyKcal,
-                sleepSeconds: sleepSeconds
+                sleepSeconds: sleepSeconds,
+                bodyWeightKg: bodyWeightKg,
+                schemaVersion: schemaVersion
             )
         }
     }
@@ -73,6 +80,13 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         self.healthKitManager = healthKitManager
         self.dateNormalizer = dateNormalizer
         super.init(context: context)
+    }
+
+    override func loadFeature() {
+        guard let userId = currentUser?.id.uuidString else { return }
+        Task { [weak self] in
+            await self?.upgradeCachedSummariesIfNeeded(userId: userId)
+        }
     }
 
     func dailySummary(
@@ -171,7 +185,9 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
                 steps: 0,
                 activeEnergyKcal: 0,
                 restingEnergyKcal: 0,
-                sleepSeconds: 0
+                sleepSeconds: 0,
+                bodyWeightKg: 0,
+                schemaVersion: HealthKitDailyAggregateData.currentSchemaVersion
             )
         }
     }
@@ -226,7 +242,9 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
                 steps: 0,
                 activeEnergyKcal: 0,
                 restingEnergyKcal: 0,
-                sleepSeconds: 0
+                sleepSeconds: 0,
+                bodyWeightKg: 0,
+                schemaVersion: HealthKitDailyAggregateData.currentSchemaVersion
             )
         }
     }
@@ -428,7 +446,9 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
                         steps: 0,
                         activeEnergyKcal: 0,
                         restingEnergyKcal: 0,
-                        sleepSeconds: 0
+                        sleepSeconds: 0,
+                        bodyWeightKg: 0,
+                        schemaVersion: HealthKitDailyAggregateData.currentSchemaVersion
                     ))
                 }
             }
@@ -495,6 +515,8 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
             existing.activeEnergyKcal = dto.activeEnergyKcal
             existing.restingEnergyKcal = dto.restingEnergyKcal
             existing.sleepSeconds = dto.sleepSeconds
+            existing.bodyWeightKg = dto.bodyWeightKg
+            existing.schemaVersion = dto.schemaVersion
             existing.lastRefreshedAt = refreshedAt
             existing.isToday = isToday
         } else {
@@ -552,5 +574,52 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
 
         blocks.append(currentBlock)
         return blocks
+    }
+
+    private func upgradeCachedSummariesIfNeeded(userId: String) async {
+        guard !isRunningSchemaUpgrade else { return }
+
+        let descriptor = FetchDescriptor<HealthKitDailyAggregateData>(
+            predicate: #Predicate<HealthKitDailyAggregateData> { item in
+                item.userId == userId
+            },
+            sortBy: [SortDescriptor(\.dayStart)]
+        )
+
+        guard let cached = try? modelContext.fetch(descriptor), !cached.isEmpty else { return }
+
+        let needsUpgrade = cached.contains { $0.schemaVersion < HealthKitDailyAggregateData.currentSchemaVersion }
+        guard needsUpgrade else { return }
+
+        isRunningSchemaUpgrade = true
+        defer { isRunningSchemaUpgrade = false }
+
+        let firstDay = cached.first?.dayStart ?? Date()
+        let lastDay = cached.last?.dayStart ?? firstDay
+
+        guard let fetched = try? await healthKitManager.fetchDailyAggregates(
+            from: firstDay,
+            to: lastDay,
+            userId: userId,
+            calendar: .current
+        ) else {
+            return
+        }
+
+        let fetchedByKey = Dictionary(uniqueKeysWithValues: fetched.map { ($0.dayKey, $0) })
+        var changedAny = false
+
+        for item in cached where item.schemaVersion < HealthKitDailyAggregateData.currentSchemaVersion {
+            if let upgraded = fetchedByKey[item.dayKey] {
+                item.bodyWeightKg = upgraded.bodyWeightKg
+                item.schemaVersion = HealthKitDailyAggregateData.currentSchemaVersion
+                changedAny = true
+            }
+        }
+
+        if changedAny {
+            try? modelContext.save()
+            refreshToken &+= 1
+        }
     }
 }

@@ -216,7 +216,9 @@ class HealthKitManager: ObservableObject {
                 steps: 0,
                 activeEnergyKcal: 0,
                 restingEnergyKcal: 0,
-                sleepSeconds: 0
+                sleepSeconds: 0,
+                bodyWeightKg: 0,
+                schemaVersion: HealthKitDailyAggregateData.currentSchemaVersion
             )
         }
         return first
@@ -264,11 +266,18 @@ class HealthKitManager: ObservableObject {
             calendar: calendar,
             normalizer: normalizer
         )
+        async let weightSeries = fetchBodyMassSeries(
+            from: startDay,
+            to: endDay,
+            calendar: calendar,
+            normalizer: normalizer
+        )
 
         let stepsByDay = await stepsSeries
         let activeByDay = await activeSeries
         let restingByDay = await restingSeries
         let sleepByDay = await sleepSeries
+        let weightByDay = await weightSeries
 
         return days.map { dayStart in
             let dayKey = normalizer.dayKey(dayStart)
@@ -279,8 +288,48 @@ class HealthKitManager: ObservableObject {
                 steps: stepsByDay[dayKey] ?? 0,
                 activeEnergyKcal: activeByDay[dayKey] ?? 0,
                 restingEnergyKcal: restingByDay[dayKey] ?? 0,
-                sleepSeconds: sleepByDay[dayKey] ?? 0
+                sleepSeconds: sleepByDay[dayKey] ?? 0,
+                bodyWeightKg: weightByDay[dayKey] ?? 0,
+                schemaVersion: HealthKitDailyAggregateData.currentSchemaVersion
             )
+        }
+    }
+
+    private func fetchBodyMassSeries(
+        from fromDay: Date,
+        to toDay: Date,
+        calendar: Calendar,
+        normalizer: HealthKitDateNormalizer
+    ) async -> [String: Double] {
+        let endExclusive = calendar.date(byAdding: .day, value: 1, to: toDay) ?? toDay
+        let predicate = HKQuery.predicateForSamples(withStart: fromDay, end: endExclusive, options: .strictStartDate)
+
+        return await withCheckedContinuation { continuation in
+            let query = HKStatisticsCollectionQuery(
+                quantityType: weightType,
+                quantitySamplePredicate: predicate,
+                options: HKStatisticsOptions.mostRecent,
+                anchorDate: fromDay,
+                intervalComponents: DateComponents(day: 1)
+            )
+
+            query.initialResultsHandler = { _, collection, _ in
+                guard let collection else {
+                    continuation.resume(returning: [:])
+                    return
+                }
+
+                var result: [String: Double] = [:]
+                collection.enumerateStatistics(from: fromDay, to: endExclusive) { stats, _ in
+                    guard let quantity = stats.mostRecentQuantity() else { return }
+                    let dayStart = normalizer.startOfDay(stats.startDate)
+                    let dayKey = normalizer.dayKey(dayStart)
+                    result[dayKey] = quantity.doubleValue(for: .gramUnit(with: .kilo))
+                }
+                continuation.resume(returning: result)
+            }
+
+            self.healthStore.execute(query)
         }
     }
 

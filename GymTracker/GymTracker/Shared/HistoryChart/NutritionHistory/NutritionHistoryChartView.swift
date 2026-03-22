@@ -167,7 +167,7 @@ struct NutritionHistoryChartView: View {
         let resting = selectedPoint.segmentValue(for: NutritionChartCalculator.restingSegmentKey) ?? 0
         let active = selectedPoint.segmentValue(for: NutritionChartCalculator.activeSegmentKey) ?? 0
         let eaten = selectedPoint.segmentValue(for: NutritionChartCalculator.eatenSegmentKey) ?? 0
-        let balance = eaten - (resting + active)
+//        let balance = eaten - (resting + active)
 
         switch filter {
         case .summary:

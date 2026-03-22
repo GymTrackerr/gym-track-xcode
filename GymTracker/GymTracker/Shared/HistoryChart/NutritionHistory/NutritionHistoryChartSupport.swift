@@ -124,7 +124,7 @@ enum NutritionChartCalculator {
             let resting = bucketHealth.reduce(0.0) { $0 + $1.restingEnergyKcal }
             let active = bucketHealth.reduce(0.0) { $0 + $1.activeEnergyKcal }
             let used = resting + active
-            let balance = eaten - used
+//            let balance = eaten - used
 
             var eatenByDay: [Date: Double] = [:]
             for log in bucketLogs {

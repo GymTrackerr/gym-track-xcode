@@ -11,6 +11,8 @@ struct HealthHistoryChartView: View {
         HistoryChartView(
             navigationTitle: "Health History",
             filterStateToken: filterStateToken,
+            chartStyle: selectedMetric == .weight ? .line : .bar,
+            treatZeroAsMissingInLineStyles: selectedMetric == .weight,
             filterControls: {
                 VStack(alignment: .leading, spacing: 10) {
                     metricPicker
@@ -122,6 +124,8 @@ struct HealthHistoryChartView: View {
             return String(Int(value.rounded()))
         case .sleepHours:
             return String(format: "%.1f", value)
+        case .weight:
+            return String(format: "%.1f", value)
         case .activeEnergy, .restingEnergy, .totalUsedCalories:
             return String(Int(value.rounded()))
         }
@@ -134,6 +138,8 @@ struct HealthHistoryChartView: View {
             return "steps\(suffix)"
         case .sleepHours:
             return "hrs\(suffix)"
+        case .weight:
+            return "kg\(suffix)"
         case .activeEnergy, .restingEnergy, .totalUsedCalories:
             return "kcal\(suffix)"
         }

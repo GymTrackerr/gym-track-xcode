@@ -3,6 +3,9 @@ import SwiftData
 
 @Model
 final class HealthKitDailyAggregateData {
+    static let defaultSchemaVersion: Double = 1.0
+    static let currentSchemaVersion: Double = 1.1
+
     @Attribute(.unique) var cacheKey: String
     var userId: String
     var dayKey: String
@@ -11,6 +14,8 @@ final class HealthKitDailyAggregateData {
     var activeEnergyKcal: Double
     var restingEnergyKcal: Double
     var sleepSeconds: TimeInterval
+    var bodyWeightKg: Double = 0
+    var schemaVersion: Double = 1.1
     var lastRefreshedAt: Date
     var isToday: Bool
 
@@ -22,6 +27,8 @@ final class HealthKitDailyAggregateData {
         activeEnergyKcal: Double,
         restingEnergyKcal: Double,
         sleepSeconds: TimeInterval,
+        bodyWeightKg: Double,
+        schemaVersion: Double = HealthKitDailyAggregateData.defaultSchemaVersion,
         lastRefreshedAt: Date = .distantPast,
         isToday: Bool = false
     ) {
@@ -33,6 +40,8 @@ final class HealthKitDailyAggregateData {
         self.activeEnergyKcal = activeEnergyKcal
         self.restingEnergyKcal = restingEnergyKcal
         self.sleepSeconds = sleepSeconds
+        self.bodyWeightKg = bodyWeightKg
+        self.schemaVersion = schemaVersion
         self.lastRefreshedAt = lastRefreshedAt
         self.isToday = isToday
     }

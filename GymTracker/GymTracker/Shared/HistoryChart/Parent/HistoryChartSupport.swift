@@ -70,6 +70,14 @@ enum HistoryChartTimeframe: String, CaseIterable, Identifiable {
     }
 }
 
+enum HistoryChartRenderStyle: String, CaseIterable, Identifiable {
+    case bar
+    case line
+    case barLine
+
+    var id: String { rawValue }
+}
+
 struct HistoryChartPoint: Identifiable {
     let startDate: Date
     let endDate: Date
