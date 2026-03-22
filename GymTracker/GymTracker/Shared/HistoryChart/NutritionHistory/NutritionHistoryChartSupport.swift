@@ -139,15 +139,11 @@ enum NutritionChartCalculator {
             }
 
             let nutritionDays = Array(eatenByDay.keys)
-            let surplusDeficitValue = nutritionDays.reduce(0.0) { partial, day in
+            let signedDeficitValue = nutritionDays.reduce(0.0) { partial, day in
                 let dayEaten = eatenByDay[day, default: 0]
                 let dayUsed = usedByDay[day, default: 0]
-                return partial + abs(dayEaten - dayUsed)
-            }
-            let netNutritionDayBalance = nutritionDays.reduce(0.0) { partial, day in
-                let dayEaten = eatenByDay[day, default: 0]
-                let dayUsed = usedByDay[day, default: 0]
-                return partial + (dayEaten - dayUsed)
+                // Signed deficit: positive means deficit, negative means surplus.
+                return partial + (dayUsed - dayEaten)
             }
 
             var segments: [HistoryChartBarSegment] = []
@@ -190,17 +186,17 @@ enum NutritionChartCalculator {
                 dayCountForAverage = dayStartsWithData.count
 
             case .surplusDeficit:
-                if netNutritionDayBalance != 0 {
+                if signedDeficitValue != 0 {
                     segments.append(
                         HistoryChartBarSegment(
                             key: balanceSegmentKey,
-                            value: surplusDeficitValue,
-                            style: netNutritionDayBalance >= 0 ? .positive : .negative,
-                            label: netNutritionDayBalance >= 0 ? "Surplus" : "Deficit"
+                            value: signedDeficitValue,
+                            style: signedDeficitValue >= 0 ? .negative : .positive,
+                            label: signedDeficitValue >= 0 ? "Deficit" : "Surplus"
                         )
                     )
                 }
-                value = surplusDeficitValue
+                value = signedDeficitValue
                 dayCountForAverage = nutritionDays.count
 
             case .active:

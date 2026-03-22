@@ -47,6 +47,7 @@ struct HistoryChartView<FilterControls: View>: View {
     @State private var loadErrorText: String?
     @State private var isViewActive = false
     @State private var yAxisStickyMax: Double = 1
+    @State private var yAxisStickyMin: Double = 0
     @State private var lastRequestedLoadSignature: String?
     @State private var loadedCoverageInterval: DateInterval?
 
@@ -91,7 +92,7 @@ struct HistoryChartView<FilterControls: View>: View {
                         .cornerRadius(1.5)
                         .foregroundStyle(selectedPointId == nil || selectedPointId == point.id ? Color.blue : Color.blue.opacity(0.45))
                     } else {
-                        ForEach(point.segments.filter { $0.value > 0 }) { segment in
+                        ForEach(point.segments.filter { $0.value != 0 }) { segment in
                             BarMark(
                                 x: .value("Date", point.date),
                                 y: .value("Value", segment.value),
@@ -132,7 +133,7 @@ struct HistoryChartView<FilterControls: View>: View {
                         }
                     }
                 }
-                .chartYScale(domain: 0...chartYMax)
+                .chartYScale(domain: chartYMin...chartYMax)
                 .chartScrollableAxes(.horizontal)
                 .chartXVisibleDomain(length: visibleDomainLength)
                 .chartXScale(domain: chartXDomain)
@@ -163,7 +164,7 @@ struct HistoryChartView<FilterControls: View>: View {
                                     selectedXDate = nil
                                 } else if let date: Date = chartProxy.value(atX: x) {
                                     if !cachedPoints.contains(where: {
-                                        date >= $0.startDate && date < $0.endDate && $0.plottedValue > 0
+                                        date >= $0.startDate && date < $0.endDate && $0.plottedValue != 0
                                     }) {
                                         selectedPointId = nil
                                         selectedXDate = nil
@@ -411,6 +412,16 @@ struct HistoryChartView<FilterControls: View>: View {
         return max(yAxisStickyMax, roundedTarget)
     }
 
+    private var chartYMin: Double {
+        let visiblePoints = cachedPoints.filter { point in
+            point.startDate < visibleInterval.end && point.endDate > visibleInterval.start
+        }
+        let minValue = visiblePoints.map(\.plottedValue).min() ?? cachedPoints.map(\.plottedValue).min() ?? 0
+        guard minValue < 0 else { return 0 }
+        let roundedTarget = min(minValue * 1.15, -1)
+        return min(yAxisStickyMin, roundedTarget)
+    }
+
     private var chartXDomain: ClosedRange<Date> {
         earliestAllowedWindowStart...latestAllowedDate
     }
@@ -441,7 +452,7 @@ struct HistoryChartView<FilterControls: View>: View {
 
     private var currentWindowAverageValue: Double {
         let points = cachedPoints.filter { point in
-            point.startDate >= visibleInterval.start && point.startDate < visibleInterval.end && point.plottedValue > 0
+            point.startDate >= visibleInterval.start && point.startDate < visibleInterval.end && point.plottedValue != 0
         }
         guard !points.isEmpty else { return 0 }
         let numerator = points.reduce(0.0) { $0 + $1.effectiveSummaryAverageNumerator }
@@ -571,6 +582,7 @@ struct HistoryChartView<FilterControls: View>: View {
         selectedXDate = nil
         cachedPoints = []
         yAxisStickyMax = 1
+        yAxisStickyMin = 0
         lastRequestedLoadSignature = nil
         loadedCoverageInterval = nil
         didAttemptLoad = false
@@ -594,6 +606,14 @@ struct HistoryChartView<FilterControls: View>: View {
         if roundedTarget > yAxisStickyMax {
             yAxisStickyMax = roundedTarget
         }
+
+        let minValue = points.map(\.plottedValue).min() ?? 0
+        if minValue < 0 {
+            let minTarget = min(minValue * 1.15, -1)
+            if minTarget < yAxisStickyMin {
+                yAxisStickyMin = minTarget
+            }
+        }
     }
 
     private func updateSelectedPoint(for date: Date) {
@@ -602,12 +622,12 @@ struct HistoryChartView<FilterControls: View>: View {
             return
         }
         // Exact bucket match
-        if let exact = cachedPoints.first(where: { date >= $0.startDate && date < $0.endDate && $0.plottedValue > 0 }) {
+        if let exact = cachedPoints.first(where: { date >= $0.startDate && date < $0.endDate && $0.plottedValue != 0 }) {
             selectedPointId = exact.id
             return
         }
         // Closest non-zero point by midpoint distance
-        let nonZero = cachedPoints.filter { $0.plottedValue > 0 }
+        let nonZero = cachedPoints.filter { $0.plottedValue != 0 }
         if let closest = nonZero.min(by: {
             let mid0 = $0.startDate.addingTimeInterval($0.endDate.timeIntervalSince($0.startDate) / 2)
             let mid1 = $1.startDate.addingTimeInterval($1.endDate.timeIntervalSince($1.startDate) / 2)

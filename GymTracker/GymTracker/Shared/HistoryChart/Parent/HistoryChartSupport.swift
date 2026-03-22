@@ -104,7 +104,7 @@ struct HistoryChartPoint: Identifiable {
 
     var plottedValue: Double {
         guard !segments.isEmpty else { return value }
-        return segments.reduce(0.0) { $0 + max($1.value, 0) }
+        return segments.reduce(0.0) { $0 + $1.value }
     }
 
     var effectiveSummaryAverageNumerator: Double {

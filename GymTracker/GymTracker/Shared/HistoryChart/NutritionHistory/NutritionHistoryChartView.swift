@@ -133,21 +133,33 @@ struct NutritionHistoryChartView: View {
     ) -> HistoryChartSummary {
         guard let selectedPoint else {
             let title: String
+            let displayedAverage: Double
             switch filter {
             case .summary:
                 title = "AVG DAILY ENERGY"
+                displayedAverage = currentWindowAverage
             case .surplusDeficit:
-                title = "AVG DAILY DEFICIT"
+                if currentWindowAverage > 0 {
+                    title = "AVG DAILY DEFICIT"
+                } else if currentWindowAverage < 0 {
+                    title = "AVG DAILY SURPLUS"
+                } else {
+                    title = "AVG DAILY BALANCED"
+                }
+                displayedAverage = abs(currentWindowAverage)
             case .active:
                 title = "AVG DAILY ACTIVE"
+                displayedAverage = currentWindowAverage
             case .resting:
                 title = "AVG DAILY RESTING"
+                displayedAverage = currentWindowAverage
             case .nutrition:
                 title = "AVG DAILY NUTRITION"
+                displayedAverage = currentWindowAverage
             }
             return HistoryChartSummary(
                 title: title,
-                valueText: String(Int(currentWindowAverage.rounded())),
+                valueText: String(Int(displayedAverage.rounded())),
                 unitText: "kcal"
             )
         }
@@ -189,7 +201,7 @@ struct NutritionHistoryChartView: View {
 
             return HistoryChartSummary(
                 title: title,
-                valueText: String(Int(selectedValue.rounded())),
+                valueText: String(Int(abs(selectedValue).rounded())),
                 unitText: "kcal"
             )
         }
