@@ -84,6 +84,35 @@ struct HistoryChartPoint: Identifiable {
     }
 }
 
+typealias HistoryChartPointsLoader = (DateInterval, HistoryChartTimeframe) async throws -> [HistoryChartPoint]
+typealias HistoryChartLoadIntervalProvider = (DateInterval, HistoryChartTimeframe) -> DateInterval
+
+enum HistoryChartLoadSupport {
+    static func bufferedInterval(
+        for visibleInterval: DateInterval,
+        timeframe: HistoryChartTimeframe,
+        calendar: Calendar = .current
+    ) -> DateInterval {
+        let paddingDays: Int
+        switch timeframe {
+        case .week:
+            paddingDays = 7
+        case .month:
+            paddingDays = 14
+        case .sixMonths:
+            paddingDays = 30
+        case .year:
+            paddingDays = 60
+        case .fiveYears:
+            paddingDays = 120
+        }
+
+        let start = calendar.date(byAdding: .day, value: -paddingDays, to: visibleInterval.start) ?? visibleInterval.start
+        let end = calendar.date(byAdding: .day, value: paddingDays, to: visibleInterval.end) ?? visibleInterval.end
+        return DateInterval(start: start, end: end)
+    }
+}
+
 enum HistoryChartCalculator {
     static func currentWindow(
         for timeframe: HistoryChartTimeframe,
@@ -251,4 +280,3 @@ enum HistoryChartCalculator {
         calendar.date(byAdding: timeframe.bucketCalendarComponent, value: 1, to: date) ?? date
     }
 }
-

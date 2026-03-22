@@ -24,6 +24,7 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
 
     static let currentSourceVersion = 1
     private let staleInterval: TimeInterval = 15 * 60
+    private let batchingThreshold = 3
 
     @Published private(set) var refreshToken: Int = 0
 
@@ -73,20 +74,87 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         userId: String,
         policy: HealthDataFetchPolicy = .refreshIfStale
     ) async throws -> [HealthKitDailyAggregateData] {
-        let dates = dateNormalizer.buildDateRange(endingOn: endDate, days: days)
-        var summaries: [HealthKitDailyAggregateData] = []
-        summaries.reserveCapacity(dates.count)
+        let normalizedDays = max(days, 1)
+        let endDay = dateNormalizer.startOfDay(endDate)
+        let startDay = Calendar.current.date(byAdding: .day, value: -(normalizedDays - 1), to: endDay) ?? endDay
+        let intervalEndExclusive = Calendar.current.date(byAdding: .day, value: 1, to: endDay) ?? endDay
+        let interval = DateInterval(start: startDay, end: intervalEndExclusive)
+        return try await dailySummaries(in: interval, userId: userId, policy: policy)
+    }
 
-        for day in dates {
-            let summary = try await dailySummary(for: day, userId: userId, policy: policy)
-            summaries.append(summary)
+    func dailySummaries(
+        in interval: DateInterval,
+        userId: String,
+        policy: HealthDataFetchPolicy = .refreshIfStale
+    ) async throws -> [HealthKitDailyAggregateData] {
+        let dayStarts = dayStarts(in: interval)
+        guard !dayStarts.isEmpty else { return [] }
+
+        let rangeStart = dayStarts.first ?? dateNormalizer.startOfDay(interval.start)
+        let rangeEnd = dayStarts.last ?? rangeStart
+        let cachedByDayKey = try fetchCachedSummaries(userId: userId, from: rangeStart, to: rangeEnd)
+
+        var resolved: [String: HealthKitDailyAggregateData] = [:]
+        var refreshCandidates: [Date] = []
+
+        for dayStart in dayStarts {
+            let dayKey = dateNormalizer.dayKey(dayStart)
+            let cached = cachedByDayKey[dayKey]
+
+            switch policy {
+            case .cachedOnly:
+                guard let cached else { throw StoreError.cacheMiss }
+                resolved[dayKey] = mapToDTO(cached)
+
+            case .refreshIfStale:
+                if let cached, !shouldRefresh(cached: cached, dayStart: dayStart) {
+                    resolved[dayKey] = mapToDTO(cached)
+                } else {
+                    refreshCandidates.append(dayStart)
+                }
+
+            case .forceRefresh:
+                refreshCandidates.append(dayStart)
+            }
         }
 
-        return summaries
+        if !refreshCandidates.isEmpty {
+            let refreshed = try await refreshDays(refreshCandidates, userId: userId)
+            for (dayKey, dto) in refreshed {
+                resolved[dayKey] = dto
+            }
+        }
+
+        return dayStarts.map { dayStart in
+            let dayKey = dateNormalizer.dayKey(dayStart)
+            if let existing = resolved[dayKey] {
+                return existing
+            }
+            return HealthKitDailyAggregateData(
+                userId: userId,
+                dayKey: dayKey,
+                dayStart: dayStart,
+                steps: 0,
+                activeEnergyKcal: 0,
+                restingEnergyKcal: 0,
+                sleepSeconds: 0
+            )
+        }
     }
 
     func refreshTodayIfNeeded(userId: String) async {
         _ = try? await dailySummary(for: Date(), userId: userId, policy: .refreshIfStale)
+    }
+
+    func cachedDataBounds(userId: String) throws -> (oldest: Date?, newest: Date?) {
+        let descriptor = FetchDescriptor<HealthKitDailySummaryCache>(
+            predicate: #Predicate<HealthKitDailySummaryCache> { item in
+                item.userId == userId
+            },
+            sortBy: [SortDescriptor(\.dayStart)]
+        )
+        let items = try modelContext.fetch(descriptor)
+        return (items.first?.dayStart, items.last?.dayStart)
     }
 
     func invalidateDay(for day: Date, userId: String) throws {
@@ -130,6 +198,101 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         return try await task.value
     }
 
+    private func refreshDays(_ dayStarts: [Date], userId: String) async throws -> [String: HealthKitDailyAggregateData] {
+        let sortedUnique = Array(Set(dayStarts.map { dateNormalizer.startOfDay($0) })).sorted()
+        var resolved: [String: HealthKitDailyAggregateData] = [:]
+
+        for block in contiguousBlocks(from: sortedUnique) {
+            if block.count >= batchingThreshold {
+                let batched = try await refreshContiguousBlock(block, userId: userId)
+                for (key, value) in batched { resolved[key] = value }
+            } else {
+                for dayStart in block {
+                    let dto = try await refreshDay(dayStart: dayStart, userId: userId)
+                    resolved[dto.dayKey] = dto
+                }
+            }
+        }
+
+        return resolved
+    }
+
+    private func refreshContiguousBlock(
+        _ dayStarts: [Date],
+        userId: String
+    ) async throws -> [String: HealthKitDailyAggregateData] {
+        var resolved: [String: HealthKitDailyAggregateData] = [:]
+        var pending: [Date] = []
+
+        for dayStart in dayStarts {
+            let dayKey = dateNormalizer.dayKey(dayStart)
+            let cacheKey = makeCacheKey(userId: userId, dayKey: dayKey)
+            if let existing = inFlightTasks[cacheKey] {
+                let dto = try await existing.value
+                resolved[dayKey] = dto
+            } else {
+                pending.append(dayStart)
+            }
+        }
+
+        for segment in contiguousBlocks(from: pending) {
+            if segment.count < batchingThreshold {
+                for dayStart in segment {
+                    let dto = try await refreshDay(dayStart: dayStart, userId: userId)
+                    resolved[dto.dayKey] = dto
+                }
+                continue
+            }
+
+            let firstDay = segment.first ?? segment[0]
+            let lastDay = segment.last ?? segment[0]
+            let segmentKeys = segment.map { dateNormalizer.dayKey($0) }
+
+            let rangeTask = Task<[HealthKitDailyAggregateData], Error> {
+                try await self.healthKitManager.fetchDailyAggregates(
+                    from: firstDay,
+                    to: lastDay,
+                    userId: userId,
+                    calendar: .current
+                )
+            }
+
+            for dayStart in segment {
+                let dayKey = dateNormalizer.dayKey(dayStart)
+                let cacheKey = makeCacheKey(userId: userId, dayKey: dayKey)
+                inFlightTasks[cacheKey] = Task {
+                    let dtos = try await rangeTask.value
+                    if let dto = dtos.first(where: { $0.dayKey == dayKey }) {
+                        return dto
+                    }
+                    return HealthKitDailyAggregateData(
+                        userId: userId,
+                        dayKey: dayKey,
+                        dayStart: dayStart,
+                        steps: 0,
+                        activeEnergyKcal: 0,
+                        restingEnergyKcal: 0,
+                        sleepSeconds: 0
+                    )
+                }
+            }
+
+            defer {
+                for dayKey in segmentKeys {
+                    inFlightTasks[makeCacheKey(userId: userId, dayKey: dayKey)] = nil
+                }
+            }
+
+            let dtos = try await rangeTask.value
+            for dto in dtos {
+                try upsertCache(with: dto)
+                resolved[dto.dayKey] = dto
+            }
+        }
+
+        return resolved
+    }
+
     private func shouldRefresh(cached: HealthKitDailySummaryCache, dayStart: Date) -> Bool {
         if cached.sourceVersion != Self.currentSourceVersion {
             return true
@@ -155,6 +318,20 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
             }
         )
         return try modelContext.fetch(descriptor).first
+    }
+
+    private func fetchCachedSummaries(
+        userId: String,
+        from startDay: Date,
+        to endDay: Date
+    ) throws -> [String: HealthKitDailySummaryCache] {
+        let descriptor = FetchDescriptor<HealthKitDailySummaryCache>(
+            predicate: #Predicate<HealthKitDailySummaryCache> { item in
+                item.userId == userId && item.dayStart >= startDay && item.dayStart <= endDay
+            }
+        )
+        let items = try modelContext.fetch(descriptor)
+        return Dictionary(uniqueKeysWithValues: items.map { ($0.dayKey, $0) })
     }
 
     private func upsertCache(with dto: HealthKitDailyAggregateData) throws {
@@ -204,5 +381,35 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
 
     private func makeCacheKey(userId: String, dayKey: String) -> String {
         "\(userId)|\(dayKey)"
+    }
+
+    private func dayStarts(in interval: DateInterval) -> [Date] {
+        let calendar = Calendar.current
+        let startDay = dateNormalizer.startOfDay(interval.start)
+        let clampedEnd = interval.end > interval.start ? interval.end.addingTimeInterval(-1) : interval.start
+        let endDay = dateNormalizer.startOfDay(clampedEnd)
+        let count = (calendar.dateComponents([.day], from: startDay, to: endDay).day ?? 0) + 1
+        return dateNormalizer.buildDateRange(endingOn: endDay, days: count)
+    }
+
+    private func contiguousBlocks(from sortedDays: [Date]) -> [[Date]] {
+        guard !sortedDays.isEmpty else { return [] }
+        let calendar = Calendar.current
+        var blocks: [[Date]] = []
+        var currentBlock: [Date] = [sortedDays[0]]
+
+        for day in sortedDays.dropFirst() {
+            guard let previous = currentBlock.last else { continue }
+            let delta = calendar.dateComponents([.day], from: previous, to: day).day ?? 0
+            if delta == 1 {
+                currentBlock.append(day)
+            } else {
+                blocks.append(currentBlock)
+                currentBlock = [day]
+            }
+        }
+
+        blocks.append(currentBlock)
+        return blocks
     }
 }

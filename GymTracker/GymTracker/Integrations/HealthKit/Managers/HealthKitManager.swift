@@ -205,56 +205,133 @@ class HealthKitManager: ObservableObject {
     }
 
     func fetchDailyAggregate(for day: Date, userId: String) async throws -> HealthKitDailyAggregateData {
-        let normalizer = HealthKitDateNormalizer()
-        let dayStart = normalizer.startOfDay(day)
-        let dayKey = normalizer.dayKey(day)
-
-        async let steps = fetchSteps(for: dayStart)
-        async let activeEnergy = fetchActiveEnergy(for: dayStart)
-        async let restingEnergy = fetchRestingEnergy(for: dayStart)
-        async let sleep = fetchSleep(for: dayStart)
-
-        return HealthKitDailyAggregateData(
-            userId: userId,
-            dayKey: dayKey,
-            dayStart: dayStart,
-            steps: await steps,
-            activeEnergyKcal: await activeEnergy,
-            restingEnergyKcal: await restingEnergy,
-            sleepSeconds: await sleep
-        )
+        let results = try await fetchDailyAggregates(from: day, to: day, userId: userId, calendar: .current)
+        guard let first = results.first else {
+            let normalizer = HealthKitDateNormalizer()
+            let dayStart = normalizer.startOfDay(day)
+            return HealthKitDailyAggregateData(
+                userId: userId,
+                dayKey: normalizer.dayKey(dayStart),
+                dayStart: dayStart,
+                steps: 0,
+                activeEnergyKcal: 0,
+                restingEnergyKcal: 0,
+                sleepSeconds: 0
+            )
+        }
+        return first
     }
 
-    private func fetchSteps(for dayStart: Date) async -> Double {
-        await fetchCumulativeQuantity(
+    func fetchDailyAggregates(
+        from fromDate: Date,
+        to toDate: Date,
+        userId: String,
+        calendar: Calendar
+    ) async throws -> [HealthKitDailyAggregateData] {
+        let normalizer = HealthKitDateNormalizer(calendar: calendar)
+        let startDay = normalizer.startOfDay(min(fromDate, toDate))
+        let endDay = normalizer.startOfDay(max(fromDate, toDate))
+        let dayCount = (calendar.dateComponents([.day], from: startDay, to: endDay).day ?? 0) + 1
+        let days = normalizer.buildDateRange(endingOn: endDay, days: dayCount)
+
+        async let stepsSeries = fetchQuantitySeries(
             type: HKQuantityType.quantityType(forIdentifier: .stepCount)!,
             unit: .count(),
-            dayStart: dayStart
+            from: startDay,
+            to: endDay,
+            calendar: calendar,
+            normalizer: normalizer
         )
-    }
-
-    private func fetchActiveEnergy(for dayStart: Date) async -> Double {
-        await fetchCumulativeQuantity(
+        async let activeSeries = fetchQuantitySeries(
             type: HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned)!,
             unit: .kilocalorie(),
-            dayStart: dayStart
+            from: startDay,
+            to: endDay,
+            calendar: calendar,
+            normalizer: normalizer
         )
-    }
-
-    private func fetchRestingEnergy(for dayStart: Date) async -> Double {
-        await fetchCumulativeQuantity(
+        async let restingSeries = fetchQuantitySeries(
             type: HKQuantityType.quantityType(forIdentifier: .basalEnergyBurned)!,
             unit: .kilocalorie(),
-            dayStart: dayStart
+            from: startDay,
+            to: endDay,
+            calendar: calendar,
+            normalizer: normalizer
         )
+        async let sleepSeries = fetchSleepSeries(
+            from: startDay,
+            to: endDay,
+            calendar: calendar,
+            normalizer: normalizer
+        )
+
+        let stepsByDay = await stepsSeries
+        let activeByDay = await activeSeries
+        let restingByDay = await restingSeries
+        let sleepByDay = await sleepSeries
+
+        return days.map { dayStart in
+            let dayKey = normalizer.dayKey(dayStart)
+            return HealthKitDailyAggregateData(
+                userId: userId,
+                dayKey: dayKey,
+                dayStart: dayStart,
+                steps: stepsByDay[dayKey] ?? 0,
+                activeEnergyKcal: activeByDay[dayKey] ?? 0,
+                restingEnergyKcal: restingByDay[dayKey] ?? 0,
+                sleepSeconds: sleepByDay[dayKey] ?? 0
+            )
+        }
     }
 
-    private func fetchSleep(for dayStart: Date) async -> TimeInterval {
-        let calendar = Calendar.current
-        let normalizer = HealthKitDateNormalizer(calendar: calendar)
-        let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
-        let windowStart = calendar.date(byAdding: .hour, value: -18, to: dayStart) ?? dayStart
-        let windowEnd = calendar.date(byAdding: .hour, value: 12, to: dayEnd) ?? dayEnd
+    private func fetchQuantitySeries(
+        type: HKQuantityType,
+        unit: HKUnit,
+        from fromDay: Date,
+        to toDay: Date,
+        calendar: Calendar,
+        normalizer: HealthKitDateNormalizer
+    ) async -> [String: Double] {
+        let intervalEndExclusive = calendar.date(byAdding: .day, value: 1, to: toDay) ?? toDay
+        let predicate = HKQuery.predicateForSamples(withStart: fromDay, end: intervalEndExclusive, options: .strictStartDate)
+
+        return await withCheckedContinuation { continuation in
+            let query = HKStatisticsCollectionQuery(
+                quantityType: type,
+                quantitySamplePredicate: predicate,
+                options: .cumulativeSum,
+                anchorDate: fromDay,
+                intervalComponents: DateComponents(day: 1)
+            )
+
+            query.initialResultsHandler = { _, collection, _ in
+                guard let collection else {
+                    continuation.resume(returning: [:])
+                    return
+                }
+                var result: [String: Double] = [:]
+                collection.enumerateStatistics(from: fromDay, to: intervalEndExclusive) { stats, _ in
+                    let dayStart = normalizer.startOfDay(stats.startDate)
+                    let dayKey = normalizer.dayKey(dayStart)
+                    let value = stats.sumQuantity()?.doubleValue(for: unit) ?? 0
+                    result[dayKey] = value
+                }
+                continuation.resume(returning: result)
+            }
+
+            self.healthStore.execute(query)
+        }
+    }
+
+    private func fetchSleepSeries(
+        from fromDay: Date,
+        to toDay: Date,
+        calendar: Calendar,
+        normalizer: HealthKitDateNormalizer
+    ) async -> [String: TimeInterval] {
+        let endExclusive = calendar.date(byAdding: .day, value: 1, to: toDay) ?? toDay
+        let windowStart = calendar.date(byAdding: .hour, value: -18, to: fromDay) ?? fromDay
+        let windowEnd = calendar.date(byAdding: .hour, value: 12, to: endExclusive) ?? endExclusive
 
         return await withCheckedContinuation { continuation in
             let predicate = HKQuery.predicateForSamples(withStart: windowStart, end: windowEnd, options: [])
@@ -265,38 +342,19 @@ class HealthKitManager: ObservableObject {
                 sortDescriptors: nil
             ) { _, samples, _ in
                 let sleepSamples = (samples as? [HKCategorySample]) ?? []
-                let total = sleepSamples.reduce(0.0) { partial, sample in
-                    guard sample.value != HKCategoryValueSleepAnalysis.awake.rawValue else {
-                        return partial
-                    }
-                    guard normalizer.sameDay(sample.endDate, dayStart) else {
-                        return partial
-                    }
-                    return partial + sample.endDate.timeIntervalSince(sample.startDate)
+                var totals: [String: TimeInterval] = [:]
+
+                for sample in sleepSamples {
+                    guard sample.value != HKCategoryValueSleepAnalysis.awake.rawValue else { continue }
+                    guard sample.endDate >= fromDay && sample.endDate < endExclusive else { continue }
+
+                    let dayStart = normalizer.startOfDay(sample.endDate)
+                    let dayKey = normalizer.dayKey(dayStart)
+                    let duration = sample.endDate.timeIntervalSince(sample.startDate)
+                    totals[dayKey, default: 0] += duration
                 }
-                continuation.resume(returning: total)
-            }
-            self.healthStore.execute(query)
-        }
-    }
 
-    private func fetchCumulativeQuantity(
-        type: HKQuantityType,
-        unit: HKUnit,
-        dayStart: Date
-    ) async -> Double {
-        let calendar = Calendar.current
-        let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
-        let predicate = HKQuery.predicateForSamples(withStart: dayStart, end: dayEnd, options: .strictStartDate)
-
-        return await withCheckedContinuation { continuation in
-            let query = HKStatisticsQuery(
-                quantityType: type,
-                quantitySamplePredicate: predicate,
-                options: .cumulativeSum
-            ) { _, result, _ in
-                let value = result?.sumQuantity()?.doubleValue(for: unit) ?? 0
-                continuation.resume(returning: value)
+                continuation.resume(returning: totals)
             }
             self.healthStore.execute(query)
         }

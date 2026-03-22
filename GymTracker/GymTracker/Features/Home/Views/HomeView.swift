@@ -389,19 +389,23 @@ struct WeeklyStepsModuleView: View {
     
     var body: some View {
         if module.size == .medium || module.size == .large {
-            StepBarGraph(
-                height: module.size == .large ? 165 : 120,
-                barColor: .blue
-            )
-            .padding(.horizontal, 4)
-            .padding(.vertical, 2)
+            NavigationLink(destination: HealthHistoryChartView().appBackground()) {
+                StepBarGraph(
+                    height: module.size == .large ? 165 : 120,
+                    barColor: .blue
+                )
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+            }
         } else {
-            MetricCard(
-                title: "Weekly Steps",
-                value: String(weeklyStepsTotal.rounded()),
-                icon: "figure.walk.motion",
-                hasBackground: false
-            )
+            NavigationLink(destination: HealthHistoryChartView().appBackground()) {
+                MetricCard(
+                    title: "Weekly Steps",
+                    value: String(weeklyStepsTotal.rounded()),
+                    icon: "figure.walk.motion",
+                    hasBackground: false
+                )
+            }
             .task(id: userService.currentUser?.id) {
                 await loadWeeklyTotal()
             }

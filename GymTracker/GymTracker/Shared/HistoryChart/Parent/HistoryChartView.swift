@@ -11,7 +11,9 @@ struct HistoryChartView<FilterControls: View>: View {
     let navigationTitle: String
     let filterStateToken: Int
     let filterControls: () -> FilterControls
-    let pointsProvider: (DateInterval, HistoryChartTimeframe) -> [HistoryChartPoint]
+    let pointsProvider: ((DateInterval, HistoryChartTimeframe) -> [HistoryChartPoint])?
+    let pointsLoader: HistoryChartPointsLoader?
+    let loadIntervalProvider: HistoryChartLoadIntervalProvider
     let dataBoundsProvider: () -> (oldest: Date?, newest: Date?)
     let summaryProvider: (HistoryChartPoint?, Double, HistoryChartTimeframe) -> HistoryChartSummary
     let emptyStateTextProvider: (Int) -> String
@@ -27,6 +29,52 @@ struct HistoryChartView<FilterControls: View>: View {
     @State private var cachedPoints: [HistoryChartPoint] = []
     @State private var cachedDataBounds: (oldest: Date?, newest: Date?) = (nil, nil)
     @State private var chartWidth: CGFloat = 0
+    @State private var loadRequestToken: Int = 0
+    @State private var isLoadingPoints = false
+    @State private var didAttemptLoad = false
+    @State private var loadErrorText: String?
+
+    init(
+        navigationTitle: String,
+        filterStateToken: Int,
+        filterControls: @escaping () -> FilterControls,
+        pointsLoader: @escaping HistoryChartPointsLoader,
+        loadIntervalProvider: @escaping HistoryChartLoadIntervalProvider = { interval, _ in interval },
+        dataBoundsProvider: @escaping () -> (oldest: Date?, newest: Date?),
+        summaryProvider: @escaping (HistoryChartPoint?, Double, HistoryChartTimeframe) -> HistoryChartSummary,
+        emptyStateTextProvider: @escaping (Int) -> String
+    ) {
+        self.navigationTitle = navigationTitle
+        self.filterStateToken = filterStateToken
+        self.filterControls = filterControls
+        self.pointsProvider = nil
+        self.pointsLoader = pointsLoader
+        self.loadIntervalProvider = loadIntervalProvider
+        self.dataBoundsProvider = dataBoundsProvider
+        self.summaryProvider = summaryProvider
+        self.emptyStateTextProvider = emptyStateTextProvider
+    }
+
+    init(
+        navigationTitle: String,
+        filterStateToken: Int,
+        filterControls: @escaping () -> FilterControls,
+        pointsProvider: @escaping (DateInterval, HistoryChartTimeframe) -> [HistoryChartPoint],
+        loadIntervalProvider: @escaping HistoryChartLoadIntervalProvider = { interval, _ in interval },
+        dataBoundsProvider: @escaping () -> (oldest: Date?, newest: Date?),
+        summaryProvider: @escaping (HistoryChartPoint?, Double, HistoryChartTimeframe) -> HistoryChartSummary,
+        emptyStateTextProvider: @escaping (Int) -> String
+    ) {
+        self.navigationTitle = navigationTitle
+        self.filterStateToken = filterStateToken
+        self.filterControls = filterControls
+        self.pointsProvider = pointsProvider
+        self.pointsLoader = nil
+        self.loadIntervalProvider = loadIntervalProvider
+        self.dataBoundsProvider = dataBoundsProvider
+        self.summaryProvider = summaryProvider
+        self.emptyStateTextProvider = emptyStateTextProvider
+    }
 
     var body: some View {
         ScrollView {
@@ -126,6 +174,9 @@ struct HistoryChartView<FilterControls: View>: View {
 
                     selectedPointId = nil
                     selectedXDate = nil
+                    Task {
+                        await loadPoints(for: visibleInterval)
+                    }
                 }
                 .onChange(of: selectedXDate) { _, newValue in
                     guard let newValue else {
@@ -139,7 +190,17 @@ struct HistoryChartView<FilterControls: View>: View {
                 .background(Color(.systemGray6))
                 .clipShape(RoundedRectangle(cornerRadius: 14))
 
-                if cachedPoints.allSatisfy({ $0.value == 0 }) {
+                if isLoadingPoints {
+                    Text("Loading...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 4)
+                } else if let loadErrorText {
+                    Text(loadErrorText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 4)
+                } else if didAttemptLoad && !cachedPoints.isEmpty && cachedPoints.allSatisfy({ $0.value == 0 }) {
                     Text(emptyStateTextProvider(cachedPoints.count))
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -154,12 +215,17 @@ struct HistoryChartView<FilterControls: View>: View {
             cachedDataBounds = dataBoundsProvider()
             anchorDate = cachedDataBounds.newest ?? Date()
             resetToCurrentWindow()
+            Task {
+                await loadPoints(for: visibleInterval)
+            }
         }
         .onChange(of: timeframe) { _, _ in
             isChangingTimeframe = true
             cachedDataBounds = dataBoundsProvider()
             resetToCurrentWindow()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            Task {
+                await loadPoints(for: visibleInterval)
+                try? await Task.sleep(nanoseconds: 100_000_000)
                 isChangingTimeframe = false
             }
         }
@@ -167,7 +233,9 @@ struct HistoryChartView<FilterControls: View>: View {
             isChangingTimeframe = true
             cachedDataBounds = dataBoundsProvider()
             resetToCurrentWindow()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            Task {
+                await loadPoints(for: visibleInterval)
+                try? await Task.sleep(nanoseconds: 100_000_000)
                 isChangingTimeframe = false
             }
         }
@@ -381,22 +449,22 @@ struct HistoryChartView<FilterControls: View>: View {
 
         anchorDate = shifted
         let newWindow = HistoryChartCalculator.currentWindow(for: timeframe, now: shifted)
-
-        let loadRange = DateInterval(start: earliestAllowedWindowStart, end: latestAllowedDate)
-        cachedPoints = pointsProvider(loadRange, timeframe)
         chartScrollPosition = newWindow.start
         selectedPointId = nil
         selectedXDate = nil
+        Task {
+            await loadPoints(for: DateInterval(start: newWindow.start, end: newWindow.end))
+        }
     }
 
     private func resetToCurrentWindow() {
         let window = currentWindowInterval
-
-        let loadRange = DateInterval(start: earliestAllowedWindowStart, end: latestAllowedDate)
-        cachedPoints = pointsProvider(loadRange, timeframe)
         chartScrollPosition = window.start
         selectedPointId = nil
         selectedXDate = nil
+        cachedPoints = []
+        didAttemptLoad = false
+        loadErrorText = nil
     }
 
     private func updateSelectedPoint(for date: Date) {
@@ -428,6 +496,47 @@ struct HistoryChartView<FilterControls: View>: View {
 
     private func snappedRangeStart(for date: Date) -> Date {
         Calendar.current.dateInterval(of: timeframe.windowCalendarComponent, for: date)?.start ?? date
+    }
+
+    private func loadPoints(for requestedVisibleInterval: DateInterval) async {
+        let boundedStart = max(requestedVisibleInterval.start, earliestAllowedWindowStart)
+        let boundedEnd = min(requestedVisibleInterval.end, latestAllowedDate)
+        guard boundedEnd > boundedStart else { return }
+
+        let boundedInterval = DateInterval(start: boundedStart, end: boundedEnd)
+        let loadInterval = loadIntervalProvider(boundedInterval, timeframe)
+
+        if let pointsProvider {
+            cachedPoints = pointsProvider(loadInterval, timeframe)
+            isLoadingPoints = false
+            didAttemptLoad = true
+            loadErrorText = nil
+            updateSelectedPoint(for: selectedXDate ?? chartScrollPosition)
+            return
+        }
+
+        guard let pointsLoader else { return }
+        loadRequestToken &+= 1
+        let token = loadRequestToken
+        isLoadingPoints = true
+        loadErrorText = nil
+
+        do {
+            let points = try await pointsLoader(loadInterval, timeframe)
+            guard token == loadRequestToken else { return }
+            cachedPoints = points
+            isLoadingPoints = false
+            didAttemptLoad = true
+            loadErrorText = nil
+            updateSelectedPoint(for: selectedXDate ?? chartScrollPosition)
+        } catch {
+            guard token == loadRequestToken else { return }
+            cachedPoints = []
+            selectedPointId = nil
+            isLoadingPoints = false
+            didAttemptLoad = true
+            loadErrorText = "Unable to load chart data."
+        }
     }
 }
 
