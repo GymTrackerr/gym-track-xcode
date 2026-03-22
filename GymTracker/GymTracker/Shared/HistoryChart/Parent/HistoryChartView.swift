@@ -10,6 +10,16 @@ struct HistoryChartSummary {
     let unitText: String?
 }
 
+struct HistoryChartSummaryDetail: Identifiable {
+    let title: String
+    let valueText: String
+    let unitText: String?
+
+    var id: String {
+        [title, valueText, unitText ?? ""].joined(separator: "|")
+    }
+}
+
 struct HistoryChartView<FilterControls: View>: View {
     let navigationTitle: String
     let filterStateToken: Int
@@ -18,6 +28,7 @@ struct HistoryChartView<FilterControls: View>: View {
     let loadIntervalProvider: HistoryChartLoadIntervalProvider
     let dataBoundsProvider: () -> (oldest: Date?, newest: Date?)
     let summaryProvider: (HistoryChartPoint?, Double, HistoryChartTimeframe) -> HistoryChartSummary
+    let summaryDetailsProvider: (HistoryChartPoint?, Double, HistoryChartTimeframe) -> [HistoryChartSummaryDetail]
     let emptyStateTextProvider: (Int) -> String
 
     @State private var timeframe: HistoryChartTimeframe = .month
@@ -49,6 +60,7 @@ struct HistoryChartView<FilterControls: View>: View {
         },
         dataBoundsProvider: @escaping () -> (oldest: Date?, newest: Date?),
         summaryProvider: @escaping (HistoryChartPoint?, Double, HistoryChartTimeframe) -> HistoryChartSummary,
+        summaryDetailsProvider: @escaping (HistoryChartPoint?, Double, HistoryChartTimeframe) -> [HistoryChartSummaryDetail] = { _, _, _ in [] },
         emptyStateTextProvider: @escaping (Int) -> String
     ) {
         self.navigationTitle = navigationTitle
@@ -58,6 +70,7 @@ struct HistoryChartView<FilterControls: View>: View {
         self.loadIntervalProvider = loadIntervalProvider
         self.dataBoundsProvider = dataBoundsProvider
         self.summaryProvider = summaryProvider
+        self.summaryDetailsProvider = summaryDetailsProvider
         self.emptyStateTextProvider = emptyStateTextProvider
     }
 
@@ -290,6 +303,7 @@ struct HistoryChartView<FilterControls: View>: View {
 
     private var summaryHeader: some View {
         let summary = summaryProvider(selectedPoint, currentWindowAverageValue, timeframe)
+        let details = summaryDetailsProvider(selectedPoint, currentWindowAverageValue, timeframe)
 
         return VStack(alignment: .leading, spacing: 2) {
             Text(summary.title)
@@ -309,6 +323,36 @@ struct HistoryChartView<FilterControls: View>: View {
             Text(summaryDateText)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+
+            if !details.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(details) { detail in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(detail.title)
+                                    .font(.caption2)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.secondary)
+                                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                                    Text(detail.valueText)
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                    if let unitText = detail.unitText {
+                                        Text(unitText)
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(Color(.systemGray6))
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
         }
     }
 
@@ -400,7 +444,10 @@ struct HistoryChartView<FilterControls: View>: View {
             point.startDate >= visibleInterval.start && point.startDate < visibleInterval.end && point.plottedValue > 0
         }
         guard !points.isEmpty else { return 0 }
-        return points.reduce(0.0) { $0 + $1.plottedValue } / Double(points.count)
+        let numerator = points.reduce(0.0) { $0 + $1.effectiveSummaryAverageNumerator }
+        let denominator = points.reduce(0.0) { $0 + max($1.effectiveSummaryAverageDenominator, 0) }
+        guard denominator > 0 else { return 0 }
+        return numerator / denominator
     }
 
     private var intervalTitle: String {
@@ -651,6 +698,7 @@ struct HistoryChartView<FilterControls: View>: View {
             return .gray
         }
     }
+
 }
 
 // MARK: - Shared UI Components

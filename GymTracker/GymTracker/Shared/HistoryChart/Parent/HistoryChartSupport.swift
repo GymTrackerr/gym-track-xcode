@@ -75,17 +75,23 @@ struct HistoryChartPoint: Identifiable {
     let endDate: Date
     let value: Double
     let segments: [HistoryChartBarSegment]
+    let summaryAverageNumerator: Double?
+    let summaryAverageDenominator: Double?
 
     init(
         startDate: Date,
         endDate: Date,
         value: Double,
-        segments: [HistoryChartBarSegment] = []
+        segments: [HistoryChartBarSegment] = [],
+        summaryAverageNumerator: Double? = nil,
+        summaryAverageDenominator: Double? = nil
     ) {
         self.startDate = startDate
         self.endDate = endDate
         self.value = value
         self.segments = segments
+        self.summaryAverageNumerator = summaryAverageNumerator
+        self.summaryAverageDenominator = summaryAverageDenominator
     }
 
     var id: TimeInterval {
@@ -99,6 +105,14 @@ struct HistoryChartPoint: Identifiable {
     var plottedValue: Double {
         guard !segments.isEmpty else { return value }
         return segments.reduce(0.0) { $0 + max($1.value, 0) }
+    }
+
+    var effectiveSummaryAverageNumerator: Double {
+        summaryAverageNumerator ?? plottedValue
+    }
+
+    var effectiveSummaryAverageDenominator: Double {
+        summaryAverageDenominator ?? 1
     }
 
     func segmentValue(for key: String) -> Double? {
