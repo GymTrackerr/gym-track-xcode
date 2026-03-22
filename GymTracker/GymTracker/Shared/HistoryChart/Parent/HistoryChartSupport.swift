@@ -74,6 +74,19 @@ struct HistoryChartPoint: Identifiable {
     let startDate: Date
     let endDate: Date
     let value: Double
+    let segments: [HistoryChartBarSegment]
+
+    init(
+        startDate: Date,
+        endDate: Date,
+        value: Double,
+        segments: [HistoryChartBarSegment] = []
+    ) {
+        self.startDate = startDate
+        self.endDate = endDate
+        self.value = value
+        self.segments = segments
+    }
 
     var id: TimeInterval {
         startDate.timeIntervalSinceReferenceDate + (endDate.timeIntervalSinceReferenceDate * 0.0001)
@@ -82,6 +95,46 @@ struct HistoryChartPoint: Identifiable {
     var date: Date {
         startDate.addingTimeInterval(endDate.timeIntervalSince(startDate) / 2)
     }
+
+    var plottedValue: Double {
+        guard !segments.isEmpty else { return value }
+        return segments.reduce(0.0) { $0 + max($1.value, 0) }
+    }
+
+    func segmentValue(for key: String) -> Double? {
+        segments.first(where: { $0.key == key })?.value
+    }
+}
+
+enum HistoryChartSegmentStyle: String, Codable {
+    case primary
+    case secondary
+    case tertiary
+    case positive
+    case warning
+    case negative
+    case neutral
+}
+
+struct HistoryChartBarSegment: Identifiable, Hashable {
+    let key: String
+    let value: Double
+    let style: HistoryChartSegmentStyle
+    let label: String?
+
+    init(
+        key: String,
+        value: Double,
+        style: HistoryChartSegmentStyle,
+        label: String? = nil
+    ) {
+        self.key = key
+        self.value = value
+        self.style = style
+        self.label = label
+    }
+
+    var id: String { key }
 }
 
 typealias HistoryChartLoadIntervalProvider = (DateInterval, HistoryChartTimeframe) -> DateInterval

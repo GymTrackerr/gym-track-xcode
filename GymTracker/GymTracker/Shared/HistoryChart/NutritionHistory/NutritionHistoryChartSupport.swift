@@ -5,6 +5,7 @@ enum NutritionHistoryMetric: String, CaseIterable, Identifiable {
     case protein
     case carbs
     case fat
+    case energyBalance
 
     var id: String { rawValue }
 
@@ -18,6 +19,8 @@ enum NutritionHistoryMetric: String, CaseIterable, Identifiable {
             return "Carbs"
         case .fat:
             return "Fat"
+        case .energyBalance:
+            return "Energy"
         }
     }
 
@@ -27,6 +30,8 @@ enum NutritionHistoryMetric: String, CaseIterable, Identifiable {
             return "kcal"
         case .protein, .carbs, .fat:
             return "g"
+        case .energyBalance:
+            return "kcal"
         }
     }
 
@@ -40,11 +45,17 @@ enum NutritionHistoryMetric: String, CaseIterable, Identifiable {
             return .carbs
         case .fat:
             return .fat
+        case .energyBalance:
+            return .calories
         }
     }
 }
 
 enum NutritionChartCalculator {
+    static let restingSegmentKey = "resting"
+    static let activeSegmentKey = "active"
+    static let eatenSegmentKey = "eaten"
+
     static func nutritionPoints(
         logs: [NutritionLogEntry],
         interval: DateInterval,
@@ -63,6 +74,63 @@ enum NutritionChartCalculator {
         }
     }
 
+    static func energyBalancePoints(
+        logs: [NutritionLogEntry],
+        healthSummaries: [HealthKitDailyAggregateData],
+        interval: DateInterval,
+        timeframe: HistoryChartTimeframe,
+        calendar: Calendar = .current
+    ) -> [HistoryChartPoint] {
+        HistoryChartCalculator.bucketIntervals(interval: interval, timeframe: timeframe, calendar: calendar).map { bucket in
+            let bucketLogs = logs.filter { $0.timestamp >= bucket.start && $0.timestamp < bucket.end }
+            let bucketHealth = healthSummaries.filter { $0.dayStart >= bucket.start && $0.dayStart < bucket.end }
+
+            let eaten = bucketLogs.reduce(0.0) { $0 + $1.caloriesSnapshot }
+            let resting = bucketHealth.reduce(0.0) { $0 + $1.restingEnergyKcal }
+            let active = bucketHealth.reduce(0.0) { $0 + $1.activeEnergyKcal }
+
+            var segments: [HistoryChartBarSegment] = []
+            if resting > 0 {
+                segments.append(
+                    HistoryChartBarSegment(
+                        key: restingSegmentKey,
+                        value: resting,
+                        style: .secondary,
+                        label: "Resting"
+                    )
+                )
+            }
+            if active > 0 {
+                segments.append(
+                    HistoryChartBarSegment(
+                        key: activeSegmentKey,
+                        value: active,
+                        style: .primary,
+                        label: "Active"
+                    )
+                )
+            }
+            if eaten > 0 {
+                segments.append(
+                    HistoryChartBarSegment(
+                        key: eatenSegmentKey,
+                        value: eaten,
+                        style: .positive,
+                        label: "Eaten"
+                    )
+                )
+            }
+
+            let total = resting + active + eaten
+            return HistoryChartPoint(
+                startDate: bucket.start,
+                endDate: bucket.end,
+                value: total,
+                segments: segments
+            )
+        }
+    }
+
     private static func metricValue(for log: NutritionLogEntry, metric: NutritionHistoryMetric) -> Double {
         switch metric {
         case .calories:
@@ -73,6 +141,8 @@ enum NutritionChartCalculator {
             return log.carbsSnapshot
         case .fat:
             return log.fatSnapshot
+        case .energyBalance:
+            return 0.0
         }
     }
 }

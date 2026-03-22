@@ -69,13 +69,25 @@ struct HistoryChartView<FilterControls: View>: View {
                 summaryHeader
 
                 Chart(cachedPoints) { point in
-                    BarMark(
-                        x: .value("Date", point.date),
-                        y: .value("Value", point.value),
-                        width: .fixed(barWidth)
-                    )
-                    .cornerRadius(1.5)
-                    .foregroundStyle(selectedPointId == nil || selectedPointId == point.id ? Color.blue : Color.blue.opacity(0.45))
+                    if point.segments.isEmpty {
+                        BarMark(
+                            x: .value("Date", point.date),
+                            y: .value("Value", point.value),
+                            width: .fixed(barWidth)
+                        )
+                        .cornerRadius(1.5)
+                        .foregroundStyle(selectedPointId == nil || selectedPointId == point.id ? Color.blue : Color.blue.opacity(0.45))
+                    } else {
+                        ForEach(point.segments.filter { $0.value > 0 }) { segment in
+                            BarMark(
+                                x: .value("Date", point.date),
+                                y: .value("Value", segment.value),
+                                width: .fixed(barWidth)
+                            )
+                            .cornerRadius(1.5)
+                            .foregroundStyle(segmentColor(for: segment.style).opacity(selectedPointId == nil || selectedPointId == point.id ? 1 : 0.45))
+                        }
+                    }
                 }
                 .chartYAxis {
                     AxisMarks(position: .trailing) { _ in
@@ -138,7 +150,7 @@ struct HistoryChartView<FilterControls: View>: View {
                                     selectedXDate = nil
                                 } else if let date: Date = chartProxy.value(atX: x) {
                                     if !cachedPoints.contains(where: {
-                                        date >= $0.startDate && date < $0.endDate && $0.value > 0
+                                        date >= $0.startDate && date < $0.endDate && $0.plottedValue > 0
                                     }) {
                                         selectedPointId = nil
                                         selectedXDate = nil
@@ -189,7 +201,7 @@ struct HistoryChartView<FilterControls: View>: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 4)
-                } else if didAttemptLoad && (cachedPoints.isEmpty || cachedPoints.allSatisfy({ $0.value == 0 })) {
+                } else if didAttemptLoad && (cachedPoints.isEmpty || cachedPoints.allSatisfy({ $0.plottedValue == 0 })) {
                     Text(emptyStateTextProvider(cachedPoints.count))
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -350,7 +362,7 @@ struct HistoryChartView<FilterControls: View>: View {
         let visiblePoints = cachedPoints.filter { point in
             point.startDate < visibleInterval.end && point.endDate > visibleInterval.start
         }
-        let maxValue = visiblePoints.map(\.value).max() ?? cachedPoints.map(\.value).max() ?? 0
+        let maxValue = visiblePoints.map(\.plottedValue).max() ?? cachedPoints.map(\.plottedValue).max() ?? 0
         let roundedTarget = max(maxValue * 1.15, 1)
         return max(yAxisStickyMax, roundedTarget)
     }
@@ -385,10 +397,10 @@ struct HistoryChartView<FilterControls: View>: View {
 
     private var currentWindowAverageValue: Double {
         let points = cachedPoints.filter { point in
-            point.startDate >= visibleInterval.start && point.startDate < visibleInterval.end && point.value > 0
+            point.startDate >= visibleInterval.start && point.startDate < visibleInterval.end && point.plottedValue > 0
         }
         guard !points.isEmpty else { return 0 }
-        return points.reduce(0.0) { $0 + $1.value } / Double(points.count)
+        return points.reduce(0.0) { $0 + $1.plottedValue } / Double(points.count)
     }
 
     private var intervalTitle: String {
@@ -530,7 +542,7 @@ struct HistoryChartView<FilterControls: View>: View {
     }
 
     private func updateYAxisStickyMax(with points: [HistoryChartPoint]) {
-        let maxValue = points.map(\.value).max() ?? 0
+        let maxValue = points.map(\.plottedValue).max() ?? 0
         let roundedTarget = max(maxValue * 1.15, 1)
         if roundedTarget > yAxisStickyMax {
             yAxisStickyMax = roundedTarget
@@ -543,12 +555,12 @@ struct HistoryChartView<FilterControls: View>: View {
             return
         }
         // Exact bucket match
-        if let exact = cachedPoints.first(where: { date >= $0.startDate && date < $0.endDate && $0.value > 0 }) {
+        if let exact = cachedPoints.first(where: { date >= $0.startDate && date < $0.endDate && $0.plottedValue > 0 }) {
             selectedPointId = exact.id
             return
         }
         // Closest non-zero point by midpoint distance
-        let nonZero = cachedPoints.filter { $0.value > 0 }
+        let nonZero = cachedPoints.filter { $0.plottedValue > 0 }
         if let closest = nonZero.min(by: {
             let mid0 = $0.startDate.addingTimeInterval($0.endDate.timeIntervalSince($0.startDate) / 2)
             let mid1 = $1.startDate.addingTimeInterval($1.endDate.timeIntervalSince($1.startDate) / 2)
@@ -619,6 +631,25 @@ struct HistoryChartView<FilterControls: View>: View {
             return
         }
         updateSelectedPoint(for: selectedXDate)
+    }
+
+    private func segmentColor(for style: HistoryChartSegmentStyle) -> Color {
+        switch style {
+        case .primary:
+            return .blue
+        case .secondary:
+            return .cyan
+        case .tertiary:
+            return .indigo
+        case .positive:
+            return .green
+        case .warning:
+            return .orange
+        case .negative:
+            return .red
+        case .neutral:
+            return .gray
+        }
     }
 }
 
