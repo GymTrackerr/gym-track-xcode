@@ -152,9 +152,11 @@ struct MetricActivityRingCard: View {
 }
 
 struct StepBarGraph: View {
-    @EnvironmentObject var hkManager: HealthKitManager
+    @EnvironmentObject var userService: UserService
+    @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
     var height: CGFloat = 140
     var barColor: Color = .blue
+    @State private var dailySteps: [DayStep] = []
     
     struct DayStep: Identifiable {
         let id = UUID()
@@ -163,13 +165,7 @@ struct StepBarGraph: View {
     }
 
     private var data: [DayStep] {
-        let calendar = Calendar.current
-        let start = calendar.date(byAdding: .day, value: -6, to: Date())!
-        return (0..<7).map { offset in
-            let date = calendar.date(byAdding: .day, value: offset, to: start)!
-            let value = hkManager.weeklySteps.indices.contains(offset) ? hkManager.weeklySteps[offset] : 0
-            return DayStep(date: date, value: value)
-        }
+        dailySteps
     }
 
     var body: some View {
@@ -208,6 +204,19 @@ struct StepBarGraph: View {
             }
         }
         .frame(height: height)
+        .task(id: userService.currentUser?.id) {
+            guard let userId = userService.currentUser?.id.uuidString else {
+                dailySteps = []
+                return
+            }
+            let summaries = (try? await healthKitDailyStore.dailySummaries(
+                endingOn: Date(),
+                days: 7,
+                userId: userId,
+                policy: .refreshIfStale
+            )) ?? []
+            dailySteps = summaries.map { DayStep(date: $0.dayStart, value: $0.steps) }
+        }
     }
 
     private func shortDay(from date: Date) -> String {

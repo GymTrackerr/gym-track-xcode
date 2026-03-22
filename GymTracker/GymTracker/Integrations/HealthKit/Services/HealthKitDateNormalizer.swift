@@ -3,8 +3,14 @@ import Foundation
 struct HealthKitDateNormalizer {
     private let calendar: Calendar
 
-    init(calendar: Calendar = .current) {
+    init(calendar: Calendar = HealthKitDateNormalizer.defaultCalendar()) {
         self.calendar = calendar
+    }
+
+    private static func defaultCalendar() -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .autoupdatingCurrent
+        return calendar
     }
 
     func startOfDay(_ date: Date) -> Date {

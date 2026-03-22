@@ -204,7 +204,7 @@ class HealthKitManager: ObservableObject {
         healthStore.execute(query)
     }
 
-    nonisolated func fetchDailyAggregate(for day: Date, userId: String) async throws -> HealthKitDailyAggregateData {
+    func fetchDailyAggregate(for day: Date, userId: String) async throws -> HealthKitDailyAggregateData {
         let normalizer = HealthKitDateNormalizer()
         let dayStart = normalizer.startOfDay(day)
         let dayKey = normalizer.dayKey(day)
@@ -225,7 +225,7 @@ class HealthKitManager: ObservableObject {
         )
     }
 
-    nonisolated private func fetchSteps(for dayStart: Date) async -> Double {
+    private func fetchSteps(for dayStart: Date) async -> Double {
         await fetchCumulativeQuantity(
             type: HKQuantityType.quantityType(forIdentifier: .stepCount)!,
             unit: .count(),
@@ -233,7 +233,7 @@ class HealthKitManager: ObservableObject {
         )
     }
 
-    nonisolated private func fetchActiveEnergy(for dayStart: Date) async -> Double {
+    private func fetchActiveEnergy(for dayStart: Date) async -> Double {
         await fetchCumulativeQuantity(
             type: HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned)!,
             unit: .kilocalorie(),
@@ -241,7 +241,7 @@ class HealthKitManager: ObservableObject {
         )
     }
 
-    nonisolated private func fetchRestingEnergy(for dayStart: Date) async -> Double {
+    private func fetchRestingEnergy(for dayStart: Date) async -> Double {
         await fetchCumulativeQuantity(
             type: HKQuantityType.quantityType(forIdentifier: .basalEnergyBurned)!,
             unit: .kilocalorie(),
@@ -249,7 +249,7 @@ class HealthKitManager: ObservableObject {
         )
     }
 
-    nonisolated private func fetchSleep(for dayStart: Date) async -> TimeInterval {
+    private func fetchSleep(for dayStart: Date) async -> TimeInterval {
         let calendar = Calendar.current
         let normalizer = HealthKitDateNormalizer(calendar: calendar)
         let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
@@ -280,7 +280,7 @@ class HealthKitManager: ObservableObject {
         }
     }
 
-    nonisolated private func fetchCumulativeQuantity(
+    private func fetchCumulativeQuantity(
         type: HKQuantityType,
         unit: HKUnit,
         dayStart: Date
