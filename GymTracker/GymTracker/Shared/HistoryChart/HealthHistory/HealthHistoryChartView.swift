@@ -32,14 +32,7 @@ struct HealthHistoryChartView: View {
                 HistoryChartLoadSupport.bufferedInterval(for: interval, timeframe: timeframe)
             },
             dataBoundsProvider: {
-                guard let userId = userService.currentUser?.id.uuidString else { return (nil, nil) }
-                let summaries = (try? healthKitDailyStore.cachedDailySummaries(userId: userId)) ?? []
-                let filtered = summaries.filter {
-                    HealthHistoryChartSupport.metricValue(for: $0, metric: selectedMetric) > 0
-                }
-                let oldest = filtered.min(by: { $0.dayStart < $1.dayStart })?.dayStart
-                let newest = filtered.max(by: { $0.dayStart < $1.dayStart })?.dayStart
-                return (oldest, newest)
+                self.getDataBounds()
             },
             summaryProvider: { selectedPoint, currentWindowAverage, _ in
                 let value = selectedPoint?.value ?? currentWindowAverage
@@ -65,6 +58,24 @@ struct HealthHistoryChartView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
             }
+        }
+    }
+
+    private func getDataBounds() -> (oldest: Date?, newest: Date?) {
+        guard let userId = userService.currentUser?.id.uuidString else { return (nil, nil) }
+        
+        do {
+            let all = try healthKitDailyStore.cachedDailySummaries(userId: userId)
+            let filtered = all.filter {
+                HealthHistoryChartSupport.metricValue(for: $0, metric: selectedMetric) > 0
+            }
+            guard !filtered.isEmpty else { return (nil, nil) }
+
+            let oldest = filtered.min(by: { $0.dayStart < $1.dayStart })?.dayStart
+            let newest = filtered.max(by: { $0.dayStart < $1.dayStart })?.dayStart
+            return (oldest, newest)
+        } catch {
+            return (nil, nil)
         }
     }
 

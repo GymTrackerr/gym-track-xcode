@@ -84,7 +84,6 @@ struct HistoryChartPoint: Identifiable {
     }
 }
 
-typealias HistoryChartPointsLoader = (DateInterval, HistoryChartTimeframe) async throws -> [HistoryChartPoint]
 typealias HistoryChartLoadIntervalProvider = (DateInterval, HistoryChartTimeframe) -> DateInterval
 
 enum HistoryChartLoadSupport {
@@ -93,27 +92,55 @@ enum HistoryChartLoadSupport {
         timeframe: HistoryChartTimeframe,
         calendar: Calendar = .current
     ) -> DateInterval {
-        let paddingDays: Int
-        switch timeframe {
-        case .week:
-            paddingDays = 7
-        case .month:
-            paddingDays = 14
-        case .sixMonths:
-            paddingDays = 30
-        case .year:
-            paddingDays = 60
-        case .fiveYears:
-            paddingDays = 120
+        guard visibleInterval.end > visibleInterval.start else {
+            return visibleInterval
         }
 
-        let start = calendar.date(byAdding: .day, value: -paddingDays, to: visibleInterval.start) ?? visibleInterval.start
-        let end = calendar.date(byAdding: .day, value: paddingDays, to: visibleInterval.end) ?? visibleInterval.end
-        return DateInterval(start: start, end: end)
+        let step = timeframe.shiftMultiplier
+        let component = timeframe.windowCalendarComponent
+        let startWindowStart = calendar.dateInterval(of: component, for: visibleInterval.start)?.start ?? visibleInterval.start
+        let endAnchor = visibleInterval.end.addingTimeInterval(-1)
+        let endWindowStart = calendar.dateInterval(of: component, for: endAnchor)?.start ?? endAnchor
+        let endWindowEnd = calendar.date(byAdding: component, value: step, to: endWindowStart) ?? visibleInterval.end
+
+        let bufferedStart = calendar.date(byAdding: component, value: -step, to: startWindowStart) ?? startWindowStart
+        let bufferedEnd = calendar.date(byAdding: component, value: step, to: endWindowEnd) ?? endWindowEnd
+
+        return DateInterval(start: bufferedStart, end: bufferedEnd)
     }
 }
 
 enum HistoryChartCalculator {
+    static func sanitizeBounds(
+        oldest: Date?,
+        newest: Date?,
+        calendar: Calendar = .current,
+        now: Date = Date(),
+        minimumYear: Int = 2010
+    ) -> (oldest: Date?, newest: Date?) {
+        guard let oldest, let newest else {
+            return (nil, nil)
+        }
+
+        guard oldest <= newest else {
+            return (nil, nil)
+        }
+
+        let minAllowed = calendar.date(from: DateComponents(year: minimumYear, month: 1, day: 1)) ?? oldest
+        let maxAllowed = calendar.date(byAdding: .day, value: 1, to: now) ?? now
+
+        guard oldest >= minAllowed else {
+            return (nil, nil)
+        }
+
+        let clampedNewest = min(newest, maxAllowed)
+        guard clampedNewest >= oldest else {
+            return (nil, nil)
+        }
+
+        return (oldest, clampedNewest)
+    }
+
     static func currentWindow(
         for timeframe: HistoryChartTimeframe,
         now: Date = Date(),

@@ -25,13 +25,45 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
     private let staleInterval: TimeInterval = 15 * 60
     private let batchingThreshold = 3
 
+    private struct DailyAggregateSnapshot: Sendable {
+        let userId: String
+        let dayKey: String
+        let dayStart: Date
+        let steps: Double
+        let activeEnergyKcal: Double
+        let restingEnergyKcal: Double
+        let sleepSeconds: TimeInterval
+
+        init(from aggregate: HealthKitDailyAggregateData) {
+            self.userId = aggregate.userId
+            self.dayKey = aggregate.dayKey
+            self.dayStart = aggregate.dayStart
+            self.steps = aggregate.steps
+            self.activeEnergyKcal = aggregate.activeEnergyKcal
+            self.restingEnergyKcal = aggregate.restingEnergyKcal
+            self.sleepSeconds = aggregate.sleepSeconds
+        }
+
+        func asAggregate() -> HealthKitDailyAggregateData {
+            HealthKitDailyAggregateData(
+                userId: userId,
+                dayKey: dayKey,
+                dayStart: dayStart,
+                steps: steps,
+                activeEnergyKcal: activeEnergyKcal,
+                restingEnergyKcal: restingEnergyKcal,
+                sleepSeconds: sleepSeconds
+            )
+        }
+    }
+
     @Published private(set) var refreshToken: Int = 0
     @Published private(set) var isBackfillingHistory: Bool = false
     @Published private(set) var backfillStatusText: String = ""
 
     private let healthKitManager: HealthKitManager
     private let dateNormalizer: HealthKitDateNormalizer
-    private var inFlightTasks: [String: Task<HealthKitDailyAggregateData, Error>] = [:]
+    private var inFlightTasks: [String: Task<DailyAggregateSnapshot, Error>] = [:]
 
     init(
         context: ModelContext,
@@ -305,18 +337,20 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         let cacheKey = makeCacheKey(userId: userId, dayKey: dateNormalizer.dayKey(dayStart))
 
         if let existingTask = inFlightTasks[cacheKey] {
-            return try await existingTask.value
+            let snapshot = try await existingTask.value
+            return try cachedOrSnapshot(snapshot)
         }
 
-        let task = Task<HealthKitDailyAggregateData, Error> {
+        let task = Task<DailyAggregateSnapshot, Error> {
             let dto = try await self.healthKitManager.fetchDailyAggregate(for: dayStart, userId: userId)
             try self.upsertCache(with: dto)
-            return dto
+            return DailyAggregateSnapshot(from: dto)
         }
 
         inFlightTasks[cacheKey] = task
         defer { inFlightTasks[cacheKey] = nil }
-        return try await task.value
+        let snapshot = try await task.value
+        return try cachedOrSnapshot(snapshot)
     }
 
     private func refreshDays(_ dayStarts: [Date], userId: String) async throws -> [String: HealthKitDailyAggregateData] {
@@ -349,8 +383,8 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
             let dayKey = dateNormalizer.dayKey(dayStart)
             let cacheKey = makeCacheKey(userId: userId, dayKey: dayKey)
             if let existing = inFlightTasks[cacheKey] {
-                let dto = try await existing.value
-                resolved[dayKey] = dto
+                let snapshot = try await existing.value
+                resolved[dayKey] = snapshot.asAggregate()
             } else {
                 pending.append(dayStart)
             }
@@ -369,24 +403,25 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
             let lastDay = segment.last ?? segment[0]
             let segmentKeys = segment.map { dateNormalizer.dayKey($0) }
 
-            let rangeTask = Task<[HealthKitDailyAggregateData], Error> {
-                try await self.healthKitManager.fetchDailyAggregates(
+            let rangeTask = Task<[DailyAggregateSnapshot], Error> {
+                let dtos = try await self.healthKitManager.fetchDailyAggregates(
                     from: firstDay,
                     to: lastDay,
                     userId: userId,
                     calendar: .current
                 )
+                return dtos.map(DailyAggregateSnapshot.init(from:))
             }
 
             for dayStart in segment {
                 let dayKey = dateNormalizer.dayKey(dayStart)
                 let cacheKey = makeCacheKey(userId: userId, dayKey: dayKey)
                 inFlightTasks[cacheKey] = Task {
-                    let dtos = try await rangeTask.value
-                    if let dto = dtos.first(where: { $0.dayKey == dayKey }) {
-                        return dto
+                    let snapshots = try await rangeTask.value
+                    if let snapshot = snapshots.first(where: { $0.dayKey == dayKey }) {
+                        return snapshot
                     }
-                    return HealthKitDailyAggregateData(
+                    return DailyAggregateSnapshot(from: HealthKitDailyAggregateData(
                         userId: userId,
                         dayKey: dayKey,
                         dayStart: dayStart,
@@ -394,7 +429,7 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
                         activeEnergyKcal: 0,
                         restingEnergyKcal: 0,
                         sleepSeconds: 0
-                    )
+                    ))
                 }
             }
 
@@ -404,12 +439,13 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
                 }
             }
 
-            let dtos = try await rangeTask.value
-            for dto in dtos {
+            let snapshots = try await rangeTask.value
+            for snapshot in snapshots {
+                let dto = snapshot.asAggregate()
                 try upsertCache(with: dto, saveImmediately: false)
-                resolved[dto.dayKey] = dto
+                resolved[snapshot.dayKey] = dto
             }
-            if !dtos.isEmpty {
+            if !snapshots.isEmpty {
                 try modelContext.save()
             }
         }
@@ -474,6 +510,13 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
 
     private func mapToDTO(_ cache: HealthKitDailyAggregateData) -> HealthKitDailyAggregateData {
         cache
+    }
+
+    private func cachedOrSnapshot(_ snapshot: DailyAggregateSnapshot) throws -> HealthKitDailyAggregateData {
+        if let cached = try fetchCachedSummary(userId: snapshot.userId, dayKey: snapshot.dayKey) {
+            return mapToDTO(cached)
+        }
+        return snapshot.asAggregate()
     }
 
     private func makeCacheKey(userId: String, dayKey: String) -> String {

@@ -47,48 +47,50 @@ enum HealthHistoryChartSupport {
             guard interval.end > interval.start else {
                 return []
             }
-            let calendar = Calendar.current
-            let now = Date()
-            let maximumAllowed = calendar.date(byAdding: .day, value: 1, to: now) ?? now
-            let clampedStartDate = interval.start
-            let clampedEndDate = min(interval.end, maximumAllowed)
-            guard clampedEndDate > clampedStartDate else {
-                return []
-            }
-
-            let dayStart = calendar.startOfDay(for: clampedStartDate)
-            let dayEndBase = clampedEndDate > clampedStartDate ? clampedEndDate.addingTimeInterval(-1) : clampedEndDate
-            let dayEnd = calendar.startOfDay(for: dayEndBase)
-            let normalizedEnd = calendar.date(byAdding: .day, value: 1, to: dayEnd) ?? dayEnd
-            let normalizedInterval = DateInterval(start: dayStart, end: normalizedEnd)
 
             guard let userId = userIdProvider() else {
-                return HistoryChartCalculator.bucketIntervals(interval: interval, timeframe: timeframe).map {
-                    HistoryChartPoint(startDate: $0.start, endDate: $0.end, value: 0)
-                }
+                return []
             }
 
             let metric = metricProvider()
             let aggregationMode = aggregationModeProvider()
-            let summaries = (try? store.cachedDailySummaries(in: normalizedInterval, userId: userId)) ?? []
-            let points = HistoryChartCalculator.bucketIntervals(interval: interval, timeframe: timeframe).map { bucket in
-                let bucketSummaries = summaries.filter { $0.dayStart >= bucket.start && $0.dayStart < bucket.end }
-                let bucketTotal = bucketSummaries.reduce(0.0) { partial, summary in
-                    partial + metricValue(for: summary, metric: metric)
-                }
+            let summaries = (try? store.cachedDailySummaries(in: interval, userId: userId)) ?? []
+            return points(
+                from: summaries,
+                interval: interval,
+                timeframe: timeframe,
+                metric: metric,
+                aggregationMode: aggregationMode
+            )
+        }
+    }
 
-                let value: Double
-                switch aggregationMode {
-                case .total:
-                    value = bucketTotal
-                case .averagePerDay:
-                    let dayCount = bucketSummaries.count
-                    value = dayCount > 0 ? (bucketTotal / Double(dayCount)) : 0
-                }
+    static func points(
+        from summaries: [HealthKitDailyAggregateData],
+        interval: DateInterval,
+        timeframe: HistoryChartTimeframe,
+        metric: HealthHistoryMetric,
+        aggregationMode: HealthHistoryAggregationMode,
+        calendar: Calendar = .current
+    ) -> [HistoryChartPoint] {
+        guard !summaries.isEmpty, interval.end > interval.start else { return [] }
 
-                return HistoryChartPoint(startDate: bucket.start, endDate: bucket.end, value: value)
+        let buckets = HistoryChartCalculator.bucketIntervals(interval: interval, timeframe: timeframe)
+        
+        return buckets.map { bucket in
+            let bucketSummaries = summaries.filter { $0.dayStart >= bucket.start && $0.dayStart < bucket.end }
+            let total = bucketSummaries.reduce(0.0) { $0 + metricValue(for: $1, metric: metric) }
+            
+            let value: Double
+            switch aggregationMode {
+            case .total:
+                value = total
+            case .averagePerDay:
+                let dayCount = calendar.dateComponents([.day], from: bucket.start, to: bucket.end).day ?? 1
+                value = total / Double(dayCount)
             }
-            return points
+            
+            return HistoryChartPoint(startDate: bucket.start, endDate: bucket.end, value: value)
         }
     }
 

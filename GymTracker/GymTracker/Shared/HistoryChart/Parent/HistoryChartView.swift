@@ -14,8 +14,7 @@ struct HistoryChartView<FilterControls: View>: View {
     let navigationTitle: String
     let filterStateToken: Int
     let filterControls: () -> FilterControls
-    let pointsProvider: ((DateInterval, HistoryChartTimeframe) -> [HistoryChartPoint])?
-    let pointsLoader: HistoryChartPointsLoader?
+    let pointsProvider: (DateInterval, HistoryChartTimeframe) -> [HistoryChartPoint]
     let loadIntervalProvider: HistoryChartLoadIntervalProvider
     let dataBoundsProvider: () -> (oldest: Date?, newest: Date?)
     let summaryProvider: (HistoryChartPoint?, Double, HistoryChartTimeframe) -> HistoryChartSummary
@@ -32,41 +31,22 @@ struct HistoryChartView<FilterControls: View>: View {
     @State private var cachedPoints: [HistoryChartPoint] = []
     @State private var cachedDataBounds: (oldest: Date?, newest: Date?) = (nil, nil)
     @State private var chartWidth: CGFloat = 0
-    @State private var loadRequestToken: Int = 0
     @State private var isLoadingPoints = false
     @State private var didAttemptLoad = false
     @State private var loadErrorText: String?
     @State private var isViewActive = false
-    @State private var loadTask: Task<Void, Never>?
     @State private var yAxisStickyMax: Double = 1
-
-    init(
-        navigationTitle: String,
-        filterStateToken: Int,
-        filterControls: @escaping () -> FilterControls,
-        pointsLoader: @escaping HistoryChartPointsLoader,
-        loadIntervalProvider: @escaping HistoryChartLoadIntervalProvider = { interval, _ in interval },
-        dataBoundsProvider: @escaping () -> (oldest: Date?, newest: Date?),
-        summaryProvider: @escaping (HistoryChartPoint?, Double, HistoryChartTimeframe) -> HistoryChartSummary,
-        emptyStateTextProvider: @escaping (Int) -> String
-    ) {
-        self.navigationTitle = navigationTitle
-        self.filterStateToken = filterStateToken
-        self.filterControls = filterControls
-        self.pointsProvider = nil
-        self.pointsLoader = pointsLoader
-        self.loadIntervalProvider = loadIntervalProvider
-        self.dataBoundsProvider = dataBoundsProvider
-        self.summaryProvider = summaryProvider
-        self.emptyStateTextProvider = emptyStateTextProvider
-    }
+    @State private var lastRequestedLoadSignature: String?
+    @State private var loadedCoverageInterval: DateInterval?
 
     init(
         navigationTitle: String,
         filterStateToken: Int,
         filterControls: @escaping () -> FilterControls,
         pointsProvider: @escaping (DateInterval, HistoryChartTimeframe) -> [HistoryChartPoint],
-        loadIntervalProvider: @escaping HistoryChartLoadIntervalProvider = { interval, _ in interval },
+        loadIntervalProvider: @escaping HistoryChartLoadIntervalProvider = { interval, timeframe in
+            HistoryChartLoadSupport.bufferedInterval(for: interval, timeframe: timeframe)
+        },
         dataBoundsProvider: @escaping () -> (oldest: Date?, newest: Date?),
         summaryProvider: @escaping (HistoryChartPoint?, Double, HistoryChartTimeframe) -> HistoryChartSummary,
         emptyStateTextProvider: @escaping (Int) -> String
@@ -75,7 +55,6 @@ struct HistoryChartView<FilterControls: View>: View {
         self.filterStateToken = filterStateToken
         self.filterControls = filterControls
         self.pointsProvider = pointsProvider
-        self.pointsLoader = nil
         self.loadIntervalProvider = loadIntervalProvider
         self.dataBoundsProvider = dataBoundsProvider
         self.summaryProvider = summaryProvider
@@ -182,7 +161,10 @@ struct HistoryChartView<FilterControls: View>: View {
                     selectedPointId = nil
                     selectedXDate = nil
                     let activeTimeframe = timeframe
-                    let requestedInterval = visibleInterval(start: clamped, timeframe: activeTimeframe)
+                    // Snap load requests to window boundaries so drag updates don't trigger redundant loads.
+                    let snappedStart = snappedRangeStart(for: clamped)
+                    let requestedInterval = visibleInterval(start: snappedStart, timeframe: activeTimeframe)
+                    guard needsLoad(for: requestedInterval) else { return }
                     startLoad(for: requestedInterval, timeframe: activeTimeframe)
                 }
                 .onChange(of: selectedXDate) { _, newValue in
@@ -221,7 +203,7 @@ struct HistoryChartView<FilterControls: View>: View {
         .onAppear {
             isViewActive = true
             chartWidth = 0
-            cachedDataBounds = dataBoundsProvider()
+            refreshCachedBounds()
             anchorDate = cachedDataBounds.newest ?? Date()
             let initialWindow = currentWindowInterval(for: timeframe)
             resetToWindow(initialWindow)
@@ -229,16 +211,15 @@ struct HistoryChartView<FilterControls: View>: View {
         }
         .onDisappear {
             isViewActive = false
-            loadTask?.cancel()
-            loadTask = nil
-            loadRequestToken &+= 1
             isLoadingPoints = false
             isChangingTimeframe = false
+            lastRequestedLoadSignature = nil
+            loadedCoverageInterval = nil
         }
         .onChange(of: timeframe) { _, newTimeframe in
             guard isViewActive else { return }
             isChangingTimeframe = true
-            cachedDataBounds = dataBoundsProvider()
+            refreshCachedBounds()
             let timeframeWindow = currentWindowInterval(for: newTimeframe)
             resetToWindow(timeframeWindow)
             startLoad(for: timeframeWindow, timeframe: newTimeframe)
@@ -246,7 +227,7 @@ struct HistoryChartView<FilterControls: View>: View {
         .onChange(of: filterStateToken) { _, _ in
             guard isViewActive else { return }
             isChangingTimeframe = true
-            cachedDataBounds = dataBoundsProvider()
+            refreshCachedBounds()
             let filterWindow = currentWindowInterval(for: timeframe)
             resetToWindow(filterWindow)
             startLoad(for: filterWindow, timeframe: timeframe)
@@ -468,6 +449,11 @@ struct HistoryChartView<FilterControls: View>: View {
         earliestAllowedWindowStart(for: timeframe)
     }
 
+    private func refreshCachedBounds() {
+        let rawBounds = dataBoundsProvider()
+        cachedDataBounds = HistoryChartCalculator.sanitizeBounds(oldest: rawBounds.oldest, newest: rawBounds.newest)
+    }
+
     private func earliestAllowedWindowStart(for timeframe: HistoryChartTimeframe) -> Date {
         guard let oldestDataDate = cachedDataBounds.oldest else {
             return HistoryChartCalculator.currentWindow(for: timeframe, now: Date()).start
@@ -508,14 +494,16 @@ struct HistoryChartView<FilterControls: View>: View {
             isLoadingPoints = false
             return
         }
-        
-        loadTask?.cancel()
-        loadTask = Task {
-            await loadPoints(for: clamped, timeframe: timeframe)
-            guard !Task.isCancelled else { return }
-            guard isViewActive else { return }
-            isChangingTimeframe = false
+
+        let signature = loadSignature(for: clamped, timeframe: timeframe)
+        if signature == lastRequestedLoadSignature {
+            return
         }
+        lastRequestedLoadSignature = signature
+
+        loadPoints(for: clamped, timeframe: timeframe)
+        guard isViewActive else { return }
+        isChangingTimeframe = false
     }
 
     private func resetToWindow(_ window: DateInterval) {
@@ -524,8 +512,21 @@ struct HistoryChartView<FilterControls: View>: View {
         selectedXDate = nil
         cachedPoints = []
         yAxisStickyMax = 1
+        lastRequestedLoadSignature = nil
+        loadedCoverageInterval = nil
         didAttemptLoad = false
         loadErrorText = nil
+    }
+
+    private func needsLoad(for requestedInterval: DateInterval) -> Bool {
+        guard let loadedCoverageInterval else { return true }
+        return !(loadedCoverageInterval.start <= requestedInterval.start && loadedCoverageInterval.end >= requestedInterval.end)
+    }
+
+    private func loadSignature(for interval: DateInterval, timeframe: HistoryChartTimeframe) -> String {
+        let start = Int(interval.start.timeIntervalSince1970)
+        let end = Int(interval.end.timeIntervalSince1970)
+        return "\(timeframe.rawValue):\(start):\(end)"
     }
 
     private func updateYAxisStickyMax(with points: [HistoryChartPoint]) {
@@ -567,7 +568,7 @@ struct HistoryChartView<FilterControls: View>: View {
         Calendar.current.dateInterval(of: timeframe.windowCalendarComponent, for: date)?.start ?? date
     }
 
-    private func loadPoints(for requestedVisibleInterval: DateInterval, timeframe requestedTimeframe: HistoryChartTimeframe) async {
+    private func loadPoints(for requestedVisibleInterval: DateInterval, timeframe requestedTimeframe: HistoryChartTimeframe) {
         guard isViewActive else { return }
         guard requestedVisibleInterval.end > requestedVisibleInterval.start else {
             isLoadingPoints = false
@@ -575,8 +576,9 @@ struct HistoryChartView<FilterControls: View>: View {
             return
         }
         
-        let boundedStart = max(requestedVisibleInterval.start, earliestAllowedWindowStart(for: requestedTimeframe))
-        let boundedEnd = min(requestedVisibleInterval.end, latestAllowedDate(for: requestedTimeframe))
+        let bounds = loadBounds(for: requestedTimeframe)
+        let boundedStart = max(requestedVisibleInterval.start, bounds.earliest)
+        let boundedEnd = min(requestedVisibleInterval.end, bounds.latest)
         guard boundedEnd > boundedStart else {
             isLoadingPoints = false
             didAttemptLoad = true
@@ -594,53 +596,21 @@ struct HistoryChartView<FilterControls: View>: View {
             return
         }
 
-        if let pointsProvider {
-            let points = pointsProvider(loadInterval, requestedTimeframe)
-            cachedPoints = points
-            updateYAxisStickyMax(with: points)
-            isLoadingPoints = false
-            didAttemptLoad = true
-            loadErrorText = nil
-            applySelectionAfterLoad()
-            return
-        }
-
-        guard let pointsLoader else { return }
-        loadRequestToken &+= 1
-        let token = loadRequestToken
-        isLoadingPoints = true
+        let points = pointsProvider(loadInterval, requestedTimeframe)
+        cachedPoints = points
+        updateYAxisStickyMax(with: points)
+        loadedCoverageInterval = loadInterval
+        isLoadingPoints = false
+        didAttemptLoad = true
         loadErrorText = nil
+        applySelectionAfterLoad()
+    }
 
-        do {
-#if DEBUG
-            print(
-                "HistoryChart async request token=\(token) uiTimeframe=\(requestedTimeframe.rawValue) " +
-                "bounded=[\(boundedInterval.start), \(boundedInterval.end)] load=[\(loadInterval.start), \(loadInterval.end)]"
-            )
-#endif
-            let points = try await pointsLoader(loadInterval, requestedTimeframe)
-            guard token == loadRequestToken else { return }
-            guard isViewActive else { return }
-            guard requestedTimeframe == timeframe else { return }
-            cachedPoints = points
-            updateYAxisStickyMax(with: points)
-            isLoadingPoints = false
-            didAttemptLoad = true
-            loadErrorText = nil
-            applySelectionAfterLoad()
-#if DEBUG
-            print("HistoryChart async load uiTimeframe=\(requestedTimeframe.rawValue) loaderTimeframe=\(requestedTimeframe.rawValue) interval=[\(loadInterval.start), \(loadInterval.end)]")
-#endif
-        } catch {
-            guard token == loadRequestToken else { return }
-            guard isViewActive else { return }
-            guard requestedTimeframe == timeframe else { return }
-            cachedPoints = []
-            selectedPointId = nil
-            isLoadingPoints = false
-            didAttemptLoad = true
-            loadErrorText = "Unable to load chart data."
-        }
+    private func loadBounds(for timeframe: HistoryChartTimeframe) -> (earliest: Date, latest: Date) {
+        (
+            earliest: earliestAllowedWindowStart(for: timeframe),
+            latest: latestAllowedDate(for: timeframe)
+        )
     }
 
     private func applySelectionAfterLoad() {
