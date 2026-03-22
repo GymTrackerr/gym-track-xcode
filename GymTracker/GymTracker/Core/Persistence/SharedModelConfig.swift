@@ -30,7 +30,7 @@ struct SharedModelConfig {
         MealRecipe.self,
         MealRecipeItem.self,
         NutritionLogEntry.self,
-        HealthKitDailySummaryCache.self
+        HealthKitDailyAggregateData.self
     ])
     
     static func createSharedModelContainer() -> ModelContainer {

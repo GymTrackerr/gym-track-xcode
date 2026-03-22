@@ -21,20 +21,19 @@ enum HealthHistoryMetric: String, CaseIterable, Identifiable {
 }
 
 enum HealthHistoryChartSupport {
-    static func pointsLoader(
+    static func pointsProvider(
         store: HealthKitDailyStore,
         userIdProvider: @escaping () -> String?,
         metricProvider: @escaping () -> HealthHistoryMetric
-    ) -> HistoryChartPointsLoader {
+    ) -> (DateInterval, HistoryChartTimeframe) -> [HistoryChartPoint] {
         return { interval, timeframe in
             guard interval.end > interval.start else {
                 return []
             }
             let calendar = Calendar.current
             let now = Date()
-            let minimumAllowed = calendar.date(byAdding: .year, value: -6, to: now) ?? now
             let maximumAllowed = calendar.date(byAdding: .day, value: 1, to: now) ?? now
-            let clampedStartDate = max(interval.start, minimumAllowed)
+            let clampedStartDate = interval.start
             let clampedEndDate = min(interval.end, maximumAllowed)
             guard clampedEndDate > clampedStartDate else {
                 return []
@@ -53,7 +52,7 @@ enum HealthHistoryChartSupport {
             }
 
             let metric = metricProvider()
-            let summaries = try await store.dailySummaries(in: normalizedInterval, userId: userId, policy: .refreshIfStale)
+            let summaries = (try? store.cachedDailySummaries(in: normalizedInterval, userId: userId)) ?? []
             let points = HistoryChartCalculator.bucketIntervals(interval: interval, timeframe: timeframe).map { bucket in
                 let value = summaries
                     .filter { $0.dayStart >= bucket.start && $0.dayStart < bucket.end }
@@ -63,22 +62,11 @@ enum HealthHistoryChartSupport {
 
                 return HistoryChartPoint(startDate: bucket.start, endDate: bucket.end, value: value)
             }
-#if DEBUG
-            let nonZeroCount = points.filter { $0.value > 0 }.count
-            let firstDate = points.first?.startDate.description ?? "nil"
-            let lastDate = points.last?.endDate.description ?? "nil"
-            print(
-                "HealthHistory async load uiTimeframe=\(timeframe.rawValue) loaderTimeframe=\(timeframe.rawValue) " +
-                "metric=\(metric.rawValue) " +
-                "interval=[\(interval.start), \(interval.end)] normalized=[\(normalizedInterval.start), \(normalizedInterval.end)] " +
-                "dtoCount=\(summaries.count) pointCount=\(points.count) nonZero=\(nonZeroCount) first=\(firstDate) last=\(lastDate)"
-            )
-#endif
             return points
         }
     }
 
-    private static func metricValue(
+    static func metricValue(
         for summary: HealthKitDailyAggregateData,
         metric: HealthHistoryMetric
     ) -> Double {

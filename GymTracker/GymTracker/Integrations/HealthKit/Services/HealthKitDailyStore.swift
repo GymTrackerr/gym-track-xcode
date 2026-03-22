@@ -22,11 +22,12 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         }
     }
 
-    static let currentSourceVersion = 1
     private let staleInterval: TimeInterval = 15 * 60
     private let batchingThreshold = 3
 
     @Published private(set) var refreshToken: Int = 0
+    @Published private(set) var isBackfillingHistory: Bool = false
+    @Published private(set) var backfillStatusText: String = ""
 
     private let healthKitManager: HealthKitManager
     private let dateNormalizer: HealthKitDateNormalizer
@@ -148,8 +149,8 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
     }
 
     func cachedDataBounds(userId: String) throws -> (oldest: Date?, newest: Date?) {
-        let descriptor = FetchDescriptor<HealthKitDailySummaryCache>(
-            predicate: #Predicate<HealthKitDailySummaryCache> { item in
+        let descriptor = FetchDescriptor<HealthKitDailyAggregateData>(
+            predicate: #Predicate<HealthKitDailyAggregateData> { item in
                 item.userId == userId
             },
             sortBy: [SortDescriptor(\.dayStart)]
@@ -158,25 +159,143 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         return (items.first?.dayStart, items.last?.dayStart)
     }
 
+    func cachedDailySummaries(userId: String) throws -> [HealthKitDailyAggregateData] {
+        let descriptor = FetchDescriptor<HealthKitDailyAggregateData>(
+            predicate: #Predicate<HealthKitDailyAggregateData> { item in
+                item.userId == userId
+            },
+            sortBy: [SortDescriptor(\.dayStart)]
+        )
+        let items = try modelContext.fetch(descriptor)
+        return items
+    }
+
+    func cachedDailySummaries(
+        in interval: DateInterval,
+        userId: String
+    ) throws -> [HealthKitDailyAggregateData] {
+        guard interval.end > interval.start else { return [] }
+        let dayStarts = dayStarts(in: interval)
+        guard !dayStarts.isEmpty else { return [] }
+
+        let rangeStart = dayStarts.first ?? dateNormalizer.startOfDay(interval.start)
+        let rangeEnd = dayStarts.last ?? rangeStart
+        let cachedByDayKey = try fetchCachedSummaries(userId: userId, from: rangeStart, to: rangeEnd)
+
+        return dayStarts.map { dayStart in
+            let dayKey = dateNormalizer.dayKey(dayStart)
+            if let cached = cachedByDayKey[dayKey] {
+                return mapToDTO(cached)
+            }
+            return HealthKitDailyAggregateData(
+                userId: userId,
+                dayKey: dayKey,
+                dayStart: dayStart,
+                steps: 0,
+                activeEnergyKcal: 0,
+                restingEnergyKcal: 0,
+                sleepSeconds: 0
+            )
+        }
+    }
+
+    func backfillHistoryIfNeeded(
+        userId: String,
+        maxYearsBack: Int = 25,
+        chunkDays: Int = 180,
+        emptyChunkStop: Int = 4
+    ) async -> Bool {
+        let calendar = Calendar.current
+        let now = Date()
+        let absoluteStart = calendar.date(byAdding: .year, value: -maxYearsBack, to: now) ?? now
+        let bounds = try? cachedDataBounds(userId: userId)
+        let initialEnd = (bounds?.oldest ?? now).addingTimeInterval(-24 * 60 * 60)
+
+        if initialEnd <= absoluteStart {
+            return true
+        }
+
+        isBackfillingHistory = true
+        backfillStatusText = "Loading HealthKit history..."
+        defer {
+            isBackfillingHistory = false
+            backfillStatusText = ""
+        }
+
+        let requestedTotalDays = max((calendar.dateComponents([.day], from: absoluteStart, to: initialEnd).day ?? 0) + 1, 1)
+        var cursorEnd = initialEnd
+        var processedDays = 0
+        var wroteAnyData = false
+        var foundAnyData = false
+        var emptyChunkStreak = 0
+
+        while cursorEnd > absoluteStart {
+            if Task.isCancelled { return false }
+
+            let daysCovered = max((calendar.dateComponents([.day], from: absoluteStart, to: cursorEnd).day ?? 0) + 1, 1)
+            let requestDays = min(chunkDays, daysCovered)
+
+            let progress = min(Int((Double(processedDays) / Double(requestedTotalDays)) * 100.0), 99)
+            backfillStatusText = "Loading HealthKit history... \(progress)%"
+
+            if let summaries = try? await dailySummaries(
+                endingOn: cursorEnd,
+                days: requestDays,
+                userId: userId,
+                policy: .refreshIfStale
+            ) {
+                wroteAnyData = true
+                let chunkHasData = summaries.contains { summary in
+                    summary.steps > 0 ||
+                    summary.activeEnergyKcal > 0 ||
+                    summary.restingEnergyKcal > 0 ||
+                    summary.sleepSeconds > 0
+                }
+
+                if chunkHasData {
+                    foundAnyData = true
+                    emptyChunkStreak = 0
+                } else if foundAnyData {
+                    emptyChunkStreak += 1
+                    if emptyChunkStreak >= emptyChunkStop {
+                        break
+                    }
+                }
+            }
+
+            processedDays += requestDays
+            guard let nextEnd = calendar.date(byAdding: .day, value: -requestDays, to: cursorEnd) else {
+                break
+            }
+            cursorEnd = nextEnd
+        }
+
+        backfillStatusText = "Loading HealthKit history... 100%"
+        if wroteAnyData {
+            refreshToken &+= 1
+        }
+        return true
+    }
+
     func invalidateDay(for day: Date, userId: String) throws {
         let dayKey = dateNormalizer.dayKey(day)
         guard let cached = try fetchCachedSummary(userId: userId, dayKey: dayKey) else { return }
-        cached.isComplete = false
         cached.lastRefreshedAt = .distantPast
+        cached.isToday = dateNormalizer.sameDay(cached.dayStart, Date())
         try modelContext.save()
         refreshToken &+= 1
     }
 
     func invalidateAll(userId: String) throws {
-        let descriptor = FetchDescriptor<HealthKitDailySummaryCache>(
-            predicate: #Predicate<HealthKitDailySummaryCache> { item in
+        let descriptor = FetchDescriptor<HealthKitDailyAggregateData>(
+            predicate: #Predicate<HealthKitDailyAggregateData> { item in
                 item.userId == userId
             }
         )
         let cachedItems = try modelContext.fetch(descriptor)
         for item in cachedItems {
-            item.isComplete = false
             item.lastRefreshedAt = .distantPast
+            item.isToday = dateNormalizer.sameDay(item.dayStart, Date())
         }
         try modelContext.save()
     }
@@ -294,27 +413,18 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         return resolved
     }
 
-    private func shouldRefresh(cached: HealthKitDailySummaryCache, dayStart: Date) -> Bool {
-        if cached.sourceVersion != Self.currentSourceVersion {
-            return true
-        }
-
-        let isToday = dateNormalizer.sameDay(dayStart, Date())
-        if isToday {
+    private func shouldRefresh(cached: HealthKitDailyAggregateData, dayStart: Date) -> Bool {
+        if dateNormalizer.sameDay(dayStart, Date()) {
             let age = Date().timeIntervalSince(cached.lastRefreshedAt)
-            if age > staleInterval {
-                return true
-            }
-            return !cached.isComplete
+            return age > staleInterval
         }
-
-        return !cached.isComplete
+        return cached.lastRefreshedAt == .distantPast
     }
 
-    private func fetchCachedSummary(userId: String, dayKey: String) throws -> HealthKitDailySummaryCache? {
+    private func fetchCachedSummary(userId: String, dayKey: String) throws -> HealthKitDailyAggregateData? {
         let cacheKey = makeCacheKey(userId: userId, dayKey: dayKey)
-        let descriptor = FetchDescriptor<HealthKitDailySummaryCache>(
-            predicate: #Predicate<HealthKitDailySummaryCache> { item in
+        let descriptor = FetchDescriptor<HealthKitDailyAggregateData>(
+            predicate: #Predicate<HealthKitDailyAggregateData> { item in
                 item.cacheKey == cacheKey
             }
         )
@@ -325,9 +435,9 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         userId: String,
         from startDay: Date,
         to endDay: Date
-    ) throws -> [String: HealthKitDailySummaryCache] {
-        let descriptor = FetchDescriptor<HealthKitDailySummaryCache>(
-            predicate: #Predicate<HealthKitDailySummaryCache> { item in
+    ) throws -> [String: HealthKitDailyAggregateData] {
+        let descriptor = FetchDescriptor<HealthKitDailyAggregateData>(
+            predicate: #Predicate<HealthKitDailyAggregateData> { item in
                 item.userId == userId && item.dayStart >= startDay && item.dayStart <= endDay
             }
         )
@@ -338,7 +448,6 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
     private func upsertCache(with dto: HealthKitDailyAggregateData) throws {
         let refreshedAt = Date()
         let isToday = dateNormalizer.sameDay(dto.dayStart, Date())
-        let isComplete = !isToday
 
         if let existing = try fetchCachedSummary(userId: dto.userId, dayKey: dto.dayKey) {
             existing.dayStart = dto.dayStart
@@ -347,37 +456,18 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
             existing.restingEnergyKcal = dto.restingEnergyKcal
             existing.sleepSeconds = dto.sleepSeconds
             existing.lastRefreshedAt = refreshedAt
-            existing.isComplete = isComplete
-            existing.sourceVersion = Self.currentSourceVersion
+            existing.isToday = isToday
         } else {
-            let cache = HealthKitDailySummaryCache(
-                userId: dto.userId,
-                dayKey: dto.dayKey,
-                dayStart: dto.dayStart,
-                steps: dto.steps,
-                activeEnergyKcal: dto.activeEnergyKcal,
-                restingEnergyKcal: dto.restingEnergyKcal,
-                sleepSeconds: dto.sleepSeconds,
-                lastRefreshedAt: refreshedAt,
-                isComplete: isComplete,
-                sourceVersion: Self.currentSourceVersion
-            )
-            modelContext.insert(cache)
+            dto.lastRefreshedAt = refreshedAt
+            dto.isToday = isToday
+            modelContext.insert(dto)
         }
 
         try modelContext.save()
     }
 
-    private func mapToDTO(_ cache: HealthKitDailySummaryCache) -> HealthKitDailyAggregateData {
-        HealthKitDailyAggregateData(
-            userId: cache.userId,
-            dayKey: cache.dayKey,
-            dayStart: cache.dayStart,
-            steps: cache.steps,
-            activeEnergyKcal: cache.activeEnergyKcal,
-            restingEnergyKcal: cache.restingEnergyKcal,
-            sleepSeconds: cache.sleepSeconds
-        )
+    private func mapToDTO(_ cache: HealthKitDailyAggregateData) -> HealthKitDailyAggregateData {
+        cache
     }
 
     private func makeCacheKey(userId: String, dayKey: String) -> String {

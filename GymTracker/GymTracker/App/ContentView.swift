@@ -87,6 +87,10 @@ struct ContentView: View {
                 await healthKitDailyStore.refreshTodayIfNeeded(userId: userId)
             }
         }
+        .task(id: userService.currentUser?.id.uuidString) {
+            guard let userId = userService.currentUser?.id.uuidString else { return }
+            _ = await healthKitDailyStore.backfillHistoryIfNeeded(userId: userId)
+        }
         .onChange(of: userService.currentUser?.showNutritionTab ?? true) {
             if !(userService.currentUser?.showNutritionTab ?? true), localSelected == 3 {
                 localSelected = 0
@@ -129,6 +133,7 @@ struct ContentView: View {
         // 4.
 
     }
+
 }
 extension View {
     @ViewBuilder func `if`<Content: View>(_ condition: Bool, content: (Self) -> Content) -> some View {

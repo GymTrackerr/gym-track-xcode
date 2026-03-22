@@ -5,50 +5,35 @@ struct HealthHistoryChartView: View {
     @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
 
     @State private var selectedMetric: HealthHistoryMetric = .steps
-    @State private var debugStatus: String = ""
 
     var body: some View {
         HistoryChartView(
             navigationTitle: "Health History",
-            filterStateToken: loaderStateToken,
+            filterStateToken: filterStateToken,
             filterControls: {
                 metricPicker
             },
-            pointsLoader: { interval, timeframe in
+            pointsProvider: { interval, timeframe in
                 let metric = selectedMetric
-                let loader = HealthHistoryChartSupport.pointsLoader(
+                let provider = HealthHistoryChartSupport.pointsProvider(
                     store: healthKitDailyStore,
                     userIdProvider: { userService.currentUser?.id.uuidString },
                     metricProvider: { metric }
                 )
-                let points = try await loader(interval, timeframe)
-#if DEBUG
-                let nonZeroCount = points.filter { $0.value > 0 }.count
-                let status = "\(metric.title) | \(timeframe.rawValue) | points: \(points.count) | nonZero: \(nonZeroCount)"
-                await MainActor.run {
-                    debugStatus = status
-                }
-#endif
-                return points
+                return provider(interval, timeframe)
             },
             loadIntervalProvider: { interval, timeframe in
                 HistoryChartLoadSupport.bufferedInterval(for: interval, timeframe: timeframe)
             },
             dataBoundsProvider: {
                 guard let userId = userService.currentUser?.id.uuidString else { return (nil, nil) }
-                if let bounds = try? healthKitDailyStore.cachedDataBounds(userId: userId), bounds.oldest != nil {
-                    let now = Date()
-                    let calendar = Calendar.current
-                    let minAllowed = calendar.date(byAdding: .year, value: -6, to: now) ?? now
-                    let maxAllowed = calendar.date(byAdding: .day, value: 1, to: now) ?? now
-                    let clampedOldest = max(bounds.oldest ?? minAllowed, minAllowed)
-                    let clampedNewest = min(bounds.newest ?? now, maxAllowed)
-                    if clampedNewest > clampedOldest {
-                        return (clampedOldest, clampedNewest)
-                    }
+                let summaries = (try? healthKitDailyStore.cachedDailySummaries(userId: userId)) ?? []
+                let filtered = summaries.filter {
+                    HealthHistoryChartSupport.metricValue(for: $0, metric: selectedMetric) > 0
                 }
-                let fallbackStart = Calendar.current.date(byAdding: .year, value: -5, to: Date())
-                return (fallbackStart, Date())
+                let oldest = filtered.min(by: { $0.dayStart < $1.dayStart })?.dayStart
+                let newest = filtered.max(by: { $0.dayStart < $1.dayStart })?.dayStart
+                return (oldest, newest)
             },
             summaryProvider: { selectedPoint, currentWindowAverage, _ in
                 let value = selectedPoint?.value ?? currentWindowAverage
@@ -62,15 +47,19 @@ struct HealthHistoryChartView: View {
                 "No \(selectedMetric.title.lowercased()) data in this timeframe."
             }
         )
-#if DEBUG
         .safeAreaInset(edge: .bottom) {
-            Text(debugStatus)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            if healthKitDailyStore.isBackfillingHistory {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text(healthKitDailyStore.backfillStatusText.isEmpty ? "Loading HealthKit history..." : healthKitDailyStore.backfillStatusText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
+            }
         }
-#endif
     }
 
     private var metricPicker: some View {
@@ -109,10 +98,11 @@ struct HealthHistoryChartView: View {
         }
     }
 
-    private var loaderStateToken: Int {
+    private var filterStateToken: Int {
         var hasher = Hasher()
         hasher.combine(selectedMetric.rawValue)
         hasher.combine(userService.currentUser?.id.uuidString ?? "no-user")
+        hasher.combine(healthKitDailyStore.refreshToken)
         return hasher.finalize()
     }
 }
