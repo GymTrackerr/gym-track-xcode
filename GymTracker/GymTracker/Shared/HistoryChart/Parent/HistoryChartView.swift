@@ -25,6 +25,8 @@ struct HistoryChartView<FilterControls: View>: View {
     let filterStateToken: Int
     let chartStyle: HistoryChartRenderStyle
     let treatZeroAsMissingInLineStyles: Bool
+    let focusedYHalfRange: Double?
+    let focusedYRoundingStep: Double?
     let filterControls: () -> FilterControls
     let pointsProvider: (DateInterval, HistoryChartTimeframe) -> [HistoryChartPoint]
     let loadIntervalProvider: HistoryChartLoadIntervalProvider
@@ -58,6 +60,8 @@ struct HistoryChartView<FilterControls: View>: View {
         filterStateToken: Int,
         chartStyle: HistoryChartRenderStyle = .bar,
         treatZeroAsMissingInLineStyles: Bool = false,
+        focusedYHalfRange: Double? = nil,
+        focusedYRoundingStep: Double? = nil,
         filterControls: @escaping () -> FilterControls,
         pointsProvider: @escaping (DateInterval, HistoryChartTimeframe) -> [HistoryChartPoint],
         loadIntervalProvider: @escaping HistoryChartLoadIntervalProvider = { interval, timeframe in
@@ -72,6 +76,8 @@ struct HistoryChartView<FilterControls: View>: View {
         self.filterStateToken = filterStateToken
         self.chartStyle = chartStyle
         self.treatZeroAsMissingInLineStyles = treatZeroAsMissingInLineStyles
+        self.focusedYHalfRange = focusedYHalfRange
+        self.focusedYRoundingStep = focusedYRoundingStep
         self.filterControls = filterControls
         self.pointsProvider = pointsProvider
         self.loadIntervalProvider = loadIntervalProvider
@@ -131,13 +137,15 @@ struct HistoryChartView<FilterControls: View>: View {
 
                     case .barLine:
                         if point.segments.isEmpty {
-                            BarMark(
-                                x: .value("Date", point.date),
-                                y: .value("Value", point.value),
-                                width: .fixed(barWidth)
-                            )
-                            .cornerRadius(1.5)
-                            .foregroundStyle((selectedPointId == nil || selectedPointId == point.id ? Color.blue : Color.blue.opacity(0.45)).opacity(0.35))
+                            if point.value > 0 {
+                                BarMark(
+                                    x: .value("Date", point.date),
+                                    y: .value("Value", point.value),
+                                    width: .fixed(barWidth)
+                                )
+                                .cornerRadius(1.5)
+                                .foregroundStyle((selectedPointId == nil || selectedPointId == point.id ? Color.blue : Color.blue.opacity(0.45)).opacity(0.35))
+                            }
                         } else {
                             ForEach(point.segments.filter { $0.value != 0 }) { segment in
                                 BarMark(
@@ -198,7 +206,7 @@ struct HistoryChartView<FilterControls: View>: View {
                         }
                     }
                 }
-                .chartYScale(domain: chartYMin...chartYMax)
+                .chartYScale(domain: chartYDomain)
                 .chartScrollableAxes(.horizontal)
                 .chartXVisibleDomain(length: visibleDomainLength)
                 .chartXScale(domain: chartXDomain)
@@ -477,6 +485,52 @@ struct HistoryChartView<FilterControls: View>: View {
         return max(yAxisStickyMax, roundedTarget)
     }
 
+    private var chartYDomain: ClosedRange<Double> {
+        if let focused = focusedYDomain {
+            return focused
+        }
+        return chartYMin...chartYMax
+    }
+
+    private var focusedYDomain: ClosedRange<Double>? {
+        guard let halfRange = focusedYHalfRange, halfRange > 0 else {
+            return nil
+        }
+
+        let visiblePoints = cachedPoints.filter { point in
+            point.startDate < visibleInterval.end && point.endDate > visibleInterval.start
+        }
+        let points = visiblePoints.isEmpty ? cachedPoints : visiblePoints
+        let plotted = points
+            .map(\.plottedValue)
+            .filter { treatZeroAsMissingInLineStyles ? $0 != 0 : true }
+
+        guard !plotted.isEmpty else {
+            return nil
+        }
+
+        let center = plotted.reduce(0, +) / Double(plotted.count)
+        var minValue = center - halfRange
+        var maxValue = center + halfRange
+
+        if let step = focusedYRoundingStep, step > 0 {
+            minValue = floor(minValue / step) * step
+            maxValue = ceil(maxValue / step) * step
+        }
+
+        // Clamp to actual data bounds (don't extrapolate beyond loaded values)
+        let dataMin = plotted.min() ?? minValue
+        let dataMax = plotted.max() ?? maxValue
+        minValue = max(minValue, dataMin - (halfRange / 2))
+        maxValue = min(maxValue, dataMax + (halfRange / 2))
+
+        if minValue == maxValue {
+            maxValue += 1
+        }
+
+        return minValue...maxValue
+    }
+
     private var chartYMin: Double {
         let visiblePoints = cachedPoints.filter { point in
             point.startDate < visibleInterval.end && point.endDate > visibleInterval.start
@@ -497,7 +551,7 @@ struct HistoryChartView<FilterControls: View>: View {
             effectiveWidth = chartWidth
         } else {
 #if os(iOS)
-            effectiveWidth = max(UIScreen.main.bounds.width - 56, 120)
+            effectiveWidth = fallbackChartWidth
 #else
             effectiveWidth = 280
 #endif
@@ -505,6 +559,15 @@ struct HistoryChartView<FilterControls: View>: View {
         let slotWidth = effectiveWidth / CGFloat(timeframe.barsPerWindow)
         return max(slotWidth * timeframe.barFillRatio, 4)
     }
+
+#if os(iOS)
+    private var fallbackChartWidth: CGFloat {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let activeScene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first
+        let screenWidth = activeScene?.screen.bounds.width ?? 320
+        return max(screenWidth - 56, 120)
+    }
+#endif
 
     private var summaryDateText: String {
         if let selectedPoint {
@@ -789,6 +852,10 @@ struct HistoryChartView<FilterControls: View>: View {
     }
 
     private func shouldRenderLinePoint(_ point: HistoryChartPoint) -> Bool {
+        // For barLine charts, skip line points where there's no bar (value == 0)
+        if chartStyle == .barLine && point.value == 0 {
+            return false
+        }
         if treatZeroAsMissingInLineStyles {
             return point.plottedValue != 0
         }

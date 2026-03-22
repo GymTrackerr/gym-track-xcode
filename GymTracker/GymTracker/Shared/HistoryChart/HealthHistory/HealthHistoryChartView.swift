@@ -13,15 +13,19 @@ struct HealthHistoryChartView: View {
             filterStateToken: filterStateToken,
             chartStyle: selectedMetric == .weight ? .line : .bar,
             treatZeroAsMissingInLineStyles: selectedMetric == .weight,
+            focusedYHalfRange: selectedMetric == .weight ? 1.5 : nil,
+            focusedYRoundingStep: selectedMetric == .weight ? 1 : nil,
             filterControls: {
                 VStack(alignment: .leading, spacing: 10) {
                     metricPicker
-                    aggregationPicker
+                    if selectedMetric != .weight {
+                        aggregationPicker
+                    }
                 }
             },
             pointsProvider: { interval, timeframe in
                 let metric = selectedMetric
-                let mode = aggregationMode
+                let mode: HealthHistoryAggregationMode = metric == .weight ? .total : aggregationMode
                 let provider = HealthHistoryChartSupport.pointsProvider(
                     store: healthKitDailyStore,
                     userIdProvider: { userService.currentUser?.id.uuidString },
@@ -110,6 +114,10 @@ struct HealthHistoryChartView: View {
     }
 
     private var summaryTitle: String {
+        if selectedMetric == .weight {
+            return "AVG WEIGHT"
+        }
+
         switch aggregationMode {
         case .total:
             return "AVG \(selectedMetric.title.uppercased())"
@@ -139,7 +147,7 @@ struct HealthHistoryChartView: View {
         case .sleepHours:
             return "hrs\(suffix)"
         case .weight:
-            return "kg\(suffix)"
+            return "kg"
         case .activeEnergy, .restingEnergy, .totalUsedCalories:
             return "kcal\(suffix)"
         }
@@ -148,7 +156,9 @@ struct HealthHistoryChartView: View {
     private var filterStateToken: Int {
         var hasher = Hasher()
         hasher.combine(selectedMetric.rawValue)
-        hasher.combine(aggregationMode.rawValue)
+        if selectedMetric != .weight {
+            hasher.combine(aggregationMode.rawValue)
+        }
         hasher.combine(userService.currentUser?.id.uuidString ?? "no-user")
         hasher.combine(healthKitDailyStore.refreshToken)
         return hasher.finalize()

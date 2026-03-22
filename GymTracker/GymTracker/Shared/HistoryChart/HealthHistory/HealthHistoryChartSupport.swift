@@ -83,21 +83,24 @@ enum HealthHistoryChartSupport {
             let bucketSummaries = summaries.filter { $0.dayStart >= bucket.start && $0.dayStart < bucket.end }
 
             if metric == .weight {
-                let weightSamples = bucketSummaries.compactMap(\.bodyWeightKg)
-                guard !weightSamples.isEmpty else {
+                let weightSamples = bucketSummaries
+                    .compactMap { $0.bodyWeightKg }
+                    .filter { $0 > 0 && $0.isFinite }
+                guard !weightSamples.isEmpty else { 
                     return nil
                 }
 
-                let value: Double
-                switch aggregationMode {
-                case .total:
-                    value = weightSamples.last ?? 0
-                case .averagePerDay:
-                    let total = weightSamples.reduce(0, +)
-                    value = total / Double(weightSamples.count)
-                }
+                let total = weightSamples.reduce(0, +)
+                let count = weightSamples.count
+                let average = total / Double(count)
 
-                return HistoryChartPoint(startDate: bucket.start, endDate: bucket.end, value: value)
+                return HistoryChartPoint(
+                    startDate: bucket.start,
+                    endDate: bucket.end,
+                    value: average,
+                    summaryAverageNumerator: total,
+                    summaryAverageDenominator: Double(count)
+                )
             }
 
             let total = bucketSummaries.reduce(0.0) { $0 + metricValue(for: $1, metric: metric) }
