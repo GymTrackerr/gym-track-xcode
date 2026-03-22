@@ -175,6 +175,7 @@ struct CreateSessionSheetView: View {
     @State private var selectedRoutineId: UUID?
     @State private var selectedProgramId: UUID?
     @State private var selectedProgramDayId: UUID?
+    @State private var followsNextWorkoutSelection: Bool = true
 
     private enum SessionStartMode: String, CaseIterable, Identifiable {
         case freestyle = "Freestyle"
@@ -311,10 +312,11 @@ struct CreateSessionSheetView: View {
             } else if let currentProgram = programService.currentProgram() {
                 mode = .program
                 selectedProgramId = currentProgram.id
-                if let nextWorkout = programService.prepareScheduleForSessionStart(for: currentProgram) {
-                    selectedProgramDayId = nextWorkout.id
-                }
+                prepareAndSelectNextWorkout(for: currentProgram)
             }
+        }
+        .onReceive(programService.$programs) { _ in
+            resyncProgramSelectionFromPublishedPrograms()
         }
     }
 
@@ -375,26 +377,56 @@ struct CreateSessionSheetView: View {
                         selectedProgramDayId = nil
                         return
                     }
-                    selectedProgramDayId = programService.prepareScheduleForSessionStart(for: program)?.id
+                    prepareAndSelectNextWorkout(for: program)
                 }
 
-                if let program = selectedProgram,
-                   let nextWorkout = programService.prepareScheduleForSessionStart(for: program) {
+                if let program = selectedProgram {
+                    let currentWorkout = programService.currentWorkout(for: program)
+                    let nextWorkout = programService.nextScheduledDay(for: program)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Current Program: \(program.name)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        if let currentWorkout {
+                            Text("Current Workout: \(programService.displayWorkoutName(for: currentWorkout))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let nextWorkout {
+                            Text("Next Workout: \(programService.displayWorkoutName(for: nextWorkout))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let progressText = programService.progressSummaryText(for: program) {
+                            Text(progressText)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    if let nextWorkout {
                     Button {
-                        selectedProgramDayId = nextWorkout.id
+                        prepareAndSelectNextWorkout(for: program)
                     } label: {
-                        Label("Use Next Workout: \(nextWorkout.title)", systemImage: "arrow.forward.circle")
+                            Label("Use Next Workout: \(programService.displayWorkoutName(for: nextWorkout))", systemImage: "arrow.forward.circle")
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(.bordered)
+                    }
                 }
 
                 if !sortedProgramDays.isEmpty {
                     Picker("Workout", selection: $selectedProgramDayId) {
                         Text("Select Workout").tag(UUID?.none)
                         ForEach(sortedProgramDays, id: \.id) { day in
-                            Text("Week \(day.weekIndex + 1) · \(day.title)").tag(Optional(day.id))
+                            Text("Week \(day.weekIndex + 1) · \(programService.displayWorkoutName(for: day))").tag(Optional(day.id))
                         }
+                    }
+                    .onChange(of: selectedProgramDayId) { _, newValue in
+                        guard let program = selectedProgram else { return }
+                        let nextWorkoutId = programService.nextScheduledDay(for: program)?.id
+                        followsNextWorkoutSelection = (newValue == nextWorkoutId)
                     }
                 }
             }
@@ -414,14 +446,13 @@ struct CreateSessionSheetView: View {
             sessionService.selected_splitDay = routine
             openedSession = sessionService.addSession()
         case .program:
-            guard let programDay = selectedProgramDay else { return }
-            openedSession = sessionService.addSession(
-                programDay: programDay,
-                notes: sessionService.create_notes
+            guard let program = selectedProgram else { return }
+            openedSession = programService.startProgramSession(
+                for: program,
+                preferredProgramDayId: selectedProgramDayId,
+                notes: sessionService.create_notes,
+                sessionService: sessionService
             )
-            if openedSession != nil, let program = selectedProgram {
-                _ = programService.advanceProgramStateAfterStartingSession(for: program, startedProgramDay: programDay)
-            }
             sessionService.create_notes = ""
             sessionService.selected_splitDay = nil
         }
@@ -435,5 +466,43 @@ struct CreateSessionSheetView: View {
         isPresented = false
         sessionService.create_notes = ""
         sessionService.selected_splitDay = nil
+    }
+
+    private func prepareAndSelectNextWorkout(for program: Program) {
+        let prepared = programService.prepareScheduleForSessionStart(for: program)
+        if let prepared {
+            selectedProgramDayId = prepared.id
+            followsNextWorkoutSelection = true
+            return
+        }
+        selectedProgramDayId = programService.nextScheduledDay(for: program)?.id
+        followsNextWorkoutSelection = true
+    }
+
+    private func resyncProgramSelectionFromPublishedPrograms() {
+        if let selectedProgramId,
+           programService.programs.contains(where: { $0.id == selectedProgramId }) == false {
+            self.selectedProgramId = nil
+            self.selectedProgramDayId = nil
+            return
+        }
+
+        guard let selectedProgram else {
+            return
+        }
+
+        if let selectedProgramDayId,
+           selectedProgram.programDays.contains(where: { $0.id == selectedProgramDayId }) {
+            if followsNextWorkoutSelection {
+                let nextWorkoutId = programService.nextScheduledDay(for: selectedProgram)?.id
+                if nextWorkoutId != selectedProgramDayId {
+                    self.selectedProgramDayId = nextWorkoutId
+                }
+            }
+            return
+        }
+
+        selectedProgramDayId = programService.nextScheduledDay(for: selectedProgram)?.id
+        followsNextWorkoutSelection = true
     }
 }

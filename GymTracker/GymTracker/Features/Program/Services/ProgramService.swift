@@ -672,6 +672,44 @@ final class ProgramService: ServiceBase, ObservableObject {
         return "Workout \(workoutIndex + 1) of \(workouts.count)"
     }
 
+    func progressSummaryText(for program: Program) -> String? {
+        guard let blockProgress = currentBlockProgressText(for: program),
+              let workoutProgress = currentWorkoutProgressText(for: program) else {
+            return nil
+        }
+        return "\(blockProgress) • \(workoutProgress)"
+    }
+
+    func currentWorkout(for program: Program) -> ProgramDay? {
+        guard hasProgramState(program) else { return nil }
+        guard let block = currentStateBlock(for: program) else { return nil }
+        let workouts = blockWorkouts(for: program, block: block)
+        guard !workouts.isEmpty else { return nil }
+        let workoutIndex = min(max(program.currentWorkoutIndex ?? 0, 0), workouts.count - 1)
+        return workouts[workoutIndex]
+    }
+
+    @discardableResult
+    func startProgramSession(
+        for program: Program,
+        preferredProgramDayId: UUID? = nil,
+        notes: String = "",
+        sessionService: SessionService
+    ) -> Session? {
+        let preparedNextDay = prepareScheduleForSessionStart(for: program)
+        let resolvedProgram = programById(program.id) ?? program
+        let candidateDays = resolvedProgram.programDays.filter { $0.routine != nil }
+        let resolvedPreferredDay = preferredProgramDayId.flatMap { preferredId in
+            candidateDays.first(where: { $0.id == preferredId })
+        }
+        guard let dayToStart = resolvedPreferredDay ?? preparedNextDay else { return nil }
+        guard let session = sessionService.addSession(programDay: dayToStart, notes: notes) else {
+            return nil
+        }
+        _ = advanceProgramStateAfterStartingSession(for: resolvedProgram, startedProgramDay: dayToStart)
+        return session
+    }
+
     @discardableResult
     func prepareScheduleForSessionStart(for program: Program) -> ProgramDay? {
         let didInitializeState = initializeProgramStateIfNeeded(for: program)
@@ -869,7 +907,6 @@ final class ProgramService: ServiceBase, ObservableObject {
 
     private func nextScheduledDayFromProgramState(for program: Program) -> ProgramDay? {
         guard hasProgramState(program) else { return nil }
-        ensureMaterializationHorizonIfNeededForMutation(for: program)
         guard let block = currentStateBlock(for: program) else { return nil }
         let workouts = blockWorkouts(for: program, block: block)
         guard !workouts.isEmpty else { return nil }

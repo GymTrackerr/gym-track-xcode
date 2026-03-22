@@ -73,11 +73,11 @@ struct ProgramsView: View {
             if let current = programService.currentProgram() {
                 let currentWeek = programService.effectiveCurrentWeek(for: current)
                 let currentBlock = programService.currentBlock(for: current)
+                let currentWorkout = programService.currentWorkout(for: current)
                 let nextWorkout = programService.nextScheduledDay(for: current)
                 let programProgress = programService.programProgress(for: current)
                 let blockProgress = currentBlock.map { programService.blockProgress(for: current, block: $0) }
-                let blockProgressText = programService.currentBlockProgressText(for: current)
-                let workoutProgressText = programService.currentWorkoutProgressText(for: current)
+                let progressSummaryText = programService.progressSummaryText(for: current)
 
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
@@ -121,13 +121,13 @@ struct ProgramsView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    if let blockProgressText {
-                        Text(blockProgressText)
+                    if let currentWorkout {
+                        Text("Current Workout: \(programService.displayWorkoutName(for: currentWorkout))")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    if let workoutProgressText {
-                        Text(workoutProgressText)
+                    if let progressSummaryText {
+                        Text(progressSummaryText)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -427,9 +427,10 @@ struct ProgramsView: View {
     }
 
     private func startNextWorkout(for program: Program) {
-        guard let next = programService.prepareScheduleForSessionStart(for: program) else { return }
-        guard let session = sessionService.addSession(programDay: next) else { return }
-        _ = programService.advanceProgramStateAfterStartingSession(for: program, startedProgramDay: next)
+        guard let session = programService.startProgramSession(
+            for: program,
+            sessionService: sessionService
+        ) else { return }
         openedSession = nil
         DispatchQueue.main.async {
             openedSession = session
