@@ -38,6 +38,7 @@ struct HistoryChartView<FilterControls: View>: View {
     @State private var loadErrorText: String?
     @State private var isViewActive = false
     @State private var loadTask: Task<Void, Never>?
+    @State private var yAxisStickyMax: Double = 1
 
     init(
         navigationTitle: String,
@@ -369,7 +370,8 @@ struct HistoryChartView<FilterControls: View>: View {
             point.startDate < visibleInterval.end && point.endDate > visibleInterval.start
         }
         let maxValue = visiblePoints.map(\.value).max() ?? cachedPoints.map(\.value).max() ?? 0
-        return max(maxValue * 1.15, 1)
+        let roundedTarget = max(maxValue * 1.15, 1)
+        return max(yAxisStickyMax, roundedTarget)
     }
 
     private var chartXDomain: ClosedRange<Date> {
@@ -521,8 +523,17 @@ struct HistoryChartView<FilterControls: View>: View {
         selectedPointId = nil
         selectedXDate = nil
         cachedPoints = []
+        yAxisStickyMax = 1
         didAttemptLoad = false
         loadErrorText = nil
+    }
+
+    private func updateYAxisStickyMax(with points: [HistoryChartPoint]) {
+        let maxValue = points.map(\.value).max() ?? 0
+        let roundedTarget = max(maxValue * 1.15, 1)
+        if roundedTarget > yAxisStickyMax {
+            yAxisStickyMax = roundedTarget
+        }
     }
 
     private func updateSelectedPoint(for date: Date) {
@@ -584,7 +595,9 @@ struct HistoryChartView<FilterControls: View>: View {
         }
 
         if let pointsProvider {
-            cachedPoints = pointsProvider(loadInterval, requestedTimeframe)
+            let points = pointsProvider(loadInterval, requestedTimeframe)
+            cachedPoints = points
+            updateYAxisStickyMax(with: points)
             isLoadingPoints = false
             didAttemptLoad = true
             loadErrorText = nil
@@ -610,6 +623,7 @@ struct HistoryChartView<FilterControls: View>: View {
             guard isViewActive else { return }
             guard requestedTimeframe == timeframe else { return }
             cachedPoints = points
+            updateYAxisStickyMax(with: points)
             isLoadingPoints = false
             didAttemptLoad = true
             loadErrorText = nil

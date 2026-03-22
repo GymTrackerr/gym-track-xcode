@@ -89,7 +89,9 @@ struct ContentView: View {
         }
         .task(id: userService.currentUser?.id.uuidString) {
             guard let userId = userService.currentUser?.id.uuidString else { return }
-            _ = await healthKitDailyStore.backfillHistoryIfNeeded(userId: userId)
+            Task(priority: .background) {
+                _ = await healthKitDailyStore.backfillHistoryIfNeeded(userId: userId)
+            }
         }
         .onChange(of: userService.currentUser?.showNutritionTab ?? true) {
             if !(userService.currentUser?.showNutritionTab ?? true), localSelected == 3 {

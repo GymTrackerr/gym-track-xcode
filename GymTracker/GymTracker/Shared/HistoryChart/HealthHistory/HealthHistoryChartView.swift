@@ -5,20 +5,26 @@ struct HealthHistoryChartView: View {
     @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
 
     @State private var selectedMetric: HealthHistoryMetric = .steps
+    @State private var aggregationMode: HealthHistoryAggregationMode = .total
 
     var body: some View {
         HistoryChartView(
             navigationTitle: "Health History",
             filterStateToken: filterStateToken,
             filterControls: {
-                metricPicker
+                VStack(alignment: .leading, spacing: 10) {
+                    metricPicker
+                    aggregationPicker
+                }
             },
             pointsProvider: { interval, timeframe in
                 let metric = selectedMetric
+                let mode = aggregationMode
                 let provider = HealthHistoryChartSupport.pointsProvider(
                     store: healthKitDailyStore,
                     userIdProvider: { userService.currentUser?.id.uuidString },
-                    metricProvider: { metric }
+                    metricProvider: { metric },
+                    aggregationModeProvider: { mode }
                 )
                 return provider(interval, timeframe)
             },
@@ -38,7 +44,7 @@ struct HealthHistoryChartView: View {
             summaryProvider: { selectedPoint, currentWindowAverage, _ in
                 let value = selectedPoint?.value ?? currentWindowAverage
                 return HistoryChartSummary(
-                    title: selectedPoint == nil ? "AVG \(selectedMetric.title.uppercased())" : "SELECTED",
+                    title: selectedPoint == nil ? summaryTitle : "SELECTED",
                     valueText: valueText(for: value, metric: selectedMetric),
                     unitText: unitText(for: selectedMetric)
                 )
@@ -76,6 +82,29 @@ struct HealthHistoryChartView: View {
         .overlay(HistoryChartHorizontalScrollHints())
     }
 
+    private var aggregationPicker: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(HealthHistoryAggregationMode.allCases) { mode in
+                    HistoryChartChip(title: mode.title, isSelected: aggregationMode == mode) {
+                        aggregationMode = mode
+                    }
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        .overlay(HistoryChartHorizontalScrollHints())
+    }
+
+    private var summaryTitle: String {
+        switch aggregationMode {
+        case .total:
+            return "AVG \(selectedMetric.title.uppercased())"
+        case .averagePerDay:
+            return "AVG \(selectedMetric.title.uppercased()) / DAY"
+        }
+    }
+
     private func valueText(for value: Double, metric: HealthHistoryMetric) -> String {
         switch metric {
         case .steps:
@@ -88,19 +117,21 @@ struct HealthHistoryChartView: View {
     }
 
     private func unitText(for metric: HealthHistoryMetric) -> String? {
+        let suffix = aggregationMode == .averagePerDay ? "/day" : ""
         switch metric {
         case .steps:
-            return "steps"
+            return "steps\(suffix)"
         case .sleepHours:
-            return "hrs"
+            return "hrs\(suffix)"
         case .activeEnergy, .restingEnergy, .totalUsedCalories:
-            return "kcal"
+            return "kcal\(suffix)"
         }
     }
 
     private var filterStateToken: Int {
         var hasher = Hasher()
         hasher.combine(selectedMetric.rawValue)
+        hasher.combine(aggregationMode.rawValue)
         hasher.combine(userService.currentUser?.id.uuidString ?? "no-user")
         hasher.combine(healthKitDailyStore.refreshToken)
         return hasher.finalize()

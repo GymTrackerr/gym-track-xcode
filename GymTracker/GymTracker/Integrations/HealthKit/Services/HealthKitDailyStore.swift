@@ -231,6 +231,7 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
 
         while cursorEnd > absoluteStart {
             if Task.isCancelled { return false }
+            await Task.yield()
 
             let daysCovered = max((calendar.dateComponents([.day], from: absoluteStart, to: cursorEnd).day ?? 0) + 1, 1)
             let requestDays = min(chunkDays, daysCovered)
@@ -405,8 +406,11 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
 
             let dtos = try await rangeTask.value
             for dto in dtos {
-                try upsertCache(with: dto)
+                try upsertCache(with: dto, saveImmediately: false)
                 resolved[dto.dayKey] = dto
+            }
+            if !dtos.isEmpty {
+                try modelContext.save()
             }
         }
 
@@ -445,7 +449,7 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         return Dictionary(uniqueKeysWithValues: items.map { ($0.dayKey, $0) })
     }
 
-    private func upsertCache(with dto: HealthKitDailyAggregateData) throws {
+    private func upsertCache(with dto: HealthKitDailyAggregateData, saveImmediately: Bool = true) throws {
         let refreshedAt = Date()
         let isToday = dateNormalizer.sameDay(dto.dayStart, Date())
 
@@ -463,7 +467,9 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
             modelContext.insert(dto)
         }
 
-        try modelContext.save()
+        if saveImmediately {
+            try modelContext.save()
+        }
     }
 
     private func mapToDTO(_ cache: HealthKitDailyAggregateData) -> HealthKitDailyAggregateData {

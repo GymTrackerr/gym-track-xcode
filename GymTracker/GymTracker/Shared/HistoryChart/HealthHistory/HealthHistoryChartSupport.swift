@@ -20,11 +20,28 @@ enum HealthHistoryMetric: String, CaseIterable, Identifiable {
     }
 }
 
+enum HealthHistoryAggregationMode: String, CaseIterable, Identifiable {
+    case total
+    case averagePerDay
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .total:
+            return "Total"
+        case .averagePerDay:
+            return "Average/Day"
+        }
+    }
+}
+
 enum HealthHistoryChartSupport {
     static func pointsProvider(
         store: HealthKitDailyStore,
         userIdProvider: @escaping () -> String?,
-        metricProvider: @escaping () -> HealthHistoryMetric
+        metricProvider: @escaping () -> HealthHistoryMetric,
+        aggregationModeProvider: @escaping () -> HealthHistoryAggregationMode
     ) -> (DateInterval, HistoryChartTimeframe) -> [HistoryChartPoint] {
         return { interval, timeframe in
             guard interval.end > interval.start else {
@@ -52,13 +69,22 @@ enum HealthHistoryChartSupport {
             }
 
             let metric = metricProvider()
+            let aggregationMode = aggregationModeProvider()
             let summaries = (try? store.cachedDailySummaries(in: normalizedInterval, userId: userId)) ?? []
             let points = HistoryChartCalculator.bucketIntervals(interval: interval, timeframe: timeframe).map { bucket in
-                let value = summaries
-                    .filter { $0.dayStart >= bucket.start && $0.dayStart < bucket.end }
-                    .reduce(0.0) { partial, summary in
-                        partial + metricValue(for: summary, metric: metric)
-                    }
+                let bucketSummaries = summaries.filter { $0.dayStart >= bucket.start && $0.dayStart < bucket.end }
+                let bucketTotal = bucketSummaries.reduce(0.0) { partial, summary in
+                    partial + metricValue(for: summary, metric: metric)
+                }
+
+                let value: Double
+                switch aggregationMode {
+                case .total:
+                    value = bucketTotal
+                case .averagePerDay:
+                    let dayCount = bucketSummaries.count
+                    value = dayCount > 0 ? (bucketTotal / Double(dayCount)) : 0
+                }
 
                 return HistoryChartPoint(startDate: bucket.start, endDate: bucket.end, value: value)
             }
