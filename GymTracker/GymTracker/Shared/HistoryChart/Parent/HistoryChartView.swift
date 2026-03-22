@@ -1,5 +1,8 @@
 import SwiftUI
 import Charts
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct HistoryChartSummary {
     let title: String
@@ -33,6 +36,8 @@ struct HistoryChartView<FilterControls: View>: View {
     @State private var isLoadingPoints = false
     @State private var didAttemptLoad = false
     @State private var loadErrorText: String?
+    @State private var isViewActive = false
+    @State private var loadTask: Task<Void, Never>?
 
     init(
         navigationTitle: String,
@@ -163,20 +168,21 @@ struct HistoryChartView<FilterControls: View>: View {
                     }
                 }
                 .onChange(of: chartScrollPosition) { _, newValue in
-                    guard !isChangingTimeframe else { return }
-
+                    guard isViewActive, !isChangingTimeframe, didAttemptLoad else { return }
+                    
+                    // Clamp to valid bounds immediately (handles framework mutations to 2001-01-01)
                     let maxScroll = latestAllowedDate
                     let clamped = max(earliestAllowedWindowStart, min(newValue, maxScroll))
                     if clamped != newValue {
                         chartScrollPosition = clamped
                         return
                     }
-
+                    
                     selectedPointId = nil
                     selectedXDate = nil
-                    Task {
-                        await loadPoints(for: visibleInterval)
-                    }
+                    let activeTimeframe = timeframe
+                    let requestedInterval = visibleInterval(start: clamped, timeframe: activeTimeframe)
+                    startLoad(for: requestedInterval, timeframe: activeTimeframe)
                 }
                 .onChange(of: selectedXDate) { _, newValue in
                     guard let newValue else {
@@ -200,7 +206,7 @@ struct HistoryChartView<FilterControls: View>: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 4)
-                } else if didAttemptLoad && !cachedPoints.isEmpty && cachedPoints.allSatisfy({ $0.value == 0 }) {
+                } else if didAttemptLoad && (cachedPoints.isEmpty || cachedPoints.allSatisfy({ $0.value == 0 })) {
                     Text(emptyStateTextProvider(cachedPoints.count))
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -212,32 +218,37 @@ struct HistoryChartView<FilterControls: View>: View {
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
+            isViewActive = true
+            chartWidth = 0
             cachedDataBounds = dataBoundsProvider()
             anchorDate = cachedDataBounds.newest ?? Date()
-            resetToCurrentWindow()
-            Task {
-                await loadPoints(for: visibleInterval)
-            }
+            let initialWindow = currentWindowInterval(for: timeframe)
+            resetToWindow(initialWindow)
+            startLoad(for: initialWindow, timeframe: timeframe)
         }
-        .onChange(of: timeframe) { _, _ in
+        .onDisappear {
+            isViewActive = false
+            loadTask?.cancel()
+            loadTask = nil
+            loadRequestToken &+= 1
+            isLoadingPoints = false
+            isChangingTimeframe = false
+        }
+        .onChange(of: timeframe) { _, newTimeframe in
+            guard isViewActive else { return }
             isChangingTimeframe = true
             cachedDataBounds = dataBoundsProvider()
-            resetToCurrentWindow()
-            Task {
-                await loadPoints(for: visibleInterval)
-                try? await Task.sleep(nanoseconds: 100_000_000)
-                isChangingTimeframe = false
-            }
+            let timeframeWindow = currentWindowInterval(for: newTimeframe)
+            resetToWindow(timeframeWindow)
+            startLoad(for: timeframeWindow, timeframe: newTimeframe)
         }
         .onChange(of: filterStateToken) { _, _ in
+            guard isViewActive else { return }
             isChangingTimeframe = true
             cachedDataBounds = dataBoundsProvider()
-            resetToCurrentWindow()
-            Task {
-                await loadPoints(for: visibleInterval)
-                try? await Task.sleep(nanoseconds: 100_000_000)
-                isChangingTimeframe = false
-            }
+            let filterWindow = currentWindowInterval(for: timeframe)
+            resetToWindow(filterWindow)
+            startLoad(for: filterWindow, timeframe: timeframe)
         }
     }
 
@@ -311,6 +322,10 @@ struct HistoryChartView<FilterControls: View>: View {
         HistoryChartCalculator.currentWindow(for: timeframe, now: anchorDate)
     }
 
+    private func currentWindowInterval(for timeframe: HistoryChartTimeframe) -> DateInterval {
+        HistoryChartCalculator.currentWindow(for: timeframe, now: anchorDate)
+    }
+
     private var selectedPoint: HistoryChartPoint? {
         guard let selectedPointId else { return nil }
         return cachedPoints.first { $0.id == selectedPointId }
@@ -329,6 +344,10 @@ struct HistoryChartView<FilterControls: View>: View {
     }
 
     private var latestAllowedDate: Date {
+        latestAllowedDate(for: timeframe)
+    }
+
+    private func latestAllowedDate(for timeframe: HistoryChartTimeframe) -> Date {
         HistoryChartCalculator.currentWindow(for: timeframe, now: Date()).end
     }
 
@@ -337,9 +356,12 @@ struct HistoryChartView<FilterControls: View>: View {
     }
 
     private var visibleInterval: DateInterval {
-        let start = chartScrollPosition
-        let end = start.addingTimeInterval(visibleDomainLength)
-        return DateInterval(start: start, end: end)
+        visibleInterval(start: chartScrollPosition, timeframe: timeframe)
+    }
+
+    private func visibleInterval(start: Date, timeframe: HistoryChartTimeframe) -> DateInterval {
+        let length = HistoryChartCalculator.visibleDomainLength(for: timeframe)
+        return DateInterval(start: start, end: start.addingTimeInterval(length))
     }
 
     private var chartYMax: Double {
@@ -355,8 +377,17 @@ struct HistoryChartView<FilterControls: View>: View {
     }
 
     private var barWidth: CGFloat {
-        guard chartWidth > 0 else { return 10 }
-        let slotWidth = chartWidth / CGFloat(timeframe.barsPerWindow)
+        let effectiveWidth: CGFloat
+        if chartWidth > 0 {
+            effectiveWidth = chartWidth
+        } else {
+#if os(iOS)
+            effectiveWidth = max(UIScreen.main.bounds.width - 56, 120)
+#else
+            effectiveWidth = 280
+#endif
+        }
+        let slotWidth = effectiveWidth / CGFloat(timeframe.barsPerWindow)
         return max(slotWidth * timeframe.barFillRatio, 4)
     }
 
@@ -432,7 +463,13 @@ struct HistoryChartView<FilterControls: View>: View {
     }
 
     private var earliestAllowedWindowStart: Date {
-        guard let oldestDataDate = cachedDataBounds.oldest else { return currentWindowInterval.start }
+        earliestAllowedWindowStart(for: timeframe)
+    }
+
+    private func earliestAllowedWindowStart(for timeframe: HistoryChartTimeframe) -> Date {
+        guard let oldestDataDate = cachedDataBounds.oldest else {
+            return HistoryChartCalculator.currentWindow(for: timeframe, now: Date()).start
+        }
         return HistoryChartCalculator.currentWindow(for: timeframe, now: oldestDataDate).start
     }
 
@@ -452,13 +489,34 @@ struct HistoryChartView<FilterControls: View>: View {
         chartScrollPosition = newWindow.start
         selectedPointId = nil
         selectedXDate = nil
-        Task {
-            await loadPoints(for: DateInterval(start: newWindow.start, end: newWindow.end))
+        startLoad(for: DateInterval(start: newWindow.start, end: newWindow.end), timeframe: timeframe)
+    }
+
+    private func startLoad(
+        for interval: DateInterval,
+        timeframe: HistoryChartTimeframe
+    ) {
+        // Clamp interval to valid bounds immediately
+        let earliest = earliestAllowedWindowStart(for: timeframe)
+        let latest = latestAllowedDate(for: timeframe)
+        let clamped = DateInterval(start: max(interval.start, earliest), end: min(interval.end, latest))
+        
+        // Guard against invalid intervals
+        guard clamped.end > clamped.start else {
+            isLoadingPoints = false
+            return
+        }
+        
+        loadTask?.cancel()
+        loadTask = Task {
+            await loadPoints(for: clamped, timeframe: timeframe)
+            guard !Task.isCancelled else { return }
+            guard isViewActive else { return }
+            isChangingTimeframe = false
         }
     }
 
-    private func resetToCurrentWindow() {
-        let window = currentWindowInterval
+    private func resetToWindow(_ window: DateInterval) {
         chartScrollPosition = window.start
         selectedPointId = nil
         selectedXDate = nil
@@ -498,20 +556,39 @@ struct HistoryChartView<FilterControls: View>: View {
         Calendar.current.dateInterval(of: timeframe.windowCalendarComponent, for: date)?.start ?? date
     }
 
-    private func loadPoints(for requestedVisibleInterval: DateInterval) async {
-        let boundedStart = max(requestedVisibleInterval.start, earliestAllowedWindowStart)
-        let boundedEnd = min(requestedVisibleInterval.end, latestAllowedDate)
-        guard boundedEnd > boundedStart else { return }
+    private func loadPoints(for requestedVisibleInterval: DateInterval, timeframe requestedTimeframe: HistoryChartTimeframe) async {
+        guard isViewActive else { return }
+        guard requestedVisibleInterval.end > requestedVisibleInterval.start else {
+            isLoadingPoints = false
+            didAttemptLoad = true
+            return
+        }
+        
+        let boundedStart = max(requestedVisibleInterval.start, earliestAllowedWindowStart(for: requestedTimeframe))
+        let boundedEnd = min(requestedVisibleInterval.end, latestAllowedDate(for: requestedTimeframe))
+        guard boundedEnd > boundedStart else {
+            isLoadingPoints = false
+            didAttemptLoad = true
+            return
+        }
 
         let boundedInterval = DateInterval(start: boundedStart, end: boundedEnd)
-        let loadInterval = loadIntervalProvider(boundedInterval, timeframe)
+        let candidateInterval = loadIntervalProvider(boundedInterval, requestedTimeframe)
+        let loadInterval = candidateInterval.end > candidateInterval.start ? candidateInterval : boundedInterval
+        
+        // Guard one final time before calling loader
+        guard loadInterval.end > loadInterval.start else {
+            isLoadingPoints = false
+            didAttemptLoad = true
+            return
+        }
 
         if let pointsProvider {
-            cachedPoints = pointsProvider(loadInterval, timeframe)
+            cachedPoints = pointsProvider(loadInterval, requestedTimeframe)
             isLoadingPoints = false
             didAttemptLoad = true
             loadErrorText = nil
-            updateSelectedPoint(for: selectedXDate ?? chartScrollPosition)
+            applySelectionAfterLoad()
             return
         }
 
@@ -522,21 +599,42 @@ struct HistoryChartView<FilterControls: View>: View {
         loadErrorText = nil
 
         do {
-            let points = try await pointsLoader(loadInterval, timeframe)
+#if DEBUG
+            print(
+                "HistoryChart async request token=\(token) uiTimeframe=\(requestedTimeframe.rawValue) " +
+                "bounded=[\(boundedInterval.start), \(boundedInterval.end)] load=[\(loadInterval.start), \(loadInterval.end)]"
+            )
+#endif
+            let points = try await pointsLoader(loadInterval, requestedTimeframe)
             guard token == loadRequestToken else { return }
+            guard isViewActive else { return }
+            guard requestedTimeframe == timeframe else { return }
             cachedPoints = points
             isLoadingPoints = false
             didAttemptLoad = true
             loadErrorText = nil
-            updateSelectedPoint(for: selectedXDate ?? chartScrollPosition)
+            applySelectionAfterLoad()
+#if DEBUG
+            print("HistoryChart async load uiTimeframe=\(requestedTimeframe.rawValue) loaderTimeframe=\(requestedTimeframe.rawValue) interval=[\(loadInterval.start), \(loadInterval.end)]")
+#endif
         } catch {
             guard token == loadRequestToken else { return }
+            guard isViewActive else { return }
+            guard requestedTimeframe == timeframe else { return }
             cachedPoints = []
             selectedPointId = nil
             isLoadingPoints = false
             didAttemptLoad = true
             loadErrorText = "Unable to load chart data."
         }
+    }
+
+    private func applySelectionAfterLoad() {
+        guard let selectedXDate else {
+            selectedPointId = nil
+            return
+        }
+        updateSelectedPoint(for: selectedXDate)
     }
 }
 

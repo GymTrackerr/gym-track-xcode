@@ -87,6 +87,7 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         userId: String,
         policy: HealthDataFetchPolicy = .refreshIfStale
     ) async throws -> [HealthKitDailyAggregateData] {
+        guard interval.end > interval.start else { return [] }
         let dayStarts = dayStarts(in: interval)
         guard !dayStarts.isEmpty else { return [] }
 
@@ -384,6 +385,7 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
     }
 
     private func dayStarts(in interval: DateInterval) -> [Date] {
+        guard interval.end > interval.start else { return [] }
         let calendar = Calendar.current
         let startDay = dateNormalizer.startOfDay(interval.start)
         let clampedEnd = interval.end > interval.start ? interval.end.addingTimeInterval(-1) : interval.start
