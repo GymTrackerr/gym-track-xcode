@@ -1,5 +1,8 @@
 import SwiftUI
 import Charts
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct HistoryChartSummary {
     let title: String
@@ -7,13 +10,29 @@ struct HistoryChartSummary {
     let unitText: String?
 }
 
+struct HistoryChartSummaryDetail: Identifiable {
+    let title: String
+    let valueText: String
+    let unitText: String?
+
+    var id: String {
+        [title, valueText, unitText ?? ""].joined(separator: "|")
+    }
+}
+
 struct HistoryChartView<FilterControls: View>: View {
     let navigationTitle: String
     let filterStateToken: Int
+    let chartStyle: HistoryChartRenderStyle
+    let treatZeroAsMissingInLineStyles: Bool
+    let focusedYHalfRange: Double?
+    let focusedYRoundingStep: Double?
     let filterControls: () -> FilterControls
     let pointsProvider: (DateInterval, HistoryChartTimeframe) -> [HistoryChartPoint]
+    let loadIntervalProvider: HistoryChartLoadIntervalProvider
     let dataBoundsProvider: () -> (oldest: Date?, newest: Date?)
     let summaryProvider: (HistoryChartPoint?, Double, HistoryChartTimeframe) -> HistoryChartSummary
+    let summaryDetailsProvider: (HistoryChartPoint?, Double, HistoryChartTimeframe) -> [HistoryChartSummaryDetail]
     let emptyStateTextProvider: (Int) -> String
 
     @State private var timeframe: HistoryChartTimeframe = .month
@@ -27,6 +46,46 @@ struct HistoryChartView<FilterControls: View>: View {
     @State private var cachedPoints: [HistoryChartPoint] = []
     @State private var cachedDataBounds: (oldest: Date?, newest: Date?) = (nil, nil)
     @State private var chartWidth: CGFloat = 0
+    @State private var isLoadingPoints = false
+    @State private var didAttemptLoad = false
+    @State private var loadErrorText: String?
+    @State private var isViewActive = false
+    @State private var yAxisStickyMax: Double = 1
+    @State private var yAxisStickyMin: Double = 0
+    @State private var lastRequestedLoadSignature: String?
+    @State private var loadedCoverageInterval: DateInterval?
+
+    init(
+        navigationTitle: String,
+        filterStateToken: Int,
+        chartStyle: HistoryChartRenderStyle = .bar,
+        treatZeroAsMissingInLineStyles: Bool = false,
+        focusedYHalfRange: Double? = nil,
+        focusedYRoundingStep: Double? = nil,
+        filterControls: @escaping () -> FilterControls,
+        pointsProvider: @escaping (DateInterval, HistoryChartTimeframe) -> [HistoryChartPoint],
+        loadIntervalProvider: @escaping HistoryChartLoadIntervalProvider = { interval, timeframe in
+            HistoryChartLoadSupport.bufferedInterval(for: interval, timeframe: timeframe)
+        },
+        dataBoundsProvider: @escaping () -> (oldest: Date?, newest: Date?),
+        summaryProvider: @escaping (HistoryChartPoint?, Double, HistoryChartTimeframe) -> HistoryChartSummary,
+        summaryDetailsProvider: @escaping (HistoryChartPoint?, Double, HistoryChartTimeframe) -> [HistoryChartSummaryDetail] = { _, _, _ in [] },
+        emptyStateTextProvider: @escaping (Int) -> String
+    ) {
+        self.navigationTitle = navigationTitle
+        self.filterStateToken = filterStateToken
+        self.chartStyle = chartStyle
+        self.treatZeroAsMissingInLineStyles = treatZeroAsMissingInLineStyles
+        self.focusedYHalfRange = focusedYHalfRange
+        self.focusedYRoundingStep = focusedYRoundingStep
+        self.filterControls = filterControls
+        self.pointsProvider = pointsProvider
+        self.loadIntervalProvider = loadIntervalProvider
+        self.dataBoundsProvider = dataBoundsProvider
+        self.summaryProvider = summaryProvider
+        self.summaryDetailsProvider = summaryDetailsProvider
+        self.emptyStateTextProvider = emptyStateTextProvider
+    }
 
     var body: some View {
         ScrollView {
@@ -36,13 +95,86 @@ struct HistoryChartView<FilterControls: View>: View {
                 summaryHeader
 
                 Chart(cachedPoints) { point in
-                    BarMark(
-                        x: .value("Date", point.date),
-                        y: .value("Value", point.value),
-                        width: .fixed(barWidth)
-                    )
-                    .cornerRadius(1.5)
-                    .foregroundStyle(selectedPointId == nil || selectedPointId == point.id ? Color.blue : Color.blue.opacity(0.45))
+                    switch chartStyle {
+                    case .bar:
+                        if point.segments.isEmpty {
+                            BarMark(
+                                x: .value("Date", point.date),
+                                y: .value("Value", point.value),
+                                width: .fixed(barWidth)
+                            )
+                            .cornerRadius(1.5)
+                            .foregroundStyle(selectedPointId == nil || selectedPointId == point.id ? Color.blue : Color.blue.opacity(0.45))
+                        } else {
+                            ForEach(point.segments.filter { $0.value != 0 }) { segment in
+                                BarMark(
+                                    x: .value("Date", point.date),
+                                    y: .value("Value", segment.value),
+                                    width: .fixed(barWidth)
+                                )
+                                .cornerRadius(1.5)
+                                .foregroundStyle(segmentColor(for: segment.style).opacity(selectedPointId == nil || selectedPointId == point.id ? 1 : 0.45))
+                            }
+                        }
+
+                    case .line:
+                        if shouldRenderLinePoint(point) {
+                            LineMark(
+                                x: .value("Date", point.date),
+                                y: .value("Value", point.plottedValue)
+                            )
+                            .interpolationMethod(.linear)
+                            .lineStyle(StrokeStyle(lineWidth: 2.2))
+                            .foregroundStyle(selectedPointId == nil || selectedPointId == point.id ? Color.blue : Color.blue.opacity(0.45))
+
+                            PointMark(
+                                x: .value("Date", point.date),
+                                y: .value("Value", point.plottedValue)
+                            )
+                            .symbolSize(selectedPointId == point.id ? 55 : 22)
+                            .foregroundStyle(selectedPointId == nil || selectedPointId == point.id ? Color.blue : Color.blue.opacity(0.45))
+                        }
+
+                    case .barLine:
+                        if point.segments.isEmpty {
+                            if point.value > 0 {
+                                BarMark(
+                                    x: .value("Date", point.date),
+                                    y: .value("Value", point.value),
+                                    width: .fixed(barWidth)
+                                )
+                                .cornerRadius(1.5)
+                                .foregroundStyle((selectedPointId == nil || selectedPointId == point.id ? Color.blue : Color.blue.opacity(0.45)).opacity(0.35))
+                            }
+                        } else {
+                            ForEach(point.segments.filter { $0.value != 0 }) { segment in
+                                BarMark(
+                                    x: .value("Date", point.date),
+                                    y: .value("Value", segment.value),
+                                    width: .fixed(barWidth)
+                                )
+                                .cornerRadius(1.5)
+                                .foregroundStyle(segmentColor(for: segment.style).opacity(selectedPointId == nil || selectedPointId == point.id ? 0.45 : 0.22))
+                            }
+                        }
+
+                        if shouldRenderLinePoint(point) {
+                            LineMark(
+                                x: .value("Date", point.date),
+                                y: .value("Value", point.plottedValue)
+                            )
+                            .interpolationMethod(.linear)
+                            .lineStyle(StrokeStyle(lineWidth: 2.2))
+                            .foregroundStyle(selectedPointId == nil || selectedPointId == point.id ? barLineSeriesColor : barLineSeriesColor.opacity(0.45))
+
+                            PointMark(
+                                x: .value("Date", point.date),
+                                y: .value("Value", point.plottedValue)
+                            )
+                            .symbolSize(selectedPointId == point.id ? 50 : 18)
+                            .foregroundStyle(selectedPointId == nil || selectedPointId == point.id ? barLineSeriesColor : barLineSeriesColor.opacity(0.45))
+                        }
+                    }
                 }
                 .chartYAxis {
                     AxisMarks(position: .trailing) { _ in
@@ -74,7 +206,7 @@ struct HistoryChartView<FilterControls: View>: View {
                         }
                     }
                 }
-                .chartYScale(domain: 0...chartYMax)
+                .chartYScale(domain: chartYDomain)
                 .chartScrollableAxes(.horizontal)
                 .chartXVisibleDomain(length: visibleDomainLength)
                 .chartXScale(domain: chartXDomain)
@@ -105,7 +237,7 @@ struct HistoryChartView<FilterControls: View>: View {
                                     selectedXDate = nil
                                 } else if let date: Date = chartProxy.value(atX: x) {
                                     if !cachedPoints.contains(where: {
-                                        date >= $0.startDate && date < $0.endDate && $0.value > 0
+                                        date >= $0.startDate && date < $0.endDate && $0.plottedValue != 0
                                     }) {
                                         selectedPointId = nil
                                         selectedXDate = nil
@@ -115,17 +247,24 @@ struct HistoryChartView<FilterControls: View>: View {
                     }
                 }
                 .onChange(of: chartScrollPosition) { _, newValue in
-                    guard !isChangingTimeframe else { return }
-
+                    guard isViewActive, !isChangingTimeframe, didAttemptLoad else { return }
+                    
+                    // Clamp to valid bounds immediately (handles framework mutations to 2001-01-01)
                     let maxScroll = latestAllowedDate
                     let clamped = max(earliestAllowedWindowStart, min(newValue, maxScroll))
                     if clamped != newValue {
                         chartScrollPosition = clamped
                         return
                     }
-
+                    
                     selectedPointId = nil
                     selectedXDate = nil
+                    let activeTimeframe = timeframe
+                    // Snap load requests to window boundaries so drag updates don't trigger redundant loads.
+                    let snappedStart = snappedRangeStart(for: clamped)
+                    let requestedInterval = visibleInterval(start: snappedStart, timeframe: activeTimeframe)
+                    guard needsLoad(for: requestedInterval) else { return }
+                    startLoad(for: requestedInterval, timeframe: activeTimeframe)
                 }
                 .onChange(of: selectedXDate) { _, newValue in
                     guard let newValue else {
@@ -139,7 +278,17 @@ struct HistoryChartView<FilterControls: View>: View {
                 .background(Color(.systemGray6))
                 .clipShape(RoundedRectangle(cornerRadius: 14))
 
-                if cachedPoints.allSatisfy({ $0.value == 0 }) {
+                if isLoadingPoints {
+                    Text("Loading...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 4)
+                } else if let loadErrorText {
+                    Text(loadErrorText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 4)
+                } else if didAttemptLoad && (cachedPoints.isEmpty || cachedPoints.allSatisfy({ $0.plottedValue == 0 })) {
                     Text(emptyStateTextProvider(cachedPoints.count))
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -151,25 +300,36 @@ struct HistoryChartView<FilterControls: View>: View {
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            cachedDataBounds = dataBoundsProvider()
+            isViewActive = true
+            chartWidth = 0
+            refreshCachedBounds()
             anchorDate = cachedDataBounds.newest ?? Date()
-            resetToCurrentWindow()
+            let initialWindow = currentWindowInterval(for: timeframe)
+            resetToWindow(initialWindow)
+            startLoad(for: initialWindow, timeframe: timeframe)
         }
-        .onChange(of: timeframe) { _, _ in
+        .onDisappear {
+            isViewActive = false
+            isLoadingPoints = false
+            isChangingTimeframe = false
+            lastRequestedLoadSignature = nil
+            loadedCoverageInterval = nil
+        }
+        .onChange(of: timeframe) { _, newTimeframe in
+            guard isViewActive else { return }
             isChangingTimeframe = true
-            cachedDataBounds = dataBoundsProvider()
-            resetToCurrentWindow()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                isChangingTimeframe = false
-            }
+            refreshCachedBounds()
+            let timeframeWindow = currentWindowInterval(for: newTimeframe)
+            resetToWindow(timeframeWindow)
+            startLoad(for: timeframeWindow, timeframe: newTimeframe)
         }
         .onChange(of: filterStateToken) { _, _ in
+            guard isViewActive else { return }
             isChangingTimeframe = true
-            cachedDataBounds = dataBoundsProvider()
-            resetToCurrentWindow()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                isChangingTimeframe = false
-            }
+            refreshCachedBounds()
+            let filterWindow = currentWindowInterval(for: timeframe)
+            resetToWindow(filterWindow)
+            startLoad(for: filterWindow, timeframe: timeframe)
         }
     }
 
@@ -217,6 +377,7 @@ struct HistoryChartView<FilterControls: View>: View {
 
     private var summaryHeader: some View {
         let summary = summaryProvider(selectedPoint, currentWindowAverageValue, timeframe)
+        let details = summaryDetailsProvider(selectedPoint, currentWindowAverageValue, timeframe)
 
         return VStack(alignment: .leading, spacing: 2) {
             Text(summary.title)
@@ -236,10 +397,44 @@ struct HistoryChartView<FilterControls: View>: View {
             Text(summaryDateText)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+
+            if !details.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(details) { detail in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(detail.title)
+                                    .font(.caption2)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.secondary)
+                                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                                    Text(detail.valueText)
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                    if let unitText = detail.unitText {
+                                        Text(unitText)
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(Color(.systemGray6))
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
         }
     }
 
     private var currentWindowInterval: DateInterval {
+        HistoryChartCalculator.currentWindow(for: timeframe, now: anchorDate)
+    }
+
+    private func currentWindowInterval(for timeframe: HistoryChartTimeframe) -> DateInterval {
         HistoryChartCalculator.currentWindow(for: timeframe, now: anchorDate)
     }
 
@@ -261,6 +456,10 @@ struct HistoryChartView<FilterControls: View>: View {
     }
 
     private var latestAllowedDate: Date {
+        latestAllowedDate(for: timeframe)
+    }
+
+    private func latestAllowedDate(for timeframe: HistoryChartTimeframe) -> Date {
         HistoryChartCalculator.currentWindow(for: timeframe, now: Date()).end
     }
 
@@ -269,17 +468,77 @@ struct HistoryChartView<FilterControls: View>: View {
     }
 
     private var visibleInterval: DateInterval {
-        let start = chartScrollPosition
-        let end = start.addingTimeInterval(visibleDomainLength)
-        return DateInterval(start: start, end: end)
+        visibleInterval(start: chartScrollPosition, timeframe: timeframe)
+    }
+
+    private func visibleInterval(start: Date, timeframe: HistoryChartTimeframe) -> DateInterval {
+        let length = HistoryChartCalculator.visibleDomainLength(for: timeframe)
+        return DateInterval(start: start, end: start.addingTimeInterval(length))
     }
 
     private var chartYMax: Double {
         let visiblePoints = cachedPoints.filter { point in
             point.startDate < visibleInterval.end && point.endDate > visibleInterval.start
         }
-        let maxValue = visiblePoints.map(\.value).max() ?? cachedPoints.map(\.value).max() ?? 0
-        return max(maxValue * 1.15, 1)
+        let maxValue = visiblePoints.map(\.plottedValue).max() ?? cachedPoints.map(\.plottedValue).max() ?? 0
+        let roundedTarget = max(maxValue * 1.15, 1)
+        return max(yAxisStickyMax, roundedTarget)
+    }
+
+    private var chartYDomain: ClosedRange<Double> {
+        if let focused = focusedYDomain {
+            return focused
+        }
+        return chartYMin...chartYMax
+    }
+
+    private var focusedYDomain: ClosedRange<Double>? {
+        guard let halfRange = focusedYHalfRange, halfRange > 0 else {
+            return nil
+        }
+
+        let visiblePoints = cachedPoints.filter { point in
+            point.startDate < visibleInterval.end && point.endDate > visibleInterval.start
+        }
+        let points = visiblePoints.isEmpty ? cachedPoints : visiblePoints
+        let plotted = points
+            .map(\.plottedValue)
+            .filter { treatZeroAsMissingInLineStyles ? $0 != 0 : true }
+
+        guard !plotted.isEmpty else {
+            return nil
+        }
+
+        let center = plotted.reduce(0, +) / Double(plotted.count)
+        var minValue = center - halfRange
+        var maxValue = center + halfRange
+
+        if let step = focusedYRoundingStep, step > 0 {
+            minValue = floor(minValue / step) * step
+            maxValue = ceil(maxValue / step) * step
+        }
+
+        // Clamp to actual data bounds (don't extrapolate beyond loaded values)
+        let dataMin = plotted.min() ?? minValue
+        let dataMax = plotted.max() ?? maxValue
+        minValue = max(minValue, dataMin - (halfRange / 2))
+        maxValue = min(maxValue, dataMax + (halfRange / 2))
+
+        if minValue == maxValue {
+            maxValue += 1
+        }
+
+        return minValue...maxValue
+    }
+
+    private var chartYMin: Double {
+        let visiblePoints = cachedPoints.filter { point in
+            point.startDate < visibleInterval.end && point.endDate > visibleInterval.start
+        }
+        let minValue = visiblePoints.map(\.plottedValue).min() ?? cachedPoints.map(\.plottedValue).min() ?? 0
+        guard minValue < 0 else { return 0 }
+        let roundedTarget = min(minValue * 1.15, -1)
+        return min(yAxisStickyMin, roundedTarget)
     }
 
     private var chartXDomain: ClosedRange<Date> {
@@ -287,10 +546,28 @@ struct HistoryChartView<FilterControls: View>: View {
     }
 
     private var barWidth: CGFloat {
-        guard chartWidth > 0 else { return 10 }
-        let slotWidth = chartWidth / CGFloat(timeframe.barsPerWindow)
+        let effectiveWidth: CGFloat
+        if chartWidth > 0 {
+            effectiveWidth = chartWidth
+        } else {
+#if os(iOS)
+            effectiveWidth = fallbackChartWidth
+#else
+            effectiveWidth = 280
+#endif
+        }
+        let slotWidth = effectiveWidth / CGFloat(timeframe.barsPerWindow)
         return max(slotWidth * timeframe.barFillRatio, 4)
     }
+
+#if os(iOS)
+    private var fallbackChartWidth: CGFloat {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let activeScene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first
+        let screenWidth = activeScene?.screen.bounds.width ?? 320
+        return max(screenWidth - 56, 120)
+    }
+#endif
 
     private var summaryDateText: String {
         if let selectedPoint {
@@ -303,10 +580,13 @@ struct HistoryChartView<FilterControls: View>: View {
 
     private var currentWindowAverageValue: Double {
         let points = cachedPoints.filter { point in
-            point.startDate >= visibleInterval.start && point.startDate < visibleInterval.end && point.value > 0
+            point.startDate >= visibleInterval.start && point.startDate < visibleInterval.end && point.plottedValue != 0
         }
         guard !points.isEmpty else { return 0 }
-        return points.reduce(0.0) { $0 + $1.value } / Double(points.count)
+        let numerator = points.reduce(0.0) { $0 + $1.effectiveSummaryAverageNumerator }
+        let denominator = points.reduce(0.0) { $0 + max($1.effectiveSummaryAverageDenominator, 0) }
+        guard denominator > 0 else { return 0 }
+        return numerator / denominator
     }
 
     private var intervalTitle: String {
@@ -364,7 +644,18 @@ struct HistoryChartView<FilterControls: View>: View {
     }
 
     private var earliestAllowedWindowStart: Date {
-        guard let oldestDataDate = cachedDataBounds.oldest else { return currentWindowInterval.start }
+        earliestAllowedWindowStart(for: timeframe)
+    }
+
+    private func refreshCachedBounds() {
+        let rawBounds = dataBoundsProvider()
+        cachedDataBounds = HistoryChartCalculator.sanitizeBounds(oldest: rawBounds.oldest, newest: rawBounds.newest)
+    }
+
+    private func earliestAllowedWindowStart(for timeframe: HistoryChartTimeframe) -> Date {
+        guard let oldestDataDate = cachedDataBounds.oldest else {
+            return HistoryChartCalculator.currentWindow(for: timeframe, now: Date()).start
+        }
         return HistoryChartCalculator.currentWindow(for: timeframe, now: oldestDataDate).start
     }
 
@@ -381,22 +672,76 @@ struct HistoryChartView<FilterControls: View>: View {
 
         anchorDate = shifted
         let newWindow = HistoryChartCalculator.currentWindow(for: timeframe, now: shifted)
-
-        let loadRange = DateInterval(start: earliestAllowedWindowStart, end: latestAllowedDate)
-        cachedPoints = pointsProvider(loadRange, timeframe)
         chartScrollPosition = newWindow.start
         selectedPointId = nil
         selectedXDate = nil
+        startLoad(for: DateInterval(start: newWindow.start, end: newWindow.end), timeframe: timeframe)
     }
 
-    private func resetToCurrentWindow() {
-        let window = currentWindowInterval
+    private func startLoad(
+        for interval: DateInterval,
+        timeframe: HistoryChartTimeframe
+    ) {
+        // Clamp interval to valid bounds immediately
+        let earliest = earliestAllowedWindowStart(for: timeframe)
+        let latest = latestAllowedDate(for: timeframe)
+        let clamped = DateInterval(start: max(interval.start, earliest), end: min(interval.end, latest))
+        
+        // Guard against invalid intervals
+        guard clamped.end > clamped.start else {
+            isLoadingPoints = false
+            return
+        }
 
-        let loadRange = DateInterval(start: earliestAllowedWindowStart, end: latestAllowedDate)
-        cachedPoints = pointsProvider(loadRange, timeframe)
+        let signature = loadSignature(for: clamped, timeframe: timeframe)
+        if signature == lastRequestedLoadSignature {
+            return
+        }
+        lastRequestedLoadSignature = signature
+
+        loadPoints(for: clamped, timeframe: timeframe)
+        guard isViewActive else { return }
+        isChangingTimeframe = false
+    }
+
+    private func resetToWindow(_ window: DateInterval) {
         chartScrollPosition = window.start
         selectedPointId = nil
         selectedXDate = nil
+        cachedPoints = []
+        yAxisStickyMax = 1
+        yAxisStickyMin = 0
+        lastRequestedLoadSignature = nil
+        loadedCoverageInterval = nil
+        didAttemptLoad = false
+        loadErrorText = nil
+    }
+
+    private func needsLoad(for requestedInterval: DateInterval) -> Bool {
+        guard let loadedCoverageInterval else { return true }
+        return !(loadedCoverageInterval.start <= requestedInterval.start && loadedCoverageInterval.end >= requestedInterval.end)
+    }
+
+    private func loadSignature(for interval: DateInterval, timeframe: HistoryChartTimeframe) -> String {
+        let start = Int(interval.start.timeIntervalSince1970)
+        let end = Int(interval.end.timeIntervalSince1970)
+        return "\(timeframe.rawValue):\(start):\(end)"
+    }
+
+    private func updateYAxisStickyMax(with points: [HistoryChartPoint]) {
+        let maxValue = points.map(\.plottedValue).max() ?? 0
+        let roundedTarget = max(maxValue * 1.15, 1)
+        if roundedTarget > yAxisStickyMax {
+            yAxisStickyMax = roundedTarget
+        }
+
+        let minValue = points.map(\.plottedValue).min() ?? 0
+        if minValue < 0 {
+            let minTarget = min(minValue * 1.15, -1)
+            if minTarget < yAxisStickyMin {
+                yAxisStickyMin = minTarget
+            }
+        }
     }
 
     private func updateSelectedPoint(for date: Date) {
@@ -405,12 +750,12 @@ struct HistoryChartView<FilterControls: View>: View {
             return
         }
         // Exact bucket match
-        if let exact = cachedPoints.first(where: { date >= $0.startDate && date < $0.endDate && $0.value > 0 }) {
+        if let exact = cachedPoints.first(where: { date >= $0.startDate && date < $0.endDate && $0.plottedValue != 0 }) {
             selectedPointId = exact.id
             return
         }
         // Closest non-zero point by midpoint distance
-        let nonZero = cachedPoints.filter { $0.value > 0 }
+        let nonZero = cachedPoints.filter { $0.plottedValue != 0 }
         if let closest = nonZero.min(by: {
             let mid0 = $0.startDate.addingTimeInterval($0.endDate.timeIntervalSince($0.startDate) / 2)
             let mid1 = $1.startDate.addingTimeInterval($1.endDate.timeIntervalSince($1.startDate) / 2)
@@ -429,6 +774,94 @@ struct HistoryChartView<FilterControls: View>: View {
     private func snappedRangeStart(for date: Date) -> Date {
         Calendar.current.dateInterval(of: timeframe.windowCalendarComponent, for: date)?.start ?? date
     }
+
+    private func loadPoints(for requestedVisibleInterval: DateInterval, timeframe requestedTimeframe: HistoryChartTimeframe) {
+        guard isViewActive else { return }
+        guard requestedVisibleInterval.end > requestedVisibleInterval.start else {
+            isLoadingPoints = false
+            didAttemptLoad = true
+            return
+        }
+        
+        let bounds = loadBounds(for: requestedTimeframe)
+        let boundedStart = max(requestedVisibleInterval.start, bounds.earliest)
+        let boundedEnd = min(requestedVisibleInterval.end, bounds.latest)
+        guard boundedEnd > boundedStart else {
+            isLoadingPoints = false
+            didAttemptLoad = true
+            return
+        }
+
+        let boundedInterval = DateInterval(start: boundedStart, end: boundedEnd)
+        let candidateInterval = loadIntervalProvider(boundedInterval, requestedTimeframe)
+        let loadInterval = candidateInterval.end > candidateInterval.start ? candidateInterval : boundedInterval
+        
+        // Guard one final time before calling loader
+        guard loadInterval.end > loadInterval.start else {
+            isLoadingPoints = false
+            didAttemptLoad = true
+            return
+        }
+
+        let points = pointsProvider(loadInterval, requestedTimeframe)
+        cachedPoints = points
+        updateYAxisStickyMax(with: points)
+        loadedCoverageInterval = loadInterval
+        isLoadingPoints = false
+        didAttemptLoad = true
+        loadErrorText = nil
+        applySelectionAfterLoad()
+    }
+
+    private func loadBounds(for timeframe: HistoryChartTimeframe) -> (earliest: Date, latest: Date) {
+        (
+            earliest: earliestAllowedWindowStart(for: timeframe),
+            latest: latestAllowedDate(for: timeframe)
+        )
+    }
+
+    private func applySelectionAfterLoad() {
+        guard let selectedXDate else {
+            selectedPointId = nil
+            return
+        }
+        updateSelectedPoint(for: selectedXDate)
+    }
+
+    private func segmentColor(for style: HistoryChartSegmentStyle) -> Color {
+        switch style {
+        case .primary:
+            return .blue
+        case .secondary:
+            return .cyan
+        case .tertiary:
+            return .indigo
+        case .positive:
+            return .green
+        case .warning:
+            return .orange
+        case .negative:
+            return .red
+        case .neutral:
+            return .gray
+        }
+    }
+
+    private var barLineSeriesColor: Color {
+        Color(red: 0.85, green: 0.1, blue: 0.1)
+    }
+
+    private func shouldRenderLinePoint(_ point: HistoryChartPoint) -> Bool {
+        // For barLine charts, skip line points where there's no bar (value == 0)
+        if chartStyle == .barLine && point.value == 0 {
+            return false
+        }
+        if treatZeroAsMissingInLineStyles {
+            return point.plottedValue != 0
+        }
+        return true
+    }
+
 }
 
 // MARK: - Shared UI Components

@@ -702,6 +702,14 @@ class NutritionService: ServiceBase, ObservableObject {
         return points.map { DailyKcalPoint(date: $0.date, kcal: $0.value) }
     }
 
+    func calorieIntake(for day: Date) throws -> Double {
+        try dailyNutritionSeries(endingOn: day, days: 1, metric: .calories).first?.value ?? 0
+    }
+
+    func calorieIntakeSeries(endingOn endDate: Date, days: Int = 7) throws -> [DailyKcalPoint] {
+        try dailyCaloriesSeries(endingOn: endDate, days: days)
+    }
+
     func dailyNutritionSeries(
         endingOn endDate: Date,
         days: Int = 7,

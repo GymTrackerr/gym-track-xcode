@@ -70,10 +70,37 @@ enum HistoryChartTimeframe: String, CaseIterable, Identifiable {
     }
 }
 
+enum HistoryChartRenderStyle: String, CaseIterable, Identifiable {
+    case bar
+    case line
+    case barLine
+
+    var id: String { rawValue }
+}
+
 struct HistoryChartPoint: Identifiable {
     let startDate: Date
     let endDate: Date
     let value: Double
+    let segments: [HistoryChartBarSegment]
+    let summaryAverageNumerator: Double?
+    let summaryAverageDenominator: Double?
+
+    init(
+        startDate: Date,
+        endDate: Date,
+        value: Double,
+        segments: [HistoryChartBarSegment] = [],
+        summaryAverageNumerator: Double? = nil,
+        summaryAverageDenominator: Double? = nil
+    ) {
+        self.startDate = startDate
+        self.endDate = endDate
+        self.value = value
+        self.segments = segments
+        self.summaryAverageNumerator = summaryAverageNumerator
+        self.summaryAverageDenominator = summaryAverageDenominator
+    }
 
     var id: TimeInterval {
         startDate.timeIntervalSinceReferenceDate + (endDate.timeIntervalSinceReferenceDate * 0.0001)
@@ -82,9 +109,113 @@ struct HistoryChartPoint: Identifiable {
     var date: Date {
         startDate.addingTimeInterval(endDate.timeIntervalSince(startDate) / 2)
     }
+
+    var plottedValue: Double {
+        guard !segments.isEmpty else { return value }
+        return segments.reduce(0.0) { $0 + $1.value }
+    }
+
+    var effectiveSummaryAverageNumerator: Double {
+        summaryAverageNumerator ?? plottedValue
+    }
+
+    var effectiveSummaryAverageDenominator: Double {
+        summaryAverageDenominator ?? 1
+    }
+
+    func segmentValue(for key: String) -> Double? {
+        segments.first(where: { $0.key == key })?.value
+    }
+}
+
+enum HistoryChartSegmentStyle: String, Codable {
+    case primary
+    case secondary
+    case tertiary
+    case positive
+    case warning
+    case negative
+    case neutral
+}
+
+struct HistoryChartBarSegment: Identifiable, Hashable {
+    let key: String
+    let value: Double
+    let style: HistoryChartSegmentStyle
+    let label: String?
+
+    init(
+        key: String,
+        value: Double,
+        style: HistoryChartSegmentStyle,
+        label: String? = nil
+    ) {
+        self.key = key
+        self.value = value
+        self.style = style
+        self.label = label
+    }
+
+    var id: String { key }
+}
+
+typealias HistoryChartLoadIntervalProvider = (DateInterval, HistoryChartTimeframe) -> DateInterval
+
+enum HistoryChartLoadSupport {
+    static func bufferedInterval(
+        for visibleInterval: DateInterval,
+        timeframe: HistoryChartTimeframe,
+        calendar: Calendar = .current
+    ) -> DateInterval {
+        guard visibleInterval.end > visibleInterval.start else {
+            return visibleInterval
+        }
+
+        let step = timeframe.shiftMultiplier
+        let component = timeframe.windowCalendarComponent
+        let startWindowStart = calendar.dateInterval(of: component, for: visibleInterval.start)?.start ?? visibleInterval.start
+        let endAnchor = visibleInterval.end.addingTimeInterval(-1)
+        let endWindowStart = calendar.dateInterval(of: component, for: endAnchor)?.start ?? endAnchor
+        let endWindowEnd = calendar.date(byAdding: component, value: step, to: endWindowStart) ?? visibleInterval.end
+
+        let bufferedStart = calendar.date(byAdding: component, value: -step, to: startWindowStart) ?? startWindowStart
+        let bufferedEnd = calendar.date(byAdding: component, value: step, to: endWindowEnd) ?? endWindowEnd
+
+        return DateInterval(start: bufferedStart, end: bufferedEnd)
+    }
 }
 
 enum HistoryChartCalculator {
+    static func sanitizeBounds(
+        oldest: Date?,
+        newest: Date?,
+        calendar: Calendar = .current,
+        now: Date = Date(),
+        minimumYear: Int = 2010
+    ) -> (oldest: Date?, newest: Date?) {
+        guard let oldest, let newest else {
+            return (nil, nil)
+        }
+
+        guard oldest <= newest else {
+            return (nil, nil)
+        }
+
+        let minAllowed = calendar.date(from: DateComponents(year: minimumYear, month: 1, day: 1)) ?? oldest
+        let maxAllowed = calendar.date(byAdding: .day, value: 1, to: now) ?? now
+
+        guard oldest >= minAllowed else {
+            return (nil, nil)
+        }
+
+        let clampedNewest = min(newest, maxAllowed)
+        guard clampedNewest >= oldest else {
+            return (nil, nil)
+        }
+
+        return (oldest, clampedNewest)
+    }
+
     static func currentWindow(
         for timeframe: HistoryChartTimeframe,
         now: Date = Date(),
@@ -251,4 +382,3 @@ enum HistoryChartCalculator {
         calendar.date(byAdding: timeframe.bucketCalendarComponent, value: 1, to: date) ?? date
     }
 }
-

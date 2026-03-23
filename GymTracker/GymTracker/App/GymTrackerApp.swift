@@ -24,7 +24,9 @@ struct GymTrackerApp: App {
     @StateObject var nutritionService: NutritionService
     
     @StateObject var watchSessionManager: WatchSessionManager
-    @StateObject var healthKitManager = HealthKitManager()
+    @StateObject var healthKitManager: HealthKitManager
+    @StateObject var healthKitDailyStore: HealthKitDailyStore
+    @StateObject var healthMetricsService: HealthMetricsService
     @StateObject var toastManager = ActionToastManager()
 
     init() {
@@ -52,6 +54,19 @@ struct GymTrackerApp: App {
         let exerciseSplitDayService = ExerciseSplitDayService(context: context)
         let sessionExerciseService = SessionExerciseService(context: context)
         let nutritionService = NutritionService(context: context)
+        let healthKitManager = HealthKitManager()
+        let healthKitDateNormalizer = HealthKitDateNormalizer()
+        let healthKitDailyStore = HealthKitDailyStore(
+            context: context,
+            healthKitManager: healthKitManager,
+            dateNormalizer: healthKitDateNormalizer
+        )
+        let healthMetricsService = HealthMetricsService(
+            context: context,
+            dailyStore: healthKitDailyStore,
+            nutritionService: nutritionService,
+            dateNormalizer: healthKitDateNormalizer
+        )
 
         // Bind AFTER creation
         dashboardService.bind(to: userService)
@@ -63,6 +78,8 @@ struct GymTrackerApp: App {
         exerciseSplitDayService.bind(to: userService)
         sessionExerciseService.bind(to: userService)
         nutritionService.bind(to: userService)
+        healthKitDailyStore.bind(to: userService)
+        healthMetricsService.bind(to: userService)
 
         self._dashboardService = StateObject(wrappedValue: dashboardService)
         self._userService = StateObject(wrappedValue: userService)
@@ -74,6 +91,9 @@ struct GymTrackerApp: App {
         self._exerciseSplitDayService = StateObject(wrappedValue: exerciseSplitDayService)
         self._sessionExerciseService = StateObject(wrappedValue: sessionExerciseService)
         self._nutritionService = StateObject(wrappedValue: nutritionService)
+        self._healthKitManager = StateObject(wrappedValue: healthKitManager)
+        self._healthKitDailyStore = StateObject(wrappedValue: healthKitDailyStore)
+        self._healthMetricsService = StateObject(wrappedValue: healthMetricsService)
 
         self._watchSessionManager = StateObject(
             wrappedValue: WatchSessionManager(
@@ -92,6 +112,8 @@ struct GymTrackerApp: App {
                 }
                 .environmentObject(toastManager)
                 .environmentObject(healthKitManager)
+                .environmentObject(healthKitDailyStore)
+                .environmentObject(healthMetricsService)
                 .environmentObject(watchSessionManager)
                 .environmentObject(userService)
                 .environmentObject(dashboardService)

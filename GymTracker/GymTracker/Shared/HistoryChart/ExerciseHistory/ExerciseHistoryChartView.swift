@@ -72,6 +72,7 @@ struct ExerciseHistoryChartView: View {
         HistoryChartView(
             navigationTitle: scope.title,
             filterStateToken: filterStateToken,
+            chartStyle: exerciseChartStyle,
             filterControls: {
                 VStack(alignment: .leading, spacing: 10) {
                     modePicker
@@ -215,6 +216,15 @@ struct ExerciseHistoryChartView: View {
         case .totalReps, .averageReps:
             return "reps"
         }
+    }
+
+    private var exerciseChartStyle: HistoryChartRenderStyle {
+        if case .exercise = scope,
+           metricMode == .strength,
+           selectedStrengthMetric == .averageWeight {
+            return .barLine
+        }
+        return .bar
     }
 
     private func dataBoundsForCurrentMetric() -> (oldest: Date?, newest: Date?) {

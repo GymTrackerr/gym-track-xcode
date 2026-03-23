@@ -15,7 +15,7 @@ struct WatchContentView: View {
     
     var body: some View {
         TabView {
-            HomeView()
+//            HomeView()
             // Timer Tab
             WatchTimerView()
 

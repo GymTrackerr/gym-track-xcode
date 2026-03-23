@@ -11,6 +11,7 @@ import SwiftData
 struct ContentView: View {
     @EnvironmentObject var timerService: TimerService
     @EnvironmentObject var userService: UserService
+    @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
     
     @State var query: String = ""
     @State var localSelected:Int = 0
@@ -81,6 +82,16 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             timerService.appDidBecomeActive()
+            guard let userId = userService.currentUser?.id.uuidString else { return }
+            Task {
+                await healthKitDailyStore.refreshTodayIfNeeded(userId: userId)
+            }
+        }
+        .task(id: userService.currentUser?.id.uuidString) {
+            guard let userId = userService.currentUser?.id.uuidString else { return }
+            Task(priority: .background) {
+                _ = await healthKitDailyStore.backfillHistoryIfNeeded(userId: userId)
+            }
         }
         .onChange(of: userService.currentUser?.showNutritionTab ?? true) {
             if !(userService.currentUser?.showNutritionTab ?? true), localSelected == 3 {
@@ -124,6 +135,7 @@ struct ContentView: View {
         // 4.
 
     }
+
 }
 extension View {
     @ViewBuilder func `if`<Content: View>(_ condition: Bool, content: (Self) -> Content) -> some View {

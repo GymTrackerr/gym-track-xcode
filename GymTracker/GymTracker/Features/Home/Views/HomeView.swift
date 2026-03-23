@@ -4,6 +4,7 @@ import SwiftData
 struct HomeView: View {
     @EnvironmentObject var userService: UserService
     @EnvironmentObject var hkManager: HealthKitManager
+    @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
 
     @State private var openedSession: Session? = nil
     @State private var navigateToSession: Bool = false
@@ -40,11 +41,17 @@ struct HomeView: View {
         }
         .task {
             await hkManager.requestAuthorization()
-            await hkManager.fetchWeeklySteps()
             await hkManager.fetchUserWeight()
             await hkManager.fetchWorkouts()
             await hkManager.fetchActivityRingStatus()
-            await hkManager.fetchSleepData()
+            guard let userId = userService.currentUser?.id.uuidString else { return }
+            await healthKitDailyStore.refreshTodayIfNeeded(userId: userId)
+            _ = try? await healthKitDailyStore.dailySummaries(
+                endingOn: Date(),
+                days: 7,
+                userId: userId,
+                policy: .refreshIfStale
+            )
         }
         .navigationDestination(isPresented: $navigateToSession) {
             Group {
@@ -320,6 +327,9 @@ struct FitSightModuleView: View {
 
 struct NutritionModuleView: View {
     let module: DashboardModule
+    @EnvironmentObject var userService: UserService
+    @EnvironmentObject var healthMetricsService: HealthMetricsService
+    @State private var deficitSurplus: Double?
 
     var body: some View {
         if module.size == .medium || module.size == .large {
@@ -330,13 +340,31 @@ struct NutritionModuleView: View {
             NavigationLink(destination: NutritionDayView().appBackground()) {
                 MetricCard(
                     title: module.type.displayName,
-                    value: "Track",
+                    value: smallCardValue,
                     icon: module.type.iconName,
                     pageNav: true,
                     hasBackground: false
                 )
             }
+            .task(id: userService.currentUser?.id) {
+                await loadDeficit()
+            }
         }
+    }
+
+    private var smallCardValue: String {
+        guard let deficitSurplus else { return "Loading..." }
+        let rounded = Int(deficitSurplus.rounded())
+        let prefix = rounded >= 0 ? "+" : ""
+        return "\(prefix)\(rounded) kcal"
+    }
+
+    private func loadDeficit() async {
+        guard let userId = userService.currentUser?.id.uuidString else {
+            deficitSurplus = nil
+            return
+        }
+        deficitSurplus = try? await healthMetricsService.deficitSurplus(for: Date(), userId: userId)
     }
 }
 
@@ -355,51 +383,95 @@ struct CurrentWeightModuleView: View {
 
 struct WeeklyStepsModuleView: View {
     let module: DashboardModule
-    @EnvironmentObject var hkManager: HealthKitManager
+    @EnvironmentObject var userService: UserService
+    @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
+    @State private var weeklyStepsTotal: Double = 0
     
     var body: some View {
         if module.size == .medium || module.size == .large {
-            StepBarGraph(
-                height: module.size == .large ? 165 : 120,
-                barColor: .blue
-            )
-            .padding(.horizontal, 4)
-            .padding(.vertical, 2)
+            NavigationLink(destination: HealthHistoryChartView().appBackground()) {
+                StepBarGraph(
+                    height: module.size == .large ? 165 : 120,
+                    barColor: .blue
+                )
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+            }
         } else {
-            MetricCard(
-                title: "Weekly Steps",
-                value: String(hkManager.totalStepsWeek.rounded()),
-                icon: "figure.walk.motion",
-                hasBackground: false
-            )
+            NavigationLink(destination: HealthHistoryChartView().appBackground()) {
+                MetricCard(
+                    title: "Weekly Steps",
+                    value: String(weeklyStepsTotal.rounded()),
+                    icon: "figure.walk.motion",
+                    hasBackground: false
+                )
+            }
+            .task(id: userService.currentUser?.id) {
+                await loadWeeklyTotal()
+            }
         }
+    }
+
+    private func loadWeeklyTotal() async {
+        guard let userId = userService.currentUser?.id.uuidString else {
+            weeklyStepsTotal = 0
+            return
+        }
+        let summaries = try? await healthKitDailyStore.dailySummaries(
+            endingOn: Date(),
+            days: 7,
+            userId: userId,
+            policy: .refreshIfStale
+        )
+        weeklyStepsTotal = summaries?.reduce(0, { $0 + $1.steps }) ?? 0
     }
 }
 
 struct SleepModuleView: View {
-    @EnvironmentObject var hkManager: HealthKitManager
-    
-    private let sleepHours: Double? = nil
+    @EnvironmentObject var userService: UserService
+    @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
+    @State private var sleepHours: Double?
     
     var body: some View {
-        if let previousSleepNight = hkManager.sleepData.first?.duration {
-            let hours = previousSleepNight / 3600
-            MetricCard(
-                title: "Sleep",
-                value: String(format: "%.1f", hours) + " hrs",
-                icon: "bed.double",
-                alignment: .center,
-                hasBackground: false
-            )
-        } else {
-            MetricCard(
-                title: "Sleep",
-                value: "N/A",
-                icon: "bed.double",
-                alignment: .center,
-                hasBackground: false
-            )
+        Group {
+            if let sleepHours {
+                MetricCard(
+                    title: "Sleep",
+                    value: String(format: "%.1f", sleepHours) + " hrs",
+                    icon: "bed.double",
+                    alignment: .center,
+                    hasBackground: false
+                )
+            } else {
+                MetricCard(
+                    title: "Sleep",
+                    value: "N/A",
+                    icon: "bed.double",
+                    alignment: .center,
+                    hasBackground: false
+                )
+            }
         }
+        .task(id: userService.currentUser?.id) {
+            await loadSleep()
+        }
+    }
+
+    private func loadSleep() async {
+        guard let userId = userService.currentUser?.id.uuidString else {
+            sleepHours = nil
+            return
+        }
+        let summary = try? await healthKitDailyStore.dailySummary(
+            for: Date(),
+            userId: userId,
+            policy: .refreshIfStale
+        )
+        guard let sleepSeconds = summary?.sleepSeconds, sleepSeconds > 0 else {
+            sleepHours = nil
+            return
+        }
+        sleepHours = sleepSeconds / 3600
     }
 }
 

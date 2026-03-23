@@ -14,8 +14,14 @@
 		6500F5382F4E2FBD00472D60 /* refinements_prompts_notes_import.txt in Resources */ = {isa = PBXBuildFile; fileRef = 6500F5372F4E2FBD00472D60 /* refinements_prompts_notes_import.txt */; };
 		650B674B2F5F89FF007E48F1 /* refactor.md in Resources */ = {isa = PBXBuildFile; fileRef = 650B674A2F5F89FF007E48F1 /* refactor.md */; };
 		650B674F2F5FA7BB007E48F1 /* nutrition-backup-2026-03-10T00-47-09Z.json in Resources */ = {isa = PBXBuildFile; fileRef = 650B674E2F5FA7BB007E48F1 /* nutrition-backup-2026-03-10T00-47-09Z.json */; };
+		651404642F6C13A200E6E284 /* gymtracker_refactor_phase_b_prompt.md in Resources */ = {isa = PBXBuildFile; fileRef = 651404632F6C13A200E6E284 /* gymtracker_refactor_phase_b_prompt.md */; };
 		651ACB712F4E815C003BD3D6 /* session_nutrition_design.md in Resources */ = {isa = PBXBuildFile; fileRef = 651ACB6F2F4E8128003BD3D6 /* session_nutrition_design.md */; };
+		6536C6D52F6FFE8B002C2A97 /* implementation.md in Resources */ = {isa = PBXBuildFile; fileRef = 6536C6D32F6FFE8B002C2A97 /* implementation.md */; };
 		657F76862F599623000C1412 /* session_exercise.md in Resources */ = {isa = PBXBuildFile; fileRef = 657F76852F59961B000C1412 /* session_exercise.md */; };
+		65A98B3D2F6B0B38001B9111 /* gymtracker_refactor_phase_a_prompt.md in Resources */ = {isa = PBXBuildFile; fileRef = 65A98B3B2F6B0B38001B9111 /* gymtracker_refactor_phase_a_prompt.md */; };
+		65A98B3E2F6B0B38001B9111 /* gymtracker_claude_companion.md in Resources */ = {isa = PBXBuildFile; fileRef = 65A98B382F6B0B38001B9111 /* gymtracker_claude_companion.md */; };
+		65A98B3F2F6B0B38001B9111 /* gymtracker_program_progression_refactor_spec.md in Resources */ = {isa = PBXBuildFile; fileRef = 65A98B392F6B0B38001B9111 /* gymtracker_program_progression_refactor_spec.md */; };
+		65A98B402F6B0B38001B9111 /* gymtracker_program_progression_spec.md in Resources */ = {isa = PBXBuildFile; fileRef = 65A98B3A2F6B0B38001B9111 /* gymtracker_program_progression_spec.md */; };
 		65B6FEC42EE5EF8700DB4EED /* GymTrackerWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 65B6FEBA2EE5EF8500DB4EED /* GymTrackerWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		65E4E2AD2F4F9AEF007F028F /* usage_based_improvements.md in Resources */ = {isa = PBXBuildFile; fileRef = 65E6BE812F4F86900047C486 /* usage_based_improvements.md */; };
 		65E6BE7A2F4F27950047C486 /* refinements_notes_import_bugs.md in Resources */ = {isa = PBXBuildFile; fileRef = 65E6BE792F4F27950047C486 /* refinements_notes_import_bugs.md */; };
@@ -74,9 +80,15 @@
 		6500F5372F4E2FBD00472D60 /* refinements_prompts_notes_import.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = refinements_prompts_notes_import.txt; sourceTree = "<group>"; };
 		650B674A2F5F89FF007E48F1 /* refactor.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = refactor.md; sourceTree = "<group>"; };
 		650B674E2F5FA7BB007E48F1 /* nutrition-backup-2026-03-10T00-47-09Z.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "nutrition-backup-2026-03-10T00-47-09Z.json"; sourceTree = "<group>"; };
+		651404632F6C13A200E6E284 /* gymtracker_refactor_phase_b_prompt.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = gymtracker_refactor_phase_b_prompt.md; sourceTree = "<group>"; };
 		651ACB6F2F4E8128003BD3D6 /* session_nutrition_design.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = session_nutrition_design.md; sourceTree = "<group>"; };
 		651FCBAD2E8D3B9C00AC42F6 /* GymTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GymTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6536C6D32F6FFE8B002C2A97 /* implementation.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = implementation.md; sourceTree = "<group>"; };
 		657F76852F59961B000C1412 /* session_exercise.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = session_exercise.md; sourceTree = "<group>"; };
+		65A98B382F6B0B38001B9111 /* gymtracker_claude_companion.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = gymtracker_claude_companion.md; sourceTree = "<group>"; };
+		65A98B392F6B0B38001B9111 /* gymtracker_program_progression_refactor_spec.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = gymtracker_program_progression_refactor_spec.md; sourceTree = "<group>"; };
+		65A98B3A2F6B0B38001B9111 /* gymtracker_program_progression_spec.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = gymtracker_program_progression_spec.md; sourceTree = "<group>"; };
+		65A98B3B2F6B0B38001B9111 /* gymtracker_refactor_phase_a_prompt.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = gymtracker_refactor_phase_a_prompt.md; sourceTree = "<group>"; };
 		65B6FEBA2EE5EF8500DB4EED /* GymTrackerWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "GymTrackerWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		65E6BE792F4F27950047C486 /* refinements_notes_import_bugs.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = refinements_notes_import_bugs.md; sourceTree = "<group>"; };
 		65E6BE812F4F86900047C486 /* usage_based_improvements.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = usage_based_improvements.md; sourceTree = "<group>"; };
@@ -86,6 +98,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		6536C6E22F70023B002C2A97 /* Exceptions for "GymTrackerWatch Watch App" folder in "GymTrackerWatch Watch App" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Views/HomeView.swift,
+			);
+			target = 65B6FEB92EE5EF8500DB4EED /* GymTrackerWatch Watch App */;
+		};
 		65B6FECA2EE5F00500DB4EED /* Exceptions for "GymTracker" folder in "GymTrackerWatch Watch App" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -93,14 +112,12 @@
 				Core/Networking/API_Data.swift,
 				Core/Networking/API_Helper.swift,
 				Core/Persistence/ServiceBase.swift,
-				Features/Home/Views/StepBarGraph.swift,
 				Features/Timer/Models/TrackerTimer.swift,
 				Features/Timer/Services/TimerService.swift,
 				Features/Timer/Services/TimerServiceLiveActivity.swift,
 				Features/User/Models/User.swift,
 				Features/User/Services/UserService.swift,
 				GymTracker.icon,
-				Integrations/HealthKit/Managers/HealthKitManager.swift,
 				Integrations/Media/MediaCache.swift,
 			);
 			target = 65B6FEB92EE5EF8500DB4EED /* GymTrackerWatch Watch App */;
@@ -159,6 +176,9 @@
 		};
 		65B6FEBB2EE5EF8500DB4EED /* GymTrackerWatch Watch App */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				6536C6E22F70023B002C2A97 /* Exceptions for "GymTrackerWatch Watch App" folder in "GymTrackerWatch Watch App" target */,
+			);
 			path = "GymTrackerWatch Watch App";
 			sourceTree = "<group>";
 		};
@@ -224,6 +244,8 @@
 		6500F51D2F4E1CFD00472D60 /* Docs */ = {
 			isa = PBXGroup;
 			children = (
+				6536C6D42F6FFE8B002C2A97 /* healthkit */,
+				65A98B3C2F6B0B38001B9111 /* program */,
 				651ACB6E2F4E8120003BD3D6 /* design */,
 				6500F51A2F4E1CFD00472D60 /* notes_import */,
 				6500F51C2F4E1CFD00472D60 /* nutrition */,
@@ -262,6 +284,27 @@
 				65B6FEBA2EE5EF8500DB4EED /* GymTrackerWatch Watch App.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		6536C6D42F6FFE8B002C2A97 /* healthkit */ = {
+			isa = PBXGroup;
+			children = (
+				6536C6D32F6FFE8B002C2A97 /* implementation.md */,
+			);
+			name = healthkit;
+			path = Docs/healthkit;
+			sourceTree = SOURCE_ROOT;
+		};
+		65A98B3C2F6B0B38001B9111 /* program */ = {
+			isa = PBXGroup;
+			children = (
+				65A98B382F6B0B38001B9111 /* gymtracker_claude_companion.md */,
+				65A98B392F6B0B38001B9111 /* gymtracker_program_progression_refactor_spec.md */,
+				65A98B3A2F6B0B38001B9111 /* gymtracker_program_progression_spec.md */,
+				65A98B3B2F6B0B38001B9111 /* gymtracker_refactor_phase_a_prompt.md */,
+				651404632F6C13A200E6E284 /* gymtracker_refactor_phase_b_prompt.md */,
+			);
+			path = program;
 			sourceTree = "<group>";
 		};
 		65F66C1B2EE4FD780089B62E /* Frameworks */ = {
@@ -398,8 +441,14 @@
 				6500F51E2F4E1CFD00472D60 /* agent_phase_prompts.txt in Resources */,
 				65E6BE7A2F4F27950047C486 /* refinements_notes_import_bugs.md in Resources */,
 				6500F51F2F4E1CFD00472D60 /* NutritionImplementation.md in Resources */,
+				6536C6D52F6FFE8B002C2A97 /* implementation.md in Resources */,
 				65E4E2AD2F4F9AEF007F028F /* usage_based_improvements.md in Resources */,
 				651ACB712F4E815C003BD3D6 /* session_nutrition_design.md in Resources */,
+				65A98B3D2F6B0B38001B9111 /* gymtracker_refactor_phase_a_prompt.md in Resources */,
+				65A98B3E2F6B0B38001B9111 /* gymtracker_claude_companion.md in Resources */,
+				65A98B3F2F6B0B38001B9111 /* gymtracker_program_progression_refactor_spec.md in Resources */,
+				651404642F6C13A200E6E284 /* gymtracker_refactor_phase_b_prompt.md in Resources */,
+				65A98B402F6B0B38001B9111 /* gymtracker_program_progression_spec.md in Resources */,
 				657F76862F599623000C1412 /* session_exercise.md in Resources */,
 				6500F5202F4E1CFD00472D60 /* notes_import_implementation.md in Resources */,
 				6500F5382F4E2FBD00472D60 /* refinements_prompts_notes_import.txt in Resources */,
