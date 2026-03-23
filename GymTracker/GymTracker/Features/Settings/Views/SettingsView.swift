@@ -15,6 +15,7 @@ struct SettingsView: View {
     private enum BackupImportTarget {
         case nutrition
         case exercise
+        case appleHealthSummary
     }
 
     @Environment(\.modelContext) private var context
@@ -25,6 +26,7 @@ struct SettingsView: View {
     @EnvironmentObject var sessionService: SessionService
     @EnvironmentObject var exerciseSplitDayService: ExerciseSplitDayService
     @EnvironmentObject var sessionExerciseService: SessionExerciseService
+    @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
     @State private var shareItem: BackupShareItem?
     @State private var showImportPicker = false
     @State private var importTarget: BackupImportTarget = .nutrition
@@ -203,6 +205,27 @@ struct SettingsView: View {
                     }
 
                 }
+
+                Section("Apple Health Summary") {
+                    Button {
+                        exportAppleHealthSummaryBackup()
+                    } label: {
+                        HStack {
+                            Image(systemName: "square.and.arrow.up")
+                            Text("Export Apple Health Summary")
+                        }
+                    }
+
+                    Button {
+                        importTarget = .appleHealthSummary
+                        showImportPicker = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "square.and.arrow.down")
+                            Text("Import Apple Health Summary")
+                        }
+                    }
+                }
             }
             .scrollContentBackground(.hidden)
         }
@@ -227,6 +250,8 @@ struct SettingsView: View {
                 handleNutritionImport(result)
             case .exercise:
                 handleExerciseImport(result)
+            case .appleHealthSummary:
+                handleAppleHealthSummaryImport(result)
             }
         }
         .sheet(isPresented: $showExerciseTransferTool) {
@@ -358,6 +383,67 @@ struct SettingsView: View {
                 Imported exercises \(report.exercises.inserted + report.exercises.updated), \
                 routines \(report.routines.inserted + report.routines.updated), \
                 sessions \(report.sessions.inserted + report.sessions.updated).
+                """
+                showExportErrorAlert = true
+            } catch {
+                backupAlertTitle = "Couldn’t Import"
+                exportErrorMessage = error.localizedDescription
+                showExportErrorAlert = true
+            }
+        }
+    }
+
+    private func exportAppleHealthSummaryBackup() {
+        let transferService = AppleHealthSummaryBackupService(
+            context: context,
+            currentUserProvider: { userService.currentUser },
+            dateNormalizer: HealthKitDateNormalizer()
+        )
+
+        do {
+            let url = try transferService.exportAppleHealthSummaryJSON()
+#if os(iOS)
+            shareItem = BackupShareItem(url: url)
+#else
+            backupAlertTitle = "Export Complete"
+            exportErrorMessage = "Backup created at: \\(url.path)"
+            showExportErrorAlert = true
+#endif
+        } catch {
+            backupAlertTitle = "Couldn’t Export"
+            exportErrorMessage = error.localizedDescription
+            showExportErrorAlert = true
+        }
+    }
+
+    private func handleAppleHealthSummaryImport(_ result: Result<[URL], any Error>) {
+        switch result {
+        case .failure(let error):
+            backupAlertTitle = "Couldn’t Import"
+            exportErrorMessage = error.localizedDescription
+            showExportErrorAlert = true
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            let hasSecurityScope = url.startAccessingSecurityScopedResource()
+            defer {
+                if hasSecurityScope {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            let transferService = AppleHealthSummaryBackupService(
+                context: context,
+                currentUserProvider: { userService.currentUser },
+                dateNormalizer: HealthKitDateNormalizer()
+            )
+
+            do {
+                let report = try transferService.importAppleHealthSummaryJSON(from: url)
+                healthKitDailyStore.notifyExternalSummaryImport()
+                backupAlertTitle = "Import Complete"
+                exportErrorMessage = """
+                Imported \(report.totalImported) day(s): \(report.inserted) inserted, \(report.updated) updated.
+                \(report.skipped > 0 ? "Skipped \(report.skipped) invalid/duplicate day(s)." : "")
                 """
                 showExportErrorAlert = true
             } catch {

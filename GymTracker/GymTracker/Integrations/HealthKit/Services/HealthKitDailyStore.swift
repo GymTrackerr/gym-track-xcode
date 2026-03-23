@@ -351,6 +351,10 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         try modelContext.save()
     }
 
+    func notifyExternalSummaryImport() {
+        refreshToken &+= 1
+    }
+
     private func refreshDay(dayStart: Date, userId: String) async throws -> HealthKitDailyAggregateData {
         let cacheKey = makeCacheKey(userId: userId, dayKey: dateNormalizer.dayKey(dayStart))
 
