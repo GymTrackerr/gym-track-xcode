@@ -622,8 +622,7 @@ extension ExerciseService {
     func thumbnailURL(for exercise: Exercise) -> URL? {
         guard
             let first = exercise.images?.first,
-            let baseURL = URL(string: apiHelper.apiData.getURL().replacingOccurrences(of: "/v1", with: "")),
-            let url = URL(string: first, relativeTo: baseURL)
+            let url = apiHelper.resolveMediaURL(first)
         else {
             print("Missing or invalid thumbnail URL for \(exercise.name)")
             return nil
@@ -636,8 +635,7 @@ extension ExerciseService {
     func gifURL(for exercise: Exercise) -> URL? {
         guard
             let last = exercise.images?.last,
-            let baseURL = URL(string: apiHelper.apiData.getURL().replacingOccurrences(of: "/v1", with: "")),
-            let url = URL(string: last, relativeTo: baseURL)
+            let url = apiHelper.resolveMediaURL(last)
         else {
             print("⚠️ Missing or invalid GIF URL for \(exercise.name)")
             return nil
@@ -689,7 +687,7 @@ extension ExerciseService {
 
 extension API_Helper {
     func fetchExercises() async throws -> [ExerciseDTO] {
-        let url = "\(baseAPIurl)/exercises"
-        return try await asyncRequestData(urlString: url)
+        let response: ListResponse<ExerciseDTO> = try await asyncRequestListData(route: APIRoute.exercises)
+        return response.items
     }
 }

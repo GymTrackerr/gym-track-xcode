@@ -108,9 +108,7 @@
 		65B6FECA2EE5F00500DB4EED /* Exceptions for "GymTracker" folder in "GymTrackerWatch Watch App" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Core/Networking/API_Base.swift,
 				Core/Networking/API_Data.swift,
-				Core/Networking/API_Helper.swift,
 				Core/Persistence/ServiceBase.swift,
 				Features/Timer/Models/TrackerTimer.swift,
 				Features/Timer/Services/TimerService.swift,
@@ -151,9 +149,7 @@
 		65F66C422EE500F10089B62E /* Exceptions for "GymTracker" folder in "TrackerWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Core/Networking/API_Base.swift,
 				Core/Networking/API_Data.swift,
-				Core/Networking/API_Helper.swift,
 				Core/Persistence/ServiceBase.swift,
 				Features/Timer/Models/TrackerTimer.swift,
 				Features/User/Models/User.swift,
@@ -172,6 +168,11 @@
 				65B6FECA2EE5F00500DB4EED /* Exceptions for "GymTracker" folder in "GymTrackerWatch Watch App" target */,
 			);
 			path = GymTracker;
+			sourceTree = "<group>";
+		};
+		659CA0772F8616BF00FDFB40 /* Repo */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Repo;
 			sourceTree = "<group>";
 		};
 		65B6FEBB2EE5EF8500DB4EED /* GymTrackerWatch Watch App */ = {
@@ -244,6 +245,7 @@
 		6500F51D2F4E1CFD00472D60 /* Docs */ = {
 			isa = PBXGroup;
 			children = (
+				659CA0772F8616BF00FDFB40 /* Repo */,
 				6536C6D42F6FFE8B002C2A97 /* healthkit */,
 				65A98B3C2F6B0B38001B9111 /* program */,
 				651ACB6E2F4E8120003BD3D6 /* design */,
@@ -337,6 +339,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				651FCBAF2E8D3B9C00AC42F6 /* GymTracker */,
+				659CA0772F8616BF00FDFB40 /* Repo */,
 			);
 			name = GymTracker;
 			packageProductDependencies = (

@@ -5,15 +5,21 @@
 //  Created by Daniel Kravec on 2025-11-11.
 //
 
-class ExerciseApi: API_Base {
+import Foundation
+
+final class ExerciseApi {
+    private let apiHelper: API_Helper
+
+    init(apiHelper: API_Helper = API_Helper()) {
+        self.apiHelper = apiHelper
+    }
+
     // get post replies
     func getExercises() async throws -> [ExerciseDTO] {
         print("replies of post")
-        let APIUrl = baseAPIurl + "/exercises"
-        
         do {
-            let data:[ExerciseDTO] = try await apiHelper.asyncRequestData(urlString: APIUrl, httpMethod: "GET");
-            return data;
+            let response: ListResponse<ExerciseDTO> = try await apiHelper.asyncRequestListData(route: APIRoute.exercises)
+            return response.items
         } catch {
             print(error)
             throw error
@@ -22,11 +28,9 @@ class ExerciseApi: API_Base {
     
     func getExercise(exerciseID: String) async throws -> ExerciseDTO {
         print("replies of post")
-        let APIUrl = baseAPIurl + "/exercises/"+exerciseID
-        
         do {
-            let data:ExerciseDTO = try await apiHelper.asyncRequestData(urlString: APIUrl, httpMethod: "GET");
-            return data;
+            let data: ExerciseDTO = try await apiHelper.asyncRequestData(route: APIRoute.exercise(id: exerciseID))
+            return data
         } catch {
             print(error)
             throw error
