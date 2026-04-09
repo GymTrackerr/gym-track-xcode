@@ -164,10 +164,10 @@ struct NutritionHistoryChartView: View {
             )
         }
 
-        let resting = selectedPoint.segmentValue(for: NutritionChartCalculator.restingSegmentKey) ?? 0
-        let active = selectedPoint.segmentValue(for: NutritionChartCalculator.activeSegmentKey) ?? 0
-        let eaten = selectedPoint.segmentValue(for: NutritionChartCalculator.eatenSegmentKey) ?? 0
-//        let balance = eaten - (resting + active)
+        let totals = energyTotals(for: selectedPoint)
+        let resting = totals?.resting ?? (selectedPoint.segmentValue(for: NutritionChartCalculator.restingSegmentKey) ?? 0)
+        let active = totals?.active ?? (selectedPoint.segmentValue(for: NutritionChartCalculator.activeSegmentKey) ?? 0)
+        let eaten = totals?.eaten ?? (selectedPoint.segmentValue(for: NutritionChartCalculator.eatenSegmentKey) ?? 0)
 
         switch filter {
         case .summary:
@@ -215,9 +215,10 @@ struct NutritionHistoryChartView: View {
             return []
         }
 
-        let resting = selectedPoint.segmentValue(for: NutritionChartCalculator.restingSegmentKey) ?? 0
-        let active = selectedPoint.segmentValue(for: NutritionChartCalculator.activeSegmentKey) ?? 0
-        let eaten = selectedPoint.segmentValue(for: NutritionChartCalculator.eatenSegmentKey) ?? 0
+        let totals = energyTotals(for: selectedPoint)
+        let resting = totals?.resting ?? (selectedPoint.segmentValue(for: NutritionChartCalculator.restingSegmentKey) ?? 0)
+        let active = totals?.active ?? (selectedPoint.segmentValue(for: NutritionChartCalculator.activeSegmentKey) ?? 0)
+        let eaten = totals?.eaten ?? (selectedPoint.segmentValue(for: NutritionChartCalculator.eatenSegmentKey) ?? 0)
         let balance = eaten - (resting + active)
         let balanceTitle = balance >= 0 ? "Surplus" : "Deficit"
 
@@ -319,6 +320,21 @@ struct NutritionHistoryChartView: View {
         }
 
         return (used: used, eaten: eaten, balanceValue: balanceValue, title: netBalance >= 0 ? "Surplus" : "Deficit")
+    }
+
+    private func energyTotals(for point: HistoryChartPoint) -> (resting: Double, active: Double, eaten: Double)? {
+        guard let userId = userService.currentUser?.id.uuidString else {
+            return nil
+        }
+
+        let interval = DateInterval(start: point.startDate, end: point.endDate)
+        let logs = (try? nutritionService.logsInDateInterval(interval)) ?? []
+        let health = (try? healthKitDailyStore.cachedDailySummaries(in: interval, userId: userId)) ?? []
+
+        let eaten = logs.reduce(0.0) { $0 + $1.caloriesSnapshot }
+        let resting = health.reduce(0.0) { $0 + $1.restingEnergyKcal }
+        let active = health.reduce(0.0) { $0 + $1.activeEnergyKcal }
+        return (resting: resting, active: active, eaten: eaten)
     }
 
     private var filterStateToken: Int {

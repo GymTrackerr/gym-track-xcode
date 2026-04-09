@@ -81,6 +81,9 @@ enum NutritionChartCalculator {
     static let activeSegmentKey = "active"
     static let eatenSegmentKey = "eaten"
     static let balanceSegmentKey = "balance"
+    static let restingDeficitSegmentKey = "restingDeficit"
+    static let activeDeficitSegmentKey = "activeDeficit"
+    static let surplusSegmentKey = "surplus"
 
     static func nutritionPoints(
         logs: [NutritionLogEntry],
@@ -149,37 +152,67 @@ enum NutritionChartCalculator {
 
             switch displayFilter {
             case .summary:
-                if resting > 0 {
+                let used = resting + active
+                let hasNutritionData = !nutritionDays.isEmpty
+                let deficit = hasNutritionData ? max(used - eaten, 0) : 0
+                let surplus = hasNutritionData ? max(eaten - used, 0) : 0
+
+                let activeDeficit = min(deficit, active)
+                let restingDeficit = min(max(deficit - active, 0), resting)
+                let remainingActive = max(active - activeDeficit, 0)
+                let remainingResting = max(resting - restingDeficit, 0)
+
+                if remainingResting > 0 {
                     segments.append(
                         HistoryChartBarSegment(
                             key: restingSegmentKey,
-                            value: resting,
+                            value: remainingResting,
                             style: .secondary,
                             label: "Resting"
                         )
                     )
                 }
-                if active > 0 {
+                if restingDeficit > 0 {
+                    segments.append(
+                        HistoryChartBarSegment(
+                            key: restingDeficitSegmentKey,
+                            value: restingDeficit,
+                            style: .negativeSecondary,
+                            label: "Deficit (Resting)"
+                        )
+                    )
+                }
+                if remainingActive > 0 {
                     segments.append(
                         HistoryChartBarSegment(
                             key: activeSegmentKey,
-                            value: active,
+                            value: remainingActive,
                             style: .primary,
                             label: "Active"
                         )
                     )
                 }
-                if eaten > 0 {
+                if activeDeficit > 0 {
                     segments.append(
                         HistoryChartBarSegment(
-                            key: eatenSegmentKey,
-                            value: eaten,
-                            style: .positive,
-                            label: "Nutrition"
+                            key: activeDeficitSegmentKey,
+                            value: activeDeficit,
+                            style: .negative,
+                            label: "Deficit (Active)"
                         )
                     )
                 }
-                value = resting + active + eaten
+                if surplus > 0 {
+                    segments.append(
+                        HistoryChartBarSegment(
+                            key: surplusSegmentKey,
+                            value: surplus,
+                            style: .positive,
+                            label: "Surplus"
+                        )
+                    )
+                }
+                value = used + surplus
                 dayCountForAverage = dayStartsWithData.count
 
             case .surplusDeficit:
