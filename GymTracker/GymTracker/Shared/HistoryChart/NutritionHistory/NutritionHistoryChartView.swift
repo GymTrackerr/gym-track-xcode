@@ -51,12 +51,13 @@ struct NutritionHistoryChartView: View {
                 }
                 return (try? nutritionService.nutritionBounds(for: selectedMetric.seriesMetric)) ?? (nil, nil)
             },
-            summaryProvider: { selectedPoint, currentWindowAverage, _ in
+            summaryProvider: { selectedPoint, currentWindowAverage, timeframe in
                 if selectedMetric == .energyBalance {
                     return energyBalanceSummary(
                         selectedPoint: selectedPoint,
                         currentWindowAverage: currentWindowAverage,
-                        filter: selectedEnergyFilter
+                        filter: selectedEnergyFilter,
+                        timeframe: timeframe
                     )
                 }
                 let value = selectedPoint?.value ?? currentWindowAverage
@@ -66,8 +67,8 @@ struct NutritionHistoryChartView: View {
                     unitText: selectedMetric.unitLabel
                 )
             },
-            summaryDetailsProvider: { selectedPoint, _, _ in
-                energySummaryDetails(for: selectedPoint, filter: selectedEnergyFilter)
+            summaryDetailsProvider: { selectedPoint, _, timeframe in
+                energySummaryDetails(for: selectedPoint, filter: selectedEnergyFilter, timeframe: timeframe)
             },
             emptyStateTextProvider: { _ in
                 "No \(selectedMetric.title.lowercased()) data in this timeframe."
@@ -129,7 +130,8 @@ struct NutritionHistoryChartView: View {
     private func energyBalanceSummary(
         selectedPoint: HistoryChartPoint?,
         currentWindowAverage: Double,
-        filter: NutritionEnergySecondaryFilter
+        filter: NutritionEnergySecondaryFilter,
+        timeframe: HistoryChartTimeframe
     ) -> HistoryChartSummary {
         guard let selectedPoint else {
             let title: String
@@ -164,7 +166,7 @@ struct NutritionHistoryChartView: View {
             )
         }
 
-        let totals = energyTotals(for: selectedPoint)
+        let totals = energyTotals(for: selectedPoint, filter: filter, timeframe: timeframe)
         let resting = totals?.resting ?? (selectedPoint.segmentValue(for: NutritionChartCalculator.restingSegmentKey) ?? 0)
         let active = totals?.active ?? (selectedPoint.segmentValue(for: NutritionChartCalculator.activeSegmentKey) ?? 0)
         let eaten = totals?.eaten ?? (selectedPoint.segmentValue(for: NutritionChartCalculator.eatenSegmentKey) ?? 0)
@@ -209,13 +211,14 @@ struct NutritionHistoryChartView: View {
 
     private func energySummaryDetails(
         for selectedPoint: HistoryChartPoint?,
-        filter: NutritionEnergySecondaryFilter
+        filter: NutritionEnergySecondaryFilter,
+        timeframe: HistoryChartTimeframe
     ) -> [HistoryChartSummaryDetail] {
         guard selectedMetric == .energyBalance, let selectedPoint else {
             return []
         }
 
-        let totals = energyTotals(for: selectedPoint)
+        let totals = energyTotals(for: selectedPoint, filter: filter, timeframe: timeframe)
         let resting = totals?.resting ?? (selectedPoint.segmentValue(for: NutritionChartCalculator.restingSegmentKey) ?? 0)
         let active = totals?.active ?? (selectedPoint.segmentValue(for: NutritionChartCalculator.activeSegmentKey) ?? 0)
         let eaten = totals?.eaten ?? (selectedPoint.segmentValue(for: NutritionChartCalculator.eatenSegmentKey) ?? 0)
@@ -247,7 +250,7 @@ struct NutritionHistoryChartView: View {
                 )
             ]
         case .surplusDeficit:
-            let details = surplusDeficitDetails(for: selectedPoint)
+            let details = surplusDeficitDetails(for: selectedPoint, timeframe: timeframe)
             let used = details?.used ?? (resting + active)
             let eatenValue = details?.eaten ?? eaten
             let balanceValue = details?.balanceValue ?? abs(balance)
@@ -275,7 +278,8 @@ struct NutritionHistoryChartView: View {
     }
 
     private func surplusDeficitDetails(
-        for point: HistoryChartPoint
+        for point: HistoryChartPoint,
+        timeframe: HistoryChartTimeframe
     ) -> (used: Double, eaten: Double, balanceValue: Double, title: String)? {
         guard let userId = userService.currentUser?.id.uuidString else {
             return nil
@@ -319,10 +323,25 @@ struct NutritionHistoryChartView: View {
             return partial + (dayEaten - dayUsed)
         }
 
-        return (used: used, eaten: eaten, balanceValue: balanceValue, title: netBalance >= 0 ? "Surplus" : "Deficit")
+        let shouldAverage = shouldAverageBuckets(for: timeframe)
+        let count = nutritionDays.count
+        let normalizedUsed = shouldAverage && count > 0 ? used / Double(count) : used
+        let normalizedEaten = shouldAverage && count > 0 ? eaten / Double(count) : eaten
+        let normalizedBalance = shouldAverage && count > 0 ? balanceValue / Double(count) : balanceValue
+
+        return (
+            used: normalizedUsed,
+            eaten: normalizedEaten,
+            balanceValue: normalizedBalance,
+            title: netBalance >= 0 ? "Surplus" : "Deficit"
+        )
     }
 
-    private func energyTotals(for point: HistoryChartPoint) -> (resting: Double, active: Double, eaten: Double)? {
+    private func energyTotals(
+        for point: HistoryChartPoint,
+        filter: NutritionEnergySecondaryFilter,
+        timeframe: HistoryChartTimeframe
+    ) -> (resting: Double, active: Double, eaten: Double)? {
         guard let userId = userService.currentUser?.id.uuidString else {
             return nil
         }
@@ -331,10 +350,50 @@ struct NutritionHistoryChartView: View {
         let logs = (try? nutritionService.logsInDateInterval(interval)) ?? []
         let health = (try? healthKitDailyStore.cachedDailySummaries(in: interval, userId: userId)) ?? []
 
-        let eaten = logs.reduce(0.0) { $0 + $1.caloriesSnapshot }
-        let resting = health.reduce(0.0) { $0 + $1.restingEnergyKcal }
-        let active = health.reduce(0.0) { $0 + $1.activeEnergyKcal }
+        let logDays = Set(logs.map { Calendar.current.startOfDay(for: $0.timestamp) })
+        let healthDays = Set(health.map { Calendar.current.startOfDay(for: $0.dayStart) })
+        let eatenRaw = logs.reduce(0.0) { $0 + $1.caloriesSnapshot }
+
+        let healthForSummary: [HealthKitDailyAggregateData]
+        if !logDays.isEmpty {
+            healthForSummary = health.filter { logDays.contains(Calendar.current.startOfDay(for: $0.dayStart)) }
+        } else {
+            healthForSummary = health
+        }
+        let restingRaw: Double
+        let activeRaw: Double
+        if filter == .summary {
+            restingRaw = healthForSummary.reduce(0.0) { $0 + $1.restingEnergyKcal }
+            activeRaw = healthForSummary.reduce(0.0) { $0 + $1.activeEnergyKcal }
+        } else {
+            restingRaw = health.reduce(0.0) { $0 + $1.restingEnergyKcal }
+            activeRaw = health.reduce(0.0) { $0 + $1.activeEnergyKcal }
+        }
+
+        let shouldAverage = shouldAverageBuckets(for: timeframe)
+        let dayCount: Int
+        switch filter {
+        case .summary:
+            dayCount = !logDays.isEmpty ? logDays.count : healthDays.count
+        case .surplusDeficit, .nutrition:
+            dayCount = logDays.count
+        case .active, .resting:
+            dayCount = healthDays.count
+        }
+
+        let eaten = shouldAverage && dayCount > 0 ? eatenRaw / Double(dayCount) : eatenRaw
+        let resting = shouldAverage && dayCount > 0 ? restingRaw / Double(dayCount) : restingRaw
+        let active = shouldAverage && dayCount > 0 ? activeRaw / Double(dayCount) : activeRaw
         return (resting: resting, active: active, eaten: eaten)
+    }
+
+    private func shouldAverageBuckets(for timeframe: HistoryChartTimeframe) -> Bool {
+        switch timeframe {
+        case .sixMonths, .year, .fiveYears:
+            return true
+        case .week, .month:
+            return false
+        }
     }
 
     private var filterStateToken: Int {

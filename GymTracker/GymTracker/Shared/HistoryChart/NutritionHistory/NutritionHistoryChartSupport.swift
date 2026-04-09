@@ -92,14 +92,27 @@ enum NutritionChartCalculator {
         metric: NutritionHistoryMetric,
         calendar: Calendar = .current
     ) -> [HistoryChartPoint] {
-        HistoryChartCalculator.bucketIntervals(interval: interval, timeframe: timeframe, calendar: calendar).map { bucket in
-            let value = logs
-                .filter { $0.timestamp >= bucket.start && $0.timestamp < bucket.end }
-                .reduce(0.0) { partial, log in
-                    partial + metricValue(for: log, metric: metric)
-                }
+        let shouldAverage = shouldAverageBuckets(for: timeframe)
+        return HistoryChartCalculator.bucketIntervals(interval: interval, timeframe: timeframe, calendar: calendar).map { bucket in
+            let bucketLogs = logs.filter { $0.timestamp >= bucket.start && $0.timestamp < bucket.end }
+            let totalValue = bucketLogs.reduce(0.0) { partial, log in
+                partial + metricValue(for: log, metric: metric)
+            }
+            let dayCount = Set(bucketLogs.map { calendar.startOfDay(for: $0.timestamp) }).count
+            let displayedValue: Double
+            if shouldAverage, dayCount > 0 {
+                displayedValue = totalValue / Double(dayCount)
+            } else {
+                displayedValue = totalValue
+            }
 
-            return HistoryChartPoint(startDate: bucket.start, endDate: bucket.end, value: value)
+            return HistoryChartPoint(
+                startDate: bucket.start,
+                endDate: bucket.end,
+                value: displayedValue,
+                summaryAverageNumerator: totalValue,
+                summaryAverageDenominator: dayCount > 0 ? Double(dayCount) : 0
+            )
         }
     }
 
@@ -111,13 +124,16 @@ enum NutritionChartCalculator {
         displayFilter: NutritionEnergySecondaryFilter,
         calendar: Calendar = .current
     ) -> [HistoryChartPoint] {
-        HistoryChartCalculator.bucketIntervals(interval: interval, timeframe: timeframe, calendar: calendar).map { bucket in
+        let shouldAverage = shouldAverageBuckets(for: timeframe)
+        return HistoryChartCalculator.bucketIntervals(interval: interval, timeframe: timeframe, calendar: calendar).map { bucket in
             let bucketLogs = logs.filter { $0.timestamp >= bucket.start && $0.timestamp < bucket.end }
             let bucketHealth = healthSummaries.filter { $0.dayStart >= bucket.start && $0.dayStart < bucket.end }
 
+            let nutritionDaysSet = Set(bucketLogs.map { calendar.startOfDay(for: $0.timestamp) })
+            let healthDaysSet = Set(bucketHealth.map { calendar.startOfDay(for: $0.dayStart) })
             var dayStartsWithData = Set<Date>()
-            for log in bucketLogs {
-                dayStartsWithData.insert(calendar.startOfDay(for: log.timestamp))
+            for day in nutritionDaysSet {
+                dayStartsWithData.insert(day)
             }
             for summary in bucketHealth {
                 dayStartsWithData.insert(calendar.startOfDay(for: summary.dayStart))
@@ -152,15 +168,33 @@ enum NutritionChartCalculator {
 
             switch displayFilter {
             case .summary:
-                let used = resting + active
                 let hasNutritionData = !nutritionDays.isEmpty
+                let restingForSummary: Double
+                let activeForSummary: Double
+                if hasNutritionData {
+                    restingForSummary = nutritionDaysSet.reduce(0.0) { partial, day in
+                        partial + bucketHealth
+                            .filter { calendar.startOfDay(for: $0.dayStart) == day }
+                            .reduce(0.0) { $0 + $1.restingEnergyKcal }
+                    }
+                    activeForSummary = nutritionDaysSet.reduce(0.0) { partial, day in
+                        partial + bucketHealth
+                            .filter { calendar.startOfDay(for: $0.dayStart) == day }
+                            .reduce(0.0) { $0 + $1.activeEnergyKcal }
+                    }
+                } else {
+                    restingForSummary = resting
+                    activeForSummary = active
+                }
+
+                let used = restingForSummary + activeForSummary
                 let deficit = hasNutritionData ? max(used - eaten, 0) : 0
                 let surplus = hasNutritionData ? max(eaten - used, 0) : 0
 
-                let activeDeficit = min(deficit, active)
-                let restingDeficit = min(max(deficit - active, 0), resting)
-                let remainingActive = max(active - activeDeficit, 0)
-                let remainingResting = max(resting - restingDeficit, 0)
+                let activeDeficit = min(deficit, activeForSummary)
+                let restingDeficit = min(max(deficit - activeForSummary, 0), restingForSummary)
+                let remainingActive = max(activeForSummary - activeDeficit, 0)
+                let remainingResting = max(restingForSummary - restingDeficit, 0)
 
                 if remainingResting > 0 {
                     segments.append(
@@ -213,7 +247,7 @@ enum NutritionChartCalculator {
                     )
                 }
                 value = used + surplus
-                dayCountForAverage = dayStartsWithData.count
+                dayCountForAverage = hasNutritionData ? nutritionDaysSet.count : healthDaysSet.count
 
             case .surplusDeficit:
                 if signedDeficitValue != 0 {
@@ -241,7 +275,7 @@ enum NutritionChartCalculator {
                     )
                 }
                 value = active
-                dayCountForAverage = dayStartsWithData.count
+                dayCountForAverage = healthDaysSet.count
 
             case .resting:
                 if resting > 0 {
@@ -255,7 +289,7 @@ enum NutritionChartCalculator {
                     )
                 }
                 value = resting
-                dayCountForAverage = dayStartsWithData.count
+                dayCountForAverage = healthDaysSet.count
 
             case .nutrition:
                 if eaten > 0 {
@@ -269,17 +303,44 @@ enum NutritionChartCalculator {
                     )
                 }
                 value = eaten
-                dayCountForAverage = dayStartsWithData.count
+                dayCountForAverage = nutritionDaysSet.count
+            }
+
+            let normalizedValue: Double
+            let normalizedSegments: [HistoryChartBarSegment]
+            if shouldAverage, dayCountForAverage > 0 {
+                let divisor = Double(dayCountForAverage)
+                normalizedValue = value / divisor
+                normalizedSegments = segments.map { segment in
+                    HistoryChartBarSegment(
+                        key: segment.key,
+                        value: segment.value / divisor,
+                        style: segment.style,
+                        label: segment.label
+                    )
+                }
+            } else {
+                normalizedValue = value
+                normalizedSegments = segments
             }
 
             return HistoryChartPoint(
                 startDate: bucket.start,
                 endDate: bucket.end,
-                value: value,
-                segments: segments,
+                value: normalizedValue,
+                segments: normalizedSegments,
                 summaryAverageNumerator: value,
                 summaryAverageDenominator: dayCountForAverage > 0 ? Double(dayCountForAverage) : 0
             )
+        }
+    }
+
+    private static func shouldAverageBuckets(for timeframe: HistoryChartTimeframe) -> Bool {
+        switch timeframe {
+        case .sixMonths, .year, .fiveYears:
+            return true
+        case .week, .month:
+            return false
         }
     }
 
