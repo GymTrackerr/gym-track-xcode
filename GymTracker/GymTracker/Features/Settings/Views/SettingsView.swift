@@ -156,6 +156,17 @@ struct SettingsView: View {
 
                 Section("Exercises") {
                     Button {
+                        Task {
+                            await exerciseService.refreshApiExercisesWithoutInsert()
+                        }
+                    } label: {
+                        HStack {
+                            Image(systemName: "arrow.clockwise")
+                            Text("Refresh API Exercises (No Inserts)")
+                        }
+                    }
+
+                    Button {
                         exportExerciseBackup()
                     } label: {
                         HStack {

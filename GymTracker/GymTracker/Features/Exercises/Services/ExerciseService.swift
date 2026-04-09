@@ -100,6 +100,14 @@ class ExerciseService : ServiceBase, ObservableObject {
     }
 
     func loadApiExercises() async {
+        await loadApiExercises(allowInsert: true)
+    }
+
+    func refreshApiExercisesWithoutInsert() async {
+        await loadApiExercises(allowInsert: false)
+    }
+
+    private func loadApiExercises(allowInsert: Bool) async {
         let userId: UUID
         guard let startedUserId = await MainActor.run(body: { () -> UUID? in
             guard !self.isLoadingApiExercises else { return nil }
@@ -120,7 +128,7 @@ class ExerciseService : ServiceBase, ObservableObject {
         do {
             let data = try await exerciseApi.getExercises()
             let result = try await MainActor.run {
-                try self.applyApiExercises(data, userId: userId)
+                try self.applyApiExercises(data, userId: userId, allowInsert: allowInsert)
             }
             await MainActor.run {
                 self.loadExercises()
@@ -131,14 +139,19 @@ class ExerciseService : ServiceBase, ObservableObject {
             // TODO, only cache on launch
             await cacheMediaForUserExercises(userId: userId)
             print("Cached all non-user exercise thumbnails and GIFs.")
-            print("Loaded \(data.count) exercises from API (\(result.inserted) new, \(result.updated) updated, \(result.removed) deduped)")
+            let modeLabel = allowInsert ? "full sync" : "update-only sync"
+            print("Loaded \(data.count) exercises from API (\(result.inserted) new, \(result.updated) updated, \(result.removed) deduped) [\(modeLabel)]")
         } catch {
             print("Error loading API exercises: \(error)")
         }
     }
 
     @MainActor
-    private func applyApiExercises(_ data: [ExerciseDTO], userId: UUID) throws -> (inserted: Int, updated: Int, removed: Int) {
+    private func applyApiExercises(
+        _ data: [ExerciseDTO],
+        userId: UUID,
+        allowInsert: Bool
+    ) throws -> (inserted: Int, updated: Int, removed: Int) {
         let descriptor = FetchDescriptor<Exercise>(
             predicate: #Predicate<Exercise> { exercise in
                 exercise.user_id == userId
@@ -160,8 +173,12 @@ class ExerciseService : ServiceBase, ObservableObject {
             let matches = existingByNpId[npIdKey] ?? []
 
             if matches.isEmpty {
-                modelContext.insert(Exercise(from: apiExercise, userId: userId))
-                inserted += 1
+                if allowInsert {
+                    modelContext.insert(Exercise(from: apiExercise, userId: userId))
+                    inserted += 1
+                } else {
+                    print("Update-only sync skipped insert for npId=\(npIdKey).")
+                }
                 continue
             }
 
@@ -189,6 +206,14 @@ class ExerciseService : ServiceBase, ObservableObject {
 
             var retained: [Exercise] = [primary]
             for duplicate in matches where duplicate.id != primary.id {
+                if imagesHaveChanged(existing: duplicate.images, incoming: apiExercise.images) {
+                    let oldCount = duplicate.images?.count ?? 0
+                    let newCount = apiExercise.images.count
+                    print("Exercise image update (duplicate retained): id=\(duplicate.id), npId=\(apiExercise.id), oldCount=\(oldCount), newCount=\(newCount). Marking cachedMedia=false.")
+                    duplicate.images = apiExercise.images
+                    duplicate.cachedMedia = false
+                }
+
                 guard duplicate.user_id == userId else {
                     print("Exercise dedupe skipped for \(duplicate.id): duplicate owner mismatch.")
                     retained.append(duplicate)
@@ -225,6 +250,12 @@ class ExerciseService : ServiceBase, ObservableObject {
         exercise.equipment = apiExercise.equipment
         exercise.category = apiExercise.category
         exercise.instructions = apiExercise.instructions
+        if imagesHaveChanged(existing: exercise.images, incoming: apiExercise.images) {
+            let oldCount = exercise.images?.count ?? 0
+            let newCount = apiExercise.images.count
+            print("Exercise image update: id=\(exercise.id), npId=\(apiExercise.id), oldCount=\(oldCount), newCount=\(newCount). Marking cachedMedia=false.")
+            exercise.cachedMedia = false
+        }
         exercise.images = apiExercise.images
     }
 
@@ -335,15 +366,32 @@ class ExerciseService : ServiceBase, ObservableObject {
         do {
             let cacheCandidates = try fetchExercisesForUser(userId: userId)
             for exercise in cacheCandidates {
-                if (exercise.images == nil) { continue }
-                if (exercise.cachedMedia == true) { continue }
+                let imageCount = exercise.images?.count ?? 0
+                if imageCount == 0 {
+                    print("Skipping media cache: id=\(exercise.id), npId=\(exercise.npId ?? "nil"), no images present.")
+                    exercise.cachedMedia = false
+                    continue
+                }
 
-                async let thumb = self.cacheThumbnail(for: exercise)
-                async let gif = self.cacheGIF(for: exercise)
+                let cacheStatusBefore = await hasCachedMedia(for: exercise)
+                if exercise.cachedMedia == true && cacheStatusBefore.thumbnail && cacheStatusBefore.gif {
+                    print("Skipping media cache: id=\(exercise.id), npId=\(exercise.npId ?? "nil"), already cached.")
+                    continue
+                }
+                if exercise.cachedMedia == true && (!cacheStatusBefore.thumbnail || !cacheStatusBefore.gif) {
+                    print("Media cache flag stale: id=\(exercise.id), npId=\(exercise.npId ?? "nil"), thumbnailCached=\(cacheStatusBefore.thumbnail), gifCached=\(cacheStatusBefore.gif). Re-caching.")
+                }
+
+                print("Caching exercise media: id=\(exercise.id), npId=\(exercise.npId ?? "nil"), imageCount=\(imageCount)")
+
+                async let thumb = self.cacheThumbnail(for: exercise, forceRefresh: true)
+                async let gif = self.cacheGIF(for: exercise, forceRefresh: true)
                 _ = await (thumb, gif)
 
-                exercise.cachedMedia = true
+                let cacheStatusAfter = await hasCachedMedia(for: exercise)
+                exercise.cachedMedia = cacheStatusAfter.thumbnail && cacheStatusAfter.gif
                 try? self.modelContext.save()
+                print("Finished caching exercise media: id=\(exercise.id), npId=\(exercise.npId ?? "nil"), thumbnailCached=\(cacheStatusAfter.thumbnail), gifCached=\(cacheStatusAfter.gif), cachedMedia=\(exercise.cachedMedia ?? false)")
             }
         } catch {
             print("Failed to load exercises for media caching: \(error)")
@@ -355,6 +403,16 @@ class ExerciseService : ServiceBase, ObservableObject {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         return trimmed.lowercased()
+    }
+
+    private func imagesHaveChanged(existing: [String]?, incoming: [String]) -> Bool {
+        let normalizedExisting = (existing ?? [])
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let normalizedIncoming = incoming
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return normalizedExisting != normalizedIncoming
     }
 
     @MainActor
@@ -622,8 +680,7 @@ extension ExerciseService {
     func thumbnailURL(for exercise: Exercise) -> URL? {
         guard
             let first = exercise.images?.first,
-            let baseURL = URL(string: apiHelper.apiData.getURL().replacingOccurrences(of: "/v1", with: "")),
-            let url = URL(string: first, relativeTo: baseURL)
+            let url = resolvedExerciseMediaURL(from: first)
         else {
             print("Missing or invalid thumbnail URL for \(exercise.name)")
             return nil
@@ -636,8 +693,7 @@ extension ExerciseService {
     func gifURL(for exercise: Exercise) -> URL? {
         guard
             let last = exercise.images?.last,
-            let baseURL = URL(string: apiHelper.apiData.getURL().replacingOccurrences(of: "/v1", with: "")),
-            let url = URL(string: last, relativeTo: baseURL)
+            let url = resolvedExerciseMediaURL(from: last)
         else {
             print("⚠️ Missing or invalid GIF URL for \(exercise.name)")
             return nil
@@ -648,10 +704,10 @@ extension ExerciseService {
     }
 
     /// Caches the thumbnail (.first image)
-    func cacheThumbnail(for exercise: Exercise) async -> URL? {
+    func cacheThumbnail(for exercise: Exercise, forceRefresh: Bool = false) async -> URL? {
         guard let url = self.thumbnailURL(for: exercise) else { return nil }
         do {
-            return try await MediaCache.shared.fetch(url)
+            return try await MediaCache.shared.fetch(url, forceRefresh: forceRefresh)
         } catch {
             print("⚠️ Failed to cache thumbnail for \(exercise.name): \(error)")
             return nil
@@ -659,10 +715,10 @@ extension ExerciseService {
     }
 
     /// Caches the GIF (.last image)
-    func cacheGIF(for exercise: Exercise) async -> URL? {
+    func cacheGIF(for exercise: Exercise, forceRefresh: Bool = false) async -> URL? {
         guard let url = self.gifURL(for: exercise) else { return nil }
         do {
-            return try await MediaCache.shared.fetch(url)
+            return try await MediaCache.shared.fetch(url, forceRefresh: forceRefresh)
         } catch {
             print("⚠️ Failed to cache GIF for \(exercise.name): \(error)")
             return nil
@@ -685,11 +741,42 @@ extension ExerciseService {
         
         return result
     }
+
+    private func resolvedExerciseMediaURL(from rawPath: String) -> URL? {
+        let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        var normalizedPath = trimmed
+
+        if normalizedPath.hasPrefix("http://") || normalizedPath.hasPrefix("https://") {
+            if let components = URLComponents(string: normalizedPath),
+               let path = components.path.removingPercentEncoding {
+                normalizedPath = path
+            } else if let absoluteURL = URL(string: normalizedPath) {
+                normalizedPath = absoluteURL.path
+            }
+        }
+
+        if normalizedPath.hasPrefix("/v1/exercisedb/static/") {
+            // already correct
+        } else if normalizedPath.hasPrefix("/v1/static/") {
+            normalizedPath = normalizedPath.replacingOccurrences(of: "/v1/static/", with: "/v1/exercisedb/static/")
+        } else if normalizedPath.hasPrefix("/static/") {
+            normalizedPath = normalizedPath.replacingOccurrences(of: "/static/", with: "/v1/exercisedb/static/")
+        } else if normalizedPath.hasPrefix("static/") {
+            normalizedPath = "/v1/exercisedb/" + normalizedPath
+        }
+
+        guard let hostRoot = URL(string: apiHelper.apiData.getURL().replacingOccurrences(of: "/v1", with: "")) else {
+            return nil
+        }
+        return URL(string: normalizedPath, relativeTo: hostRoot)
+    }
 }
 
 extension API_Helper {
     func fetchExercises() async throws -> [ExerciseDTO] {
-        let url = "\(baseAPIurl)/exercises"
+        let url = "\(baseAPIurl)/exercisedb"
         return try await asyncRequestData(urlString: url)
     }
 }

@@ -9,7 +9,7 @@ class ExerciseApi: API_Base {
     // get post replies
     func getExercises() async throws -> [ExerciseDTO] {
         print("replies of post")
-        let APIUrl = baseAPIurl + "/exercises"
+        let APIUrl = baseAPIurl + "/exercisedb"
         
         do {
             let data:[ExerciseDTO] = try await apiHelper.asyncRequestData(urlString: APIUrl, httpMethod: "GET");
@@ -22,7 +22,7 @@ class ExerciseApi: API_Base {
     
     func getExercise(exerciseID: String) async throws -> ExerciseDTO {
         print("replies of post")
-        let APIUrl = baseAPIurl + "/exercises/"+exerciseID
+        let APIUrl = baseAPIurl + "/exercisedb/"+exerciseID
         
         do {
             let data:ExerciseDTO = try await apiHelper.asyncRequestData(urlString: APIUrl, httpMethod: "GET");
