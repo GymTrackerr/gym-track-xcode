@@ -15,6 +15,23 @@ import UniformTypeIdentifiers
 
 // MARK: - FitSight API Manager
 class FitSightManager: NSObject, ObservableObject, URLSessionTaskDelegate, URLSessionDataDelegate {
+    struct AnalyzeRequest: Encodable {
+        let exerciseName: String
+        let exerciseId: String?
+        let images: [String]
+
+        enum CodingKeys: String, CodingKey {
+            case exerciseName = "exercise_name"
+            case exerciseId = "exercise_id"
+            case images
+        }
+    }
+
+    struct AnalyzeResponse: Decodable {
+        let status: String?
+        let message: String?
+    }
+
     struct UploadResponse: Decodable {
         let status: String?
         let message: String?
@@ -61,6 +78,40 @@ class FitSightManager: NSObject, ObservableObject, URLSessionTaskDelegate, URLSe
     private var uploadResponseData = Data()
     private var uploadCompletion: ((Result<Data, Error>) -> Void)?
     private var uploadBodyFileURL: URL?
+
+    // Lightweight pre-upload check: mirrors TrueSight web "analyze" call.
+    func verifyExerciseSupport(exerciseName: String, npId: String?) async throws {
+        guard let url = URL(string: "\(baseURL)/api/analyze") else {
+            throw NSError(domain: "FitSight", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid analyze URL"])
+        }
+
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 60.0)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let payload = AnalyzeRequest(
+            exerciseName: exerciseName,
+            exerciseId: npId,
+            images: []
+        )
+        request.httpBody = try JSONEncoder().encode(payload)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw NSError(domain: "FitSight", code: 2, userInfo: [NSLocalizedDescriptionKey: "No response from TrueSight"])
+        }
+
+        if (200..<300).contains(http.statusCode) {
+            return
+        }
+
+        if let decoded = try? JSONDecoder().decode(AnalyzeResponse.self, from: data),
+           let message = decoded.message, !message.isEmpty {
+            throw NSError(domain: "FitSight", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: message])
+        }
+
+        throw NSError(domain: "FitSight", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: "Exercise is not supported by TrueSight."])
+    }
     
     // Upload video to FitSight API
     func uploadVideo(videoURL: URL, exercise: String, drawSkeleton: Bool = true, recommend: Bool = true, isWebcam: Bool = false) {
@@ -285,6 +336,7 @@ struct FitSightView: View {
     @State private var showRecommendations = true
     @State private var isWebcamMode = false
     @State private var isPreparingVideo = false
+    @State private var isCheckingExercise = false
     @State private var selectionErrorMessage: String?
 
     init(initialExerciseId: UUID? = nil) {
@@ -387,16 +439,7 @@ struct FitSightView: View {
                 // Upload button
                 if isWebcamMode || selectedVideoURL != nil {
                     Button(action: {
-                        if let videoURL = selectedVideoURL,
-                           let selectedExercise {
-                            manager.uploadVideo(
-                                videoURL: videoURL,
-                                exercise: selectedExercise.name,
-                                drawSkeleton: drawSkeleton,
-                                recommend: showRecommendations,
-                                isWebcam: isWebcamMode
-                            )
-                        }
+                        runPreUploadCheckThenUpload()
                     }) {
                         Label(isWebcamMode ? "Start Webcam Stream" : "Upload & Process", systemImage: isWebcamMode ? "camera.fill" : "icloud.and.arrow.up")
                             .font(.headline)
@@ -407,7 +450,18 @@ struct FitSightView: View {
                             .cornerRadius(10)
                     }
                     .padding(.horizontal, 16)
-                    .disabled(manager.isProcessing || selectedExercise == nil || isPreparingVideo)
+                    .disabled(manager.isProcessing || selectedExercise == nil || isPreparingVideo || isCheckingExercise)
+                }
+
+                if isCheckingExercise {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                        Text("Checking exercise support...")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal, 16)
                 }
                 
                 // Processing status
@@ -513,6 +567,39 @@ struct FitSightView: View {
                 isPreparingVideo: $isPreparingVideo,
                 errorMessage: $selectionErrorMessage
             )
+        }
+    }
+
+    private func runPreUploadCheckThenUpload() {
+        guard let videoURL = selectedVideoURL, let selectedExercise else { return }
+        let npId = selectedExercise.npId?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        selectionErrorMessage = nil
+        isCheckingExercise = true
+
+        Task {
+            do {
+                try await manager.verifyExerciseSupport(
+                    exerciseName: selectedExercise.name,
+                    npId: npId
+                )
+
+                await MainActor.run {
+                    isCheckingExercise = false
+                    manager.uploadVideo(
+                        videoURL: videoURL,
+                        exercise: selectedExercise.name,
+                        drawSkeleton: drawSkeleton,
+                        recommend: showRecommendations,
+                        isWebcam: isWebcamMode
+                    )
+                }
+            } catch {
+                await MainActor.run {
+                    isCheckingExercise = false
+                    selectionErrorMessage = error.localizedDescription
+                }
+            }
         }
     }
     
