@@ -34,8 +34,10 @@
   "defaultTargets": {
     "steps": { "mean": 9500, "range": 2200 },
     "activeEnergyKcal": { "mean": 640, "range": 140 },
+    "exerciseMinutes": { "mean": 42, "range": 12 },
     "restingEnergyKcal": { "mean": 2050, "range": 110 },
     "sleepHours": { "mean": 8.0, "range": 1.0 },
-    "bodyWeightKg": { "mean": 82.0, "range": 1.6 }
+    "bodyWeightKg": { "mean": 82.0, "range": 1.6 },
+    "nutritionCalories": { "mean": 2550, "range": 180 }
   }
 }

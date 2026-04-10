@@ -22,9 +22,11 @@ struct DemoMetricTargetPreset: Codable, Hashable {
 struct DemoHealthTargetPresets: Codable, Hashable {
     let steps: DemoMetricTargetPreset
     let activeEnergyKcal: DemoMetricTargetPreset
+    let exerciseMinutes: DemoMetricTargetPreset
     let restingEnergyKcal: DemoMetricTargetPreset
     let sleepHours: DemoMetricTargetPreset
     let bodyWeightKg: DemoMetricTargetPreset
+    let nutritionCalories: DemoMetricTargetPreset
 }
 
 struct DemoPresetsBundle: Codable {
@@ -138,20 +140,25 @@ struct DemoMetricTargetSetting: Hashable {
 struct DemoHealthTargetSettings: Hashable {
     var steps: DemoMetricTargetSetting
     var activeEnergyKcal: DemoMetricTargetSetting
+    var exerciseMinutes: DemoMetricTargetSetting
     var restingEnergyKcal: DemoMetricTargetSetting
     var sleepHours: DemoMetricTargetSetting
     var bodyWeightKg: DemoMetricTargetSetting
+    var nutritionCalories: DemoMetricTargetSetting
 
     init(presets: DemoHealthTargetPresets) {
         self.steps = DemoMetricTargetSetting(mean: presets.steps.mean, range: presets.steps.range)
         self.activeEnergyKcal = DemoMetricTargetSetting(mean: presets.activeEnergyKcal.mean, range: presets.activeEnergyKcal.range)
+        self.exerciseMinutes = DemoMetricTargetSetting(mean: presets.exerciseMinutes.mean, range: presets.exerciseMinutes.range)
         self.restingEnergyKcal = DemoMetricTargetSetting(mean: presets.restingEnergyKcal.mean, range: presets.restingEnergyKcal.range)
         self.sleepHours = DemoMetricTargetSetting(mean: presets.sleepHours.mean, range: presets.sleepHours.range)
         self.bodyWeightKg = DemoMetricTargetSetting(mean: presets.bodyWeightKg.mean, range: presets.bodyWeightKg.range)
+        self.nutritionCalories = DemoMetricTargetSetting(mean: presets.nutritionCalories.mean, range: presets.nutritionCalories.range)
     }
 }
 
 struct DemoSeedConfiguration: Hashable {
+    var demoUserName: String
     var healthRange: DemoRangeOption
     var sessionRange: DemoRangeOption
     var nutritionRange: DemoRangeOption

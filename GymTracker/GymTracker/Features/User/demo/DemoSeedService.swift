@@ -7,7 +7,7 @@ final class DemoSeedService {
     private let userService: UserService
     private let calendar = Calendar.current
 
-    private let demoUserName = "Demo"
+    private let defaultDemoUserName = "Demo"
     private let lastRealUserDefaultsKey = "demo.lastRealUserId"
 
     init(context: ModelContext, userService: UserService) {
@@ -19,15 +19,17 @@ final class DemoSeedService {
         user?.isDemo == true
     }
 
-    func ensureDemoUser() throws -> User {
+    func ensureDemoUser(named preferredName: String? = nil) throws -> User {
+        let resolvedName = resolvedDemoName(preferredName)
         if let existing = try allUsers().first(where: \.isDemo) {
+            existing.name = resolvedName
             existing.allowHealthAccess = true
             existing.showNutritionTab = true
             try modelContext.save()
             return existing
         }
 
-        let demoUser = User(name: demoUserName, isDemo: true)
+        let demoUser = User(name: resolvedName, isDemo: true)
         demoUser.allowHealthAccess = true
         demoUser.showNutritionTab = true
         modelContext.insert(demoUser)
@@ -48,7 +50,7 @@ final class DemoSeedService {
             rememberRealUser(current.id)
         }
 
-        let demoUser = try ensureDemoUser()
+        let demoUser = try ensureDemoUser(named: configuration.demoUserName)
         let summary: DemoSeedSummary
         if try hasSeededData(for: demoUser) {
             summary = try summarizeDemoData(for: demoUser)
@@ -69,7 +71,7 @@ final class DemoSeedService {
         let presets = try DemoTemplateLoader.loadPresets()
         let routines = try DemoTemplateLoader.loadRoutines()
         let nutrition = try DemoTemplateLoader.loadNutrition()
-        let demoUser = try ensureDemoUser()
+        let demoUser = try ensureDemoUser(named: configuration.demoUserName)
         guard let sourceUser = try sourceUser() else {
             throw DemoSeedError.missingSourceUser
         }
@@ -102,6 +104,10 @@ final class DemoSeedService {
             presets: presets
         )
 
+        demoUser.demoExerciseMinutesTarget = configuration.healthTargets.exerciseMinutes.mean
+        demoUser.demoExerciseMinutesRange = configuration.healthTargets.exerciseMinutes.range
+        demoUser.demoNutritionCaloriesTarget = configuration.healthTargets.nutritionCalories.mean
+        demoUser.demoNutritionCaloriesRange = configuration.healthTargets.nutritionCalories.range
         demoUser.allowHealthAccess = true
         demoUser.showNutritionTab = true
         try modelContext.save()
@@ -132,6 +138,11 @@ final class DemoSeedService {
 
     private func rememberRealUser(_ userId: UUID) {
         UserDefaults.standard.set(userId.uuidString, forKey: lastRealUserDefaultsKey)
+    }
+
+    private func resolvedDemoName(_ preferredName: String?) -> String {
+        let trimmed = preferredName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? defaultDemoUserName : trimmed
     }
 
     private func sourceUser() throws -> User? {
@@ -547,7 +558,7 @@ final class DemoSeedService {
 
         let target = NutritionTarget(
             userId: demoUser.id,
-            calorieTarget: template.target.calories,
+            calorieTarget: configuration.healthTargets.nutritionCalories.mean,
             proteinTarget: template.target.protein,
             carbTarget: template.target.carbs,
             fatTarget: template.target.fat,
@@ -557,8 +568,12 @@ final class DemoSeedService {
 
         let dayStarts = dateSeries(days: configuration.nutritionRange.days)
         var logCount = 0
+        let snackMealIds = (template.patterns.weekday + template.patterns.weekend)
+            .filter { FoodLogCategory.demoValue(from: $0.category) == .snack }
+            .flatMap(\.mealIds)
         for (dayIndex, dayStart) in dayStarts.enumerated() {
             let patterns = calendar.isDateInWeekend(dayStart) ? template.patterns.weekend : template.patterns.weekday
+            var dayLogs: [NutritionLogEntry] = []
             for (slotIndex, slot) in patterns.enumerated() {
                 guard probabilityHit(slot.probability, dayIndex: dayIndex + slotIndex * 11, scale: configuration.noise.nutritionScale) else { continue }
                 guard let mealId = pickValue(slot.mealIds, dayIndex: dayIndex + slotIndex),
@@ -579,6 +594,36 @@ final class DemoSeedService {
                     category: .demoValue(from: slot.category),
                     note: note
                 )
+                dayLogs.append(log)
+            }
+
+            let lowTarget = max(0, configuration.healthTargets.nutritionCalories.mean - configuration.healthTargets.nutritionCalories.range)
+            var totalCalories = dayLogs.reduce(0) { $0 + $1.caloriesSnapshot }
+            var addedSnackCount = 0
+            while totalCalories < lowTarget && addedSnackCount < 3 {
+                guard let mealId = pickValue(snackMealIds, dayIndex: dayIndex + addedSnackCount),
+                      let snackMeal = mealsByTemplateId[mealId] else { break }
+
+                let snackAmount = interpolatedValue(
+                    dayIndex: dayIndex + addedSnackCount + 100,
+                    minValue: 0.85,
+                    maxValue: 1.15,
+                    amplitude: configuration.noise.nutritionScale
+                )
+                let snackTimestamp = dayStart.addingTimeInterval(TimeInterval((15 + addedSnackCount * 2) * 3600))
+                let snackLog = nutritionLogEntry(
+                    meal: snackMeal,
+                    amount: snackAmount,
+                    timestamp: snackTimestamp,
+                    category: .snack,
+                    note: "Added to hit calorie target."
+                )
+                dayLogs.append(snackLog)
+                totalCalories += snackLog.caloriesSnapshot
+                addedSnackCount += 1
+            }
+
+            for log in dayLogs {
                 modelContext.insert(log)
                 logCount += 1
             }

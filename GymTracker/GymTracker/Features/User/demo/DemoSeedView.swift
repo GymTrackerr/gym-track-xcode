@@ -20,6 +20,14 @@ struct DemoSeedView: View {
             }
 
             if let currentConfiguration = configuration, let presets {
+                Section("Demo Account") {
+                    TextField(
+                        "Demo account name",
+                        text: binding(\.demoUserName, fallback: currentConfiguration.demoUserName)
+                    )
+                    .textInputAutocapitalization(.words)
+                }
+
                 Section("Ranges") {
                     Picker("Health Range", selection: binding(\.healthRange, fallback: presets.healthRanges.first!)) {
                         ForEach(presets.healthRanges) { option in
@@ -70,6 +78,17 @@ struct DemoSeedView: View {
                     )
 
                     DemoMetricEditor(
+                        title: "Exercise",
+                        meanLabel: "Target",
+                        rangeLabel: "Range",
+                        meanSuffix: " min",
+                        rangeSuffix: " min",
+                        meanStep: 5,
+                        rangeStep: 5,
+                        setting: healthBinding(\.exerciseMinutes, fallback: currentConfiguration.healthTargets.exerciseMinutes)
+                    )
+
+                    DemoMetricEditor(
                         title: "Resting Energy",
                         meanLabel: "Target",
                         rangeLabel: "Range",
@@ -100,6 +119,19 @@ struct DemoSeedView: View {
                         meanStep: 0.5,
                         rangeStep: 0.25,
                         setting: healthBinding(\.bodyWeightKg, fallback: currentConfiguration.healthTargets.bodyWeightKg)
+                    )
+                }
+
+                Section("Nutrition Targets") {
+                    DemoMetricEditor(
+                        title: "Calories",
+                        meanLabel: "Target",
+                        rangeLabel: "Range",
+                        meanSuffix: " kcal",
+                        rangeSuffix: " kcal",
+                        meanStep: 50,
+                        rangeStep: 25,
+                        setting: healthBinding(\.nutritionCalories, fallback: currentConfiguration.healthTargets.nutritionCalories)
                     )
                 }
 
@@ -165,6 +197,7 @@ struct DemoSeedView: View {
                let nutritionRange = presets.nutritionRanges.first(where: { $0.id == presets.defaultNutritionRangeId }) ?? presets.nutritionRanges.first,
                let noise = presets.noiseLevels.first(where: { $0.id == presets.defaultNoiseId }) ?? presets.noiseLevels.first {
                 configuration = DemoSeedConfiguration(
+                    demoUserName: "Demo",
                     healthRange: healthRange,
                     sessionRange: sessionRange,
                     nutritionRange: nutritionRange,
