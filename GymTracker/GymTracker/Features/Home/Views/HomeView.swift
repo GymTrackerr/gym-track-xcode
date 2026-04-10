@@ -306,11 +306,9 @@ struct FitSightModuleView: View {
 
 struct NutritionModuleView: View {
     let module: DashboardModule
-    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var userService: UserService
     @EnvironmentObject var healthMetricsService: HealthMetricsService
     @State private var deficitSurplus: Double?
-    @State private var estimatedRangeText: String?
 
     var body: some View {
         if module.size == .medium || module.size == .large {
@@ -337,42 +335,16 @@ struct NutritionModuleView: View {
         guard let deficitSurplus else { return "Loading..." }
         let rounded = Int(deficitSurplus.rounded())
         let prefix = rounded >= 0 ? "+" : ""
-        if let estimatedRangeText, userService.currentUser?.isDemo == true {
-            return "\(prefix)\(rounded) kcal\n\(estimatedRangeText)"
-        }
         return "\(prefix)\(rounded) kcal"
     }
 
     private func loadDeficit() async {
-        guard let currentUser = userService.currentUser,
-              let userId = currentUser.id.uuidString as String? else {
+        guard let userId = healthMetricsService.currentUser?.id.uuidString else {
             deficitSurplus = nil
-            estimatedRangeText = nil
             return
         }
         deficitSurplus = nil
-        estimatedRangeText = nil
         deficitSurplus = try? await healthMetricsService.deficitSurplus(for: Date(), userId: userId)
-        guard currentUser.isDemo,
-              let profile = try? DemoSeedProfileStore.lastRanProfile(in: modelContext) else {
-            estimatedRangeText = nil
-            return
-        }
-
-        let used = try? await healthMetricsService.totalUsedCalories(for: Date(), userId: userId)
-        guard let used else {
-            estimatedRangeText = nil
-            return
-        }
-
-        let low = Int((used - (profile.nutritionCaloriesMean + profile.nutritionCaloriesRange)).rounded())
-        let high = Int((used - max(0, profile.nutritionCaloriesMean - profile.nutritionCaloriesRange)).rounded())
-        estimatedRangeText = "Est. \(formattedSigned(low)) to \(formattedSigned(high))"
-    }
-
-    private func formattedSigned(_ value: Int) -> String {
-        let prefix = value >= 0 ? "+" : ""
-        return "\(prefix)\(value)"
     }
 }
 

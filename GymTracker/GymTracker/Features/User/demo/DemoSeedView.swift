@@ -2,6 +2,8 @@ import SwiftUI
 import SwiftData
 
 struct DemoSeedView: View {
+    private let draftProfileSelectionId = "draft"
+
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var userService: UserService
 
@@ -25,7 +27,7 @@ struct DemoSeedView: View {
                 if !savedProfiles.isEmpty {
                     Section("Saved Presets") {
                         Picker("Load Previous", selection: $selectedProfileId) {
-                            Text("Current draft").tag("draft")
+                            Text("Current draft").tag(draftProfileSelectionId)
                             ForEach(savedProfiles, id: \.id) { profile in
                                 Text(profile.pickerLabel).tag(profile.id.uuidString)
                             }
@@ -223,7 +225,7 @@ struct DemoSeedView: View {
                     selectedProfileId = profile.id.uuidString
                 } else {
                     configuration = presets.defaultConfiguration()
-                    selectedProfileId = "draft"
+                    selectedProfileId = draftProfileSelectionId
                 }
             }
         } catch {
@@ -234,10 +236,7 @@ struct DemoSeedView: View {
     private func reloadDerivedState() {
         do {
             savedProfiles = try demoService().savedProfiles()
-            if selectedProfileId != "draft",
-               savedProfiles.contains(where: { $0.id.uuidString == selectedProfileId }) == false {
-                selectedProfileId = savedProfiles.first(where: \.lastRan)?.id.uuidString ?? "draft"
-            }
+            syncSelectedProfile()
             sourceSummary = try demoService().sourceUserSummary()
         } catch {
             errorMessage = error.localizedDescription
@@ -269,7 +268,7 @@ struct DemoSeedView: View {
                 guard var configuration else { return }
                 configuration[keyPath: keyPath] = newValue
                 self.configuration = configuration
-                selectedProfileId = "draft"
+                selectedProfileId = draftProfileSelectionId
             }
         )
     }
@@ -281,9 +280,17 @@ struct DemoSeedView: View {
                 guard var configuration else { return }
                 configuration.healthTargets[keyPath: keyPath] = newValue
                 self.configuration = configuration
-                selectedProfileId = "draft"
+                selectedProfileId = draftProfileSelectionId
             }
         )
+    }
+
+    private func syncSelectedProfile() {
+        guard selectedProfileId != draftProfileSelectionId else { return }
+        let hasSelectedProfile = savedProfiles.contains { $0.id.uuidString == selectedProfileId }
+        if !hasSelectedProfile {
+            selectedProfileId = savedProfiles.first(where: \.lastRan)?.id.uuidString ?? draftProfileSelectionId
+        }
     }
 
     private func estimatedDeficitRangeText(for configuration: DemoSeedConfiguration) -> String {
@@ -307,7 +314,7 @@ struct DemoSeedView: View {
     }
 
     private func applySavedProfile(selection: String, presets: DemoPresetsBundle) {
-        guard selection != "draft" else { return }
+        guard selection != draftProfileSelectionId else { return }
         guard let profile = savedProfiles.first(where: { $0.id.uuidString == selection }) else { return }
         configuration = demoService().configuration(for: profile, presets: presets)
     }

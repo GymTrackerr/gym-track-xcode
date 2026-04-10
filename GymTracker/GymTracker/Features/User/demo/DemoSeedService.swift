@@ -9,6 +9,7 @@ final class DemoSeedService {
 
     private let defaultDemoUserName = "Demo"
     private let lastRealUserDefaultsKey = "demo.lastRealUserId"
+    private let maxSavedProfiles = 12
 
     init(context: ModelContext, userService: UserService) {
         self.modelContext = context
@@ -152,13 +153,18 @@ final class DemoSeedService {
 
     private func saveConfigurationProfile(_ configuration: DemoSeedConfiguration) throws {
         let now = Date()
-        for profile in try DemoSeedProfileStore.savedProfiles(in: modelContext) where profile.lastRan {
+        let existingProfiles = try DemoSeedProfileStore.savedProfiles(in: modelContext)
+
+        for profile in existingProfiles where profile.lastRan {
             profile.lastRan = false
             profile.updatedAt = now
         }
 
         let profile = DemoSeedProfile(configuration: configuration, lastRan: true, createdAt: now)
         modelContext.insert(profile)
+        for staleProfile in existingProfiles.dropFirst(maxSavedProfiles - 1) {
+            modelContext.delete(staleProfile)
+        }
         try modelContext.save()
     }
 
