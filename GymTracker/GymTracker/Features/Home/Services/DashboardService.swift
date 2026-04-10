@@ -26,7 +26,7 @@ class DashboardService: ServiceBase, ObservableObject {
             DashboardModule(type: .timer, size: .small, order: 3),
             DashboardModule(type: .fitnessWorkouts, size: .small, order: 4),
             DashboardModule(type: .activityRings, size: .medium, order: 5),
-            DashboardModule(type: .fitsight, size: .small, order: 6),
+            DashboardModule(type: .truesight, size: .small, order: 6),
             DashboardModule(type: .nutrition, size: .small, order: 7),
             DashboardModule(type: .sessionVolume, size: .medium, order: 8)
         ]
@@ -106,7 +106,7 @@ class DashboardService: ServiceBase, ObservableObject {
             DashboardModule(type: .timer, size: .small, order: 3),
             DashboardModule(type: .fitnessWorkouts, size: .small, order: 4),
             DashboardModule(type: .activityRings, size: .medium, order: 5),
-            DashboardModule(type: .fitsight, size: .small, order: 6),
+            DashboardModule(type: .truesight, size: .small, order: 6),
             DashboardModule(type: .nutrition, size: .small, order: 7),
             DashboardModule(type: .sessionVolume, size: .medium, order: 8)
         ]

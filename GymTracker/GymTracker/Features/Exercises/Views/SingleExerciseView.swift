@@ -430,6 +430,29 @@ struct ExerciseDetailView: View {
                 .padding(.horizontal)
                 .padding(.bottom, 12)
 
+                NavigationLink {
+                    FitSightView(initialExerciseId: exercise.id)
+                        .appBackground()
+                } label: {
+                    HStack {
+                        Image(systemName: "video.badge.waveform")
+                        Text("Open in TrueSight")
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundStyle(Color.primary)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(
+                        (exercise.npId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+                        ? Color.accentColor
+                        : Color.gray.opacity(0.3)
+                    )
+                    .cornerRadius(14)
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 12)
+                .disabled(exercise.npId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false)
+
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Previous Logs")
                         .font(.headline)
