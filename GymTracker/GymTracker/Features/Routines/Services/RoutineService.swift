@@ -29,9 +29,14 @@ class RoutineService : ServiceBase, ObservableObject {
     }
 
     func loadArchivedRoutines() {
+        guard let userId = currentUser?.id else {
+            archivedRoutines = []
+            return
+        }
+
         let descriptor = FetchDescriptor<Routine>(
             predicate: #Predicate<Routine> { routine in
-                routine.isArchived == true
+                routine.user_id == userId && routine.isArchived == true
             },
             sortBy: [SortDescriptor(\.order)]
         )
@@ -44,9 +49,14 @@ class RoutineService : ServiceBase, ObservableObject {
     }
 
     private func loadActiveRoutines() {
+        guard let userId = currentUser?.id else {
+            routines = []
+            return
+        }
+
         let descriptor = FetchDescriptor<Routine>(
             predicate: #Predicate<Routine> { routine in
-                routine.isArchived == false
+                routine.user_id == userId && routine.isArchived == false
             },
             sortBy: [SortDescriptor(\.order)]
         )

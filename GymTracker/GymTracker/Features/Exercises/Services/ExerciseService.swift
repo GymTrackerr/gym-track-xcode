@@ -49,6 +49,10 @@ class ExerciseService : ServiceBase, ObservableObject {
     override func loadFeature() {
         refreshExerciseLists()
         guard let userId = currentUser?.id else { return }
+        guard currentUser?.isDemo != true else {
+            apiSyncedUserId = nil
+            return
+        }
         guard apiSyncedUserId != userId else { return }
         Task {
             await self.loadApiExercises()

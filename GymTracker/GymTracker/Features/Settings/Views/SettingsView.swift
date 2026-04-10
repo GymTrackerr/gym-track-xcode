@@ -47,12 +47,13 @@ struct SettingsView: View {
                 // Settings
                 // Show Account
                 Button {
-                    if let currentUserId = userService.currentUser?.id {
+                    if let currentUserId = userService.currentUser?.id, userService.currentUser?.isDemo != true {
                         userService.removeUser(id: currentUserId)
                     }
                 } label: {
-                    Text("Delete Account")
+                    Text(userService.currentUser?.isDemo == true ? "Delete Account Unavailable for Demo" : "Delete Account")
                 }
+                .disabled(userService.currentUser?.isDemo == true)
 
                 Section("Accounts") {
                     HStack {
@@ -91,6 +92,15 @@ struct SettingsView: View {
                                 .controlSize(.small)
                             }
                         }
+                    }
+                }
+
+                NavigationLink {
+                    DemoSeedView()
+                } label: {
+                    HStack {
+                        Image(systemName: "sparkles.rectangle.stack")
+                        Text("Demo Mode")
                     }
                 }
 

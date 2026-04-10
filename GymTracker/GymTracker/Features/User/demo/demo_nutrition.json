@@ -1,0 +1,125 @@
+{
+  "foods": [
+    { "id": "oats", "name": "Rolled Oats", "brand": null, "referenceLabel": "100 g", "referenceQuantity": 100, "calories": 389, "protein": 16.9, "carbs": 66.3, "fat": 6.9, "kind": "food", "unit": "grams", "favorite": true },
+    { "id": "whey", "name": "Whey Protein", "brand": "DemoFuel", "referenceLabel": "30 g scoop", "referenceQuantity": 30, "calories": 120, "protein": 24, "carbs": 3, "fat": 1.5, "kind": "drink", "unit": "grams", "favorite": true },
+    { "id": "banana", "name": "Banana", "brand": null, "referenceLabel": "1 piece", "referenceQuantity": 1, "calories": 105, "protein": 1.3, "carbs": 27, "fat": 0.4, "kind": "food", "unit": "piece", "favorite": false },
+    { "id": "greek-yogurt", "name": "Greek Yogurt", "brand": "Plain", "referenceLabel": "170 g", "referenceQuantity": 170, "calories": 100, "protein": 17, "carbs": 6, "fat": 0, "kind": "food", "unit": "grams", "favorite": true },
+    { "id": "berries", "name": "Mixed Berries", "brand": null, "referenceLabel": "100 g", "referenceQuantity": 100, "calories": 57, "protein": 0.7, "carbs": 14, "fat": 0.3, "kind": "food", "unit": "grams", "favorite": false },
+    { "id": "chicken", "name": "Chicken Breast", "brand": null, "referenceLabel": "100 g", "referenceQuantity": 100, "calories": 165, "protein": 31, "carbs": 0, "fat": 3.6, "kind": "food", "unit": "grams", "favorite": true },
+    { "id": "rice", "name": "Cooked Rice", "brand": null, "referenceLabel": "100 g", "referenceQuantity": 100, "calories": 130, "protein": 2.4, "carbs": 28, "fat": 0.3, "kind": "food", "unit": "grams", "favorite": true },
+    { "id": "broccoli", "name": "Broccoli", "brand": null, "referenceLabel": "100 g", "referenceQuantity": 100, "calories": 35, "protein": 2.4, "carbs": 7, "fat": 0.4, "kind": "food", "unit": "grams", "favorite": false },
+    { "id": "salmon", "name": "Salmon", "brand": null, "referenceLabel": "100 g", "referenceQuantity": 100, "calories": 208, "protein": 20, "carbs": 0, "fat": 13, "kind": "food", "unit": "grams", "favorite": true },
+    { "id": "potato", "name": "Roasted Potatoes", "brand": null, "referenceLabel": "100 g", "referenceQuantity": 100, "calories": 149, "protein": 2.5, "carbs": 27, "fat": 3.7, "kind": "food", "unit": "grams", "favorite": false },
+    { "id": "egg", "name": "Egg", "brand": null, "referenceLabel": "1 piece", "referenceQuantity": 1, "calories": 72, "protein": 6.3, "carbs": 0.4, "fat": 4.8, "kind": "food", "unit": "piece", "favorite": true },
+    { "id": "toast", "name": "Wholegrain Toast", "brand": null, "referenceLabel": "1 piece", "referenceQuantity": 1, "calories": 95, "protein": 4, "carbs": 17, "fat": 1.2, "kind": "food", "unit": "piece", "favorite": false },
+    { "id": "avocado", "name": "Avocado", "brand": null, "referenceLabel": "100 g", "referenceQuantity": 100, "calories": 160, "protein": 2, "carbs": 9, "fat": 15, "kind": "food", "unit": "grams", "favorite": false },
+    { "id": "tortilla", "name": "Flour Tortilla", "brand": null, "referenceLabel": "1 piece", "referenceQuantity": 1, "calories": 140, "protein": 4, "carbs": 24, "fat": 3.5, "kind": "food", "unit": "piece", "favorite": false },
+    { "id": "turkey", "name": "Turkey Slices", "brand": null, "referenceLabel": "100 g", "referenceQuantity": 100, "calories": 104, "protein": 17, "carbs": 3, "fat": 2, "kind": "food", "unit": "grams", "favorite": false },
+    { "id": "peanut-butter", "name": "Peanut Butter", "brand": null, "referenceLabel": "32 g", "referenceQuantity": 32, "calories": 190, "protein": 7, "carbs": 8, "fat": 16, "kind": "food", "unit": "grams", "favorite": true }
+  ],
+  "meals": [
+    {
+      "id": "protein-oats",
+      "name": "Protein Oats",
+      "defaultCategory": "breakfast",
+      "batchSize": 1,
+      "servingUnitLabel": "bowl",
+      "items": [
+        { "foodId": "oats", "amount": 80 },
+        { "foodId": "whey", "amount": 30 },
+        { "foodId": "banana", "amount": 1 }
+      ]
+    },
+    {
+      "id": "yogurt-bowl",
+      "name": "Greek Yogurt Bowl",
+      "defaultCategory": "breakfast",
+      "batchSize": 1,
+      "servingUnitLabel": "bowl",
+      "items": [
+        { "foodId": "greek-yogurt", "amount": 170 },
+        { "foodId": "berries", "amount": 120 },
+        { "foodId": "oats", "amount": 40 }
+      ]
+    },
+    {
+      "id": "chicken-rice",
+      "name": "Chicken Rice Bowl",
+      "defaultCategory": "lunch",
+      "batchSize": 1,
+      "servingUnitLabel": "bowl",
+      "items": [
+        { "foodId": "chicken", "amount": 180 },
+        { "foodId": "rice", "amount": 220 },
+        { "foodId": "broccoli", "amount": 120 }
+      ]
+    },
+    {
+      "id": "turkey-wrap",
+      "name": "Turkey Wrap",
+      "defaultCategory": "lunch",
+      "batchSize": 1,
+      "servingUnitLabel": "wrap",
+      "items": [
+        { "foodId": "tortilla", "amount": 1 },
+        { "foodId": "turkey", "amount": 120 },
+        { "foodId": "avocado", "amount": 60 }
+      ]
+    },
+    {
+      "id": "salmon-potato",
+      "name": "Salmon and Potatoes",
+      "defaultCategory": "dinner",
+      "batchSize": 1,
+      "servingUnitLabel": "plate",
+      "items": [
+        { "foodId": "salmon", "amount": 170 },
+        { "foodId": "potato", "amount": 240 },
+        { "foodId": "broccoli", "amount": 120 }
+      ]
+    },
+    {
+      "id": "eggs-toast",
+      "name": "Eggs on Toast",
+      "defaultCategory": "dinner",
+      "batchSize": 1,
+      "servingUnitLabel": "plate",
+      "items": [
+        { "foodId": "egg", "amount": 3 },
+        { "foodId": "toast", "amount": 2 },
+        { "foodId": "avocado", "amount": 50 }
+      ]
+    },
+    {
+      "id": "pb-banana",
+      "name": "Peanut Butter Banana",
+      "defaultCategory": "snack",
+      "batchSize": 1,
+      "servingUnitLabel": "snack",
+      "items": [
+        { "foodId": "banana", "amount": 1 },
+        { "foodId": "peanut-butter", "amount": 24 }
+      ]
+    }
+  ],
+  "target": {
+    "calories": 2550,
+    "protein": 190,
+    "carbs": 265,
+    "fat": 80
+  },
+  "patterns": {
+    "weekday": [
+      { "id": "weekday-breakfast", "category": "breakfast", "mealIds": ["protein-oats", "yogurt-bowl"], "amountRange": [0.9, 1.1], "probability": 1.0, "noteOptions": ["Quick breakfast.", "Easy start to the day."] },
+      { "id": "weekday-lunch", "category": "lunch", "mealIds": ["chicken-rice", "turkey-wrap"], "amountRange": [0.95, 1.15], "probability": 1.0, "noteOptions": ["Meal prepped.", "Ate between meetings."] },
+      { "id": "weekday-dinner", "category": "dinner", "mealIds": ["salmon-potato", "eggs-toast"], "amountRange": [0.95, 1.1], "probability": 1.0, "noteOptions": ["Post-workout dinner.", "Kept it simple tonight."] },
+      { "id": "weekday-snack", "category": "snack", "mealIds": ["pb-banana"], "amountRange": [0.8, 1.0], "probability": 0.72, "noteOptions": ["Afternoon snack.", "Needed something before training."] }
+    ],
+    "weekend": [
+      { "id": "weekend-breakfast", "category": "breakfast", "mealIds": ["yogurt-bowl", "eggs-toast"], "amountRange": [1.0, 1.2], "probability": 1.0, "noteOptions": ["Slow morning.", "Weekend breakfast."] },
+      { "id": "weekend-lunch", "category": "lunch", "mealIds": ["chicken-rice", "turkey-wrap"], "amountRange": [0.9, 1.2], "probability": 0.95, "noteOptions": ["Lunch out but close enough.", "Relaxed meal."] },
+      { "id": "weekend-dinner", "category": "dinner", "mealIds": ["salmon-potato", "eggs-toast"], "amountRange": [1.0, 1.15], "probability": 1.0, "noteOptions": ["Later dinner than usual.", "Weekend dinner."] },
+      { "id": "weekend-snack", "category": "snack", "mealIds": ["pb-banana"], "amountRange": [0.9, 1.2], "probability": 0.85, "noteOptions": ["Movie snack.", "Extra bite today."] }
+    ]
+  }
+}

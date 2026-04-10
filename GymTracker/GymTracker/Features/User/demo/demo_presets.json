@@ -1,0 +1,41 @@
+{
+  "healthRanges": [
+    { "id": "30d", "label": "30 days", "days": 30 },
+    { "id": "90d", "label": "90 days", "days": 90 },
+    { "id": "180d", "label": "180 days", "days": 180 },
+    { "id": "365d", "label": "1 year", "days": 365 }
+  ],
+  "sessionRanges": [
+    { "id": "14d", "label": "14 days", "days": 14 },
+    { "id": "30d", "label": "30 days", "days": 30 },
+    { "id": "90d", "label": "90 days", "days": 90 },
+    { "id": "180d", "label": "180 days", "days": 180 }
+  ],
+  "nutritionRanges": [
+    { "id": "7d", "label": "7 days", "days": 7 },
+    { "id": "14d", "label": "14 days", "days": 14 },
+    { "id": "30d", "label": "30 days", "days": 30 },
+    { "id": "90d", "label": "90 days", "days": 90 }
+  ],
+  "noiseLevels": [
+    { "id": "low", "label": "Low", "healthScale": 0.35, "sessionScale": 0.25, "nutritionScale": 0.2 },
+    { "id": "medium", "label": "Medium", "healthScale": 0.7, "sessionScale": 0.55, "nutritionScale": 0.45 },
+    { "id": "high", "label": "High", "healthScale": 1.0, "sessionScale": 0.9, "nutritionScale": 0.75 }
+  ],
+  "exerciseMatching": {
+    "preferNpIdMatches": true,
+    "allowKeywordFallback": true,
+    "allowTypeFallback": true
+  },
+  "defaultHealthRangeId": "90d",
+  "defaultSessionRangeId": "90d",
+  "defaultNutritionRangeId": "30d",
+  "defaultNoiseId": "medium",
+  "defaultTargets": {
+    "steps": { "mean": 9500, "range": 2200 },
+    "activeEnergyKcal": { "mean": 640, "range": 140 },
+    "restingEnergyKcal": { "mean": 2050, "range": 110 },
+    "sleepHours": { "mean": 8.0, "range": 1.0 },
+    "bodyWeightKg": { "mean": 82.0, "range": 1.6 }
+  }
+}

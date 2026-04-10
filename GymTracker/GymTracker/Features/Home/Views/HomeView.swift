@@ -25,6 +25,7 @@ struct HomeView: View {
             }
         }
         .task(id: userService.currentUser?.id) {
+            guard userService.currentUser?.isDemo != true else { return }
             await hkManager.requestAuthorization()
             await hkManager.fetchUserWeight()
             await hkManager.fetchWorkouts()
