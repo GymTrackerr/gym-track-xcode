@@ -313,7 +313,7 @@ struct FitSightModuleView: View {
     let module: DashboardModule
     
     var body: some View {
-        NavigationLink(destination: FitSightView().appBackground()) {
+        NavigationLink(destination: TrueSightView().appBackground()) {
             MetricCard(
                 title: module.type.displayName,
                 value: "View",

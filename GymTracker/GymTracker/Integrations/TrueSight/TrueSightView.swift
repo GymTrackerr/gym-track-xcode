@@ -1,5 +1,5 @@
 //
-//  FitSight.swift
+//  TrueSightView.swift
 //  GymTracker
 //
 //  Created by Daniel Kravec on 2026-01-27.
@@ -13,269 +13,9 @@ import AVFoundation
 import AVKit
 import UniformTypeIdentifiers
 
-// MARK: - FitSight API Manager
-class FitSightManager: NSObject, ObservableObject, URLSessionTaskDelegate, URLSessionDataDelegate {
-    struct UploadResponse: Decodable {
-        let status: String?
-        let message: String?
-        let requestId: String?
-        let processed: Bool?
-        let outputPath: String?
-        let videoURL: String?
-
-        enum CodingKeys: String, CodingKey {
-            case status
-            case message
-            case requestId = "request_id"
-            case processed
-            case outputPath = "output_path"
-            case videoURL = "video_url"
-        }
-    }
-
-    struct StatusResponse: Decodable {
-        let status: String
-        let message: String?
-        let requestId: String?
-        let outputPath: String?
-        let videoURL: String?
-
-        enum CodingKeys: String, CodingKey {
-            case status
-            case message
-            case requestId = "request_id"
-            case outputPath = "output_path"
-            case videoURL = "video_url"
-        }
-    }
-
-    @Published var isProcessing = false
-    @Published var isUploading = false
-    @Published var processedVideoURL: URL?
-    @Published var errorMessage: String?
-    @Published var uploadProgress: Double = 0.0
-    
-    private let baseURL = "https://api.trackerr.ca/truesight"
-    private var pollingTimer: Timer?
-    private var activeRequestId: String?
-    private var uploadResponseData = Data()
-    private var uploadCompletion: ((Result<Data, Error>) -> Void)?
-    private var uploadBodyFileURL: URL?
-    
-    // Upload video to FitSight API
-    func uploadVideo(videoURL: URL, exercise: String, drawSkeleton: Bool = true, recommend: Bool = true, isWebcam: Bool = false) {
-        isProcessing = true
-        isUploading = true
-        errorMessage = nil
-        uploadProgress = 0.0
-        processedVideoURL = nil
-        activeRequestId = nil
-        
-        let url = URL(string: "\(baseURL)/upload")!
-        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 900.0) // 15 minute timeout for large videos
-        request.httpMethod = "POST"
-        
-        let boundary = "Boundary-\(UUID().uuidString)"
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        
-        let bodyFileURL: URL
-        do {
-            bodyFileURL = try createMultipartUploadFile(
-                videoURL: videoURL,
-                boundary: boundary,
-                exercise: exercise,
-                drawSkeleton: drawSkeleton,
-                recommend: recommend,
-                isWebcam: isWebcam
-            )
-            uploadBodyFileURL = bodyFileURL
-        } catch {
-            isUploading = false
-            isProcessing = false
-            errorMessage = "Upload preparation failed: \(error.localizedDescription)"
-            return
-        }
-        
-        uploadResponseData = Data()
-        let session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
-        let task = session.uploadTask(with: request, fromFile: bodyFileURL)
-        uploadCompletion = { [weak self] result in
-            DispatchQueue.main.async {
-                self?.isUploading = false
-
-                switch result {
-                case .failure(let error):
-                    self?.errorMessage = "Upload failed: \(error.localizedDescription)"
-                    self?.isProcessing = false
-
-                case .success(let data):
-                    guard let self else { return }
-
-                    do {
-                        let decoded = try JSONDecoder().decode(UploadResponse.self, from: data)
-
-                        if decoded.processed == true,
-                           let resolvedURL = self.resolveOutputURL(relativeOrAbsolutePath: decoded.videoURL ?? decoded.outputPath) {
-                            self.processedVideoURL = resolvedURL
-                            self.isProcessing = false
-                            self.uploadProgress = 1.0
-                            return
-                        }
-
-                        guard let requestId = decoded.requestId, !requestId.isEmpty else {
-                            self.errorMessage = decoded.message ?? "Upload succeeded but no processing request id was returned."
-                            self.isProcessing = false
-                            return
-                        }
-
-                        self.activeRequestId = requestId
-                        self.uploadProgress = 1.0
-                        self.startPollingStatus(requestId: requestId)
-                    } catch {
-                        self.errorMessage = "Upload response could not be decoded."
-                        self.isProcessing = false
-                    }
-                }
-            }
-        }
-
-        task.resume()
-    }
-    
-    // Poll processing status
-    private func startPollingStatus(requestId: String) {
-        pollingTimer?.invalidate()
-        pollingTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { [weak self] _ in
-            self?.checkProcessingStatus(requestId: requestId)
-        }
-    }
-    
-    private func checkProcessingStatus(requestId: String) {
-        let encodedRequestId = requestId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? requestId
-        guard let url = URL(string: "\(baseURL)/api/status/\(encodedRequestId)") else { return }
-        
-        URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
-            guard let data = data else { return }
-            guard let statusResponse = try? JSONDecoder().decode(StatusResponse.self, from: data) else { return }
-            
-            DispatchQueue.main.async {
-                if statusResponse.status == "complete" {
-                    self?.pollingTimer?.invalidate()
-                    self?.activeRequestId = nil
-                    self?.processedVideoURL = self?.resolveOutputURL(
-                        relativeOrAbsolutePath: statusResponse.videoURL ?? statusResponse.outputPath
-                    )
-                    self?.isProcessing = false
-                }
-            }
-        }.resume()
-    }
-
-    private func resolveOutputURL(relativeOrAbsolutePath: String?) -> URL? {
-        guard let relativeOrAbsolutePath, !relativeOrAbsolutePath.isEmpty else { return nil }
-        if let absoluteURL = URL(string: relativeOrAbsolutePath), absoluteURL.scheme != nil {
-            return absoluteURL
-        }
-
-        if relativeOrAbsolutePath.hasPrefix("/") {
-            return URL(string: "\(baseURL)\(relativeOrAbsolutePath)")
-        }
-
-        return URL(string: "\(baseURL)/\(relativeOrAbsolutePath)")
-    }
-
-    private func createMultipartUploadFile(
-        videoURL: URL,
-        boundary: String,
-        exercise: String,
-        drawSkeleton: Bool,
-        recommend: Bool,
-        isWebcam: Bool
-    ) throws -> URL {
-        let outputURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("fitsight_upload_\(UUID().uuidString).multipart")
-
-        FileManager.default.createFile(atPath: outputURL.path, contents: nil)
-        let writer = try FileHandle(forWritingTo: outputURL)
-        defer { try? writer.close() }
-
-        func writeString(_ value: String) throws {
-            try writer.write(contentsOf: Data(value.utf8))
-        }
-
-        func writeField(name: String, value: String) throws {
-            try writeString("--\(boundary)\r\n")
-            try writeString("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n")
-            try writeString("\(value)\r\n")
-        }
-
-        try writeField(name: "exercise", value: exercise)
-        try writeField(name: "webcamstream", value: isWebcam ? "true" : "false")
-        try writeField(name: "drawSkeleton", value: drawSkeleton ? "true" : "false")
-        try writeField(name: "recommend", value: recommend ? "yes" : "no")
-
-        let filename = videoURL.lastPathComponent
-        try writeString("--\(boundary)\r\n")
-        try writeString("Content-Disposition: form-data; name=\"video\"; filename=\"\(filename)\"\r\n")
-        try writeString("Content-Type: video/mp4\r\n\r\n")
-
-        let reader = try FileHandle(forReadingFrom: videoURL)
-        defer { try? reader.close() }
-        while true {
-            let chunk = try reader.read(upToCount: 1_048_576) ?? Data()
-            if chunk.isEmpty { break }
-            try writer.write(contentsOf: chunk)
-        }
-        try writeString("\r\n")
-        try writeString("--\(boundary)--\r\n")
-
-        return outputURL
-    }
-    
-    deinit {
-        pollingTimer?.invalidate()
-    }
-
-    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-        uploadResponseData.append(data)
-    }
-
-    func urlSession(
-        _ session: URLSession,
-        task: URLSessionTask,
-        didSendBodyData bytesSent: Int64,
-        totalBytesSent: Int64,
-        totalBytesExpectedToSend: Int64
-    ) {
-        guard totalBytesExpectedToSend > 0 else { return }
-        let progress = Double(totalBytesSent) / Double(totalBytesExpectedToSend)
-        DispatchQueue.main.async {
-            self.uploadProgress = min(max(progress, 0), 1)
-        }
-    }
-
-    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        let completion = uploadCompletion
-        uploadCompletion = nil
-
-        if let error {
-            completion?(.failure(error))
-        } else {
-            completion?(.success(uploadResponseData))
-        }
-
-        if let uploadBodyFileURL {
-            try? FileManager.default.removeItem(at: uploadBodyFileURL)
-            self.uploadBodyFileURL = nil
-        }
-        uploadResponseData = Data()
-        session.finishTasksAndInvalidate()
-    }
-}
-
 // MARK: - SwiftUI Video Picker
-struct FitSightView: View {
-    @StateObject private var manager = FitSightManager()
+struct TrueSightView: View {
+    @StateObject private var manager = TrueSightManager()
     @EnvironmentObject var exerciseService: ExerciseService
     @State private var showVideoPicker = false
     @State private var selectedVideoURL: URL?
@@ -285,6 +25,7 @@ struct FitSightView: View {
     @State private var showRecommendations = true
     @State private var isWebcamMode = false
     @State private var isPreparingVideo = false
+    @State private var isCheckingExercise = false
     @State private var selectionErrorMessage: String?
 
     init(initialExerciseId: UUID? = nil) {
@@ -387,16 +128,7 @@ struct FitSightView: View {
                 // Upload button
                 if isWebcamMode || selectedVideoURL != nil {
                     Button(action: {
-                        if let videoURL = selectedVideoURL,
-                           let selectedExercise {
-                            manager.uploadVideo(
-                                videoURL: videoURL,
-                                exercise: selectedExercise.name,
-                                drawSkeleton: drawSkeleton,
-                                recommend: showRecommendations,
-                                isWebcam: isWebcamMode
-                            )
-                        }
+                        runPreUploadCheckThenUpload()
                     }) {
                         Label(isWebcamMode ? "Start Webcam Stream" : "Upload & Process", systemImage: isWebcamMode ? "camera.fill" : "icloud.and.arrow.up")
                             .font(.headline)
@@ -407,7 +139,18 @@ struct FitSightView: View {
                             .cornerRadius(10)
                     }
                     .padding(.horizontal, 16)
-                    .disabled(manager.isProcessing || selectedExercise == nil || isPreparingVideo)
+                    .disabled(manager.isProcessing || selectedExercise == nil || isPreparingVideo || isCheckingExercise)
+                }
+
+                if isCheckingExercise {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                        Text("Checking exercise support...")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal, 16)
                 }
                 
                 // Processing status
@@ -513,6 +256,39 @@ struct FitSightView: View {
                 isPreparingVideo: $isPreparingVideo,
                 errorMessage: $selectionErrorMessage
             )
+        }
+    }
+
+    private func runPreUploadCheckThenUpload() {
+        guard let videoURL = selectedVideoURL, let selectedExercise else { return }
+        let npId = selectedExercise.npId?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        selectionErrorMessage = nil
+        isCheckingExercise = true
+
+        Task {
+            do {
+                try await manager.verifyExerciseSupport(
+                    exerciseName: selectedExercise.name,
+                    npId: npId
+                )
+
+                await MainActor.run {
+                    isCheckingExercise = false
+                    manager.uploadVideo(
+                        videoURL: videoURL,
+                        exercise: selectedExercise.name,
+                        drawSkeleton: drawSkeleton,
+                        recommend: showRecommendations,
+                        isWebcam: isWebcamMode
+                    )
+                }
+            } catch {
+                await MainActor.run {
+                    isCheckingExercise = false
+                    selectionErrorMessage = error.localizedDescription
+                }
+            }
         }
     }
     
@@ -732,11 +508,23 @@ private func normalizeVideoForUpload(
                 )
             }
 
-            let transformedSize = naturalSize.applying(preferredTransform)
-            let renderSize = CGSize(width: abs(transformedSize.width), height: abs(transformedSize.height))
+            let transformedRect = CGRect(origin: .zero, size: naturalSize).applying(preferredTransform)
+            let renderSize = CGSize(
+                width: abs(transformedRect.width),
+                height: abs(transformedRect.height)
+            )
             let nominalFrameRate = try await videoTrack.load(.nominalFrameRate)
             let fps: Int32 = nominalFrameRate > 0 ? Int32(nominalFrameRate.rounded()) : 30
             let frameDuration = CMTime(value: 1, timescale: fps)
+
+            // Re-anchor the transformed frame into a positive render space.
+            // Some iPhone rotations include negative translation components.
+            let correctedTransform = preferredTransform.concatenating(
+                CGAffineTransform(
+                    translationX: -transformedRect.origin.x,
+                    y: -transformedRect.origin.y
+                )
+            )
 
             let outputURL = FileManager.default.temporaryDirectory
                 .appendingPathComponent("prepared_video_\(Date().timeIntervalSince1970).mp4")
@@ -751,49 +539,24 @@ private func normalizeVideoForUpload(
             }
 
             exportSession.shouldOptimizeForNetworkUse = true
-            exportSession.videoComposition = try await makeVideoComposition(
-                for: composition,
-                compositionVideoTrack: compositionVideoTrack,
-                duration: assetDuration,
-                preferredTransform: preferredTransform,
-                frameDuration: frameDuration,
-                renderSize: renderSize
-            )
+            let instruction = AVMutableVideoCompositionInstruction()
+            instruction.timeRange = CMTimeRange(start: .zero, duration: assetDuration)
+
+            let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: compositionVideoTrack)
+            layerInstruction.setTransform(correctedTransform, at: .zero)
+            instruction.layerInstructions = [layerInstruction]
+
+            let videoComposition = AVMutableVideoComposition()
+            videoComposition.instructions = [instruction]
+            videoComposition.frameDuration = frameDuration
+            videoComposition.renderSize = renderSize
+            exportSession.videoComposition = videoComposition
             try await exportSession.export(to: outputURL, as: .mp4)
             completion(.success(outputURL))
         } catch {
             completion(.failure(error))
         }
     }
-}
-
-private func makeVideoComposition(
-    for composition: AVMutableComposition,
-    compositionVideoTrack: AVCompositionTrack,
-    duration: CMTime,
-    preferredTransform: CGAffineTransform,
-    frameDuration: CMTime,
-    renderSize: CGSize
-) async throws -> AVVideoComposition {
-    var layerConfiguration = AVVideoCompositionLayerInstruction.Configuration(trackID: compositionVideoTrack.trackID)
-    layerConfiguration.setTransform(preferredTransform, at: .zero)
-    let layerInstruction = AVVideoCompositionLayerInstruction(configuration: layerConfiguration)
-
-    let instructionConfiguration = AVVideoCompositionInstruction.Configuration(
-        backgroundColor: nil,
-        enablePostProcessing: true,
-        layerInstructions: [layerInstruction],
-        requiredSourceSampleDataTrackIDs: [],
-        timeRange: CMTimeRange(start: .zero, duration: duration)
-    )
-    let prototypeInstruction = AVVideoCompositionInstruction(configuration: instructionConfiguration)
-    var configuration = try await AVVideoComposition.Configuration(
-        for: composition,
-        prototypeInstruction: prototypeInstruction
-    )
-    configuration.frameDuration = frameDuration
-    configuration.renderSize = renderSize
-    return AVVideoComposition(configuration: configuration)
 }
 
 // MARK: - Processed Video Player

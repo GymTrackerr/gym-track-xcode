@@ -431,7 +431,7 @@ struct ExerciseDetailView: View {
                 .padding(.bottom, 12)
 
                 NavigationLink {
-                    FitSightView(initialExerciseId: exercise.id)
+                    TrueSightView(initialExerciseId: exercise.id)
                         .appBackground()
                 } label: {
                     HStack {
