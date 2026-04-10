@@ -60,6 +60,7 @@ class FitSightManager: NSObject, ObservableObject, URLSessionTaskDelegate, URLSe
     private var activeRequestId: String?
     private var uploadResponseData = Data()
     private var uploadCompletion: ((Result<Data, Error>) -> Void)?
+    private var uploadBodyFileURL: URL?
     
     // Upload video to FitSight API
     func uploadVideo(videoURL: URL, exercise: String, drawSkeleton: Bool = true, recommend: Bool = true, isWebcam: Bool = false) {
@@ -77,42 +78,27 @@ class FitSightManager: NSObject, ObservableObject, URLSessionTaskDelegate, URLSe
         let boundary = "Boundary-\(UUID().uuidString)"
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         
-        var body = Data()
-        
-        // Add form fields
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"exercise\"\r\n\r\n".data(using: .utf8)!)
-        body.append("\(exercise)\r\n".data(using: .utf8)!)
-        
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"webcamstream\"\r\n\r\n".data(using: .utf8)!)
-        body.append("\(isWebcam ? "true" : "false")\r\n".data(using: .utf8)!)
-        
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"drawSkeleton\"\r\n\r\n".data(using: .utf8)!)
-        body.append("\(drawSkeleton ? "true" : "false")\r\n".data(using: .utf8)!)
-        
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"recommend\"\r\n\r\n".data(using: .utf8)!)
-        body.append("\(recommend ? "yes" : "no")\r\n".data(using: .utf8)!)
-        
-        // Add video file
-        if let videoData = try? Data(contentsOf: videoURL) {
-            let filename = videoURL.lastPathComponent
-            body.append("--\(boundary)\r\n".data(using: .utf8)!)
-            body.append("Content-Disposition: form-data; name=\"video\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
-            body.append("Content-Type: video/mp4\r\n\r\n".data(using: .utf8)!)
-            body.append(videoData)
-            body.append("\r\n".data(using: .utf8)!)
+        let bodyFileURL: URL
+        do {
+            bodyFileURL = try createMultipartUploadFile(
+                videoURL: videoURL,
+                boundary: boundary,
+                exercise: exercise,
+                drawSkeleton: drawSkeleton,
+                recommend: recommend,
+                isWebcam: isWebcam
+            )
+            uploadBodyFileURL = bodyFileURL
+        } catch {
+            isUploading = false
+            isProcessing = false
+            errorMessage = "Upload preparation failed: \(error.localizedDescription)"
+            return
         }
-        
-        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
-        
-        request.httpBody = body
         
         uploadResponseData = Data()
         let session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
-        let task = session.uploadTask(with: request, from: body)
+        let task = session.uploadTask(with: request, fromFile: bodyFileURL)
         uploadCompletion = { [weak self] result in
             DispatchQueue.main.async {
                 self?.isUploading = false
@@ -197,6 +183,54 @@ class FitSightManager: NSObject, ObservableObject, URLSessionTaskDelegate, URLSe
 
         return URL(string: "\(baseURL)/\(relativeOrAbsolutePath)")
     }
+
+    private func createMultipartUploadFile(
+        videoURL: URL,
+        boundary: String,
+        exercise: String,
+        drawSkeleton: Bool,
+        recommend: Bool,
+        isWebcam: Bool
+    ) throws -> URL {
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("fitsight_upload_\(UUID().uuidString).multipart")
+
+        FileManager.default.createFile(atPath: outputURL.path, contents: nil)
+        let writer = try FileHandle(forWritingTo: outputURL)
+        defer { try? writer.close() }
+
+        func writeString(_ value: String) throws {
+            try writer.write(contentsOf: Data(value.utf8))
+        }
+
+        func writeField(name: String, value: String) throws {
+            try writeString("--\(boundary)\r\n")
+            try writeString("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n")
+            try writeString("\(value)\r\n")
+        }
+
+        try writeField(name: "exercise", value: exercise)
+        try writeField(name: "webcamstream", value: isWebcam ? "true" : "false")
+        try writeField(name: "drawSkeleton", value: drawSkeleton ? "true" : "false")
+        try writeField(name: "recommend", value: recommend ? "yes" : "no")
+
+        let filename = videoURL.lastPathComponent
+        try writeString("--\(boundary)\r\n")
+        try writeString("Content-Disposition: form-data; name=\"video\"; filename=\"\(filename)\"\r\n")
+        try writeString("Content-Type: video/mp4\r\n\r\n")
+
+        let reader = try FileHandle(forReadingFrom: videoURL)
+        defer { try? reader.close() }
+        while true {
+            let chunk = try reader.read(upToCount: 1_048_576) ?? Data()
+            if chunk.isEmpty { break }
+            try writer.write(contentsOf: chunk)
+        }
+        try writeString("\r\n")
+        try writeString("--\(boundary)--\r\n")
+
+        return outputURL
+    }
     
     deinit {
         pollingTimer?.invalidate()
@@ -230,6 +264,10 @@ class FitSightManager: NSObject, ObservableObject, URLSessionTaskDelegate, URLSe
             completion?(.success(uploadResponseData))
         }
 
+        if let uploadBodyFileURL {
+            try? FileManager.default.removeItem(at: uploadBodyFileURL)
+            self.uploadBodyFileURL = nil
+        }
         uploadResponseData = Data()
         session.finishTasksAndInvalidate()
     }
@@ -610,7 +648,21 @@ struct VideoPicker: UIViewControllerRepresentable {
                         return
                     }
 
-                    normalizeVideoForUpload(inputURL: url) { result in
+                    let workingURL = FileManager.default.temporaryDirectory
+                        .appendingPathComponent("picked_video_\(UUID().uuidString).\(url.pathExtension.isEmpty ? "mov" : url.pathExtension)")
+
+                    do {
+                        try? FileManager.default.removeItem(at: workingURL)
+                        try FileManager.default.copyItem(at: url, to: workingURL)
+                    } catch {
+                        DispatchQueue.main.async {
+                            self.parent.isPreparingVideo = false
+                            self.parent.errorMessage = "Could not copy selected video: \(error.localizedDescription)"
+                        }
+                        return
+                    }
+
+                    normalizeVideoForUpload(inputURL: workingURL) { result in
                         DispatchQueue.main.async {
                             self.parent.isPreparingVideo = false
 
@@ -636,97 +688,112 @@ private func normalizeVideoForUpload(
     completion: @escaping (Result<URL, Error>) -> Void
 ) {
     let asset = AVURLAsset(url: inputURL)
+    Task {
+        do {
+            let videoTracks = try await asset.loadTracks(withMediaType: .video)
+            guard let videoTrack = videoTracks.first else {
+                completion(.failure(NSError(domain: "FitSightVideoPreparation", code: 1, userInfo: [
+                    NSLocalizedDescriptionKey: "Selected file did not contain a video track."
+                ])))
+                return
+            }
 
-    guard let videoTrack = asset.tracks(withMediaType: .video).first else {
-        completion(.failure(NSError(domain: "FitSightVideoPreparation", code: 1, userInfo: [
-            NSLocalizedDescriptionKey: "Selected file did not contain a video track."
-        ])))
-        return
-    }
+            let assetDuration = try await asset.load(.duration)
+            let preferredTransform = try await videoTrack.load(.preferredTransform)
+            let naturalSize = try await videoTrack.load(.naturalSize)
 
-    let composition = AVMutableComposition()
-    guard let compositionVideoTrack = composition.addMutableTrack(
-        withMediaType: .video,
-        preferredTrackID: kCMPersistentTrackID_Invalid
-    ) else {
-        completion(.failure(NSError(domain: "FitSightVideoPreparation", code: 2, userInfo: [
-            NSLocalizedDescriptionKey: "Could not create video composition track."
-        ])))
-        return
-    }
+            let composition = AVMutableComposition()
+            guard let compositionVideoTrack = composition.addMutableTrack(
+                withMediaType: .video,
+                preferredTrackID: kCMPersistentTrackID_Invalid
+            ) else {
+                completion(.failure(NSError(domain: "FitSightVideoPreparation", code: 2, userInfo: [
+                    NSLocalizedDescriptionKey: "Could not create video composition track."
+                ])))
+                return
+            }
 
-    do {
-        try compositionVideoTrack.insertTimeRange(
-            CMTimeRange(start: .zero, duration: asset.duration),
-            of: videoTrack,
-            at: .zero
-        )
-
-        if let audioTrack = asset.tracks(withMediaType: .audio).first,
-           let compositionAudioTrack = composition.addMutableTrack(
-               withMediaType: .audio,
-               preferredTrackID: kCMPersistentTrackID_Invalid
-           ) {
-            try compositionAudioTrack.insertTimeRange(
-                CMTimeRange(start: .zero, duration: asset.duration),
-                of: audioTrack,
+            try compositionVideoTrack.insertTimeRange(
+                CMTimeRange(start: .zero, duration: assetDuration),
+                of: videoTrack,
                 at: .zero
             )
-        }
-    } catch {
-        completion(.failure(error))
-        return
-    }
 
-    let preferredTransform = videoTrack.preferredTransform
-    let transformedSize = videoTrack.naturalSize.applying(preferredTransform)
-    let renderSize = CGSize(width: abs(transformedSize.width), height: abs(transformedSize.height))
+            let audioTracks = try await asset.loadTracks(withMediaType: .audio)
+            if let audioTrack = audioTracks.first,
+               let compositionAudioTrack = composition.addMutableTrack(
+                   withMediaType: .audio,
+                   preferredTrackID: kCMPersistentTrackID_Invalid
+               ) {
+                try compositionAudioTrack.insertTimeRange(
+                    CMTimeRange(start: .zero, duration: assetDuration),
+                    of: audioTrack,
+                    at: .zero
+                )
+            }
 
-    let instruction = AVMutableVideoCompositionInstruction()
-    instruction.timeRange = CMTimeRange(start: .zero, duration: asset.duration)
+            let transformedSize = naturalSize.applying(preferredTransform)
+            let renderSize = CGSize(width: abs(transformedSize.width), height: abs(transformedSize.height))
+            let nominalFrameRate = try await videoTrack.load(.nominalFrameRate)
+            let fps: Int32 = nominalFrameRate > 0 ? Int32(nominalFrameRate.rounded()) : 30
+            let frameDuration = CMTime(value: 1, timescale: fps)
 
-    let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: compositionVideoTrack)
-    layerInstruction.setTransform(preferredTransform, at: .zero)
-    instruction.layerInstructions = [layerInstruction]
+            let outputURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("prepared_video_\(Date().timeIntervalSince1970).mp4")
 
-    let videoComposition = AVMutableVideoComposition()
-    videoComposition.instructions = [instruction]
-    let nominalFrameRate = videoTrack.nominalFrameRate
-    let fps: Int32 = nominalFrameRate > 0 ? Int32(nominalFrameRate.rounded()) : 30
-    videoComposition.frameDuration = CMTime(value: 1, timescale: fps)
-    videoComposition.renderSize = renderSize
+            try? FileManager.default.removeItem(at: outputURL)
 
-    let outputURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("prepared_video_\(Date().timeIntervalSince1970).mp4")
+            guard let exportSession = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality) else {
+                completion(.failure(NSError(domain: "FitSightVideoPreparation", code: 3, userInfo: [
+                    NSLocalizedDescriptionKey: "Could not create export session."
+                ])))
+                return
+            }
 
-    try? FileManager.default.removeItem(at: outputURL)
-
-    guard let exportSession = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality) else {
-        completion(.failure(NSError(domain: "FitSightVideoPreparation", code: 3, userInfo: [
-            NSLocalizedDescriptionKey: "Could not create export session."
-        ])))
-        return
-    }
-
-    exportSession.outputURL = outputURL
-    exportSession.outputFileType = .mp4
-    exportSession.shouldOptimizeForNetworkUse = true
-    exportSession.videoComposition = videoComposition
-
-    exportSession.exportAsynchronously {
-        switch exportSession.status {
-        case .completed:
+            exportSession.shouldOptimizeForNetworkUse = true
+            exportSession.videoComposition = try await makeVideoComposition(
+                for: composition,
+                compositionVideoTrack: compositionVideoTrack,
+                duration: assetDuration,
+                preferredTransform: preferredTransform,
+                frameDuration: frameDuration,
+                renderSize: renderSize
+            )
+            try await exportSession.export(to: outputURL, as: .mp4)
             completion(.success(outputURL))
-        case .failed, .cancelled:
-            completion(.failure(exportSession.error ?? NSError(
-                domain: "FitSightVideoPreparation",
-                code: 4,
-                userInfo: [NSLocalizedDescriptionKey: "Video export failed."]
-            )))
-        default:
-            break
+        } catch {
+            completion(.failure(error))
         }
     }
+}
+
+private func makeVideoComposition(
+    for composition: AVMutableComposition,
+    compositionVideoTrack: AVCompositionTrack,
+    duration: CMTime,
+    preferredTransform: CGAffineTransform,
+    frameDuration: CMTime,
+    renderSize: CGSize
+) async throws -> AVVideoComposition {
+    var layerConfiguration = AVVideoCompositionLayerInstruction.Configuration(trackID: compositionVideoTrack.trackID)
+    layerConfiguration.setTransform(preferredTransform, at: .zero)
+    let layerInstruction = AVVideoCompositionLayerInstruction(configuration: layerConfiguration)
+
+    let instructionConfiguration = AVVideoCompositionInstruction.Configuration(
+        backgroundColor: nil,
+        enablePostProcessing: true,
+        layerInstructions: [layerInstruction],
+        requiredSourceSampleDataTrackIDs: [],
+        timeRange: CMTimeRange(start: .zero, duration: duration)
+    )
+    let prototypeInstruction = AVVideoCompositionInstruction(configuration: instructionConfiguration)
+    var configuration = try await AVVideoComposition.Configuration(
+        for: composition,
+        prototypeInstruction: prototypeInstruction
+    )
+    configuration.frameDuration = frameDuration
+    configuration.renderSize = renderSize
+    return AVVideoComposition(configuration: configuration)
 }
 
 // MARK: - Processed Video Player
