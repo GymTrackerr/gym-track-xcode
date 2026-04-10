@@ -7,6 +7,8 @@ struct DemoSeedView: View {
 
     @State private var presets: DemoPresetsBundle?
     @State private var configuration: DemoSeedConfiguration?
+    @State private var savedProfiles: [DemoSeedProfile] = []
+    @State private var selectedProfileId: String = "draft"
     @State private var sourceSummary: String = "Loading..."
     @State private var isWorking = false
     @State private var statusMessage: String?
@@ -20,6 +22,26 @@ struct DemoSeedView: View {
             }
 
             if let currentConfiguration = configuration, let presets {
+                if !savedProfiles.isEmpty {
+                    Section("Saved Presets") {
+                        Picker("Load Previous", selection: $selectedProfileId) {
+                            Text("Current draft").tag("draft")
+                            ForEach(savedProfiles, id: \.id) { profile in
+                                Text(profile.pickerLabel).tag(profile.id.uuidString)
+                            }
+                        }
+                        .onChange(of: selectedProfileId) { _, newValue in
+                            applySavedProfile(selection: newValue, presets: presets)
+                        }
+
+                        if let lastUsed = savedProfiles.first(where: \.lastRan) {
+                            Text("Last used: \(lastUsed.pickerLabel)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
                 Section("Demo Account") {
                     TextField(
                         "Demo account name",
@@ -133,6 +155,10 @@ struct DemoSeedView: View {
                         rangeStep: 25,
                         setting: healthBinding(\.nutritionCalories, fallback: currentConfiguration.healthTargets.nutritionCalories)
                     )
+
+                    Text(estimatedDeficitRangeText(for: currentConfiguration))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 Section("Actions") {
@@ -179,7 +205,7 @@ struct DemoSeedView: View {
         .navigationTitle("Demo Mode")
         .task {
             loadPresets()
-            refreshSourceSummary()
+            reloadDerivedState()
         }
     }
 
@@ -191,29 +217,30 @@ struct DemoSeedView: View {
         do {
             let presets = try DemoTemplateLoader.loadPresets()
             self.presets = presets
-            if configuration == nil,
-               let healthRange = presets.healthRanges.first(where: { $0.id == presets.defaultHealthRangeId }) ?? presets.healthRanges.first,
-               let sessionRange = presets.sessionRanges.first(where: { $0.id == presets.defaultSessionRangeId }) ?? presets.sessionRanges.first,
-               let nutritionRange = presets.nutritionRanges.first(where: { $0.id == presets.defaultNutritionRangeId }) ?? presets.nutritionRanges.first,
-               let noise = presets.noiseLevels.first(where: { $0.id == presets.defaultNoiseId }) ?? presets.noiseLevels.first {
-                configuration = DemoSeedConfiguration(
-                    demoUserName: "Demo",
-                    healthRange: healthRange,
-                    sessionRange: sessionRange,
-                    nutritionRange: nutritionRange,
-                    noise: noise,
-                    healthTargets: DemoHealthTargetSettings(presets: presets.defaultTargets)
-                )
+            if configuration == nil {
+                if let profile = try demoService().lastUsedProfile() {
+                    configuration = demoService().configuration(for: profile, presets: presets)
+                    selectedProfileId = profile.id.uuidString
+                } else {
+                    configuration = presets.defaultConfiguration()
+                    selectedProfileId = "draft"
+                }
             }
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
-    private func refreshSourceSummary() {
+    private func reloadDerivedState() {
         do {
+            savedProfiles = try demoService().savedProfiles()
+            if selectedProfileId != "draft",
+               savedProfiles.contains(where: { $0.id.uuidString == selectedProfileId }) == false {
+                selectedProfileId = savedProfiles.first(where: \.lastRan)?.id.uuidString ?? "draft"
+            }
             sourceSummary = try demoService().sourceUserSummary()
         } catch {
+            errorMessage = error.localizedDescription
             sourceSummary = error.localizedDescription
         }
     }
@@ -228,7 +255,7 @@ struct DemoSeedView: View {
             do {
                 let message = try work(demoService())
                 statusMessage = message
-                refreshSourceSummary()
+                reloadDerivedState()
             } catch {
                 errorMessage = error.localizedDescription
             }
@@ -242,6 +269,7 @@ struct DemoSeedView: View {
                 guard var configuration else { return }
                 configuration[keyPath: keyPath] = newValue
                 self.configuration = configuration
+                selectedProfileId = "draft"
             }
         )
     }
@@ -253,8 +281,40 @@ struct DemoSeedView: View {
                 guard var configuration else { return }
                 configuration.healthTargets[keyPath: keyPath] = newValue
                 self.configuration = configuration
+                selectedProfileId = "draft"
             }
         )
+    }
+
+    private func estimatedDeficitRangeText(for configuration: DemoSeedConfiguration) -> String {
+        let activeLow = max(0, configuration.healthTargets.activeEnergyKcal.mean - configuration.healthTargets.activeEnergyKcal.range)
+        let activeHigh = configuration.healthTargets.activeEnergyKcal.mean + configuration.healthTargets.activeEnergyKcal.range
+        let restLow = max(0, configuration.healthTargets.restingEnergyKcal.mean - configuration.healthTargets.restingEnergyKcal.range)
+        let restHigh = configuration.healthTargets.restingEnergyKcal.mean + configuration.healthTargets.restingEnergyKcal.range
+        let intakeLow = max(0, configuration.healthTargets.nutritionCalories.mean - configuration.healthTargets.nutritionCalories.range)
+        let intakeHigh = configuration.healthTargets.nutritionCalories.mean + configuration.healthTargets.nutritionCalories.range
+
+        let burnLow = Int((activeLow + restLow).rounded())
+        let burnHigh = Int((activeHigh + restHigh).rounded())
+        let deficitLow = Int(((activeLow + restLow) - intakeHigh).rounded())
+        let deficitHigh = Int(((activeHigh + restHigh) - intakeLow).rounded())
+
+        return """
+        Burned band: \(burnLow) to \(burnHigh) kcal
+        Intake band: \(Int(intakeLow.rounded())) to \(Int(intakeHigh.rounded())) kcal
+        Estimated deficit/surplus: \(formattedSigned(deficitLow)) to \(formattedSigned(deficitHigh)) kcal
+        """
+    }
+
+    private func applySavedProfile(selection: String, presets: DemoPresetsBundle) {
+        guard selection != "draft" else { return }
+        guard let profile = savedProfiles.first(where: { $0.id.uuidString == selection }) else { return }
+        configuration = demoService().configuration(for: profile, presets: presets)
+    }
+
+    private func formattedSigned(_ value: Int) -> String {
+        let prefix = value >= 0 ? "+" : ""
+        return "\(prefix)\(value)"
     }
 }
 

@@ -166,6 +166,90 @@ struct DemoSeedConfiguration: Hashable {
     var healthTargets: DemoHealthTargetSettings
 }
 
+extension DemoSeedConfiguration {
+    init(profile: DemoSeedProfile, presets: DemoPresetsBundle) {
+        self.demoUserName = profile.demoUserName
+        self.healthRange = presets.healthRange(id: profile.healthRangeId) ?? presets.fallbackHealthRange
+        self.sessionRange = presets.sessionRange(id: profile.sessionRangeId) ?? presets.fallbackSessionRange
+        self.nutritionRange = presets.nutritionRange(id: profile.nutritionRangeId) ?? presets.fallbackNutritionRange
+        self.noise = presets.noiseLevel(id: profile.noiseId) ?? presets.fallbackNoise
+        self.healthTargets = DemoHealthTargetSettings(
+            steps: DemoMetricTargetSetting(mean: profile.stepsMean, range: profile.stepsRange),
+            activeEnergyKcal: DemoMetricTargetSetting(mean: profile.activeEnergyMean, range: profile.activeEnergyRange),
+            exerciseMinutes: DemoMetricTargetSetting(mean: profile.exerciseMinutesMean, range: profile.exerciseMinutesRange),
+            restingEnergyKcal: DemoMetricTargetSetting(mean: profile.restingEnergyMean, range: profile.restingEnergyRange),
+            sleepHours: DemoMetricTargetSetting(mean: profile.sleepHoursMean, range: profile.sleepHoursRange),
+            bodyWeightKg: DemoMetricTargetSetting(mean: profile.bodyWeightMean, range: profile.bodyWeightRange),
+            nutritionCalories: DemoMetricTargetSetting(mean: profile.nutritionCaloriesMean, range: profile.nutritionCaloriesRange)
+        )
+    }
+}
+
+extension DemoHealthTargetSettings {
+    init(
+        steps: DemoMetricTargetSetting,
+        activeEnergyKcal: DemoMetricTargetSetting,
+        exerciseMinutes: DemoMetricTargetSetting,
+        restingEnergyKcal: DemoMetricTargetSetting,
+        sleepHours: DemoMetricTargetSetting,
+        bodyWeightKg: DemoMetricTargetSetting,
+        nutritionCalories: DemoMetricTargetSetting
+    ) {
+        self.steps = steps
+        self.activeEnergyKcal = activeEnergyKcal
+        self.exerciseMinutes = exerciseMinutes
+        self.restingEnergyKcal = restingEnergyKcal
+        self.sleepHours = sleepHours
+        self.bodyWeightKg = bodyWeightKg
+        self.nutritionCalories = nutritionCalories
+    }
+}
+
+extension DemoPresetsBundle {
+    var fallbackHealthRange: DemoRangeOption {
+        healthRange(id: defaultHealthRangeId) ?? healthRanges.first!
+    }
+
+    var fallbackSessionRange: DemoRangeOption {
+        sessionRange(id: defaultSessionRangeId) ?? sessionRanges.first!
+    }
+
+    var fallbackNutritionRange: DemoRangeOption {
+        nutritionRange(id: defaultNutritionRangeId) ?? nutritionRanges.first!
+    }
+
+    var fallbackNoise: DemoNoisePreset {
+        noiseLevel(id: defaultNoiseId) ?? noiseLevels.first!
+    }
+
+    func defaultConfiguration(demoUserName: String = "Demo") -> DemoSeedConfiguration {
+        DemoSeedConfiguration(
+            demoUserName: demoUserName,
+            healthRange: fallbackHealthRange,
+            sessionRange: fallbackSessionRange,
+            nutritionRange: fallbackNutritionRange,
+            noise: fallbackNoise,
+            healthTargets: DemoHealthTargetSettings(presets: defaultTargets)
+        )
+    }
+
+    func healthRange(id: String) -> DemoRangeOption? {
+        healthRanges.first(where: { $0.id == id })
+    }
+
+    func sessionRange(id: String) -> DemoRangeOption? {
+        sessionRanges.first(where: { $0.id == id })
+    }
+
+    func nutritionRange(id: String) -> DemoRangeOption? {
+        nutritionRanges.first(where: { $0.id == id })
+    }
+
+    func noiseLevel(id: String) -> DemoNoisePreset? {
+        noiseLevels.first(where: { $0.id == id })
+    }
+}
+
 struct DemoSeedSummary {
     let exerciseCount: Int
     let routineCount: Int

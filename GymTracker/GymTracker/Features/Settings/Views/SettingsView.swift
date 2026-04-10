@@ -72,19 +72,25 @@ struct SettingsView: View {
                     ForEach(userService.accounts, id: \.id) { account in
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(account.name)
-                                    .font(.body.weight(.semibold))
+                                HStack(spacing: 8) {
+                                    Text(account.name)
+                                        .font(.body.weight(.semibold))
+
+                                    if account.isDemo {
+                                        AccountChip(title: "Demo", tint: .orange)
+                                    }
+
+                                    if userService.currentUser?.id == account.id {
+                                        AccountChip(title: "Current", tint: .blue)
+                                    }
+                                }
                                 Text("Last login: \(account.lastLogin, format: .dateTime.month().day().year().hour().minute())")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                             Spacer()
 
-                            if userService.currentUser?.id == account.id {
-                                Text("Current")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                            } else {
+                            if userService.currentUser?.id != account.id {
                                 Button("Sign In") {
                                     userService.switchAccount(to: account.id)
                                 }
@@ -493,6 +499,21 @@ struct SettingsView: View {
         }
     }
 
+}
+
+private struct AccountChip: View {
+    let title: String
+    let tint: Color
+
+    var body: some View {
+        Text(title)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(tint.opacity(0.12))
+            .clipShape(Capsule())
+    }
 }
 
 private struct BackupShareItem: Identifiable {

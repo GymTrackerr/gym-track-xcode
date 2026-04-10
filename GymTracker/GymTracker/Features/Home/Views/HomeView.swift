@@ -27,9 +27,7 @@ struct HomeView: View {
         .task(id: userService.currentUser?.id) {
             guard userService.currentUser?.isDemo != true else { return }
             await hkManager.requestAuthorization()
-            await hkManager.fetchUserWeight()
             await hkManager.fetchWorkouts()
-            await hkManager.fetchActivityRingStatus()
             guard let userId = userService.currentUser?.id.uuidString else { return }
             await healthKitDailyStore.refreshTodayIfNeeded(userId: userId)
             _ = try? await healthKitDailyStore.dailySummaries(
@@ -308,9 +306,11 @@ struct FitSightModuleView: View {
 
 struct NutritionModuleView: View {
     let module: DashboardModule
+    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var userService: UserService
     @EnvironmentObject var healthMetricsService: HealthMetricsService
     @State private var deficitSurplus: Double?
+    @State private var estimatedRangeText: String?
 
     var body: some View {
         if module.size == .medium || module.size == .large {
@@ -337,28 +337,74 @@ struct NutritionModuleView: View {
         guard let deficitSurplus else { return "Loading..." }
         let rounded = Int(deficitSurplus.rounded())
         let prefix = rounded >= 0 ? "+" : ""
+        if let estimatedRangeText, userService.currentUser?.isDemo == true {
+            return "\(prefix)\(rounded) kcal\n\(estimatedRangeText)"
+        }
         return "\(prefix)\(rounded) kcal"
     }
 
     private func loadDeficit() async {
-        guard let userId = userService.currentUser?.id.uuidString else {
+        guard let currentUser = userService.currentUser,
+              let userId = currentUser.id.uuidString as String? else {
             deficitSurplus = nil
+            estimatedRangeText = nil
             return
         }
+        deficitSurplus = nil
+        estimatedRangeText = nil
         deficitSurplus = try? await healthMetricsService.deficitSurplus(for: Date(), userId: userId)
+        guard currentUser.isDemo,
+              let profile = try? DemoSeedProfileStore.lastRanProfile(in: modelContext) else {
+            estimatedRangeText = nil
+            return
+        }
+
+        let used = try? await healthMetricsService.totalUsedCalories(for: Date(), userId: userId)
+        guard let used else {
+            estimatedRangeText = nil
+            return
+        }
+
+        let low = Int((used - (profile.nutritionCaloriesMean + profile.nutritionCaloriesRange)).rounded())
+        let high = Int((used - max(0, profile.nutritionCaloriesMean - profile.nutritionCaloriesRange)).rounded())
+        estimatedRangeText = "Est. \(formattedSigned(low)) to \(formattedSigned(high))"
+    }
+
+    private func formattedSigned(_ value: Int) -> String {
+        let prefix = value >= 0 ? "+" : ""
+        return "\(prefix)\(value)"
     }
 }
 
 struct CurrentWeightModuleView: View {
-    @EnvironmentObject var hkManager: HealthKitManager
+    @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
+    @EnvironmentObject var userService: UserService
+    @State private var currentWeight: Double?
     
     var body: some View {
         MetricCard(
             title: "Current Weight",
-            value: String(format: "%.1f", hkManager.userWeight ?? 0.00),
+            value: currentWeight.map { String(format: "%.1f", $0) } ?? "N/A",
             icon: "lock.fill",
             hasBackground: false
         )
+        .task(id: userService.currentUser?.id) {
+            await loadCurrentWeight()
+        }
+    }
+
+    private func loadCurrentWeight() async {
+        guard let userId = userService.currentUser?.id.uuidString else {
+            currentWeight = nil
+            return
+        }
+        currentWeight = nil
+        let summary = try? await healthKitDailyStore.dailySummary(
+            for: Date(),
+            userId: userId,
+            policy: .refreshIfStale
+        )
+        currentWeight = summary?.bodyWeightKg
     }
 }
 
@@ -398,6 +444,7 @@ struct WeeklyStepsModuleView: View {
             weeklyStepsTotal = 0
             return
         }
+        weeklyStepsTotal = 0
         let summaries = try? await healthKitDailyStore.dailySummaries(
             endingOn: Date(),
             days: 7,
@@ -443,6 +490,7 @@ struct SleepModuleView: View {
             sleepHours = nil
             return
         }
+        sleepHours = nil
         let summary = try? await healthKitDailyStore.dailySummary(
             for: Date(),
             userId: userId,
@@ -457,26 +505,59 @@ struct SleepModuleView: View {
 }
 
 struct ActivityRingsModuleView: View {
-    @EnvironmentObject var hkManager: HealthKitManager
+    @EnvironmentObject var userService: UserService
+    @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
+    @State private var ringStatus: ActivityRingStatus?
     
     var body: some View {
-        if let ars = hkManager.activityRingStatus {
-            MetricActivityRingCard(
-                title: "Activity Rings",
-                activityRings: ars,
-                alignment: .center,
-                hasBackground: false
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-        } else {
-            MetricCard(
-                title: "Activity Rings",
-                value: "Loading...",
-                icon: "gauge.with.needle",
-                alignment: .center,
-                hasBackground: false
-            )
+        Group {
+            if let ars = ringStatus {
+                MetricActivityRingCard(
+                    title: "Activity Rings",
+                    activityRings: ars,
+                    alignment: .center,
+                    hasBackground: false
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            } else {
+                MetricCard(
+                    title: "Activity Rings",
+                    value: "Loading...",
+                    icon: "gauge.with.needle",
+                    alignment: .center,
+                    hasBackground: false
+                )
+            }
         }
+        .task(id: userService.currentUser?.id) {
+            await loadRingStatus()
+        }
+    }
+
+    private func loadRingStatus() async {
+        guard let userId = userService.currentUser?.id.uuidString else {
+            ringStatus = nil
+            return
+        }
+        ringStatus = nil
+        let summary = try? await healthKitDailyStore.dailySummary(
+            for: Date(),
+            userId: userId,
+            policy: .refreshIfStale
+        )
+        guard let summary else {
+            ringStatus = nil
+            return
+        }
+
+        ringStatus = ActivityRingStatus(
+            moveRingValue: summary.activeEnergyKcal,
+            moveRingGoal: max(summary.moveGoalKcal ?? 520, 1),
+            exerciseRingValue: summary.exerciseMinutes ?? 0,
+            exerciseRingGoal: max(summary.exerciseGoalMinutes ?? 30, 1),
+            standRingValue: summary.standHours ?? 0,
+            standRingGoal: max(summary.standGoalHours ?? 12, 1)
+        )
     }
 }
 
@@ -498,16 +579,34 @@ struct TimerModuleView: View {
 
 struct FitnessWorkoutsModuleView: View {
     @EnvironmentObject var hkManager: HealthKitManager
+    @EnvironmentObject var userService: UserService
+    @EnvironmentObject var sessionService: SessionService
     
     var body: some View {
-        NavigationLink(destination: HealthWorkoutView().appBackground()) {
+        NavigationLink(destination: destinationView) {
             MetricCard(
                 title: "Fitness Workouts",
-                value: String(hkManager.workouts.count),
+                value: String(workoutCount),
                 icon: "figure.strengthtraining.traditional",
                 pageNav: true,
                 hasBackground: false
             )
+        }
+    }
+
+    private var workoutCount: Int {
+        if userService.currentUser?.isDemo == true {
+            return sessionService.sessions.count
+        }
+        return hkManager.workouts.count
+    }
+
+    @ViewBuilder
+    private var destinationView: some View {
+        if userService.currentUser?.isDemo == true {
+            SessionsPageView().appBackground()
+        } else {
+            HealthWorkoutView().appBackground()
         }
     }
 }

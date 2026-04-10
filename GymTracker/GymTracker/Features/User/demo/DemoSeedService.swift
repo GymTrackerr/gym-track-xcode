@@ -53,6 +53,7 @@ final class DemoSeedService {
         let demoUser = try ensureDemoUser(named: configuration.demoUserName)
         let summary: DemoSeedSummary
         if try hasSeededData(for: demoUser) {
+            try saveConfigurationProfile(configuration)
             summary = try summarizeDemoData(for: demoUser)
         } else {
             summary = try resetDemoData(configuration: configuration)
@@ -104,12 +105,9 @@ final class DemoSeedService {
             presets: presets
         )
 
-        demoUser.demoExerciseMinutesTarget = configuration.healthTargets.exerciseMinutes.mean
-        demoUser.demoExerciseMinutesRange = configuration.healthTargets.exerciseMinutes.range
-        demoUser.demoNutritionCaloriesTarget = configuration.healthTargets.nutritionCalories.mean
-        demoUser.demoNutritionCaloriesRange = configuration.healthTargets.nutritionCalories.range
         demoUser.allowHealthAccess = true
         demoUser.showNutritionTab = true
+        try saveConfigurationProfile(configuration)
         try modelContext.save()
 
         userService.loadAccounts()
@@ -136,8 +134,32 @@ final class DemoSeedService {
         userService.switchAccount(to: target.id)
     }
 
+    func savedProfiles() throws -> [DemoSeedProfile] {
+        try DemoSeedProfileStore.savedProfiles(in: modelContext)
+    }
+
+    func lastUsedProfile() throws -> DemoSeedProfile? {
+        try DemoSeedProfileStore.lastRanProfile(in: modelContext)
+    }
+
+    func configuration(for profile: DemoSeedProfile, presets: DemoPresetsBundle) -> DemoSeedConfiguration {
+        DemoSeedConfiguration(profile: profile, presets: presets)
+    }
+
     private func rememberRealUser(_ userId: UUID) {
         UserDefaults.standard.set(userId.uuidString, forKey: lastRealUserDefaultsKey)
+    }
+
+    private func saveConfigurationProfile(_ configuration: DemoSeedConfiguration) throws {
+        let now = Date()
+        for profile in try DemoSeedProfileStore.savedProfiles(in: modelContext) where profile.lastRan {
+            profile.lastRan = false
+            profile.updatedAt = now
+        }
+
+        let profile = DemoSeedProfile(configuration: configuration, lastRan: true, createdAt: now)
+        modelContext.insert(profile)
+        try modelContext.save()
     }
 
     private func resolvedDemoName(_ preferredName: String?) -> String {
@@ -741,6 +763,15 @@ final class DemoSeedService {
                 scale: configuration.noise.healthScale * 0.45,
                 weeklyAmplitude: 0.08
             )
+            let exerciseMinutes = metricValue(
+                setting: configuration.healthTargets.exerciseMinutes,
+                dayIndex: index + 17,
+                scale: configuration.noise.healthScale,
+                weeklyAmplitude: 0.3
+            )
+            let standHours = max(1, min(12, Int((steps / 900).rounded())))
+            let moveGoal = max(configuration.healthTargets.activeEnergyKcal.mean, 400)
+            let exerciseGoal = max(configuration.healthTargets.exerciseMinutes.mean, 15)
 
             let aggregate = HealthKitDailyAggregateData(
                 userId: demoUser.id.uuidString,
@@ -749,6 +780,11 @@ final class DemoSeedService {
                 steps: max(0, round(steps)),
                 activeEnergyKcal: max(0, round(active)),
                 restingEnergyKcal: max(0, round(resting)),
+                exerciseMinutes: max(0, round(exerciseMinutes)),
+                standHours: standHours,
+                moveGoalKcal: moveGoal,
+                exerciseGoalMinutes: exerciseGoal,
+                standGoalHours: 12,
                 sleepSeconds: max(0, sleepHours * 3600),
                 bodyWeightKg: max(0, (weightKg * 10).rounded() / 10),
                 schemaVersion: HealthKitDailyAggregateData.currentSchemaVersion,
