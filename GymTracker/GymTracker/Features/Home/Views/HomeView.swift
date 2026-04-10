@@ -7,39 +7,24 @@ struct HomeView: View {
     @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
 
     @State private var openedSession: Session? = nil
-    @State private var navigateToSession: Bool = false
     @State private var showEditMenu: Bool = false
     
     var body: some View {
-        VStack(spacing: 0) {
-            if let _ = userService.currentUser {
-                if !navigateToSession {
-                    ScrollView(.vertical, showsIndicators: true) {
-                        VStack(spacing: 0) {
-                            if (userService.currentUser?.allowHealthAccess ?? false) {
-                                DashboardGridView(
-                                    openedSession: $openedSession
-                                )
-                            } else {
-                                VStack(spacing: 16) {
-                                    Text("Health Data Not Available")
-                                        .font(.headline)
-                                    Text("Please enable HealthKit access in Settings to see your dashboard")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                        .multilineTextAlignment(.center)
-                                }
-                                .padding()
-                            }
-                        }
-                        .padding(.bottom, 32)
+        Group {
+            if userService.currentUser != nil {
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(alignment: .leading, spacing: 20) {
+                        DashboardGridView(openedSession: $openedSession)
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
                 }
+                .scrollBounceBehavior(.basedOnSize)
             } else {
                 Text("Please continue to onboarding")
             }
         }
-        .task {
+        .task(id: userService.currentUser?.id) {
             await hkManager.requestAuthorization()
             await hkManager.fetchUserWeight()
             await hkManager.fetchWorkouts()
@@ -53,16 +38,8 @@ struct HomeView: View {
                 policy: .refreshIfStale
             )
         }
-        .navigationDestination(isPresented: $navigateToSession) {
-            Group {
-                if let openedSession {
-                    SingleSessionView(session: openedSession)
-                } else {
-                    EmptyView()
-                }
-            }
-        }
         .navigationTitle(userService.currentUser != nil ? "Welcome \(userService.currentUser!.name)" : "Home" )
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 HStack(spacing: 16) {
@@ -83,6 +60,7 @@ struct HomeView: View {
 
 struct DashboardGridView: View {
     @EnvironmentObject var dashboardService: DashboardService
+    @EnvironmentObject var userService: UserService
     @Binding var openedSession: Session?
     
     var visibleModules: [DashboardModule] {
@@ -90,31 +68,32 @@ struct DashboardGridView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading) {
-            // Dashboard Modules
-            if visibleModules.isEmpty {
-                EmptyDashboardView()
-                    .padding()
+        VStack(alignment: .leading, spacing: 20) {
+            if userService.currentUser?.allowHealthAccess ?? false {
+                if visibleModules.isEmpty {
+                    EmptyDashboardView()
+                } else {
+                    DashboardModulesView(visibleModules: visibleModules)
+                }
             } else {
-                DashboardModulesView(
-                    visibleModules: visibleModules
-                )
+                VStack(spacing: 16) {
+                    Text("Health Data Not Available")
+                        .font(.headline)
+                    Text("Please enable HealthKit access in Settings to see your dashboard")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
                 .padding()
             }
-            
-            // Sessions Section
-            VStack(alignment: .leading) {
+
+            VStack(alignment: .leading, spacing: 12) {
                 Text("Sessions")
                     .font(.headline)
-                
+
                 SessionsView(openedSession: $openedSession)
-                    .onChange(of: openedSession) {
-                        if openedSession != nil {
-                            // Handle navigation
-                        }
-                    }
             }
-            .padding(.horizontal)
         }
     }
 }
@@ -162,9 +141,10 @@ struct DashboardModulesList: View {
     let smallCellHeight: CGFloat
     
     var body: some View {
+        let rows = buildModuleRows()
         VStack(spacing: 12) {
-            ForEach(buildModuleRows().indices, id: \.self) { rowIndex in
-                let row = buildModuleRows()[rowIndex]
+            ForEach(rows.indices, id: \.self) { rowIndex in
+                let row = rows[rowIndex]
                 
                 if let module = row.module {
                     DashboardFullWidthModule(module: module, cellSize: cellSize, smallCellHeight: smallCellHeight)
@@ -534,66 +514,315 @@ struct FitnessWorkoutsModuleView: View {
 struct DashboardEditView: View {
     @EnvironmentObject var dashboardService: DashboardService
     @Binding var isPresented: Bool
-    @EnvironmentObject var hkManager: HealthKitManager
-    
+    @State private var draftModules: [DashboardModule] = []
     @State private var showAddModule = false
+    @State private var selectedModuleSelection: ModuleSelection?
+    @State private var dragState: DragState?
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // Add Module Button
-                Button(action: { showAddModule = true }) {
-                    Label("Add Module", systemImage: "plus.circle.fill")
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.blue.opacity(0.1))
-                        .foregroundColor(.blue)
-                        .cornerRadius(8)
-                }
-                .padding()
-                
-                // Editor Grid View
-                if dashboardService.modules.isEmpty {
-                    VStack(spacing: 12) {
-                        Image(systemName:"square.grid.2x2")
-                            .font(.title)
-                            .foregroundColor(.secondary)
-                        Text("No modules configured")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding()
-                } else {
-                    List {
-                        ForEach(dashboardService.modules, id: \.id) { module in
-                            ModuleEditCard(
-                                module: module
-                            )
-                        }
-                        .onMove { indices, newOffset in
-                            dashboardService.reorderModules(indices, with: newOffset)
-                        }
-                    }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
-                    .environment(\.editMode, .constant(.active))
-                }
-                
-                Spacer()
-                
-                // Reset Button
+            VStack(spacing: 12) {
                 Button(action: {
-                    dashboardService.resetToDefaults()
+                    showAddModule = true
                 }) {
-                    Label("Reset to Defaults", systemImage: "arrow.counterclockwise")
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .foregroundColor(.red)
+                    Label("Add Module", systemImage: "plus.circle.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.blue)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 14)
+                        .background(Color(.secondarySystemGroupedBackground))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(Color.gray.opacity(0.18), lineWidth: 1)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
                 }
-                .padding()
+                .buttonStyle(.plain)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+
+                ScrollView {
+                    VStack(spacing: 12) {
+                        ForEach(draftModules) { module in
+                            DashboardEditorRow(
+                                module: module,
+                                isDragging: dragState?.moduleID == module.id,
+                                dragOffset: dragOffset(for: module.id),
+                                onOpenSettings: {
+                                    selectedModuleSelection = ModuleSelection(id: module.id)
+                                },
+                                onDragChanged: { value in
+                                    updateDrag(for: module.id, translation: value.translation.height)
+                                },
+                                onDragEnded: { _ in
+                                    finishDrag()
+                                }
+                            )
+                            .padding(.horizontal, 16)
+                            .zIndex(dragState?.moduleID == module.id ? 1 : 0)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
             }
+            .background(Color(.systemGroupedBackground))
             .navigationTitle("Edit Dashboard")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Reset") {
+                        resetDraftModules()
+                    }
+                    .foregroundColor(.red)
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        saveDraftModules()
+                    }
+                }
+            }
+            .onAppear {
+                loadDraftModules()
+            }
+            .sheet(isPresented: $showAddModule) {
+                DashboardAddModuleSheet(isPresented: $showAddModule, modules: $draftModules)
+            }
+            .sheet(item: $selectedModuleSelection) { selection in
+                if let selectedIndex = draftModules.firstIndex(where: { $0.id == selection.id }) {
+                    DashboardModuleSettingsSheet(module: $draftModules[selectedIndex])
+                }
+            }
+        }
+    }
+
+    private func reindexDraftModules() {
+        for index in draftModules.indices {
+            draftModules[index].order = index
+        }
+    }
+
+    private func loadDraftModules() {
+        draftModules = dashboardService.modulesSnapshotForEditor()
+        dragState = nil
+    }
+
+    private func resetDraftModules() {
+        draftModules = dashboardService.defaultModulesForEditor()
+        reindexDraftModules()
+        dragState = nil
+    }
+
+    private func saveDraftModules() {
+        reindexDraftModules()
+        dashboardService.applyEditorModules(draftModules)
+        isPresented = false
+    }
+
+    private func dragOffset(for moduleID: String) -> CGFloat {
+        guard let dragState, dragState.moduleID == moduleID else { return 0 }
+        return dragState.displayOffset
+    }
+
+    private func updateDrag(for moduleID: String, translation: CGFloat) {
+        guard let moduleIndex = draftModules.firstIndex(where: { $0.id == moduleID }) else { return }
+
+        if dragState == nil {
+            dragState = DragState(
+                moduleID: moduleID,
+                startIndex: moduleIndex,
+                currentIndex: moduleIndex,
+                displayOffset: 0
+            )
+        }
+
+        guard var dragState, dragState.moduleID == moduleID else { return }
+
+        let rawShift = Int((translation / rowStep).rounded())
+        let targetIndex = max(0, min(draftModules.count - 1, dragState.startIndex + rawShift))
+
+        if targetIndex != dragState.currentIndex {
+            withAnimation(.interactiveSpring(response: 0.22, dampingFraction: 0.84)) {
+                let movingModule = draftModules.remove(at: dragState.currentIndex)
+                draftModules.insert(movingModule, at: targetIndex)
+            }
+            dragState.currentIndex = targetIndex
+        }
+
+        let rowShift = CGFloat(dragState.currentIndex - dragState.startIndex) * rowStep
+        dragState.displayOffset = translation - rowShift
+        self.dragState = dragState
+    }
+
+    private func finishDrag() {
+        withAnimation(.interactiveSpring(response: 0.22, dampingFraction: 0.84)) {
+            dragState = nil
+        }
+        reindexDraftModules()
+    }
+
+    private var rowStep: CGFloat { 92 }
+
+    private struct ModuleSelection: Identifiable {
+        let id: String
+    }
+
+    private struct DragState {
+        let moduleID: String
+        let startIndex: Int
+        var currentIndex: Int
+        var displayOffset: CGFloat
+    }
+}
+
+struct DashboardEditorRow: View {
+    let module: DashboardModule
+    let isDragging: Bool
+    let dragOffset: CGFloat
+    let onOpenSettings: () -> Void
+    let onDragChanged: (DragGesture.Value) -> Void
+    let onDragEnded: (DragGesture.Value) -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: module.type.iconName)
+                .foregroundColor(.secondary)
+                .font(.body)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(module.type.displayName)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+
+                HStack(spacing: 8) {
+                    Text(module.size.displayName)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Text(module.isVisible ? "Visible" : "Hidden")
+                        .font(.caption)
+                        .foregroundColor(module.isVisible ? .green : .secondary)
+                }
+            }
+
+            Spacer()
+
+            Button(action: onOpenSettings) {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .frame(width: 32, height: 32)
+                    .background(Color(.secondarySystemGroupedBackground))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+
+            Image(systemName: "line.3.horizontal")
+                .font(.body)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 4)
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged(onDragChanged)
+                        .onEnded(onDragEnded)
+                )
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 12)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: isDragging ? Color.black.opacity(0.12) : Color.clear, radius: 10, y: 4)
+        .scaleEffect(isDragging ? 1.02 : 1)
+        .offset(y: dragOffset)
+        .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.84), value: dragOffset)
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Use the reorder handle to move this module")
+    }
+}
+
+struct DashboardModuleSettingsSheet: View {
+    @Binding var module: DashboardModule
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    HStack(spacing: 12) {
+                        Image(systemName: module.type.iconName)
+                            .foregroundColor(.secondary)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(module.type.displayName)
+                                .font(.headline)
+                            Text(module.id)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+
+                Section("Visibility") {
+                    Toggle("Visible", isOn: $module.isVisible)
+                }
+
+                Section("Size") {
+                    Picker("Module Size", selection: $module.size) {
+                        ForEach(module.type.allowedSizes, id: \.self) { size in
+                            Text(size.displayName).tag(size)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                }
+            }
+            .navigationTitle("Module Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        if !module.type.allowedSizes.contains(module.size) {
+                            module.size = module.type.allowedSizes.first ?? .small
+                        }
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct DashboardAddModuleSheet: View {
+    @Binding var isPresented: Bool
+    @Binding var modules: [DashboardModule]
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("Small (1x1)") {
+                    ForEach(ModuleType.allCases, id: \.self) { type in
+                        if type.allowedSizes.contains(.small) {
+                            addButton(for: type, size: .small)
+                        }
+                    }
+                }
+
+                Section("Medium (2x1)") {
+                    ForEach(ModuleType.allCases, id: \.self) { type in
+                        if type.allowedSizes.contains(.medium) {
+                            addButton(for: type, size: .medium)
+                        }
+                    }
+                }
+
+                Section("Large (2x2)") {
+                    ForEach(ModuleType.allCases, id: \.self) { type in
+                        if type.allowedSizes.contains(.large) {
+                            addButton(for: type, size: .large)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Add Module")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -602,153 +831,46 @@ struct DashboardEditView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showAddModule) {
-                AddModuleSheet(isPresented: $showAddModule)
-            }
         }
     }
-}
 
-struct ModuleEditCard: View {
-    let module: DashboardModule
-    @EnvironmentObject var dashboardService: DashboardService
-    
-    @State private var selectedSize: ModuleSize
-    
-    init(module: DashboardModule) {
-        self.module = module
-        _selectedSize = State(initialValue: module.size)
-    }
-    
-    var body: some View {
-        VStack(spacing: 8) {
-            // Header with icon, title and delete button
-            HStack(spacing: 8) {
-                Image(systemName: module.type.iconName)
-                    .foregroundColor(.secondary)
-                    .font(.body)
-                
-                Text(module.type.displayName)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                
+    @ViewBuilder
+    private func addButton(for type: ModuleType, size: ModuleSize) -> some View {
+        Button(action: {
+            addOrEnable(type: type, size: size)
+            isPresented = false
+        }) {
+            HStack {
+                Label(type.displayName, systemImage: type.iconName)
                 Spacer()
-                
-                Button(action: {
-                    dashboardService.removeModule(module.id)
-                }) {
-                    Image(systemName: "trash.fill")
-                        .foregroundColor(.red)
-                        .font(.caption)
-                }
-                .buttonStyle(.plain)
-                .frame(width: 32, height: 32)
-                .contentShape(Circle())
+                Image(systemName: "plus.circle.fill")
+                    .foregroundColor(.blue)
             }
-            .padding(.horizontal, 12)
-            .padding(.top, 12)
-            
-            // Size selector
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Size")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 12)
-                
-                Picker("Module Size", selection: $selectedSize) {
-                    ForEach(module.type.allowedSizes, id: \.self) { size in
-                        Text(size.displayName).tag(size)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 12)
-                .onChange(of: selectedSize) {
-                    dashboardService.updateModuleSize(module.id, newSize: selectedSize)
-                }
-            }
-            .padding(.bottom, 12)
         }
-        .background(Color(.systemBackground).opacity(0.5))
-        .cornerRadius(10)
-        .border(Color.gray.opacity(0.2), width: 1)
+        .foregroundColor(.primary)
     }
-}
 
-struct AddModuleSheet: View {
-    @EnvironmentObject var dashboardService: DashboardService
-    @Binding var isPresented: Bool
-    
-    var body: some View {
-        NavigationStack {
-            List {
-                Section("Small (1x1)") {
-                    ForEach(ModuleType.allCases, id: \.self) { type in
-                        if type.allowedSizes.contains(.small) {
-                            Button(action: {
-                                dashboardService.addModule(type, size: .small)
-                                isPresented = false
-                            }) {
-                                HStack {
-                                    Label(type.displayName, systemImage: type.iconName)
-                                    Spacer()
-                                    Image(systemName: "plus.circle.fill")
-                                        .foregroundColor(.blue)
-                                }
-                            }
-                            .foregroundColor(.primary)
-                        }
-                    }
-                }
-                
-                Section("Medium (2x1)") {
-                    ForEach(ModuleType.allCases, id: \.self) { type in
-                        if type.allowedSizes.contains(.medium) {
-                            Button(action: {
-                                dashboardService.addModule(type, size: .medium)
-                                isPresented = false
-                            }) {
-                                HStack {
-                                    Label(type.displayName, systemImage: type.iconName)
-                                    Spacer()
-                                    Image(systemName: "plus.circle.fill")
-                                        .foregroundColor(.blue)
-                                }
-                            }
-                            .foregroundColor(.primary)
-                        }
-                    }
-                }
-                
-                Section("Large (2x2)") {
-                    ForEach(ModuleType.allCases, id: \.self) { type in
-                        if type.allowedSizes.contains(.large) {
-                            Button(action: {
-                                dashboardService.addModule(type, size: .large)
-                                isPresented = false
-                            }) {
-                                HStack {
-                                    Label(type.displayName, systemImage: type.iconName)
-                                    Spacer()
-                                    Image(systemName: "plus.circle.fill")
-                                        .foregroundColor(.blue)
-                                }
-                            }
-                            .foregroundColor(.primary)
-                        }
-                    }
-                }
+    private func addOrEnable(type: ModuleType, size: ModuleSize) {
+        let nextOrder = (modules.map(\.order).max() ?? -1) + 1
+        let normalizedSize = type.allowedSizes.contains(size) ? size : (type.allowedSizes.first ?? .small)
+
+        modules.append(
+            DashboardModule(
+                type: type,
+                size: normalizedSize,
+                order: nextOrder,
+                isVisible: true
+            )
+        )
+
+        modules = modules
+            .sorted(by: { $0.order < $1.order })
+            .enumerated()
+            .map { index, module in
+                var updated = module
+                updated.order = index
+                return updated
             }
-            .scrollContentBackground(.hidden)
-            .navigationTitle("Add Module")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Cancel") {
-                        isPresented = false
-                    }
-                }
-            }
-        }
     }
 }
 
