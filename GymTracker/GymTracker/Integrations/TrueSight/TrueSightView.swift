@@ -508,11 +508,23 @@ private func normalizeVideoForUpload(
                 )
             }
 
-            let transformedSize = naturalSize.applying(preferredTransform)
-            let renderSize = CGSize(width: abs(transformedSize.width), height: abs(transformedSize.height))
+            let transformedRect = CGRect(origin: .zero, size: naturalSize).applying(preferredTransform)
+            let renderSize = CGSize(
+                width: abs(transformedRect.width),
+                height: abs(transformedRect.height)
+            )
             let nominalFrameRate = try await videoTrack.load(.nominalFrameRate)
             let fps: Int32 = nominalFrameRate > 0 ? Int32(nominalFrameRate.rounded()) : 30
             let frameDuration = CMTime(value: 1, timescale: fps)
+
+            // Re-anchor the transformed frame into a positive render space.
+            // Some iPhone rotations include negative translation components.
+            let correctedTransform = preferredTransform.concatenating(
+                CGAffineTransform(
+                    translationX: -transformedRect.origin.x,
+                    y: -transformedRect.origin.y
+                )
+            )
 
             let outputURL = FileManager.default.temporaryDirectory
                 .appendingPathComponent("prepared_video_\(Date().timeIntervalSince1970).mp4")
@@ -527,49 +539,24 @@ private func normalizeVideoForUpload(
             }
 
             exportSession.shouldOptimizeForNetworkUse = true
-            exportSession.videoComposition = try await makeVideoComposition(
-                for: composition,
-                compositionVideoTrack: compositionVideoTrack,
-                duration: assetDuration,
-                preferredTransform: preferredTransform,
-                frameDuration: frameDuration,
-                renderSize: renderSize
-            )
+            let instruction = AVMutableVideoCompositionInstruction()
+            instruction.timeRange = CMTimeRange(start: .zero, duration: assetDuration)
+
+            let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: compositionVideoTrack)
+            layerInstruction.setTransform(correctedTransform, at: .zero)
+            instruction.layerInstructions = [layerInstruction]
+
+            let videoComposition = AVMutableVideoComposition()
+            videoComposition.instructions = [instruction]
+            videoComposition.frameDuration = frameDuration
+            videoComposition.renderSize = renderSize
+            exportSession.videoComposition = videoComposition
             try await exportSession.export(to: outputURL, as: .mp4)
             completion(.success(outputURL))
         } catch {
             completion(.failure(error))
         }
     }
-}
-
-private func makeVideoComposition(
-    for composition: AVMutableComposition,
-    compositionVideoTrack: AVCompositionTrack,
-    duration: CMTime,
-    preferredTransform: CGAffineTransform,
-    frameDuration: CMTime,
-    renderSize: CGSize
-) async throws -> AVVideoComposition {
-    var layerConfiguration = AVVideoCompositionLayerInstruction.Configuration(trackID: compositionVideoTrack.trackID)
-    layerConfiguration.setTransform(preferredTransform, at: .zero)
-    let layerInstruction = AVVideoCompositionLayerInstruction(configuration: layerConfiguration)
-
-    let instructionConfiguration = AVVideoCompositionInstruction.Configuration(
-        backgroundColor: nil,
-        enablePostProcessing: true,
-        layerInstructions: [layerInstruction],
-        requiredSourceSampleDataTrackIDs: [],
-        timeRange: CMTimeRange(start: .zero, duration: duration)
-    )
-    let prototypeInstruction = AVVideoCompositionInstruction(configuration: instructionConfiguration)
-    var configuration = try await AVVideoComposition.Configuration(
-        for: composition,
-        prototypeInstruction: prototypeInstruction
-    )
-    configuration.frameDuration = frameDuration
-    configuration.renderSize = renderSize
-    return AVVideoComposition(configuration: configuration)
 }
 
 // MARK: - Processed Video Player
