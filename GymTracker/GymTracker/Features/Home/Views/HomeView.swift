@@ -299,7 +299,7 @@ struct DashboardModuleContent: View {
             TimerModuleView()
         case .fitnessWorkouts:
             FitnessWorkoutsModuleView()
-        case .fitsight:
+        case .truesight:
             FitSightModuleView(module: module)
         case .nutrition:
             NutritionModuleView(module: module)

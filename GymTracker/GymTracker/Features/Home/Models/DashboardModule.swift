@@ -22,7 +22,7 @@ enum ModuleType: String, Codable, CaseIterable {
     case activityRings = "activityRings"
     case timer = "timer"
     case fitnessWorkouts = "fitnessWorkouts"
-    case fitsight = "fitsight"
+    case truesight = "truesight"
     case nutrition = "nutrition"
     case sessionVolume = "sessionVolume"
     
@@ -34,7 +34,7 @@ enum ModuleType: String, Codable, CaseIterable {
         case .activityRings: return "Activity Rings"
         case .timer: return "Timer"
         case .fitnessWorkouts: return "Fitness Workouts"
-        case .fitsight: return "FitSight"
+        case .truesight: return "TrueSight"
         case .nutrition: return "Nutrition"
         case .sessionVolume: return "Session Volume"
         }
@@ -48,7 +48,7 @@ enum ModuleType: String, Codable, CaseIterable {
         case .activityRings: return "gauge.with.needle"
         case .timer: return "timer"
         case .fitnessWorkouts: return "figure.strengthtraining.traditional"
-        case .fitsight: return "video"
+        case .truesight: return "video"
         case .nutrition: return "fork.knife"
         case .sessionVolume: return "chart.bar.xaxis"
         }
@@ -68,7 +68,7 @@ enum ModuleType: String, Codable, CaseIterable {
             return [.small]
         case .activityRings:
             return [.medium, .large]
-        case .fitsight:
+        case .truesight:
             return [.small]
         case .nutrition:
             return [.small, .medium, .large]
