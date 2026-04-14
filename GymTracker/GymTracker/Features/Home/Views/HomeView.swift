@@ -738,9 +738,15 @@ struct ModuleDisplayView: View {
             onSelect: onSelect,
             headerAccessory: headerAccessory
         ) {
-            DashboardModuleContent(module: module)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .padding(DashboardModuleVisualSpec(module.size).contentPadding)
+            if isEditing {
+                DashboardModuleEditPlaceholder(module: module)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    .padding(DashboardModuleVisualSpec(module.size).contentPadding)
+            } else {
+                DashboardModuleContent(module: module)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding(DashboardModuleVisualSpec(module.size).contentPadding)
+            }
         }
     }
 }
@@ -843,6 +849,25 @@ struct DashboardModuleVisualSpec {
             contentPadding = 12
             headerFont = .subheadline
         }
+    }
+}
+
+struct DashboardModuleEditPlaceholder: View {
+    let module: DashboardModule
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(systemName: module.type.iconName)
+                .font(.title3.weight(.semibold))
+                .foregroundColor(.secondary)
+
+            Text(module.type.displayName)
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
