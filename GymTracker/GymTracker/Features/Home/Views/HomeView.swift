@@ -143,16 +143,18 @@ struct DashboardModulesView: View {
     @State private var draftModules: [DashboardModule] = []
     @State private var draggedModuleID: String?
 
+    private let dashboardSpacing: CGFloat = 12
+
     var body: some View {
         let effectiveWidth = max(availableWidth, UIScreen.main.bounds.width - 32)
         let columnCount = dashboardService.defaultColumnCount(for: effectiveWidth)
         let liveModules = dashboardService.visibleModules
         let displayModules = dashboardService.isEditingMode ? draftModules : liveModules
-        let columnWidth = dashboardColumnWidth(for: effectiveWidth, columns: columnCount)
-        let rows = dashboardRows(
-            for: displayModules,
+        let layout = DashboardGridLayout(
+            modules: displayModules,
+            availableWidth: effectiveWidth,
             columnCount: columnCount,
-            columnWidth: columnWidth
+            spacing: dashboardSpacing
         )
         let existingTypes = Set(displayModules.map(\.type))
 
@@ -170,19 +172,13 @@ struct DashboardModulesView: View {
             if displayModules.isEmpty {
                 EmptyDashboardView()
             } else {
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(rows) { row in
-                        if row.usesGrid {
-                            LazyVGrid(columns: gridColumns(count: columnCount), spacing: 12) {
-                                ForEach(row.modules) { module in
-                                    dashboardCard(for: module, rowHeight: row.height)
-                                }
-                            }
-                        } else if let module = row.modules.first {
-                            dashboardCard(for: module, rowHeight: row.height)
-                        }
+                ZStack(alignment: .topLeading) {
+                    ForEach(layout.items) { item in
+                        dashboardCard(for: item)
+                            .offset(x: item.origin.x, y: item.origin.y)
                     }
                 }
+                .frame(maxWidth: .infinity, minHeight: layout.height, alignment: .topLeading)
                 .animation(
                     .spring(response: 0.28, dampingFraction: 0.86),
                     value: displayModules.map { "\($0.id)-\($0.order)-\($0.size.rawValue)-\($0.isVisible)" }
@@ -222,117 +218,41 @@ struct DashboardModulesView: View {
         }
     }
 
-    private func gridColumns(count: Int) -> [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: 12, alignment: .top), count: max(count, 2))
-    }
-
-    private func dashboardColumnWidth(for width: CGFloat, columns: Int) -> CGFloat {
-        let safeColumns = max(columns, 2)
-        let totalSpacing = CGFloat(safeColumns - 1) * 12
-        return max((width - totalSpacing) / CGFloat(safeColumns), 120)
-    }
-
-    private func dashboardRows(
-        for modules: [DashboardModule],
-        columnCount: Int,
-        columnWidth: CGFloat
-    ) -> [DashboardRenderRow] {
-        let safeColumnCount = max(columnCount, 2)
-        var rows: [DashboardRenderRow] = []
-        var compactModules: [DashboardModule] = []
-
-        for module in modules {
-            if module.size == .small {
-                compactModules.append(module)
-                if compactModules.count == safeColumnCount {
-                    rows.append(
-                        DashboardRenderRow(
-                            modules: compactModules,
-                            height: rowHeight(for: compactModules, columnWidth: columnWidth),
-                            usesGrid: true
-                        )
-                    )
-                    compactModules.removeAll()
-                }
-            } else {
-                if !compactModules.isEmpty {
-                    rows.append(
-                        DashboardRenderRow(
-                            modules: compactModules,
-                            height: rowHeight(for: compactModules, columnWidth: columnWidth),
-                            usesGrid: true
-                        )
-                    )
-                    compactModules.removeAll()
-                }
-                rows.append(
-                    DashboardRenderRow(
-                        modules: [module],
-                        height: rowHeight(for: [module], columnWidth: columnWidth),
-                        usesGrid: false
-                    )
-                )
-            }
-        }
-
-        if !compactModules.isEmpty {
-            rows.append(
-                DashboardRenderRow(
-                    modules: compactModules,
-                    height: rowHeight(for: compactModules, columnWidth: columnWidth),
-                    usesGrid: true
-                )
-            )
-        }
-
-        return rows
-    }
-
-    private func rowHeight(for modules: [DashboardModule], columnWidth: CGFloat) -> CGFloat {
-        modules
-            .map { DashboardModuleLayoutSpec(module: $0).height(for: columnWidth) }
-            .max() ?? 124
-    }
-
     @ViewBuilder
-    private func dashboardCard(for module: DashboardModule, rowHeight: CGFloat) -> some View {
+    private func dashboardCard(for item: DashboardGridLayoutItem) -> some View {
         if dashboardService.isEditingMode {
             DashboardEditableModuleCard(
-                module: module,
-                isDragging: draggedModuleID == module.id,
-                height: rowHeight,
+                module: item.module,
+                isDragging: draggedModuleID == item.module.id,
+                width: item.size.width,
+                height: item.size.height,
                 onSizeChange: { newSize in
-                    updateDraftModule(moduleID: module.id) { draftModule in
+                    updateDraftModule(moduleID: item.module.id) { draftModule in
                         let allowedSizes = draftModule.type.allowedSizes
                         draftModule.size = allowedSizes.contains(newSize) ? newSize : (allowedSizes.first ?? .small)
                     }
                 },
                 onHide: {
-                    hideDraftModule(moduleID: module.id)
+                    hideDraftModule(moduleID: item.module.id)
                 }
             )
-            .frame(maxWidth: module.size == .small ? nil : .infinity)
             .onDrag {
-                draggedModuleID = module.id
-                return NSItemProvider(object: module.id as NSString)
+                draggedModuleID = item.module.id
+                return NSItemProvider(object: item.module.id as NSString)
             } preview: {
-                DashboardModuleDragPreview(module: module)
+                DashboardModuleDragPreview(module: item.module)
             }
             .onDrop(
                 of: [UTType.text],
                 delegate: DashboardModuleDropDelegate(
-                    targetModuleID: module.id,
+                    targetModuleID: item.module.id,
                     modules: $draftModules,
                     draggedModuleID: $draggedModuleID
                 )
             )
         } else {
-            ModuleDisplayView(module: module)
-                .frame(
-                    maxWidth: module.size == .small ? nil : .infinity,
-                    minHeight: rowHeight,
-                    maxHeight: rowHeight
-                )
+            ModuleDisplayView(module: item.module)
+                .frame(width: item.size.width, height: item.size.height)
         }
     }
 
@@ -381,43 +301,123 @@ struct DashboardModulesView: View {
     }
 }
 
-struct DashboardRenderRow: Identifiable {
-    let modules: [DashboardModule]
-    let height: CGFloat
-    let usesGrid: Bool
+struct DashboardGridLayoutItem: Identifiable {
+    let module: DashboardModule
+    let origin: CGPoint
+    let size: CGSize
+    let row: Int
+    let column: Int
 
-    var id: String {
-        modules.map(\.id).joined(separator: "-")
-    }
+    var id: String { module.id }
 }
 
-struct DashboardModuleLayoutSpec {
-    let heightMultiplier: CGFloat
-    let minimumHeight: CGFloat
+struct DashboardGridLayout {
+    let items: [DashboardGridLayoutItem]
+    let height: CGFloat
+    let cellWidth: CGFloat
+    let cellHeight: CGFloat
+    let spacing: CGFloat
 
-    init(module: DashboardModule) {
-        switch (module.type, module.size) {
-        case (.sessionVolume, .medium):
-            heightMultiplier = 1.35
-            minimumHeight = 182
-        case (.sessionVolume, .large):
-            heightMultiplier = 1.8
-            minimumHeight = 272
-        case (_, .small):
-            heightMultiplier = 1
-            minimumHeight = 124
-        case (_, .medium):
-            heightMultiplier = 1.18
-            minimumHeight = 146
-        case (_, .large):
-            heightMultiplier = 1.5
-            minimumHeight = 186
+    init(
+        modules: [DashboardModule],
+        availableWidth: CGFloat,
+        columnCount: Int,
+        spacing: CGFloat
+    ) {
+        let safeColumnCount = max(columnCount, 2)
+        let totalSpacing = CGFloat(safeColumnCount - 1) * spacing
+        let cellWidth = max((availableWidth - totalSpacing) / CGFloat(safeColumnCount), 120)
+        let cellHeight = max(min(cellWidth * 0.92, 220), 124)
+
+        var occupancy: [[Bool]] = []
+        var layoutItems: [DashboardGridLayoutItem] = []
+        var maxOccupiedRow = 0
+
+        func ensureRows(_ rowCount: Int) {
+            while occupancy.count < rowCount {
+                occupancy.append(Array(repeating: false, count: safeColumnCount))
+            }
         }
-    }
 
-    func height(for columnWidth: CGFloat) -> CGFloat {
-        let baseHeight = max(min(columnWidth * 0.92, 220), 124)
-        return max(baseHeight * heightMultiplier, minimumHeight)
+        func canPlace(row: Int, column: Int, columnSpan: Int, rowSpan: Int) -> Bool {
+            guard column + columnSpan <= safeColumnCount else { return false }
+            ensureRows(row + rowSpan)
+
+            for rowIndex in row..<(row + rowSpan) {
+                for columnIndex in column..<(column + columnSpan) {
+                    if occupancy[rowIndex][columnIndex] {
+                        return false
+                    }
+                }
+            }
+
+            return true
+        }
+
+        func markOccupied(row: Int, column: Int, columnSpan: Int, rowSpan: Int) {
+            for rowIndex in row..<(row + rowSpan) {
+                for columnIndex in column..<(column + columnSpan) {
+                    occupancy[rowIndex][columnIndex] = true
+                }
+            }
+        }
+
+        for module in modules {
+            let columnSpan = min(module.size.columnSpan, safeColumnCount)
+            let rowSpan = module.size.rowSpan
+            var targetRow = 0
+            var targetColumn = 0
+            var placed = false
+
+            while !placed {
+                ensureRows(targetRow + rowSpan)
+
+                for candidateColumn in 0...(safeColumnCount - columnSpan) {
+                    if canPlace(
+                        row: targetRow,
+                        column: candidateColumn,
+                        columnSpan: columnSpan,
+                        rowSpan: rowSpan
+                    ) {
+                        targetColumn = candidateColumn
+                        placed = true
+                        break
+                    }
+                }
+
+                if !placed {
+                    targetRow += 1
+                }
+            }
+
+            markOccupied(row: targetRow, column: targetColumn, columnSpan: columnSpan, rowSpan: rowSpan)
+
+            let itemWidth = (CGFloat(columnSpan) * cellWidth) + (CGFloat(columnSpan - 1) * spacing)
+            let itemHeight = (CGFloat(rowSpan) * cellHeight) + (CGFloat(rowSpan - 1) * spacing)
+            let origin = CGPoint(
+                x: CGFloat(targetColumn) * (cellWidth + spacing),
+                y: CGFloat(targetRow) * (cellHeight + spacing)
+            )
+
+            layoutItems.append(
+                DashboardGridLayoutItem(
+                    module: module,
+                    origin: origin,
+                    size: CGSize(width: itemWidth, height: itemHeight),
+                    row: targetRow,
+                    column: targetColumn
+                )
+            )
+            maxOccupiedRow = max(maxOccupiedRow, targetRow + rowSpan)
+        }
+
+        self.items = layoutItems
+        self.cellWidth = cellWidth
+        self.cellHeight = cellHeight
+        self.spacing = spacing
+        self.height = maxOccupiedRow > 0
+            ? (CGFloat(maxOccupiedRow) * cellHeight) + (CGFloat(maxOccupiedRow - 1) * spacing)
+            : 0
     }
 }
 
@@ -436,16 +436,33 @@ struct DashboardInlineEditorBar: View {
                 .disabled(!canAddModules)
 
                 Menu {
-                    ForEach(DashboardPreset.allCases) { preset in
-                        Button {
-                            onApplyPreset(preset)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(preset.displayName)
-                                Text(preset.description)
+                    Section("Presets") {
+                        ForEach(DashboardPreset.productionCases) { preset in
+                            Button {
+                                onApplyPreset(preset)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(preset.displayName)
+                                    Text(preset.description)
+                                }
                             }
                         }
                     }
+
+#if DEBUG
+                    Section("Debug Layout Tests") {
+                        ForEach(DashboardPreset.debugCases) { preset in
+                            Button {
+                                onApplyPreset(preset)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(preset.displayName)
+                                    Text(preset.description)
+                                }
+                            }
+                        }
+                    }
+#endif
                 } label: {
                     Label("Presets", systemImage: "square.grid.2x2")
                 }
@@ -550,6 +567,7 @@ struct DashboardInlineAddModuleSheet: View {
 struct DashboardEditableModuleCard: View {
     let module: DashboardModule
     let isDragging: Bool
+    let width: CGFloat
     let height: CGFloat
     let onSizeChange: (ModuleSize) -> Void
     let onHide: () -> Void
@@ -560,7 +578,7 @@ struct DashboardEditableModuleCard: View {
             isEditing: true,
             headerAccessory: AnyView(moduleActionMenu)
         )
-        .frame(height: height)
+        .frame(width: width, height: height)
         .scaleEffect(isDragging ? 0.97 : 1)
         .opacity(isDragging ? 0.68 : 1)
         .shadow(
@@ -957,7 +975,7 @@ struct WeeklyStepsModuleView: View {
         if module.size == .medium || module.size == .large {
             NavigationLink(destination: HealthHistoryChartView().appBackground()) {
                 StepBarGraph(
-                    height: module.size == .large ? 165 : 120,
+                    height: module.size == .large ? 132 : 82,
                     barColor: .blue
                 )
                 .padding(.horizontal, 4)

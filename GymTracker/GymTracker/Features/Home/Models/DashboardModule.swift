@@ -13,6 +13,23 @@ enum ModuleSize: String, Codable {
         }
     }
 
+    var columnSpan: Int {
+        switch self {
+        case .small:
+            return 1
+        case .medium, .large:
+            return 2
+        }
+    }
+
+    var rowSpan: Int {
+        switch self {
+        case .small, .medium:
+            return 1
+        case .large:
+            return 2
+        }
+    }
 }
 
 enum ModuleType: String, Codable, CaseIterable {
@@ -92,8 +109,27 @@ enum DashboardPreset: String, CaseIterable, Identifiable {
     case training
     case health
     case minimal
+#if DEBUG
+    case mixedCompact
+    case mixedBalanced
+    case wideStressTest
+#endif
 
     var id: String { rawValue }
+
+    static var productionCases: [DashboardPreset] {
+        [.default, .training, .health, .minimal]
+    }
+
+#if DEBUG
+    static var debugCases: [DashboardPreset] {
+        [.mixedCompact, .mixedBalanced, .wideStressTest]
+    }
+#else
+    static var debugCases: [DashboardPreset] {
+        []
+    }
+#endif
 
     var displayName: String {
         switch self {
@@ -105,6 +141,14 @@ enum DashboardPreset: String, CaseIterable, Identifiable {
             return "Health"
         case .minimal:
             return "Minimal"
+#if DEBUG
+        case .mixedCompact:
+            return "Mixed Compact"
+        case .mixedBalanced:
+            return "Mixed Balanced"
+        case .wideStressTest:
+            return "Wide Stress Test"
+#endif
         }
     }
 
@@ -118,6 +162,14 @@ enum DashboardPreset: String, CaseIterable, Identifiable {
             return "Recovery, activity, sleep, and nutrition."
         case .minimal:
             return "A simple quick-glance dashboard."
+#if DEBUG
+        case .mixedCompact:
+            return "Debug layout test with small cards around one medium card."
+        case .mixedBalanced:
+            return "Debug layout test mixing one large, one medium, and several small cards."
+        case .wideStressTest:
+            return "Debug layout test for 3- and 4-column packing with multiple wide cards."
+#endif
         }
     }
 }

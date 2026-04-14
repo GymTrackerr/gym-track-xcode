@@ -155,7 +155,7 @@ struct SessionVolumeModuleView: View {
                 } label: {
                     SessionVolumeChart(
                         points: points,
-                        chartHeight: module.size == .large ? 140 : 105
+                        chartHeight: module.size == .large ? 116 : 74
                     )
                 }
                 .buttonStyle(.plain)

@@ -172,6 +172,37 @@ final class DashboardService: ServiceBase, ObservableObject {
                 DashboardModule(type: .sessionVolume, size: .medium, order: 2),
                 DashboardModule(type: .truesight, size: .small, order: 3)
             ]
+#if DEBUG
+        case .mixedCompact:
+            return [
+                DashboardModule(type: .currentWeight, size: .small, order: 0),
+                DashboardModule(type: .timer, size: .small, order: 1),
+                DashboardModule(type: .weeklySteps, size: .medium, order: 2),
+                DashboardModule(type: .truesight, size: .small, order: 3),
+                DashboardModule(type: .fitnessWorkouts, size: .small, order: 4),
+                DashboardModule(type: .nutrition, size: .small, order: 5)
+            ]
+        case .mixedBalanced:
+            return [
+                DashboardModule(type: .sessionVolume, size: .large, order: 0),
+                DashboardModule(type: .currentWeight, size: .small, order: 1),
+                DashboardModule(type: .timer, size: .small, order: 2),
+                DashboardModule(type: .activityRings, size: .medium, order: 3),
+                DashboardModule(type: .truesight, size: .small, order: 4),
+                DashboardModule(type: .nutrition, size: .small, order: 5),
+                DashboardModule(type: .fitnessWorkouts, size: .small, order: 6)
+            ]
+        case .wideStressTest:
+            return [
+                DashboardModule(type: .weeklySteps, size: .medium, order: 0),
+                DashboardModule(type: .nutrition, size: .medium, order: 1),
+                DashboardModule(type: .sessionVolume, size: .large, order: 2),
+                DashboardModule(type: .activityRings, size: .medium, order: 3),
+                DashboardModule(type: .currentWeight, size: .small, order: 4),
+                DashboardModule(type: .timer, size: .small, order: 5),
+                DashboardModule(type: .truesight, size: .small, order: 6)
+            ]
+#endif
         }
     }
 }
