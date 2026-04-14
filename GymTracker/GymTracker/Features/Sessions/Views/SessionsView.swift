@@ -24,8 +24,12 @@ struct SessionsView: View {
 
 //    @State private var isEditing = false
 
+    private var sortedSessions: [Session] {
+        sessionService.sessions.sorted { $0.timestampDone > $1.timestampDone }
+    }
+
     var body: some View {
-        VStack {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Button {
                     showingCreateSession = true
@@ -51,61 +55,47 @@ struct SessionsView: View {
 //                .padding()
             }
 
-            
-            if !sessionService.sessions.isEmpty {
+            if !sortedSessions.isEmpty {
                 HStack {
                     Text("Previous Sessions")
                         .font(.headline)
-                        .padding(.horizontal)
                         .underline()
                         .padding(.top, 8)
                 }
                 
-                ForEach(sessionService.sessions.reversed(), id: \.self) { session in
-                    NavigationLink {
-                        SingleSessionView(session: session)
-                            .appBackground()
-                    } label: {
-                        SingleSessionLabelView(session: session)
-                            .foregroundColor(.primary)
-                    }
-                    .contextMenu {
-                        Button {
-                            openedSession = session
+                VStack(spacing: 12) {
+                    ForEach(sortedSessions, id: \.id) { session in
+                        NavigationLink {
+                            SingleSessionView(session: session)
+                                .appBackground()
                         } label: {
-                            Label("Edit", systemImage: "pencil")
+                            SingleSessionLabelView(session: session)
+                                .foregroundColor(.primary)
                         }
-                        Button(role: .destructive) {
-                            sessionService.removeSession(session: session)
-                        } label: {
-                            Label("Delete", systemImage: "trash")
+                        .contextMenu {
+                            Button {
+                                openedSession = session
+                            } label: {
+                                Label("Edit", systemImage: "pencil")
+                            }
+                            Button(role: .destructive) {
+                                sessionService.removeSession(session: session)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
                         }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                sessionService.removeSession(session: session)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .glassEffect(in: .rect(cornerRadius: 16.0))
                     }
-                    // TODO: Figure out solution for scrollview
-                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                           Button(role: .destructive) {
-                               sessionService.removeSession(session: session)
-                           } label: {
-                               Label("Delete", systemImage: "trash")
-                           }
-                       }
-                    .buttonStyle(.plain)
-                    
-                    .padding()
-                    .frame(maxWidth: .infinity)
-//                    .background(.ultraThinMaterial)
-//                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-//                    .shadow(radius: 6, y: 3)
-
-                    .glassEffect(in: .rect(cornerRadius: 16.0))
-
-//                    .background(
-//                        RoundedRectangle(cornerRadius: 16)
-//                            .fill(Color(.systemBackground))
-//                            .shadow(color: .gray.opacity(0.2), radius: 4, y: 2)
-//                    )
-//                    .padding(.horizontal)
-                    
                 }
             }
         }

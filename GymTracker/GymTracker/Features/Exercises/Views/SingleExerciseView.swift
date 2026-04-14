@@ -136,10 +136,12 @@ struct ExerciseDetailView: View {
                         .padding(.horizontal)
                 }
 
+                    /*
 #if DEBUG
                 debugIdentityCard
 #endif
 
+                     */
                 if hasExerciseInfo {
                     DisclosureGroup(isExpanded: $showExerciseData) {
                         VStack(alignment: .leading, spacing: 12) {
@@ -1045,6 +1047,7 @@ struct ExerciseDetailView: View {
         .opacity(0.45)
     }
 
+    /*
 #if DEBUG
     private var debugIdentityCard: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -1066,6 +1069,7 @@ struct ExerciseDetailView: View {
         .padding(.horizontal)
     }
 #endif
+     */
 
     private struct PreviousSessionItem {
         let session: Session

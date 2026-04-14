@@ -60,7 +60,7 @@ struct ContentView: View {
                 }
             }
 
-            Tab("Program", systemImage: "figure.walk.motion", value: 4) {
+            Tab("Programme", systemImage: "figure.walk.motion", value: 4) {
                 NavigationStack {
                     SplitDaysView()
                 }
@@ -82,12 +82,14 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             timerService.appDidBecomeActive()
+            guard userService.currentUser?.isDemo != true else { return }
             guard let userId = userService.currentUser?.id.uuidString else { return }
             Task {
                 await healthKitDailyStore.refreshTodayIfNeeded(userId: userId)
             }
         }
         .task(id: userService.currentUser?.id.uuidString) {
+            guard userService.currentUser?.isDemo != true else { return }
             guard let userId = userService.currentUser?.id.uuidString else { return }
             Task(priority: .background) {
                 _ = await healthKitDailyStore.backfillHistoryIfNeeded(userId: userId)

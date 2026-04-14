@@ -33,6 +33,11 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         let steps: Double
         let activeEnergyKcal: Double
         let restingEnergyKcal: Double
+        let exerciseMinutes: Double
+        let standHours: Int
+        let moveGoalKcal: Double
+        let exerciseGoalMinutes: Double
+        let standGoalHours: Int
         let sleepSeconds: TimeInterval
         let bodyWeightKg: Double
         let schemaVersion: Double
@@ -44,6 +49,11 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
             self.steps = aggregate.steps
             self.activeEnergyKcal = aggregate.activeEnergyKcal
             self.restingEnergyKcal = aggregate.restingEnergyKcal
+            self.exerciseMinutes = aggregate.exerciseMinutes ?? 0
+            self.standHours = aggregate.standHours ?? 0
+            self.moveGoalKcal = aggregate.moveGoalKcal ?? 520
+            self.exerciseGoalMinutes = aggregate.exerciseGoalMinutes ?? 30
+            self.standGoalHours = aggregate.standGoalHours ?? 12
             self.sleepSeconds = aggregate.sleepSeconds
             self.bodyWeightKg = aggregate.bodyWeightKg
             self.schemaVersion = aggregate.schemaVersion
@@ -57,6 +67,11 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
                 steps: steps,
                 activeEnergyKcal: activeEnergyKcal,
                 restingEnergyKcal: restingEnergyKcal,
+                exerciseMinutes: exerciseMinutes,
+                standHours: standHours,
+                moveGoalKcal: moveGoalKcal,
+                exerciseGoalMinutes: exerciseGoalMinutes,
+                standGoalHours: standGoalHours,
                 sleepSeconds: sleepSeconds,
                 bodyWeightKg: bodyWeightKg,
                 schemaVersion: schemaVersion
@@ -94,6 +109,7 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         userId: String,
         policy: HealthDataFetchPolicy = .refreshIfStale
     ) async throws -> HealthKitDailyAggregateData {
+        let policy = resolvedPolicy(policy)
         let dayStart = dateNormalizer.startOfDay(day)
         let dayKey = dateNormalizer.dayKey(dayStart)
 
@@ -134,6 +150,7 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         userId: String,
         policy: HealthDataFetchPolicy = .refreshIfStale
     ) async throws -> [HealthKitDailyAggregateData] {
+        let policy = resolvedPolicy(policy)
         guard interval.end > interval.start else { return [] }
         let dayStarts = dayStarts(in: interval)
         guard !dayStarts.isEmpty else { return [] }
@@ -185,6 +202,11 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
                 steps: 0,
                 activeEnergyKcal: 0,
                 restingEnergyKcal: 0,
+                exerciseMinutes: 0,
+                standHours: 0,
+                moveGoalKcal: 520,
+                exerciseGoalMinutes: 30,
+                standGoalHours: 12,
                 sleepSeconds: 0,
                 bodyWeightKg: 0,
                 schemaVersion: HealthKitDailyAggregateData.currentSchemaVersion
@@ -242,6 +264,11 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
                 steps: 0,
                 activeEnergyKcal: 0,
                 restingEnergyKcal: 0,
+                exerciseMinutes: 0,
+                standHours: 0,
+                moveGoalKcal: 520,
+                exerciseGoalMinutes: 30,
+                standGoalHours: 12,
                 sleepSeconds: 0,
                 bodyWeightKg: 0,
                 schemaVersion: HealthKitDailyAggregateData.currentSchemaVersion
@@ -300,6 +327,8 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
                     summary.steps > 0 ||
                     summary.activeEnergyKcal > 0 ||
                     summary.restingEnergyKcal > 0 ||
+                    (summary.exerciseMinutes ?? 0) > 0 ||
+                    (summary.standHours ?? 0) > 0 ||
                     summary.sleepSeconds > 0
                 }
 
@@ -450,6 +479,11 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
                         steps: 0,
                         activeEnergyKcal: 0,
                         restingEnergyKcal: 0,
+                        exerciseMinutes: 0,
+                        standHours: 0,
+                        moveGoalKcal: 520,
+                        exerciseGoalMinutes: 30,
+                        standGoalHours: 12,
                         sleepSeconds: 0,
                         bodyWeightKg: 0,
                         schemaVersion: HealthKitDailyAggregateData.currentSchemaVersion
@@ -518,6 +552,11 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
             existing.steps = dto.steps
             existing.activeEnergyKcal = dto.activeEnergyKcal
             existing.restingEnergyKcal = dto.restingEnergyKcal
+            existing.exerciseMinutes = dto.exerciseMinutes
+            existing.standHours = dto.standHours
+            existing.moveGoalKcal = dto.moveGoalKcal
+            existing.exerciseGoalMinutes = dto.exerciseGoalMinutes
+            existing.standGoalHours = dto.standGoalHours
             existing.sleepSeconds = dto.sleepSeconds
             existing.bodyWeightKg = dto.bodyWeightKg
             existing.schemaVersion = dto.schemaVersion
@@ -536,6 +575,16 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
 
     private func mapToDTO(_ cache: HealthKitDailyAggregateData) -> HealthKitDailyAggregateData {
         cache
+    }
+
+    private func resolvedPolicy(_ policy: HealthDataFetchPolicy) -> HealthDataFetchPolicy {
+        guard currentUser?.isDemo == true else { return policy }
+        switch policy {
+        case .cachedOnly:
+            return .cachedOnly
+        case .refreshIfStale, .forceRefresh:
+            return .cachedOnly
+        }
     }
 
     private func cachedOrSnapshot(_ snapshot: DailyAggregateSnapshot) throws -> HealthKitDailyAggregateData {
@@ -615,6 +664,11 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
 
         for item in cached where item.schemaVersion < HealthKitDailyAggregateData.currentSchemaVersion {
             if let upgraded = fetchedByKey[item.dayKey] {
+                item.exerciseMinutes = upgraded.exerciseMinutes
+                item.standHours = upgraded.standHours
+                item.moveGoalKcal = upgraded.moveGoalKcal
+                item.exerciseGoalMinutes = upgraded.exerciseGoalMinutes
+                item.standGoalHours = upgraded.standGoalHours
                 item.bodyWeightKg = upgraded.bodyWeightKg
                 item.schemaVersion = HealthKitDailyAggregateData.currentSchemaVersion
                 changedAny = true
