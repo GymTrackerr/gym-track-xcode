@@ -5,9 +5,9 @@ struct HomeView: View {
     @EnvironmentObject var userService: UserService
     @EnvironmentObject var hkManager: HealthKitManager
     @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
+    @EnvironmentObject var dashboardService: DashboardService
 
     @State private var openedSession: Session? = nil
-    @State private var showEditMenu: Bool = false
     
     var body: some View {
         Group {
@@ -42,17 +42,19 @@ struct HomeView: View {
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 HStack(spacing: 16) {
-                    Button(action: { showEditMenu = true }) {
-                        Label("Edit", systemImage: "pencil")
+                    Button(action: {
+                        dashboardService.isEditingMode.toggle()
+                    }) {
+                        Label(
+                            dashboardService.isEditingMode ? "Done" : "Edit",
+                            systemImage: dashboardService.isEditingMode ? "checkmark.circle" : "pencil"
+                        )
                     }
                     NavigationLink(destination: SettingsView()) {
                         Label("Settings", systemImage: "gearshape")
                     }
                 }
             }
-        }
-        .sheet(isPresented: $showEditMenu) {
-            DashboardEditView(isPresented: $showEditMenu)
         }
     }
 }
@@ -62,18 +64,10 @@ struct DashboardGridView: View {
     @EnvironmentObject var userService: UserService
     @Binding var openedSession: Session?
     
-    var visibleModules: [DashboardModule] {
-        dashboardService.getVisibleModules()
-    }
-    
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             if userService.currentUser?.allowHealthAccess ?? false {
-                if visibleModules.isEmpty {
-                    EmptyDashboardView()
-                } else {
-                    DashboardModulesView(visibleModules: visibleModules)
-                }
+                DashboardModulesView()
             } else {
                 VStack(spacing: 16) {
                     Text("Health Data Not Available")
@@ -116,147 +110,503 @@ struct EmptyDashboardView: View {
 }
 
 struct DashboardModulesView: View {
-    let visibleModules: [DashboardModule]
+    @EnvironmentObject var dashboardService: DashboardService
+    @State private var selectedModuleID: String?
+    @State private var showAddModuleSheet = false
+    @State private var availableWidth: CGFloat = 0
+    @State private var draggingModuleID: String?
+    @State private var dragTranslation: CGSize = .zero
 
     var body: some View {
-        let spacing: CGFloat = 12
-        let padding: CGFloat = 32
-        let screenWidth = UIScreen.main.bounds.width
-        let availableWidth = screenWidth - padding
-        let cellSize = (availableWidth - spacing) / 2
-        let smallCellHeight: CGFloat = cellSize * 0.55 // 45% shorter for compact small tiles
-        
-        DashboardModulesList(
-            visibleModules: visibleModules,
-            cellSize: cellSize,
-            smallCellHeight: smallCellHeight
+        let effectiveWidth = max(availableWidth, UIScreen.main.bounds.width - 32)
+        let columns = dashboardService.defaultColumnCount(for: effectiveWidth)
+        let visibleModules = dashboardService.getVisibleModules(columns: columns)
+        let layout = DashboardGridLayout(
+            modules: visibleModules,
+            availableWidth: effectiveWidth,
+            columns: columns
         )
-    }
-}
+        let selectedModule = selectedModuleID.flatMap { dashboardService.moduleForDisplay($0, columns: columns) }
 
-struct DashboardModulesList: View {
-    let visibleModules: [DashboardModule]
-    let cellSize: CGFloat
-    let smallCellHeight: CGFloat
-    
-    var body: some View {
-        let rows = buildModuleRows()
-        VStack(spacing: 12) {
-            ForEach(rows.indices, id: \.self) { rowIndex in
-                let row = rows[rowIndex]
-                
-                if let module = row.module {
-                    DashboardFullWidthModule(module: module, cellSize: cellSize, smallCellHeight: smallCellHeight)
-                } else if !row.smallModules.isEmpty {
-                    DashboardSmallModulesGrid(modules: row.smallModules, cellSize: smallCellHeight)
-                }
+        VStack(alignment: .leading, spacing: 16) {
+            if dashboardService.isEditingMode {
+                DashboardInlineEditorBar(
+                    selectedModule: selectedModule,
+                    onAddModule: { showAddModuleSheet = true },
+                    onApplyPreset: { preset in
+                        dashboardService.applyPreset(preset, columns: columns)
+                        selectedModuleID = nil
+                    }
+                )
             }
-        }
-    }
-    
-    private func buildModuleRows() -> [ModuleRow] {
-        var rows: [ModuleRow] = []
-        var smallBuffer: [DashboardModule] = []
-        
-        for (index, module) in visibleModules.enumerated() {
-            let isFullWidth = module.size == .medium || module.size == .large
-            let isLastModule = index == visibleModules.count - 1
-            let nextIsFullWidth = !isLastModule && (visibleModules[index + 1].size == .medium || visibleModules[index + 1].size == .large)
-            
-            if isFullWidth {
-                if !smallBuffer.isEmpty {
-                    rows.append(ModuleRow(smallModules: smallBuffer, module: nil))
-                    smallBuffer = []
-                }
-                rows.append(ModuleRow(smallModules: [], module: module))
+
+            if visibleModules.isEmpty {
+                EmptyDashboardView()
             } else {
-                smallBuffer.append(module)
-                
-                if nextIsFullWidth || isLastModule {
-                    rows.append(ModuleRow(smallModules: smallBuffer, module: nil))
-                    smallBuffer = []
+                ZStack(alignment: .topLeading) {
+                    ForEach(layout.items) { item in
+                        dashboardModuleGridCell(module: item.module, layout: layout)
+                            .frame(
+                                width: item.frame.width,
+                                height: item.frame.height,
+                                alignment: .topLeading
+                            )
+                            .offset(
+                                x: item.frame.minX + (draggingModuleID == item.module.id ? dragTranslation.width : 0),
+                                y: item.frame.minY + (draggingModuleID == item.module.id ? dragTranslation.height : 0)
+                            )
+                            .zIndex(draggingModuleID == item.module.id ? 2 : 0)
+                    }
+                }
+                .frame(height: layout.totalHeight, alignment: .topLeading)
+                .animation(
+                    .spring(response: 0.28, dampingFraction: 0.86),
+                    value: visibleModules.map { "\($0.id)-\($0.gridX ?? 0)-\($0.gridY ?? 0)-\($0.size.rawValue)-\($0.isVisible)" }
+                )
+            }
+
+            if dashboardService.isEditingMode {
+                DashboardSelectedModuleControls(
+                    module: selectedModule,
+                    onMove: { direction in
+                        guard let module = selectedModule else { return }
+                        dashboardService.moveModule(module.id, direction: direction, columns: columns)
+                    },
+                    onSizeChange: { newSize in
+                        guard let module = selectedModule else { return }
+                        dashboardService.updateModuleSize(module.id, newSize: newSize, columns: columns)
+                    },
+                    onToggleVisibility: { isVisible in
+                        guard let module = selectedModule else { return }
+                        dashboardService.setModuleVisibility(module.id, isVisible: isVisible, columns: columns)
+                        if !isVisible {
+                            selectedModuleID = nil
+                        }
+                    }
+                )
+            }
+        }
+        .background(
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear {
+                        availableWidth = proxy.size.width
+                    }
+                    .onChange(of: proxy.size.width) { _, newWidth in
+                        availableWidth = newWidth
+                    }
+            }
+        )
+        .sheet(isPresented: $showAddModuleSheet) {
+            DashboardInlineAddModuleSheet(isPresented: $showAddModuleSheet) { type, size in
+                dashboardService.addModule(type, size: size, columns: columns)
+            }
+        }
+        .onChange(of: dashboardService.isEditingMode) { _, isEditing in
+            if !isEditing {
+                selectedModuleID = nil
+                draggingModuleID = nil
+                dragTranslation = .zero
+            } else if selectedModuleID == nil {
+                selectedModuleID = visibleModules.first?.id
+            }
+        }
+        .onAppear {
+            if dashboardService.isEditingMode, selectedModuleID == nil {
+                selectedModuleID = visibleModules.first?.id
+            }
+        }
+        .onChange(of: visibleModules.map(\.id)) { _, ids in
+            if let selectedModuleID, !ids.contains(selectedModuleID) {
+                self.selectedModuleID = ids.first
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func dashboardModuleGridCell(module: DashboardModule, layout: DashboardGridLayout) -> some View {
+        ModuleDisplayView(
+            module: module,
+            isEditing: dashboardService.isEditingMode,
+            isSelected: selectedModuleID == module.id,
+            onSelect: {
+                if dashboardService.isEditingMode {
+                    selectedModuleID = module.id
+                }
+            }
+        )
+        .overlay {
+            if dashboardService.isEditingMode {
+                Color.clear
+                    .contentShape(RoundedRectangle(cornerRadius: 12))
+                    .gesture(dragGesture(for: module, layout: layout))
+            }
+        }
+    }
+
+    private func dragGesture(for module: DashboardModule, layout: DashboardGridLayout) -> some Gesture {
+        DragGesture(minimumDistance: 8)
+            .onChanged { value in
+                draggingModuleID = module.id
+                selectedModuleID = module.id
+                dragTranslation = value.translation
+            }
+            .onEnded { value in
+                let stepX = max(layout.columnWidth + layout.spacing, 1)
+                let stepY = max(layout.rowHeight + layout.spacing, 1)
+                let deltaX = Int((value.translation.width / stepX).rounded())
+                let deltaY = Int((value.translation.height / stepY).rounded())
+
+                let targetX = (module.gridX ?? 0) + deltaX
+                let targetY = (module.gridY ?? 0) + deltaY
+
+                dashboardService.moveModule(module.id, toGridX: targetX, gridY: targetY, columns: layout.columns)
+
+                draggingModuleID = nil
+                dragTranslation = .zero
+            }
+    }
+}
+
+struct DashboardInlineEditorBar: View {
+    let selectedModule: DashboardModule?
+    let onAddModule: () -> Void
+    let onApplyPreset: (DashboardPreset) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Button(action: onAddModule) {
+                    Label("Add Module", systemImage: "plus.circle.fill")
+                }
+                .buttonStyle(.borderedProminent)
+
+                Menu {
+                    ForEach(DashboardPreset.allCases) { preset in
+                        Button {
+                            onApplyPreset(preset)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(preset.displayName)
+                                Text(preset.description)
+                            }
+                        }
+                    }
+                } label: {
+                    Label("Presets", systemImage: "square.grid.2x2")
+                }
+                .buttonStyle(.bordered)
+
+                Spacer()
+            }
+
+            Text(selectedModule == nil ? "Tap a module to edit its size, position, or visibility." : "Use the controls below to tune the selected card in place.")
+                .font(.footnote)
+                .foregroundColor(.secondary)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+struct DashboardSelectedModuleControls: View {
+    let module: DashboardModule?
+    let onMove: (DashboardMoveDirection) -> Void
+    let onSizeChange: (ModuleSize) -> Void
+    let onToggleVisibility: (Bool) -> Void
+
+    var body: some View {
+        Group {
+            if let module {
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(spacing: 12) {
+                        Image(systemName: module.type.iconName)
+                            .foregroundColor(.blue)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(module.type.displayName)
+                                .font(.headline)
+                            Text("Module ID: \(module.id)")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        }
+                        Spacer()
+                        Button(role: .destructive) {
+                            onToggleVisibility(false)
+                        } label: {
+                            Label("Hide", systemImage: "eye.slash")
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Size")
+                            .font(.subheadline.weight(.semibold))
+
+                        Picker(
+                            "Module Size",
+                            selection: Binding(
+                                get: { module.size },
+                                set: { onSizeChange($0) }
+                            )
+                        ) {
+                            ForEach(module.type.allowedSizes, id: \.self) { size in
+                                Text(size.displayName).tag(size)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Move")
+                            .font(.subheadline.weight(.semibold))
+
+                        HStack(spacing: 12) {
+                            moveButton("arrow.left", direction: .left)
+                            moveButton("arrow.up", direction: .up)
+                            moveButton("arrow.down", direction: .down)
+                            moveButton("arrow.right", direction: .right)
+                        }
+                    }
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.secondarySystemGroupedBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+            } else {
+                Text("Select a module to move it, resize it, or hide it.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(.secondarySystemGroupedBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+            }
+        }
+    }
+
+    private func moveButton(_ systemImage: String, direction: DashboardMoveDirection) -> some View {
+        Button {
+            onMove(direction)
+        } label: {
+            Image(systemName: systemImage)
+                .font(.body.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+        }
+        .buttonStyle(.bordered)
+    }
+}
+
+struct DashboardInlineAddModuleSheet: View {
+    @Binding var isPresented: Bool
+    let onAdd: (ModuleType, ModuleSize) -> Void
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("Small (1x1)") {
+                    ForEach(ModuleType.allCases, id: \.self) { type in
+                        if type.allowedSizes.contains(.small) {
+                            addButton(for: type, size: .small)
+                        }
+                    }
+                }
+
+                Section("Medium (2x1)") {
+                    ForEach(ModuleType.allCases, id: \.self) { type in
+                        if type.allowedSizes.contains(.medium) {
+                            addButton(for: type, size: .medium)
+                        }
+                    }
+                }
+
+                Section("Large (2x2)") {
+                    ForEach(ModuleType.allCases, id: \.self) { type in
+                        if type.allowedSizes.contains(.large) {
+                            addButton(for: type, size: .large)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Add Module")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        isPresented = false
+                    }
                 }
             }
         }
-        
-        return rows
     }
-    
-    struct ModuleRow {
-        let smallModules: [DashboardModule]
-        let module: DashboardModule?
-    }
-}
 
-struct DashboardSmallModulesGrid: View {
-    let modules: [DashboardModule]
-    let cellSize: CGFloat
-    
-    var body: some View {
-        LazyVGrid(
-            columns: [
-                GridItem(.flexible(), spacing: 12),
-                GridItem(.flexible(), spacing: 12)
-            ],
-            spacing: 12
-        ) {
-            ForEach(modules, id: \.id) { module in
-                ModuleDisplayView(module: module)
-                    .frame(height: cellSize, alignment: .topLeading)
-                    .glassEffect(in: .rect(cornerRadius: 12.0))
+    @ViewBuilder
+    private func addButton(for type: ModuleType, size: ModuleSize) -> some View {
+        Button {
+            onAdd(type, size)
+            isPresented = false
+        } label: {
+            HStack {
+                Label(type.displayName, systemImage: type.iconName)
+                Spacer()
+                Image(systemName: "plus.circle.fill")
+                    .foregroundColor(.blue)
             }
         }
+        .foregroundColor(.primary)
     }
 }
 
-struct DashboardFullWidthModule: View {
-    let module: DashboardModule
-    let cellSize: CGFloat
-    let smallCellHeight: CGFloat
-    
-    var body: some View {
-        ModuleDisplayView(module: module)
-            .frame(
-                height: getHeight(for: module.size),
-                alignment: .topLeading
-            )
-            .glassEffect(in: .rect(cornerRadius: 12.0))
+struct DashboardGridLayout {
+    struct Item: Identifiable {
+        let module: DashboardModule
+        let frame: CGRect
+
+        var id: String { module.id }
     }
-    
-    private func getHeight(for size: ModuleSize) -> CGFloat {
-        switch size {
-        case .small:
-            return smallCellHeight
-        case .medium:
-            return cellSize
-        case .large:
-            return cellSize * 2 + 12
+
+    let items: [Item]
+    let totalHeight: CGFloat
+    let columnWidth: CGFloat
+    let rowHeight: CGFloat
+    let spacing: CGFloat
+    let columns: Int
+
+    init(modules: [DashboardModule], availableWidth: CGFloat, columns: Int, spacing: CGFloat = 12) {
+        let safeColumns = max(columns, 2)
+        let usableWidth = max(availableWidth, 1)
+        let columnWidth = (usableWidth - spacing * CGFloat(safeColumns - 1)) / CGFloat(safeColumns)
+        let rowHeight = min(max(columnWidth * 0.72, 108), 190)
+        self.columnWidth = columnWidth
+        self.rowHeight = rowHeight
+        self.spacing = spacing
+        self.columns = safeColumns
+        self.items = modules.map { module in
+            Item(
+                module: module,
+                frame: CGRect(
+                    x: CGFloat(module.gridX ?? 0) * (columnWidth + spacing),
+                    y: CGFloat(module.gridY ?? 0) * (rowHeight + spacing),
+                    width: DashboardGridLayout.width(for: module, columnWidth: columnWidth, spacing: spacing, columns: safeColumns),
+                    height: DashboardGridLayout.height(for: module, rowHeight: rowHeight, spacing: spacing)
+                )
+            )
         }
+
+        let maxRow = modules.map { ($0.gridY ?? 0) + $0.size.rowSpan }.max() ?? 0
+        self.totalHeight = max(CGFloat(maxRow) * rowHeight + CGFloat(max(maxRow - 1, 0)) * spacing, rowHeight)
+    }
+
+    private static func width(for module: DashboardModule, columnWidth: CGFloat, spacing: CGFloat, columns: Int) -> CGFloat {
+        let span = min(module.size.columnSpan, columns)
+        return CGFloat(span) * columnWidth + CGFloat(max(span - 1, 0)) * spacing
+    }
+
+    private static func height(for module: DashboardModule, rowHeight: CGFloat, spacing: CGFloat) -> CGFloat {
+        CGFloat(module.size.rowSpan) * rowHeight + CGFloat(max(module.size.rowSpan - 1, 0)) * spacing
     }
 }
 
 struct ModuleDisplayView: View {
     let module: DashboardModule
+    var isEditing: Bool = false
+    var isSelected: Bool = false
+    var onSelect: (() -> Void)? = nil
     
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Image(systemName: module.type.iconName)
-                    .foregroundColor(.secondary)
-                    .font(.body)
-                
-                Text(module.type.displayName)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Spacer()
-            }
-            .padding(8)
-            
-            Divider()
-            
+        DashboardModuleCardChrome(module: module, isEditing: isEditing, isSelected: isSelected, onSelect: onSelect) {
             DashboardModuleContent(module: module)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .padding(8)
+                .padding(DashboardModuleVisualSpec(module.size).contentPadding)
+        }
+    }
+}
+
+struct DashboardModuleCardChrome<Content: View>: View {
+    let module: DashboardModule
+    let isEditing: Bool
+    let isSelected: Bool
+    let onSelect: (() -> Void)?
+    let content: Content
+
+    init(
+        module: DashboardModule,
+        isEditing: Bool,
+        isSelected: Bool,
+        onSelect: (() -> Void)?,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.module = module
+        self.isEditing = isEditing
+        self.isSelected = isSelected
+        self.onSelect = onSelect
+        self.content = content()
+    }
+
+    var body: some View {
+        let spec = DashboardModuleVisualSpec(module.size)
+
+        ZStack {
+            VStack(spacing: 0) {
+                HStack(spacing: 8) {
+                    Image(systemName: module.type.iconName)
+                        .foregroundColor(.secondary)
+                        .font(.body)
+
+                    Text(module.type.displayName)
+                        .font(spec.headerFont)
+                        .foregroundColor(.secondary)
+
+                    Spacer()
+                }
+                .padding(spec.headerPadding)
+
+                Divider()
+
+                content
+            }
+            .allowsHitTesting(!isEditing)
+            .glassEffect(in: .rect(cornerRadius: 12.0))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+
+            if isEditing {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(isSelected ? Color.blue.opacity(0.08) : Color.black.opacity(0.02))
+                    .contentShape(RoundedRectangle(cornerRadius: 12))
+                    .onTapGesture {
+                        onSelect?()
+                    }
+
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isSelected ? Color.blue : Color.white.opacity(0.35), lineWidth: isSelected ? 3 : 1.25)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+}
+
+struct DashboardModuleVisualSpec {
+    let headerPadding: CGFloat
+    let contentPadding: CGFloat
+    let headerFont: Font
+
+    init(_ size: ModuleSize) {
+        switch size {
+        case .small:
+            headerPadding = 8
+            contentPadding = 8
+            headerFont = .caption
+        case .medium:
+            headerPadding = 10
+            contentPadding = 10
+            headerFont = .caption
+        case .large:
+            headerPadding = 12
+            contentPadding = 12
+            headerFont = .subheadline
         }
     }
 }
@@ -580,369 +930,6 @@ struct FitnessWorkoutsModuleView: View {
         } else {
             HealthWorkoutView().appBackground()
         }
-    }
-}
-
-struct DashboardEditView: View {
-    @EnvironmentObject var dashboardService: DashboardService
-    @Binding var isPresented: Bool
-    @State private var draftModules: [DashboardModule] = []
-    @State private var showAddModule = false
-    @State private var selectedModuleSelection: ModuleSelection?
-    @State private var dragState: DragState?
-    
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 12) {
-                Button(action: {
-                    showAddModule = true
-                }) {
-                    Label("Add Module", systemImage: "plus.circle.fill")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundColor(.blue)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 14)
-                        .background(Color(.secondarySystemGroupedBackground))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14)
-                                .stroke(Color.gray.opacity(0.18), lineWidth: 1)
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-
-                ScrollView {
-                    VStack(spacing: 12) {
-                        ForEach(draftModules) { module in
-                            DashboardEditorRow(
-                                module: module,
-                                isDragging: dragState?.moduleID == module.id,
-                                dragOffset: dragOffset(for: module.id),
-                                onOpenSettings: {
-                                    selectedModuleSelection = ModuleSelection(id: module.id)
-                                },
-                                onDragChanged: { value in
-                                    updateDrag(for: module.id, translation: value.translation.height)
-                                },
-                                onDragEnded: { _ in
-                                    finishDrag()
-                                }
-                            )
-                            .padding(.horizontal, 16)
-                            .zIndex(dragState?.moduleID == module.id ? 1 : 0)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-            }
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle("Edit Dashboard")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Reset") {
-                        resetDraftModules()
-                    }
-                    .foregroundColor(.red)
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        saveDraftModules()
-                    }
-                }
-            }
-            .onAppear {
-                loadDraftModules()
-            }
-            .sheet(isPresented: $showAddModule) {
-                DashboardAddModuleSheet(isPresented: $showAddModule, modules: $draftModules)
-            }
-            .sheet(item: $selectedModuleSelection) { selection in
-                if let selectedIndex = draftModules.firstIndex(where: { $0.id == selection.id }) {
-                    DashboardModuleSettingsSheet(module: $draftModules[selectedIndex])
-                }
-            }
-        }
-    }
-
-    private func reindexDraftModules() {
-        for index in draftModules.indices {
-            draftModules[index].order = index
-        }
-    }
-
-    private func loadDraftModules() {
-        draftModules = dashboardService.modulesSnapshotForEditor()
-        dragState = nil
-    }
-
-    private func resetDraftModules() {
-        draftModules = dashboardService.defaultModulesForEditor()
-        reindexDraftModules()
-        dragState = nil
-    }
-
-    private func saveDraftModules() {
-        reindexDraftModules()
-        dashboardService.applyEditorModules(draftModules)
-        isPresented = false
-    }
-
-    private func dragOffset(for moduleID: String) -> CGFloat {
-        guard let dragState, dragState.moduleID == moduleID else { return 0 }
-        return dragState.displayOffset
-    }
-
-    private func updateDrag(for moduleID: String, translation: CGFloat) {
-        guard let moduleIndex = draftModules.firstIndex(where: { $0.id == moduleID }) else { return }
-
-        if dragState == nil {
-            dragState = DragState(
-                moduleID: moduleID,
-                startIndex: moduleIndex,
-                currentIndex: moduleIndex,
-                displayOffset: 0
-            )
-        }
-
-        guard var dragState, dragState.moduleID == moduleID else { return }
-
-        let rawShift = Int((translation / rowStep).rounded())
-        let targetIndex = max(0, min(draftModules.count - 1, dragState.startIndex + rawShift))
-
-        if targetIndex != dragState.currentIndex {
-            withAnimation(.interactiveSpring(response: 0.22, dampingFraction: 0.84)) {
-                let movingModule = draftModules.remove(at: dragState.currentIndex)
-                draftModules.insert(movingModule, at: targetIndex)
-            }
-            dragState.currentIndex = targetIndex
-        }
-
-        let rowShift = CGFloat(dragState.currentIndex - dragState.startIndex) * rowStep
-        dragState.displayOffset = translation - rowShift
-        self.dragState = dragState
-    }
-
-    private func finishDrag() {
-        withAnimation(.interactiveSpring(response: 0.22, dampingFraction: 0.84)) {
-            dragState = nil
-        }
-        reindexDraftModules()
-    }
-
-    private var rowStep: CGFloat { 92 }
-
-    private struct ModuleSelection: Identifiable {
-        let id: String
-    }
-
-    private struct DragState {
-        let moduleID: String
-        let startIndex: Int
-        var currentIndex: Int
-        var displayOffset: CGFloat
-    }
-}
-
-struct DashboardEditorRow: View {
-    let module: DashboardModule
-    let isDragging: Bool
-    let dragOffset: CGFloat
-    let onOpenSettings: () -> Void
-    let onDragChanged: (DragGesture.Value) -> Void
-    let onDragEnded: (DragGesture.Value) -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: module.type.iconName)
-                .foregroundColor(.secondary)
-                .font(.body)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(module.type.displayName)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-
-                HStack(spacing: 8) {
-                    Text(module.size.displayName)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    Text(module.isVisible ? "Visible" : "Hidden")
-                        .font(.caption)
-                        .foregroundColor(module.isVisible ? .green : .secondary)
-                }
-            }
-
-            Spacer()
-
-            Button(action: onOpenSettings) {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .frame(width: 32, height: 32)
-                    .background(Color(.secondarySystemGroupedBackground))
-                    .clipShape(Circle())
-            }
-            .buttonStyle(.plain)
-
-            Image(systemName: "line.3.horizontal")
-                .font(.body)
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 4)
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged(onDragChanged)
-                        .onEnded(onDragEnded)
-                )
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 12)
-        .background(Color(.systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(color: isDragging ? Color.black.opacity(0.12) : Color.clear, radius: 10, y: 4)
-        .scaleEffect(isDragging ? 1.02 : 1)
-        .offset(y: dragOffset)
-        .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.84), value: dragOffset)
-        .accessibilityElement(children: .combine)
-        .accessibilityHint("Use the reorder handle to move this module")
-    }
-}
-
-struct DashboardModuleSettingsSheet: View {
-    @Binding var module: DashboardModule
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    HStack(spacing: 12) {
-                        Image(systemName: module.type.iconName)
-                            .foregroundColor(.secondary)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(module.type.displayName)
-                                .font(.headline)
-                            Text(module.id)
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
-                        }
-                    }
-                }
-
-                Section("Visibility") {
-                    Toggle("Visible", isOn: $module.isVisible)
-                }
-
-                Section("Size") {
-                    Picker("Module Size", selection: $module.size) {
-                        ForEach(module.type.allowedSizes, id: \.self) { size in
-                            Text(size.displayName).tag(size)
-                        }
-                    }
-                    .pickerStyle(.inline)
-                }
-            }
-            .navigationTitle("Module Settings")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        if !module.type.allowedSizes.contains(module.size) {
-                            module.size = module.type.allowedSizes.first ?? .small
-                        }
-                        dismiss()
-                    }
-                }
-            }
-        }
-    }
-}
-
-struct DashboardAddModuleSheet: View {
-    @Binding var isPresented: Bool
-    @Binding var modules: [DashboardModule]
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section("Small (1x1)") {
-                    ForEach(ModuleType.allCases, id: \.self) { type in
-                        if type.allowedSizes.contains(.small) {
-                            addButton(for: type, size: .small)
-                        }
-                    }
-                }
-
-                Section("Medium (2x1)") {
-                    ForEach(ModuleType.allCases, id: \.self) { type in
-                        if type.allowedSizes.contains(.medium) {
-                            addButton(for: type, size: .medium)
-                        }
-                    }
-                }
-
-                Section("Large (2x2)") {
-                    ForEach(ModuleType.allCases, id: \.self) { type in
-                        if type.allowedSizes.contains(.large) {
-                            addButton(for: type, size: .large)
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Add Module")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        isPresented = false
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func addButton(for type: ModuleType, size: ModuleSize) -> some View {
-        Button(action: {
-            addOrEnable(type: type, size: size)
-            isPresented = false
-        }) {
-            HStack {
-                Label(type.displayName, systemImage: type.iconName)
-                Spacer()
-                Image(systemName: "plus.circle.fill")
-                    .foregroundColor(.blue)
-            }
-        }
-        .foregroundColor(.primary)
-    }
-
-    private func addOrEnable(type: ModuleType, size: ModuleSize) {
-        let nextOrder = (modules.map(\.order).max() ?? -1) + 1
-        let normalizedSize = type.allowedSizes.contains(size) ? size : (type.allowedSizes.first ?? .small)
-
-        modules.append(
-            DashboardModule(
-                type: type,
-                size: normalizedSize,
-                order: nextOrder,
-                isVisible: true
-            )
-        )
-
-        modules = modules
-            .sorted(by: { $0.order < $1.order })
-            .enumerated()
-            .map { index, module in
-                var updated = module
-                updated.order = index
-                return updated
-            }
     }
 }
 

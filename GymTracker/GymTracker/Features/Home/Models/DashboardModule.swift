@@ -1,5 +1,5 @@
 import Foundation
-import SwiftUI
+import CoreGraphics
 
 enum ModuleSize: String, Codable {
     case small = "1x1"
@@ -11,6 +11,24 @@ enum ModuleSize: String, Codable {
         case .small: return "Small (1x1)"
         case .medium: return "Medium (2x1)"
         case .large: return "Large (2x2)"
+        }
+    }
+
+    var columnSpan: Int {
+        switch self {
+        case .small:
+            return 1
+        case .medium, .large:
+            return 2
+        }
+    }
+
+    var rowSpan: Int {
+        switch self {
+        case .small, .medium:
+            return 1
+        case .large:
+            return 2
         }
     }
 }
@@ -81,12 +99,56 @@ enum ModuleType: String, Codable, CaseIterable {
 //    var icon: String
 }
 
+enum DashboardPreset: String, CaseIterable, Identifiable {
+    case `default`
+    case training
+    case health
+    case minimal
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .default:
+            return "Default"
+        case .training:
+            return "Training"
+        case .health:
+            return "Health"
+        case .minimal:
+            return "Minimal"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .default:
+            return "The original balanced GymTracker dashboard."
+        case .training:
+            return "Sessions, timers, and workout-focused cards."
+        case .health:
+            return "Recovery, activity, sleep, and nutrition."
+        case .minimal:
+            return "A simple quick-glance dashboard."
+        }
+    }
+}
+
+enum DashboardMoveDirection {
+    case left
+    case right
+    case up
+    case down
+}
+
 struct DashboardModule: Identifiable, Codable {
     var id: String
     var type: ModuleType
     var size: ModuleSize
     var order: Int
     var isVisible: Bool
+    var gridX: Int?
+    var gridY: Int?
     var position: CGPoint?
     
     init(
@@ -95,6 +157,8 @@ struct DashboardModule: Identifiable, Codable {
         size: ModuleSize = .medium,
         order: Int = 0,
         isVisible: Bool = true,
+        gridX: Int? = nil,
+        gridY: Int? = nil,
         position: CGPoint? = nil
     ) {
         self.id = id
@@ -102,6 +166,8 @@ struct DashboardModule: Identifiable, Codable {
         self.size = size
         self.order = order
         self.isVisible = isVisible
+        self.gridX = gridX
+        self.gridY = gridY
         self.position = position
     }
 }
