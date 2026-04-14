@@ -271,12 +271,25 @@ struct DashboardModulesView: View {
             DashboardEditableModuleCard(
                 module: module,
                 isSelected: selectedModuleID == module.id,
+                isDragging: draggedModuleID == module.id,
                 height: dashboardCardHeight(for: module, columnWidth: columnWidth),
                 onSelect: {
                     selectedModuleID = module.id
+                },
+                onSizeChange: { newSize in
+                    updateDraftModule(moduleID: module.id) { draftModule in
+                        let allowedSizes = draftModule.type.allowedSizes
+                        draftModule.size = allowedSizes.contains(newSize) ? newSize : (allowedSizes.first ?? .small)
+                    }
+                },
+                onHide: {
+                    hideDraftModule(moduleID: module.id)
                 }
             )
             .frame(maxWidth: module.size == .small ? nil : .infinity)
+            // .draggable(module.id) {
+            //     DashboardModuleDragPreview(module: module)
+            // }
             .onDrag {
                 draggedModuleID = module.id
                 selectedModuleID = module.id
@@ -358,9 +371,22 @@ struct DashboardModulesView: View {
 
     private func hideSelectedModule() {
         guard let selectedModuleID else { return }
-        draftModules.removeAll { $0.id == selectedModuleID }
+        hideDraftModule(moduleID: selectedModuleID)
+    }
+
+    private func updateDraftModule(moduleID: String, update: (inout DashboardModule) -> Void) {
+        guard let index = draftModules.firstIndex(where: { $0.id == moduleID }) else { return }
+        update(&draftModules[index])
         draftModules = reindexedDraftModules(draftModules)
-        self.selectedModuleID = draftModules.first?.id
+        selectedModuleID = moduleID
+    }
+
+    private func hideDraftModule(moduleID: String) {
+        draftModules.removeAll { $0.id == moduleID }
+        draftModules = reindexedDraftModules(draftModules)
+        if selectedModuleID == moduleID {
+            selectedModuleID = draftModules.first?.id
+        }
     }
 
     private func reindexedDraftModules(_ modules: [DashboardModule]) -> [DashboardModule] {
@@ -548,23 +574,29 @@ struct DashboardInlineAddModuleSheet: View {
 struct DashboardEditableModuleCard: View {
     let module: DashboardModule
     let isSelected: Bool
+    let isDragging: Bool
     let height: CGFloat
     let onSelect: () -> Void
+    let onSizeChange: (ModuleSize) -> Void
+    let onHide: () -> Void
 
     var body: some View {
         ModuleDisplayView(
             module: module,
             isEditing: true,
             isSelected: isSelected,
-            onSelect: onSelect
+            onSelect: onSelect,
+            headerAccessory: AnyView(moduleActionMenu)
         )
         .frame(height: height)
-        .overlay(alignment: .topTrailing) {
-            Image(systemName: "line.3.horizontal")
-                .font(.caption.weight(.semibold))
-                .foregroundColor(.secondary)
-                .padding(10)
-        }
+        .scaleEffect(isDragging ? 0.97 : 1)
+        .opacity(isDragging ? 0.68 : 1)
+        .shadow(
+            color: isDragging ? Color.black.opacity(0.16) : Color.clear,
+            radius: isDragging ? 16 : 0,
+            y: isDragging ? 8 : 0
+        )
+        .animation(.easeInOut(duration: 0.18), value: isDragging)
         .overlay(alignment: .bottomLeading) {
             Text(module.size.displayName)
                 .font(.caption2.weight(.semibold))
@@ -572,6 +604,51 @@ struct DashboardEditableModuleCard: View {
                 .padding(.vertical, 5)
                 .background(.ultraThinMaterial, in: Capsule())
                 .padding(10)
+        }
+        .overlay(alignment: .topLeading) {
+            Image(systemName: "hand.draw")
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.secondary)
+                .padding(10)
+        }
+    }
+
+    private var moduleActionMenu: some View {
+        Menu {
+            if module.type.allowedSizes.count > 1 {
+                Section("Size") {
+                    ForEach(module.type.allowedSizes, id: \.self) { size in
+                        Button {
+                            onSizeChange(size)
+                        } label: {
+                            if size == module.size {
+                                Label(size.displayName, systemImage: "checkmark")
+                            } else {
+                                Text(size.displayName)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Section {
+                Button(role: .destructive) {
+                    onHide()
+                } label: {
+                    Label("Remove Module", systemImage: "trash")
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle.fill")
+                .font(.title3)
+                .symbolRenderingMode(.hierarchical)
+                .foregroundColor(.primary.opacity(0.9))
+                .padding(6)
+                .background(.ultraThinMaterial, in: Circle())
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(0.28), lineWidth: 0.8)
+                )
         }
     }
 }
@@ -651,9 +728,16 @@ struct ModuleDisplayView: View {
     var isEditing: Bool = false
     var isSelected: Bool = false
     var onSelect: (() -> Void)? = nil
+    var headerAccessory: AnyView? = nil
     
     var body: some View {
-        DashboardModuleCardChrome(module: module, isEditing: isEditing, isSelected: isSelected, onSelect: onSelect) {
+        DashboardModuleCardChrome(
+            module: module,
+            isEditing: isEditing,
+            isSelected: isSelected,
+            onSelect: onSelect,
+            headerAccessory: headerAccessory
+        ) {
             DashboardModuleContent(module: module)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding(DashboardModuleVisualSpec(module.size).contentPadding)
@@ -666,6 +750,7 @@ struct DashboardModuleCardChrome<Content: View>: View {
     let isEditing: Bool
     let isSelected: Bool
     let onSelect: (() -> Void)?
+    let headerAccessory: AnyView?
     let content: Content
 
     init(
@@ -673,12 +758,14 @@ struct DashboardModuleCardChrome<Content: View>: View {
         isEditing: Bool,
         isSelected: Bool,
         onSelect: (() -> Void)?,
+        headerAccessory: AnyView? = nil,
         @ViewBuilder content: () -> Content
     ) {
         self.module = module
         self.isEditing = isEditing
         self.isSelected = isSelected
         self.onSelect = onSelect
+        self.headerAccessory = headerAccessory
         self.content = content()
     }
 
@@ -686,6 +773,12 @@ struct DashboardModuleCardChrome<Content: View>: View {
         let spec = DashboardModuleVisualSpec(module.size)
 
         ZStack {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(
+                    Color(.secondarySystemBackground)
+                        .opacity(isEditing ? 0.34 : 0.16)
+                )
+
             VStack(spacing: 0) {
                 HStack(spacing: 8) {
                     Image(systemName: module.type.iconName)
@@ -697,30 +790,36 @@ struct DashboardModuleCardChrome<Content: View>: View {
                         .foregroundColor(.secondary)
 
                     Spacer()
+
+                    if let headerAccessory {
+                        headerAccessory
+                    }
                 }
                 .padding(spec.headerPadding)
 
                 Divider()
 
                 content
+                    .allowsHitTesting(!isEditing)
             }
-            .allowsHitTesting(!isEditing)
             .glassEffect(in: .rect(cornerRadius: 12.0))
             .clipShape(RoundedRectangle(cornerRadius: 12))
 
             if isEditing {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? Color.blue.opacity(0.08) : Color.black.opacity(0.02))
-                    .contentShape(RoundedRectangle(cornerRadius: 12))
-                    .onTapGesture {
-                        onSelect?()
-                    }
+                    .fill(isSelected ? Color.blue.opacity(0.06) : Color.black.opacity(0.02))
+                    .allowsHitTesting(false)
 
                 RoundedRectangle(cornerRadius: 12)
                     .stroke(isSelected ? Color.blue : Color.white.opacity(0.35), lineWidth: isSelected ? 3 : 1.25)
                     .allowsHitTesting(false)
             }
         }
+        .contentShape(RoundedRectangle(cornerRadius: 12))
+        .simultaneousGesture(TapGesture().onEnded {
+            guard isEditing else { return }
+            onSelect?()
+        })
     }
 }
 
