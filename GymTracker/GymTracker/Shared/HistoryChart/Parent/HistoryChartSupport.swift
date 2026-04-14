@@ -135,6 +135,7 @@ enum HistoryChartSegmentStyle: String, Codable {
     case positive
     case warning
     case negative
+    case negativeSecondary
     case neutral
 }
 

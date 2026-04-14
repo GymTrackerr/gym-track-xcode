@@ -136,10 +136,12 @@ struct ExerciseDetailView: View {
                         .padding(.horizontal)
                 }
 
+                    /*
 #if DEBUG
                 debugIdentityCard
 #endif
 
+                     */
                 if hasExerciseInfo {
                     DisclosureGroup(isExpanded: $showExerciseData) {
                         VStack(alignment: .leading, spacing: 12) {
@@ -429,6 +431,29 @@ struct ExerciseDetailView: View {
                 }
                 .padding(.horizontal)
                 .padding(.bottom, 12)
+
+                NavigationLink {
+                    TrueSightView(initialExerciseId: exercise.id)
+                        .appBackground()
+                } label: {
+                    HStack {
+                        Image(systemName: "video.badge.waveform")
+                        Text("Open in TrueSight")
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundStyle(Color.primary)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(
+                        (exercise.npId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+                        ? Color.accentColor
+                        : Color.gray.opacity(0.3)
+                    )
+                    .cornerRadius(14)
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 12)
+                .disabled(exercise.npId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false)
 
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Previous Logs")
@@ -1022,6 +1047,7 @@ struct ExerciseDetailView: View {
         .opacity(0.45)
     }
 
+    /*
 #if DEBUG
     private var debugIdentityCard: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -1043,6 +1069,7 @@ struct ExerciseDetailView: View {
         .padding(.horizontal)
     }
 #endif
+     */
 
     private struct PreviousSessionItem {
         let session: Session

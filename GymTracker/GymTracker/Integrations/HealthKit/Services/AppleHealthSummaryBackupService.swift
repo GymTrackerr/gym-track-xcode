@@ -105,6 +105,11 @@ final class AppleHealthSummaryBackupService {
                     existingSummary.steps = day.steps
                     existingSummary.activeEnergyKcal = day.activeEnergyKcal
                     existingSummary.restingEnergyKcal = day.restingEnergyKcal
+                    existingSummary.exerciseMinutes = day.exerciseMinutes
+                    existingSummary.standHours = day.standHours
+                    existingSummary.moveGoalKcal = day.moveGoalKcal
+                    existingSummary.exerciseGoalMinutes = day.exerciseGoalMinutes
+                    existingSummary.standGoalHours = day.standGoalHours
                     existingSummary.sleepSeconds = day.sleepSeconds
                     existingSummary.bodyWeightKg = day.bodyWeightKg
                     existingSummary.schemaVersion = day.schemaVersion
@@ -119,6 +124,11 @@ final class AppleHealthSummaryBackupService {
                         steps: day.steps,
                         activeEnergyKcal: day.activeEnergyKcal,
                         restingEnergyKcal: day.restingEnergyKcal,
+                        exerciseMinutes: day.exerciseMinutes,
+                        standHours: day.standHours,
+                        moveGoalKcal: day.moveGoalKcal,
+                        exerciseGoalMinutes: day.exerciseGoalMinutes,
+                        standGoalHours: day.standGoalHours,
                         sleepSeconds: day.sleepSeconds,
                         bodyWeightKg: day.bodyWeightKg,
                         schemaVersion: day.schemaVersion,
@@ -214,6 +224,11 @@ final class AppleHealthSummaryBackupService {
                 steps: max(0, dto.steps ?? 0),
                 activeEnergyKcal: max(0, dto.activeEnergyKcal ?? 0),
                 restingEnergyKcal: max(0, dto.restingEnergyKcal ?? 0),
+                exerciseMinutes: max(0, dto.exerciseMinutes ?? 0),
+                standHours: max(0, dto.standHours ?? 0),
+                moveGoalKcal: max(0, dto.moveGoalKcal ?? 520),
+                exerciseGoalMinutes: max(0, dto.exerciseGoalMinutes ?? 30),
+                standGoalHours: max(0, dto.standGoalHours ?? 12),
                 sleepSeconds: max(0, dto.sleepSeconds ?? 0),
                 bodyWeightKg: max(0, dto.bodyWeightKg ?? 0),
                 schemaVersion: dto.summarySchemaVersion ?? HealthKitDailyAggregateData.currentSchemaVersion,
@@ -264,6 +279,11 @@ private struct NormalizedSummary {
     let steps: Double
     let activeEnergyKcal: Double
     let restingEnergyKcal: Double
+    let exerciseMinutes: Double
+    let standHours: Int
+    let moveGoalKcal: Double
+    let exerciseGoalMinutes: Double
+    let standGoalHours: Int
     let sleepSeconds: Double
     let bodyWeightKg: Double
     let schemaVersion: Double
@@ -392,6 +412,11 @@ private struct AppleHealthSummaryDayDTO: Codable {
     let steps: Double?
     let activeEnergyKcal: Double?
     let restingEnergyKcal: Double?
+    let exerciseMinutes: Double?
+    let standHours: Int?
+    let moveGoalKcal: Double?
+    let exerciseGoalMinutes: Double?
+    let standGoalHours: Int?
     let sleepSeconds: Double?
     let bodyWeightKg: Double?
     let summarySchemaVersion: Double?
@@ -409,6 +434,15 @@ private struct AppleHealthSummaryDayDTO: Codable {
         case activeEnergy
         case restingEnergyKcal
         case restingEnergy
+        case exerciseMinutes
+        case appleExerciseMinutes
+        case standHours
+        case moveGoalKcal
+        case moveGoal
+        case exerciseGoalMinutes
+        case exerciseGoal
+        case standGoalHours
+        case standGoal
         case sleepSeconds
         case sleepDurationSeconds
         case bodyWeightKg
@@ -424,6 +458,11 @@ private struct AppleHealthSummaryDayDTO: Codable {
         steps = summary.steps
         activeEnergyKcal = summary.activeEnergyKcal
         restingEnergyKcal = summary.restingEnergyKcal
+        exerciseMinutes = summary.exerciseMinutes
+        standHours = summary.standHours
+        moveGoalKcal = summary.moveGoalKcal
+        exerciseGoalMinutes = summary.exerciseGoalMinutes
+        standGoalHours = summary.standGoalHours
         sleepSeconds = summary.sleepSeconds
         bodyWeightKg = summary.bodyWeightKg
         summarySchemaVersion = summary.schemaVersion
@@ -444,6 +483,15 @@ private struct AppleHealthSummaryDayDTO: Codable {
             ?? container.decodeIfPresent(Double.self, forKey: .activeEnergy)
         restingEnergyKcal = try container.decodeIfPresent(Double.self, forKey: .restingEnergyKcal)
             ?? container.decodeIfPresent(Double.self, forKey: .restingEnergy)
+        exerciseMinutes = try container.decodeIfPresent(Double.self, forKey: .exerciseMinutes)
+            ?? container.decodeIfPresent(Double.self, forKey: .appleExerciseMinutes)
+        standHours = try container.decodeIfPresent(Int.self, forKey: .standHours)
+        moveGoalKcal = try container.decodeIfPresent(Double.self, forKey: .moveGoalKcal)
+            ?? container.decodeIfPresent(Double.self, forKey: .moveGoal)
+        exerciseGoalMinutes = try container.decodeIfPresent(Double.self, forKey: .exerciseGoalMinutes)
+            ?? container.decodeIfPresent(Double.self, forKey: .exerciseGoal)
+        standGoalHours = try container.decodeIfPresent(Int.self, forKey: .standGoalHours)
+            ?? container.decodeIfPresent(Int.self, forKey: .standGoal)
         sleepSeconds = try container.decodeIfPresent(Double.self, forKey: .sleepSeconds)
             ?? container.decodeIfPresent(Double.self, forKey: .sleepDurationSeconds)
         bodyWeightKg = try container.decodeIfPresent(Double.self, forKey: .bodyWeightKg)
@@ -460,6 +508,11 @@ private struct AppleHealthSummaryDayDTO: Codable {
         try container.encodeIfPresent(steps, forKey: .steps)
         try container.encodeIfPresent(activeEnergyKcal, forKey: .activeEnergyKcal)
         try container.encodeIfPresent(restingEnergyKcal, forKey: .restingEnergyKcal)
+        try container.encodeIfPresent(exerciseMinutes, forKey: .exerciseMinutes)
+        try container.encodeIfPresent(standHours, forKey: .standHours)
+        try container.encodeIfPresent(moveGoalKcal, forKey: .moveGoalKcal)
+        try container.encodeIfPresent(exerciseGoalMinutes, forKey: .exerciseGoalMinutes)
+        try container.encodeIfPresent(standGoalHours, forKey: .standGoalHours)
         try container.encodeIfPresent(sleepSeconds, forKey: .sleepSeconds)
         try container.encodeIfPresent(bodyWeightKg, forKey: .bodyWeightKg)
         try container.encodeIfPresent(summarySchemaVersion, forKey: .summarySchemaVersion)

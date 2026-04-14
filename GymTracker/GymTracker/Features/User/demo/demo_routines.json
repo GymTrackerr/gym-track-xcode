@@ -1,0 +1,37 @@
+{
+  "routines": [
+    {
+      "id": "upper-a",
+      "name": "Upper A",
+      "sessionNotes": ["Pressed well.", "Felt smooth today."],
+      "slots": [
+        { "id": "bench", "label": "Bench Pattern", "preferredNpIds": ["Bench_Press_-_Powerlifting", "Barbell_Bench_Press_-_Medium_Grip"], "keywords": ["bench", "chest press", "incline press"], "fallbackTypes": ["strength", "weight"], "style": "strength", "sets": 4, "repRange": [5, 8], "weightBase": 125, "weightStep": 2.5, "durationMinutesRange": null, "distanceRange": null, "distanceUnit": null },
+        { "id": "row", "label": "Row Pattern", "preferredNpIds": ["Bent_Over_Barbell_Row"], "keywords": ["row", "seated row", "cable row"], "fallbackTypes": ["strength", "weight"], "style": "strength", "sets": 4, "repRange": [8, 12], "weightBase": 95, "weightStep": 2.5, "durationMinutesRange": null, "distanceRange": null, "distanceUnit": null },
+        { "id": "shoulder", "label": "Shoulder Press", "preferredNpIds": ["Barbell_Shoulder_Press", "Arnold_Dumbbell_Press"], "keywords": ["shoulder press", "overhead press", "military press"], "fallbackTypes": ["strength", "weight"], "style": "strength", "sets": 3, "repRange": [6, 10], "weightBase": 75, "weightStep": 2.5, "durationMinutesRange": null, "distanceRange": null, "distanceUnit": null },
+        { "id": "lat", "label": "Pulldown Pattern", "preferredNpIds": ["Pullups"], "keywords": ["pulldown", "pull-up", "chin-up"], "fallbackTypes": ["strength", "weight"], "style": "strength", "sets": 3, "repRange": [8, 12], "weightBase": 90, "weightStep": 2.5, "durationMinutesRange": null, "distanceRange": null, "distanceUnit": null },
+        { "id": "arms", "label": "Arm Isolation", "preferredNpIds": ["Barbell_Curl", "Hammer_Curls", "Triceps_Pushdown_-_Rope_Attachment"], "keywords": ["curl", "tricep", "pushdown", "extension"], "fallbackTypes": ["strength", "weight"], "style": "strength", "sets": 3, "repRange": [10, 15], "weightBase": 32.5, "weightStep": 1, "durationMinutesRange": null, "distanceRange": null, "distanceUnit": null }
+      ]
+    },
+    {
+      "id": "lower-a",
+      "name": "Lower A",
+      "sessionNotes": ["Legs moved well.", "Solid lower body work."],
+      "slots": [
+        { "id": "squat", "label": "Squat Pattern", "preferredNpIds": ["Barbell_Squat"], "keywords": ["squat", "hack squat", "front squat"], "fallbackTypes": ["strength", "weight"], "style": "strength", "sets": 4, "repRange": [5, 8], "weightBase": 185, "weightStep": 5, "durationMinutesRange": null, "distanceRange": null, "distanceUnit": null },
+        { "id": "hinge", "label": "Hinge Pattern", "preferredNpIds": ["Romanian_Deadlift", "Barbell_Deadlift"], "keywords": ["deadlift", "rdl", "romanian", "hip hinge"], "fallbackTypes": ["strength", "weight"], "style": "strength", "sets": 3, "repRange": [6, 10], "weightBase": 205, "weightStep": 5, "durationMinutesRange": null, "distanceRange": null, "distanceUnit": null },
+        { "id": "quad", "label": "Quad Accessory", "preferredNpIds": ["Leg_Press", "Leg_Extensions"], "keywords": ["leg press", "lunge", "split squat", "extension"], "fallbackTypes": ["strength", "weight"], "style": "strength", "sets": 3, "repRange": [8, 12], "weightBase": 160, "weightStep": 5, "durationMinutesRange": null, "distanceRange": null, "distanceUnit": null },
+        { "id": "ham", "label": "Hamstring Accessory", "preferredNpIds": ["Lying_Leg_Curls"], "keywords": ["leg curl", "hamstring", "glute"], "fallbackTypes": ["strength", "weight"], "style": "strength", "sets": 3, "repRange": [10, 15], "weightBase": 80, "weightStep": 2.5, "durationMinutesRange": null, "distanceRange": null, "distanceUnit": null }
+      ]
+    },
+    {
+      "id": "conditioning",
+      "name": "Conditioning",
+      "sessionNotes": ["Kept the pace steady.", "Good conditioning block."],
+      "slots": [
+        { "id": "run", "label": "Run Pattern", "preferredNpIds": [], "keywords": ["run", "treadmill", "jog"], "fallbackTypes": ["cardio"], "style": "cardio", "sets": 1, "repRange": null, "weightBase": null, "weightStep": null, "durationMinutesRange": [24, 42], "distanceRange": [3.5, 7.0], "distanceUnit": "km" },
+        { "id": "bike", "label": "Bike Pattern", "preferredNpIds": ["Bicycling_Stationary"], "keywords": ["bike", "cycle", "spin"], "fallbackTypes": ["cardio"], "style": "cardio", "sets": 1, "repRange": null, "weightBase": null, "weightStep": null, "durationMinutesRange": [18, 32], "distanceRange": [8.0, 16.0], "distanceUnit": "km" },
+        { "id": "core", "label": "Core Pattern", "preferredNpIds": ["Plank"], "keywords": ["plank", "crunch", "core", "raise"], "fallbackTypes": ["weight", "strength"], "style": "strength", "sets": 3, "repRange": [12, 20], "weightBase": 15, "weightStep": 1, "durationMinutesRange": null, "distanceRange": null, "distanceUnit": null }
+      ]
+    }
+  ]
+}

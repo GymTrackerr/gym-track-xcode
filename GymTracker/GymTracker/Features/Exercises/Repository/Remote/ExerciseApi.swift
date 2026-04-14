@@ -18,8 +18,8 @@ final class ExerciseApi {
     func getExercises() async throws -> [ExerciseDTO] {
         print("replies of post")
         do {
-            let response: ListResponse<ExerciseDTO> = try await apiHelper.asyncRequestListData(route: APIRoute.exercises)
-            return response.items
+            let APIUrl = apiHelper.baseAPIurl + "/exercisedb"
+            return try await apiHelper.asyncRequestData(urlString: APIUrl)
         } catch {
             print(error)
             throw error
@@ -29,8 +29,8 @@ final class ExerciseApi {
     func getExercise(exerciseID: String) async throws -> ExerciseDTO {
         print("replies of post")
         do {
-            let data: ExerciseDTO = try await apiHelper.asyncRequestData(route: APIRoute.exercise(id: exerciseID))
-            return data
+            let APIUrl = apiHelper.baseAPIurl + "/exercisedb/" + exerciseID
+            return try await apiHelper.asyncRequestData(urlString: APIUrl)
         } catch {
             print(error)
             throw error

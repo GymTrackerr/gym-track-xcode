@@ -216,6 +216,11 @@ class HealthKitManager: ObservableObject {
                 steps: 0,
                 activeEnergyKcal: 0,
                 restingEnergyKcal: 0,
+                exerciseMinutes: 0,
+                standHours: 0,
+                moveGoalKcal: 520,
+                exerciseGoalMinutes: 30,
+                standGoalHours: 12,
                 sleepSeconds: 0,
                 bodyWeightKg: 0,
                 schemaVersion: HealthKitDailyAggregateData.currentSchemaVersion
@@ -260,6 +265,20 @@ class HealthKitManager: ObservableObject {
             calendar: calendar,
             normalizer: normalizer
         )
+        async let exerciseSeries = fetchQuantitySeries(
+            type: HKQuantityType.quantityType(forIdentifier: .appleExerciseTime)!,
+            unit: .minute(),
+            from: startDay,
+            to: endDay,
+            calendar: calendar,
+            normalizer: normalizer
+        )
+        async let standSeries = fetchStandHoursSeries(
+            from: startDay,
+            to: endDay,
+            calendar: calendar,
+            normalizer: normalizer
+        )
         async let sleepSeries = fetchSleepSeries(
             from: startDay,
             to: endDay,
@@ -272,12 +291,20 @@ class HealthKitManager: ObservableObject {
             calendar: calendar,
             normalizer: normalizer
         )
+        async let moveGoal = fetchActivityGoal(for: activeEnergyType)
+        async let exerciseGoal = fetchActivityGoal(for: exerciseTimeType)
+        async let standGoal = fetchActivityGoal(for: standTimeType)
 
         let stepsByDay = await stepsSeries
         let activeByDay = await activeSeries
         let restingByDay = await restingSeries
+        let exerciseByDay = await exerciseSeries
+        let standByDay = await standSeries
         let sleepByDay = await sleepSeries
         let weightByDay = await weightSeries
+        let resolvedMoveGoal = (await moveGoal) ?? 520
+        let resolvedExerciseGoal = (await exerciseGoal) ?? 30
+        let resolvedStandGoal = Int((await standGoal) ?? 12)
 
         return days.map { dayStart in
             let dayKey = normalizer.dayKey(dayStart)
@@ -288,10 +315,49 @@ class HealthKitManager: ObservableObject {
                 steps: stepsByDay[dayKey] ?? 0,
                 activeEnergyKcal: activeByDay[dayKey] ?? 0,
                 restingEnergyKcal: restingByDay[dayKey] ?? 0,
+                exerciseMinutes: exerciseByDay[dayKey] ?? 0,
+                standHours: standByDay[dayKey] ?? 0,
+                moveGoalKcal: resolvedMoveGoal,
+                exerciseGoalMinutes: resolvedExerciseGoal,
+                standGoalHours: resolvedStandGoal,
                 sleepSeconds: sleepByDay[dayKey] ?? 0,
                 bodyWeightKg: weightByDay[dayKey] ?? 0,
                 schemaVersion: HealthKitDailyAggregateData.currentSchemaVersion
             )
+        }
+    }
+
+    private func fetchStandHoursSeries(
+        from fromDay: Date,
+        to toDay: Date,
+        calendar: Calendar,
+        normalizer: HealthKitDateNormalizer
+    ) async -> [String: Int] {
+        let endExclusive = calendar.date(byAdding: .day, value: 1, to: toDay) ?? toDay
+        let predicate = HKQuery.predicateForSamples(withStart: fromDay, end: endExclusive, options: .strictStartDate)
+
+        return await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: standTimeType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]
+            ) { _, samples, _ in
+                let standSamples = (samples as? [HKQuantitySample]) ?? []
+                var uniqueHoursByDay: [String: Set<Int>] = [:]
+
+                for sample in standSamples {
+                    let dayStart = normalizer.startOfDay(sample.startDate)
+                    let dayKey = normalizer.dayKey(dayStart)
+                    let hour = calendar.component(.hour, from: sample.startDate)
+                    uniqueHoursByDay[dayKey, default: []].insert(hour)
+                }
+
+                let result = uniqueHoursByDay.mapValues(\.count)
+                continuation.resume(returning: result)
+            }
+
+            self.healthStore.execute(query)
         }
     }
 

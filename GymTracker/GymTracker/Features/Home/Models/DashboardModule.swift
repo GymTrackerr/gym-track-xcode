@@ -1,5 +1,4 @@
 import Foundation
-import SwiftUI
 
 enum ModuleSize: String, Codable {
     case small = "1x1"
@@ -13,6 +12,24 @@ enum ModuleSize: String, Codable {
         case .large: return "Large (2x2)"
         }
     }
+
+    var columnSpan: Int {
+        switch self {
+        case .small:
+            return 1
+        case .medium, .large:
+            return 2
+        }
+    }
+
+    var rowSpan: Int {
+        switch self {
+        case .small, .medium:
+            return 1
+        case .large:
+            return 2
+        }
+    }
 }
 
 enum ModuleType: String, Codable, CaseIterable {
@@ -22,7 +39,7 @@ enum ModuleType: String, Codable, CaseIterable {
     case activityRings = "activityRings"
     case timer = "timer"
     case fitnessWorkouts = "fitnessWorkouts"
-    case fitsight = "fitsight"
+    case truesight = "truesight"
     case nutrition = "nutrition"
     case sessionVolume = "sessionVolume"
     
@@ -34,7 +51,7 @@ enum ModuleType: String, Codable, CaseIterable {
         case .activityRings: return "Activity Rings"
         case .timer: return "Timer"
         case .fitnessWorkouts: return "Fitness Workouts"
-        case .fitsight: return "FitSight"
+        case .truesight: return "TrueSight"
         case .nutrition: return "Nutrition"
         case .sessionVolume: return "Session Volume"
         }
@@ -48,7 +65,7 @@ enum ModuleType: String, Codable, CaseIterable {
         case .activityRings: return "gauge.with.needle"
         case .timer: return "timer"
         case .fitnessWorkouts: return "figure.strengthtraining.traditional"
-        case .fitsight: return "video"
+        case .truesight: return "video"
         case .nutrition: return "fork.knife"
         case .sessionVolume: return "chart.bar.xaxis"
         }
@@ -68,17 +85,93 @@ enum ModuleType: String, Codable, CaseIterable {
             return [.small]
         case .activityRings:
             return [.medium, .large]
-        case .fitsight:
+        case .truesight:
             return [.small]
         case .nutrition:
             return [.small, .medium, .large]
         case .sessionVolume:
             return [.small, .medium, .large]
         }
-        
     }
-    
-//    var icon: String
+
+    var requiresHealthAccess: Bool {
+        switch self {
+        case .currentWeight, .weeklySteps, .sleep, .activityRings, .fitnessWorkouts:
+            return true
+        case .timer, .truesight, .nutrition, .sessionVolume:
+            return false
+        }
+    }
+}
+
+enum DashboardPreset: String, CaseIterable, Identifiable {
+    case `default`
+    case training
+    case health
+    case minimal
+#if DEBUG
+    case mixedCompact
+    case mixedBalanced
+    case wideStressTest
+#endif
+
+    var id: String { rawValue }
+
+    static var productionCases: [DashboardPreset] {
+        [.default, .training, .health, .minimal]
+    }
+
+#if DEBUG
+    static var debugCases: [DashboardPreset] {
+        [.mixedCompact, .mixedBalanced, .wideStressTest]
+    }
+#else
+    static var debugCases: [DashboardPreset] {
+        []
+    }
+#endif
+
+    var displayName: String {
+        switch self {
+        case .default:
+            return "Default"
+        case .training:
+            return "Training"
+        case .health:
+            return "Health"
+        case .minimal:
+            return "Minimal"
+#if DEBUG
+        case .mixedCompact:
+            return "Mixed Compact"
+        case .mixedBalanced:
+            return "Mixed Balanced"
+        case .wideStressTest:
+            return "Wide Stress Test"
+#endif
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .default:
+            return "The original balanced GymTracker dashboard."
+        case .training:
+            return "Sessions, timers, and workout-focused cards."
+        case .health:
+            return "Recovery, activity, sleep, and nutrition."
+        case .minimal:
+            return "A simple quick-glance dashboard."
+#if DEBUG
+        case .mixedCompact:
+            return "Debug layout test with small cards around one medium card."
+        case .mixedBalanced:
+            return "Debug layout test mixing one large, one medium, and several small cards."
+        case .wideStressTest:
+            return "Debug layout test for 3- and 4-column packing with multiple wide cards."
+#endif
+        }
+    }
 }
 
 struct DashboardModule: Identifiable, Codable {
@@ -87,21 +180,18 @@ struct DashboardModule: Identifiable, Codable {
     var size: ModuleSize
     var order: Int
     var isVisible: Bool
-    var position: CGPoint?
     
     init(
         id: String = UUID().uuidString,
         type: ModuleType,
         size: ModuleSize = .medium,
         order: Int = 0,
-        isVisible: Bool = true,
-        position: CGPoint? = nil
+        isVisible: Bool = true
     ) {
         self.id = id
         self.type = type
         self.size = size
         self.order = order
         self.isVisible = isVisible
-        self.position = position
     }
 }

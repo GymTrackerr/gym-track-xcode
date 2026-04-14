@@ -47,12 +47,13 @@ struct SettingsView: View {
                 // Settings
                 // Show Account
                 Button {
-                    if let currentUserId = userService.currentUser?.id {
+                    if let currentUserId = userService.currentUser?.id, userService.currentUser?.isDemo != true {
                         userService.removeUser(id: currentUserId)
                     }
                 } label: {
-                    Text("Delete Account")
+                    Text(userService.currentUser?.isDemo == true ? "Delete Account Unavailable for Demo" : "Delete Account")
                 }
+                .disabled(userService.currentUser?.isDemo == true)
 
                 Section("Accounts") {
                     HStack {
@@ -71,19 +72,25 @@ struct SettingsView: View {
                     ForEach(userService.accounts, id: \.id) { account in
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(account.name)
-                                    .font(.body.weight(.semibold))
+                                HStack(spacing: 8) {
+                                    Text(account.name)
+                                        .font(.body.weight(.semibold))
+
+                                    if account.isDemo {
+                                        AccountChip(title: "Demo", tint: .orange)
+                                    }
+
+                                    if userService.currentUser?.id == account.id {
+                                        AccountChip(title: "Current", tint: .blue)
+                                    }
+                                }
                                 Text("Last login: \(account.lastLogin, format: .dateTime.month().day().year().hour().minute())")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                             Spacer()
 
-                            if userService.currentUser?.id == account.id {
-                                Text("Current")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                            } else {
+                            if userService.currentUser?.id != account.id {
                                 Button("Sign In") {
                                     userService.switchAccount(to: account.id)
                                 }
@@ -91,6 +98,15 @@ struct SettingsView: View {
                                 .controlSize(.small)
                             }
                         }
+                    }
+                }
+
+                NavigationLink {
+                    DemoSeedView()
+                } label: {
+                    HStack {
+                        Image(systemName: "sparkles.rectangle.stack")
+                        Text("Demo Mode")
                     }
                 }
 
@@ -155,6 +171,17 @@ struct SettingsView: View {
                 }
 
                 Section("Exercises") {
+                    Button {
+                        Task {
+                            await exerciseService.refreshApiExercisesWithoutInsert()
+                        }
+                    } label: {
+                        HStack {
+                            Image(systemName: "arrow.clockwise")
+                            Text("Refresh API Exercises (No Inserts)")
+                        }
+                    }
+
                     Button {
                         exportExerciseBackup()
                     } label: {
@@ -472,6 +499,21 @@ struct SettingsView: View {
         }
     }
 
+}
+
+private struct AccountChip: View {
+    let title: String
+    let tint: Color
+
+    var body: some View {
+        Text(title)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(tint.opacity(0.12))
+            .clipShape(Capsule())
+    }
 }
 
 private struct BackupShareItem: Identifiable {

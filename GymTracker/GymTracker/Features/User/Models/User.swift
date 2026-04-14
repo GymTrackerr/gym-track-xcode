@@ -15,6 +15,7 @@ final class User {
     var timestamp: Date
     var lastLogin: Date
     var active: Bool = true
+    var isDemo: Bool = false
     var allowHealthAccess: Bool = false
     
     var defaultTimer: Int = 90
@@ -30,8 +31,9 @@ final class User {
     var hapticAt15: Bool?
     var hapticAt5: Bool?
     
-    init(name: String) {
+    init(name: String, isDemo: Bool = false) {
         self.name = name
+        self.isDemo = isDemo
         self.timestamp = Date()
         self.lastLogin = Date()
     }

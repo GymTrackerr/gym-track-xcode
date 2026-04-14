@@ -136,10 +136,10 @@ struct NutritionWeeklyCaloriesModule: View {
             NutritionWeeklyCaloriesChart(
                 points: points,
                 metric: effectiveMetric,
-                chartHeight: module.size == .large ? 140 : 105
+                chartHeight: module.size == .large ? 116 : 74
             )
 
-            if !hasLogsInRange {
+            if !hasLogsInRange && module.size == .large {
                 Text("No logs yet")
                     .font(.caption2)
                     .foregroundColor(.secondary)

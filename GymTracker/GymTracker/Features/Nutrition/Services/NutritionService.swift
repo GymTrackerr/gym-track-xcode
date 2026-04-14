@@ -818,18 +818,32 @@ class NutritionService: ServiceBase, ObservableObject {
     }
 
     func getOrCreateTarget() throws -> NutritionTarget {
+        let currentUserId = currentUser?.id
         let descriptor = FetchDescriptor<NutritionTarget>(
             sortBy: [SortDescriptor(\.createdAt)]
         )
 
         do {
             let targets = try modelContext.fetch(descriptor)
-            if let first = targets.first {
+            if let currentUserId {
+                if let scoped = targets.first(where: { $0.userId == currentUserId }) {
+                    nutritionTarget = scoped
+                    return scoped
+                }
+
+                if let legacy = targets.first(where: { $0.userId == nil }) {
+                    legacy.userId = currentUserId
+                    legacy.updatedAt = Date()
+                    try modelContext.save()
+                    nutritionTarget = legacy
+                    return legacy
+                }
+            } else if let first = targets.first {
                 nutritionTarget = first
                 return first
             }
 
-            let target = NutritionTarget()
+            let target = NutritionTarget(userId: currentUserId)
             modelContext.insert(target)
             try modelContext.save()
             nutritionTarget = target

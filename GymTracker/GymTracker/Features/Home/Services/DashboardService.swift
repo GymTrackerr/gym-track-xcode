@@ -1,144 +1,208 @@
 import Foundation
-import SwiftUI
 import Combine
-//import CoreData
+import CoreGraphics
 
-class DashboardService: ServiceBase, ObservableObject {
+@MainActor
+final class DashboardService: ServiceBase, ObservableObject {
     @Published var modules: [DashboardModule] = []
     @Published var isEditingMode: Bool = false
-    
+
     private let userDefaults = UserDefaults.standard
     private let modulesKey = "dashboardModules"
-    
+
     override func loadFeature() {
         loadModules()
         if modules.isEmpty {
-            loadDefaultModules()
+            resetToDefaults()
         }
     }
-    
-    // MARK: - Default Configuration
-    private func loadDefaultModules() {
-        let defaultModules = [
-            DashboardModule(type: .currentWeight, size: .small, order: 0),
-            DashboardModule(type: .weeklySteps, size: .small, order: 1),
-            DashboardModule(type: .sleep, size: .small, order: 2),
-            DashboardModule(type: .timer, size: .small, order: 3),
-            DashboardModule(type: .fitnessWorkouts, size: .small, order: 4),
-            DashboardModule(type: .activityRings, size: .medium, order: 5),
-            DashboardModule(type: .fitsight, size: .small, order: 6),
-            DashboardModule(type: .nutrition, size: .small, order: 7),
-            DashboardModule(type: .sessionVolume, size: .medium, order: 8)
-        ]
-        
-        self.modules = defaultModules
+
+    var visibleModules: [DashboardModule] {
+        modules.filter(\.isVisible)
+    }
+
+    func modulesForPreset(_ preset: DashboardPreset) -> [DashboardModule] {
+        Self.normalizedModules(Self.modules(for: preset)).filter(\.isVisible)
+    }
+
+    func saveVisibleModules(_ updatedVisibleModules: [DashboardModule]) {
+        let visibleModules = Self.normalizedVisibleModules(updatedVisibleModules)
+        let hiddenModules = Self.normalizedHiddenModules(
+            modules.filter { !$0.isVisible }
+        )
+
+        var combined = visibleModules
+        for hiddenModule in hiddenModules {
+            var next = hiddenModule
+            next.order = combined.count
+            combined.append(next)
+        }
+
+        modules = combined
         saveModules()
     }
-    
-    // MARK: - Persistence
-    func saveModules() {
+
+    func resetToDefaults() {
+        modules = Self.normalizedModules(Self.defaultModules())
+        saveModules()
+    }
+
+    func defaultColumnCount(for availableWidth: CGFloat) -> Int {
+        switch availableWidth {
+        case ..<720:
+            return 2
+        case ..<1120:
+            return 3
+        default:
+            return 4
+        }
+    }
+
+    private func saveModules() {
         do {
+            modules = Self.normalizedModules(modules)
             let data = try JSONEncoder().encode(modules)
             userDefaults.set(data, forKey: modulesKey)
         } catch {
             print("Failed to save modules: \(error)")
         }
     }
-    
+
     private func loadModules() {
-        guard let data = userDefaults.data(forKey: modulesKey) else { 
-            print("No saved modules found, will create defaults")
-            return 
+        guard let data = userDefaults.data(forKey: modulesKey) else {
+            modules = []
+            return
         }
+
         do {
-            modules = try JSONDecoder().decode([DashboardModule].self, from: data)
-            modules.sort { $0.order < $1.order }
-            print("Loaded \(modules.count) modules from UserDefaults")
+            let decoded = try JSONDecoder().decode([DashboardModule].self, from: data)
+            modules = Self.normalizedModules(decoded)
         } catch {
-            print("Failed to load modules: \(error), will create defaults")
-        }
-        
-    }
-    
-    // MARK: - Module Management
-    func updateModule(_ module: DashboardModule) {
-        if let index = modules.firstIndex(where: { $0.id == module.id }) {
-            modules[index] = module
-            modules = modules  // Trigger @Published update
-            saveModules()
+            print("Failed to load modules: \(error)")
+            modules = []
         }
     }
-    
-    func toggleModuleVisibility(_ moduleId: String) {
-        if let index = modules.firstIndex(where: { $0.id == moduleId }) {
-            modules[index].isVisible.toggle()
-            modules = modules  // Trigger @Published update
-            saveModules()
+
+    private static func normalizedVisibleModules(_ modules: [DashboardModule]) -> [DashboardModule] {
+        normalizedModules(
+            modules.map { module in
+                var updated = normalizedModule(module)
+                updated.isVisible = true
+                return updated
+            }
+        )
+    }
+
+    private static func normalizedHiddenModules(_ modules: [DashboardModule]) -> [DashboardModule] {
+        normalizedModules(
+            modules.map { module in
+                var updated = normalizedModule(module)
+                updated.isVisible = false
+                return updated
+            }
+        )
+    }
+
+    private static func normalizedModules(_ modules: [DashboardModule]) -> [DashboardModule] {
+        let sortedModules = modules
+            .enumerated()
+            .sorted { lhs, rhs in
+                if lhs.element.order != rhs.element.order {
+                    return lhs.element.order < rhs.element.order
+                }
+                return lhs.offset < rhs.offset
+            }
+            .map(\.element)
+
+        return sortedModules.enumerated().map { index, module in
+            var normalized = normalizedModule(module)
+            normalized.order = index
+            return normalized
         }
     }
-    
-    func updateModuleSize(_ moduleId: String, newSize: ModuleSize) {
-        if let index = modules.firstIndex(where: { $0.id == moduleId }) {
-            modules[index].size = newSize
-            modules = modules  // Trigger @Published update
-            saveModules()
+
+    private static func normalizedModule(_ module: DashboardModule) -> DashboardModule {
+        var normalized = module
+        let allowedSizes = normalized.type.allowedSizes
+        if !allowedSizes.contains(normalized.size) {
+            normalized.size = allowedSizes.first ?? .small
         }
+        return normalized
     }
-    
-    func reorderModules(_ indices: IndexSet, with source: Int) {
-        modules.move(fromOffsets: indices, toOffset: source)
-        for (index, _) in modules.enumerated() {
-            modules[index].order = index
-        }
-        modules = modules  // Trigger @Published update
-        saveModules()
-    }
-    
-    func toggleEditMode() {
-        isEditingMode.toggle()
-    }
-    
-    func resetToDefaults() {
-        let defaultModules = [
+
+    private static func defaultModules() -> [DashboardModule] {
+        [
             DashboardModule(type: .currentWeight, size: .small, order: 0),
             DashboardModule(type: .weeklySteps, size: .small, order: 1),
             DashboardModule(type: .sleep, size: .small, order: 2),
             DashboardModule(type: .timer, size: .small, order: 3),
             DashboardModule(type: .fitnessWorkouts, size: .small, order: 4),
             DashboardModule(type: .activityRings, size: .medium, order: 5),
-            DashboardModule(type: .fitsight, size: .small, order: 6),
+            DashboardModule(type: .truesight, size: .small, order: 6),
             DashboardModule(type: .nutrition, size: .small, order: 7),
             DashboardModule(type: .sessionVolume, size: .medium, order: 8)
         ]
-        modules = defaultModules
-        saveModules()
     }
-    
-    func getVisibleModules() -> [DashboardModule] {
-        modules.filter { $0.isVisible }.sorted { $0.order < $1.order }
-    }
-    
-    func addModule(_ type: ModuleType, size: ModuleSize) {
-        let newOrder = modules.map { $0.order }.max() ?? -1
-        let newModule = DashboardModule(type: type, size: size, order: newOrder + 1, isVisible: true)
-        modules.append(newModule)
-        modules = modules  // Trigger @Published update
-        saveModules()
-    }
-    
-    func removeModule(_ moduleId: String) {
-        modules.removeAll { $0.id == moduleId }
-        // Reorder remaining modules
-        for (index, _) in modules.enumerated() {
-            modules[index].order = index
+
+    private static func modules(for preset: DashboardPreset) -> [DashboardModule] {
+        switch preset {
+        case .default:
+            return defaultModules()
+        case .training:
+            return [
+                DashboardModule(type: .sessionVolume, size: .large, order: 0),
+                DashboardModule(type: .timer, size: .small, order: 1),
+                DashboardModule(type: .fitnessWorkouts, size: .small, order: 2),
+                DashboardModule(type: .truesight, size: .small, order: 3),
+                DashboardModule(type: .activityRings, size: .medium, order: 4),
+                DashboardModule(type: .weeklySteps, size: .medium, order: 5)
+            ]
+        case .health:
+            return [
+                DashboardModule(type: .currentWeight, size: .small, order: 0),
+                DashboardModule(type: .sleep, size: .medium, order: 1),
+                DashboardModule(type: .activityRings, size: .medium, order: 2),
+                DashboardModule(type: .nutrition, size: .large, order: 3),
+                DashboardModule(type: .weeklySteps, size: .medium, order: 4)
+            ]
+        case .minimal:
+            return [
+                DashboardModule(type: .currentWeight, size: .small, order: 0),
+                DashboardModule(type: .timer, size: .small, order: 1),
+                DashboardModule(type: .sessionVolume, size: .medium, order: 2),
+                DashboardModule(type: .truesight, size: .small, order: 3)
+            ]
+#if DEBUG
+        case .mixedCompact:
+            return [
+                DashboardModule(type: .currentWeight, size: .small, order: 0),
+                DashboardModule(type: .timer, size: .small, order: 1),
+                DashboardModule(type: .weeklySteps, size: .medium, order: 2),
+                DashboardModule(type: .truesight, size: .small, order: 3),
+                DashboardModule(type: .fitnessWorkouts, size: .small, order: 4),
+                DashboardModule(type: .nutrition, size: .small, order: 5)
+            ]
+        case .mixedBalanced:
+            return [
+                DashboardModule(type: .sessionVolume, size: .large, order: 0),
+                DashboardModule(type: .currentWeight, size: .small, order: 1),
+                DashboardModule(type: .timer, size: .small, order: 2),
+                DashboardModule(type: .activityRings, size: .medium, order: 3),
+                DashboardModule(type: .truesight, size: .small, order: 4),
+                DashboardModule(type: .nutrition, size: .small, order: 5),
+                DashboardModule(type: .fitnessWorkouts, size: .small, order: 6)
+            ]
+        case .wideStressTest:
+            return [
+                DashboardModule(type: .weeklySteps, size: .medium, order: 0),
+                DashboardModule(type: .nutrition, size: .medium, order: 1),
+                DashboardModule(type: .sessionVolume, size: .large, order: 2),
+                DashboardModule(type: .activityRings, size: .medium, order: 3),
+                DashboardModule(type: .currentWeight, size: .small, order: 4),
+                DashboardModule(type: .timer, size: .small, order: 5),
+                DashboardModule(type: .truesight, size: .small, order: 6)
+            ]
+#endif
         }
-        modules = modules  // Trigger @Published update
-        saveModules()
-    }
-    
-    func deleteAllModules() {
-        modules.removeAll()
-        modules = modules  // Trigger @Published update
-        saveModules()
     }
 }

@@ -842,6 +842,8 @@ struct HistoryChartView<FilterControls: View>: View {
             return .orange
         case .negative:
             return .red
+        case .negativeSecondary:
+            return Color.red.opacity(0.5)
         case .neutral:
             return .gray
         }

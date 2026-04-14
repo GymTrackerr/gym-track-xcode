@@ -4,6 +4,7 @@ import SwiftData
 @Model
 final class NutritionTarget {
     var id: UUID = UUID()
+    var userId: UUID?
     var createdAt: Date
     var updatedAt: Date
     var calorieTarget: Double
@@ -13,12 +14,14 @@ final class NutritionTarget {
     var isEnabled: Bool
 
     init(
+        userId: UUID? = nil,
         calorieTarget: Double = 0,
         proteinTarget: Double = 0,
         carbTarget: Double = 0,
         fatTarget: Double = 0,
         isEnabled: Bool = false
     ) {
+        self.userId = userId
         self.createdAt = Date()
         self.updatedAt = Date()
         self.calorieTarget = max(0, calorieTarget)
