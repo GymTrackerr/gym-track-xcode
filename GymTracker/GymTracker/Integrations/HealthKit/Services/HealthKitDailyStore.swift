@@ -218,6 +218,16 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         _ = try? await dailySummary(for: Date(), userId: userId, policy: .refreshIfStale)
     }
 
+    func forceRefreshRecentData(userId: String, days: Int = 7) async {
+        _ = try? await dailySummaries(
+            endingOn: Date(),
+            days: max(days, 1),
+            userId: userId,
+            policy: .forceRefresh
+        )
+        refreshToken &+= 1
+    }
+
     func cachedDataBounds(userId: String) throws -> (oldest: Date?, newest: Date?) {
         let descriptor = FetchDescriptor<HealthKitDailyAggregateData>(
             predicate: #Predicate<HealthKitDailyAggregateData> { item in

@@ -21,23 +21,15 @@ struct HomeView: View {
                     .padding(.vertical, 12)
                 }
                 .scrollBounceBehavior(.basedOnSize)
+                .refreshable {
+                    await refreshHealthData(forceRefresh: true)
+                }
             } else {
                 Text("Please continue to onboarding")
             }
         }
         .task(id: userService.currentUser?.id) {
-            guard let currentUser = userService.currentUser, currentUser.isDemo != true else { return }
-            guard currentUser.allowHealthAccess else { return }
-            await hkManager.requestAuthorization()
-            await hkManager.fetchWorkouts()
-            let userId = currentUser.id.uuidString
-            await healthKitDailyStore.refreshTodayIfNeeded(userId: userId)
-            _ = try? await healthKitDailyStore.dailySummaries(
-                endingOn: Date(),
-                days: 7,
-                userId: userId,
-                policy: .refreshIfStale
-            )
+            await refreshHealthData(requestAuthorization: true)
         }
         .navigationTitle(userService.currentUser.map { "Welcome \($0.name)" } ?? "Home")
         .navigationBarTitleDisplayMode(.inline)
@@ -57,6 +49,33 @@ struct HomeView: View {
                     }
                 }
             }
+        }
+    }
+
+    private func refreshHealthData(
+        forceRefresh: Bool = false,
+        requestAuthorization: Bool = false
+    ) async {
+        guard let currentUser = userService.currentUser, currentUser.isDemo != true else { return }
+        guard currentUser.allowHealthAccess else { return }
+
+        if requestAuthorization {
+            await hkManager.requestAuthorization()
+        }
+
+        await hkManager.fetchWorkouts()
+        let userId = currentUser.id.uuidString
+
+        if forceRefresh {
+            await healthKitDailyStore.forceRefreshRecentData(userId: userId)
+        } else {
+            await healthKitDailyStore.refreshTodayIfNeeded(userId: userId)
+            _ = try? await healthKitDailyStore.dailySummaries(
+                endingOn: Date(),
+                days: 7,
+                userId: userId,
+                policy: .refreshIfStale
+            )
         }
     }
 }
@@ -895,12 +914,16 @@ struct CurrentWeightModuleView: View {
     @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
     @EnvironmentObject var userService: UserService
     @State private var currentWeight: Double?
+
+    private var refreshID: String {
+        "\(userService.currentUser?.id.uuidString ?? "none")-\(healthKitDailyStore.refreshToken)"
+    }
     
     var body: some View {
         MetricCard(
             value: currentWeight.map { String(format: "%.1f", $0) } ?? "N/A"
         )
-        .task(id: userService.currentUser?.id) {
+        .task(id: refreshID) {
             await loadCurrentWeight()
         }
     }
@@ -925,6 +948,10 @@ struct WeeklyStepsModuleView: View {
     @EnvironmentObject var userService: UserService
     @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
     @State private var weeklyStepsTotal: Double = 0
+
+    private var refreshID: String {
+        "\(userService.currentUser?.id.uuidString ?? "none")-\(healthKitDailyStore.refreshToken)"
+    }
     
     var body: some View {
         if module.size == .medium || module.size == .large {
@@ -942,7 +969,7 @@ struct WeeklyStepsModuleView: View {
                     value: String(weeklyStepsTotal.rounded())
                 )
             }
-            .task(id: userService.currentUser?.id) {
+            .task(id: refreshID) {
                 await loadWeeklyTotal()
             }
         }
@@ -968,6 +995,10 @@ struct SleepModuleView: View {
     @EnvironmentObject var userService: UserService
     @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
     @State private var sleepHours: Double?
+
+    private var refreshID: String {
+        "\(userService.currentUser?.id.uuidString ?? "none")-\(healthKitDailyStore.refreshToken)"
+    }
     
     var body: some View {
         Group {
@@ -983,7 +1014,7 @@ struct SleepModuleView: View {
                 )
             }
         }
-        .task(id: userService.currentUser?.id) {
+        .task(id: refreshID) {
             await loadSleep()
         }
     }
@@ -1011,6 +1042,10 @@ struct ActivityRingsModuleView: View {
     @EnvironmentObject var userService: UserService
     @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
     @State private var ringStatus: ActivityRingStatus?
+
+    private var refreshID: String {
+        "\(userService.currentUser?.id.uuidString ?? "none")-\(healthKitDailyStore.refreshToken)"
+    }
     
     var body: some View {
         Group {
@@ -1027,7 +1062,7 @@ struct ActivityRingsModuleView: View {
                 )
             }
         }
-        .task(id: userService.currentUser?.id) {
+        .task(id: refreshID) {
             await loadRingStatus()
         }
     }

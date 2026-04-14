@@ -152,6 +152,10 @@ struct StepBarGraph: View {
         dailySteps
     }
 
+    private var refreshID: String {
+        "\(userService.currentUser?.id.uuidString ?? "none")-\(healthKitDailyStore.refreshToken)"
+    }
+
     var body: some View {
         Chart(data) { item in
             BarMark(
@@ -188,7 +192,7 @@ struct StepBarGraph: View {
             }
         }
         .frame(height: height)
-        .task(id: userService.currentUser?.id) {
+        .task(id: refreshID) {
             guard let userId = userService.currentUser?.id.uuidString else {
                 dailySteps = []
                 return
