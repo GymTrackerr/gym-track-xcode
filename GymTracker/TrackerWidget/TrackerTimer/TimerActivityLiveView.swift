@@ -11,31 +11,27 @@ import AppIntents
 
 struct TimerActivityLiveView: View {
     let context: ActivityViewContext<TimerActivityAttributes>
-    
-    private let helper: WidgetTimerHelper
-    
-    init(context: ActivityViewContext<TimerActivityAttributes>) {
-        self.context = context
-        self.helper = WidgetTimerHelper(context: context)
-    }
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { timeline in
-            let snapshot = helper.snapshot(at: timeline.date)
-            let remainingSeconds = snapshot.remainingSeconds
+            let model = LiveActivityTimerModel(context: context, date: timeline.date)
+            let snapshot = model.snapshot
 
             VStack(spacing: 8) {
-                Text(context.attributes.title)
+                Text(model.title)
                     .font(.headline)
 
                 if snapshot.isPaused {
-                    Text(timeString(remainingSeconds))
+                    Text(model.displayText)
                         .font(.system(size: 42, weight: .bold, design: .rounded))
-//                        .monospacedDigit()
                 } else {
-                    Text(timerInterval: Date()...snapshot.endDate, countsDown: true)
-                        .font(.system(size: 42, weight: .bold, design: .rounded))
-//                        .monospacedDigit()
+                    if let endDate = model.endDate {
+                        Text(timerInterval: Date()...endDate, countsDown: true)
+                            .font(.system(size: 42, weight: .bold, design: .rounded))
+                    } else {
+                        Text(model.displayText)
+                            .font(.system(size: 42, weight: .bold, design: .rounded))
+                    }
                 }
 
                 HStack {

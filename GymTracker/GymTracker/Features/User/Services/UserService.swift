@@ -30,6 +30,7 @@ class UserService: ServiceBase, ObservableObject {
                 self.accountCreated = (user != nil)
                 if (user==nil) {self.onBoarding=true}
                 else if (self.accountCreated==false) {accountCreated = true}
+                self.ensureDeviceIdForCurrentUser()
             }
             .store(in: &cancellables)        
     }
@@ -60,6 +61,7 @@ class UserService: ServiceBase, ObservableObject {
 
             if let first = accounts.first {
                 currentUser = first
+                ensureDeviceIdForCurrentUser()
                 accountCreated = true
                 if (firstLoad==false) {
                     onBoarding = false
@@ -87,6 +89,7 @@ class UserService: ServiceBase, ObservableObject {
         withAnimation {
             account.lastLogin = Date()
             currentUser = account
+            ensureDeviceIdForCurrentUser()
 
             do {
                 try modelContext.save()
@@ -99,6 +102,8 @@ class UserService: ServiceBase, ObservableObject {
     
     func removeUser(id: UUID) {
         withAnimation {
+            LocalDeviceIdentityStore.shared.clearDeviceId(for: id)
+            BackendSessionStore.shared.clearSession(for: id)
             modelContext.delete(accounts.first(where: { $0.id == id })!)
             
             do {
@@ -127,12 +132,19 @@ class UserService: ServiceBase, ObservableObject {
             do {
                 try modelContext.save()
                 currentUser = newItem
+                ensureDeviceIdForCurrentUser()
                 accountCreated = true
                 loadAccounts(firstLoad: true)
             } catch {
                 print("Failed to save new split day: \(error)")
             }
         }
+    }
+
+    private func ensureDeviceIdForCurrentUser() {
+        guard let currentUser else { return }
+        _ = LocalDeviceIdentityStore.shared.deviceId(for: currentUser.id)
+        BackendSessionStore.shared.setActiveLocalUserId(currentUser.id)
     }
     
     func hkUserAllow(connected: Bool, requested: Bool) {

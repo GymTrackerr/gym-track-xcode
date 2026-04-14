@@ -164,3 +164,24 @@ struct ExerciseDTO: Identifiable, Codable {
     let category: String
     let images: [String]
 }
+
+extension Exercise {
+    convenience init(from api: GymTrackerExerciseDTO, userId: UUID) {
+        self.init(name: api.name, type: ExerciseType.from(apiCategory: api.type), user_id: userId, isUserCreated: api.isUserCreated)
+
+        if api.source == "catalog" {
+            self.npId = api.id
+        } else if let remoteUUID = UUID(uuidString: api.id) {
+            self.id = remoteUUID
+        }
+
+        self.aliases = api.aliases
+        self.primary_muscles = api.primaryMuscles
+        self.secondary_muscles = api.secondaryMuscles
+        self.equipment = api.equipment
+        self.category = api.category
+        self.instructions = api.instructions
+        self.images = api.images
+        self.isArchived = api.isArchived
+    }
+}

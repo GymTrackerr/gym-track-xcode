@@ -12,12 +12,12 @@ import WatchConnectivity
 
 @main
 struct GymTrackerWatch_Watch_AppApp: App {
-    @StateObject var sessionManager = WatchSessionListener()
+    @StateObject var timerModel = WatchTimerExtensionModel()
 
     var body: some Scene {
         WindowGroup {
-            WatchTimerView()
-                .environmentObject(sessionManager)
+            WatchContentView()
+                .environmentObject(timerModel)
         }
     }
 }
@@ -28,17 +28,7 @@ struct RootView: View {
     
     var body: some View {
         Group {
-//            if let userName = syncedUserName {
-                WatchTimerView()
-//                Text("Welcome, \(userName)!")
-//                    .font(.headline)
-//                    .padding()
-//            } else {
-//                Text("Waiting for data from iPhone...")
-//                    .multilineTextAlignment(.center)
-//                    .font(.body)
-//                    .padding()
-////            }
+            WatchContentView()
         }
     }
 }

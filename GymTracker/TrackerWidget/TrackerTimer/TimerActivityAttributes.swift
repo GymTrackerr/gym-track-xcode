@@ -15,7 +15,7 @@ struct TimerActivityAttributes: ActivityAttributes, Codable {
         var isPaused: Bool
         var pausedAtSeconds: Int = 0  // Seconds remaining when paused
         var lastUpdateTime: Date = Date()  // When this state was last updated from the app
-        var timerId: String = ""  // UUID of the timer for fetching from SwiftData
+        var timerId: String = ""  // Optional correlation id from the app-side timer
     }
 
     var title: String

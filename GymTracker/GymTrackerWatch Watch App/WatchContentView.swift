@@ -6,24 +6,13 @@
 //
 
 import SwiftUI
-import SwiftData
 
 struct WatchContentView: View {
-    @EnvironmentObject var userService: UserService
-    @EnvironmentObject var timerService: TimerService
-//    @EnvironmentObject var sessionService: SessionService
+    @EnvironmentObject var timerModel: WatchTimerExtensionModel
     
     var body: some View {
         TabView {
-//            HomeView()
-            // Timer Tab
-            WatchTimerView()
-
-            // Sessions Tab
-//            WatchSessionsView()
-            
-            // Settings Tab
-//            WatchSettingsView()
+            WatchHomeView()
         }
         .tabViewStyle(.page)
     }

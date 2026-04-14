@@ -23,22 +23,16 @@ final class LiveActivityManager: ObservableObject {
     
     // Helper Methods
     private func saveTimerStateToWidget(remainingSeconds: Int, totalLength: Int, isPaused: Bool) {
-        let timerState: [String: Any] = [
-            "remainingSeconds": max(remainingSeconds, 0),
-            "totalLength": totalLength,
-            "isPaused": isPaused,
-            "lastUpdateTime": Date().timeIntervalSince1970
-        ]
-        
-        if let jsonData = try? JSONSerialization.data(withJSONObject: timerState) {
-            let defaults = UserDefaults(suiteName: "group.net.novapro.GymTracker")
-            defaults?.set(jsonData, forKey: "activeTimerState")
-        }
+        SharedTimerStateStore.saveState(
+            timerId: timerId,
+            remainingSeconds: remainingSeconds,
+            totalLength: totalLength,
+            isPaused: isPaused
+        )
     }
     
     private func clearTimerStateFromWidget() {
-        let defaults = UserDefaults(suiteName: "group.net.novapro.GymTracker")
-        defaults?.removeObject(forKey: "activeTimerState")
+        SharedTimerStateStore.clearState()
     }
     
     private var lastWidgetUpdate = Date.distantPast
@@ -135,13 +129,14 @@ final class LiveActivityManager: ObservableObject {
         requestWidgetUpdate()
 
         Task {
+            let endingTimerId = timerId
             let finalContent = ActivityContent(
                 state: TimerActivityAttributes.ContentState(
                     remainingSeconds: 0,
                     isPaused: true,
                     pausedAtSeconds: 0,
                     lastUpdateTime: Date(),
-                    timerId: timerId
+                    timerId: endingTimerId
                 ),
                 staleDate: nil
             )
@@ -160,6 +155,7 @@ final class LiveActivityManager: ObservableObject {
                     await liveActivity.end(finalContent, dismissalPolicy: dismissalPolicy)
                 }
             }
+            self.timerId = ""
             self.activity = nil
         }
     }

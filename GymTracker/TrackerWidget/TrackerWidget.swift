@@ -8,7 +8,6 @@
 import WidgetKit
 import SwiftUI
 import Combine
-
 // Home Screen Widget Entry
 struct HomeScreenEntry: TimelineEntry {
     let date: Date
@@ -45,58 +44,32 @@ struct HomeScreenProvider: TimelineProvider {
 struct HomeScreenEntryView: View {
     var entry: HomeScreenEntry
     @State private var updateTrigger = UUID()
-    @State private var lastDisplayedSeconds = -1
     
-    var timerData: (remaining: Int, total: Int, isPaused: Bool, hasTimer: Bool) {
-        // Read from the shared UserDefaults with App Groups
-        let defaults = UserDefaults(suiteName: "group.net.novapro.GymTracker")
-        
-        if let timerData = defaults?.data(forKey: "activeTimerState"),
-           let json = try? JSONSerialization.jsonObject(with: timerData) as? [String: Any],
-           let remainingSeconds = json["remainingSeconds"] as? Int,
-           let totalLength = json["totalLength"] as? Int,
-           let isPaused = json["isPaused"] as? Bool,
-           let lastUpdateTimeInterval = json["lastUpdateTime"] as? TimeInterval {
-            
-            let lastUpdateTime = Date(timeIntervalSince1970: lastUpdateTimeInterval)
-            let elapsedSinceUpdate = Int(Date().timeIntervalSince(lastUpdateTime))
-            let currentRemaining = max(remainingSeconds - elapsedSinceUpdate, 0)
-            
-            return (remaining: currentRemaining, total: totalLength, isPaused: isPaused, hasTimer: true)
-        }
-        
-        return (remaining: 0, total: 90, isPaused: false, hasTimer: false)
+    var timerModel: HomeScreenTimerModel {
+        HomeScreenTimerModel(date: entry.date)
     }
     
     var progress: CGFloat {
-        guard timerData.total > 0 else { return 0 }
-        return CGFloat(timerData.remaining) / CGFloat(timerData.total)
-    }
-    
-    var ringColor: Color {
-        let percent = progress
-        if percent > 0.5 { return .green }
-        if percent > 0.25 { return .yellow }
-        return .red
+        timerModel.progress
     }
 
     var body: some View {
         VStack(spacing: 10) {
-            if timerData.hasTimer && timerData.remaining > 0 {
+            if timerModel.hasVisibleTimer {
                 ZStack {
                     Circle()
                         .stroke(Color.gray.opacity(0.3), lineWidth: 6)
 
                     Circle()
                         .trim(from: 0, to: progress)
-                        .stroke(ringColor, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                        .stroke(timerModel.ringColor, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                         .rotationEffect(.degrees(-90))
 
                     VStack(spacing: 4) {
-                        Text(timeString(timerData.remaining))
+                        Text(timerModel.displayText)
                             .font(.system(size: 28, weight: .bold, design: .rounded))
 
-                        if timerData.isPaused {
+                        if timerModel.snapshot.isPaused {
                             Text("PAUSED")
                                 .font(.caption2)
                                 .foregroundColor(.orange)
@@ -134,12 +107,6 @@ struct HomeScreenEntryView: View {
         }
         .id(updateTrigger)
     }
-
-    private func timeString(_ seconds: Int) -> String {
-        let mins = seconds / 60
-        let secs = seconds % 60
-        return String(format: "%02d:%02d", mins, secs)
-    }
 }
 
 // Home Screen Widget
@@ -161,4 +128,3 @@ struct HomeScreenWidget: Widget {
 } timeline: {
     HomeScreenEntry(date: Date())
 }
-

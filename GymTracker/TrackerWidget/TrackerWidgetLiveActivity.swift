@@ -33,13 +33,16 @@ private struct DynamicIslandCompactTimerView: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { timeline in
-            let helper = WidgetTimerHelper(context: context)
-            let snapshot = helper.snapshot(at: timeline.date)
+            let model = LiveActivityTimerModel(context: context, date: timeline.date)
             Group {
-                if snapshot.isPaused {
-                    Text(timeString(snapshot.remainingSeconds))
+                if model.snapshot.isPaused {
+                    Text(model.displayText)
                 } else {
-                    Text(timerInterval: Date()...snapshot.endDate, countsDown: true)
+                    if let endDate = model.endDate {
+                        Text(timerInterval: Date()...endDate, countsDown: true)
+                    } else {
+                        Text(model.displayText)
+                    }
                 }
             }
             .font(.caption2)
@@ -52,4 +55,3 @@ private struct DynamicIslandCompactTimerView: View {
         .frame(width: 44, alignment: .trailing)
     }
 }
-

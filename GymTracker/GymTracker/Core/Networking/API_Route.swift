@@ -25,11 +25,23 @@ extension APIRequestRoute {
 }
 
 enum APIRoute: APIRequestRoute {
+    case authInteractLogin
+    case authSession
+    case authLogout
+    case me
     case exercises
     case exercise(id: String)
 
     var path: String {
         switch self {
+        case .authInteractLogin:
+            return "/auth/providers/interact/login"
+        case .authSession:
+            return "/auth/session"
+        case .authLogout:
+            return "/auth/logout"
+        case .me:
+            return "/me"
         case .exercises:
             return "/exercises"
         case .exercise(let id):

@@ -97,7 +97,7 @@ struct GymTrackerApp: App {
 
         self._watchSessionManager = StateObject(
             wrappedValue: WatchSessionManager(
-                timerService: timerService,
+                timerController: WatchTimerBridge(timerService: timerService),
 //                exerciseService: exerciseSvc
             )
         )
@@ -143,3 +143,4 @@ struct RootView: View {
         }
     }
 }
+

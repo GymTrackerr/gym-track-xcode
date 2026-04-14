@@ -12,13 +12,11 @@ import WatchConnectivity
 import Combine
 
 final class WatchSessionListener: NSObject, ObservableObject, WCSessionDelegate {
-    @Published var timer: TrackerTimerDTO?
+    @Published var timer: WatchTimerSnapshot?
     
     @Published var isReachable: Bool = false
     @Published var pendingLength: Int = 0
     @Published var wasPaused: Bool = false
-    
-    private var cancellables = Set<AnyCancellable>()
 
     override init() {
         super.init()
@@ -55,6 +53,10 @@ final class WatchSessionListener: NSObject, ObservableObject, WCSessionDelegate 
         Task {
             isReachable = session.isReachable
         }
+    }
+
+    func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String : Any]) {
+        applyStateUpdate(from: applicationContext)
     }
 
     // Public API (used by watch views)
@@ -141,7 +143,7 @@ final class WatchSessionListener: NSObject, ObservableObject, WCSessionDelegate 
     func session(_ session: WCSession, didReceiveMessageData messageData: Data) {
         // For binary DTO updates (e.g. timerUpdate, exerciseUpdate, etc.)
         do {
-            let dto = try JSONDecoder().decode(TrackerTimerDTO.self, from: messageData)
+            let dto = try JSONDecoder().decode(WatchTimerSnapshot.self, from: messageData)
             DispatchQueue.main.async {
                 self.timer = dto
             }
@@ -153,62 +155,32 @@ final class WatchSessionListener: NSObject, ObservableObject, WCSessionDelegate 
     // Reply handlers
 
     private func handleInitialState(reply: [String: Any]) {
-        if let timerData = reply["timer"] as? Data,
-           let dto = try? JSONDecoder().decode(TrackerTimerDTO.self, from: timerData) {
+        applyStateUpdate(from: reply)
+    }
+
+    private func applyStateUpdate(from payload: [String: Any]) {
+        if let timerData = payload["timer"] as? Data,
+           let dto = try? JSONDecoder().decode(WatchTimerSnapshot.self, from: timerData) {
             DispatchQueue.main.async {
                 self.timer = dto
                 if !dto.isPaused {
                     self.wasPaused = false
                 }
             }
+        } else if payload["timer"] is NSNull {
+            DispatchQueue.main.async {
+                self.timer = nil
+            }
         }
-        
-        if let pendingLength = reply["pendingLength"] as? Int {
+
+        if let pendingLength = payload["pendingLength"] as? Int {
             DispatchQueue.main.async {
                 self.pendingLength = pendingLength
             }
         }
-        
+
         if let timer = self.timer, !timer.isPaused {
             self.wasPaused = false
         }
-    }
-    
-    
-    var isFinished: Bool {
-        return timer == nil && displayedTime == 0 && pendingLength > 0
-    }
-
-    var displayedTime: Int {
-        guard let timer = timer else { return pendingLength }
-        if timer.isPaused { return timer.elapsedTime }
-        guard let start = timer.startTime else { return timer.elapsedTime }
-        return timer.elapsedTime + Int(Date().timeIntervalSince(start))
-    }
-
-    var remainingTime: Int? {
-        guard let timer = timer else { return nil }
-        guard timer.timerLength > 0 else { return nil }   // Count-up mode
-        return max(timer.timerLength - displayedTime, 0)
-    }
-
-    var formattedPending: String {
-        return pendingLength.asTimeString()
-    }
-    
-    var formatted: String {
-        if let remaining = remainingTime, remaining >= 0 {
-            return remaining.asTimeString()
-        } else {
-            return displayedTime.asTimeString()
-        }
-    }
-    
-    var formattedTimerLength: String {
-        guard let timer = timer else {
-            return pendingLength.asTimeString()
-        }
-        
-        return timer.timerLength.asTimeString()
     }
 }
