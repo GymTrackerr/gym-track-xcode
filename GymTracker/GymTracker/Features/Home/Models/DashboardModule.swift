@@ -1,5 +1,4 @@
 import Foundation
-import CoreGraphics
 
 enum ModuleSize: String, Codable {
     case small = "1x1"
@@ -14,23 +13,6 @@ enum ModuleSize: String, Codable {
         }
     }
 
-    var columnSpan: Int {
-        switch self {
-        case .small:
-            return 1
-        case .medium, .large:
-            return 2
-        }
-    }
-
-    var rowSpan: Int {
-        switch self {
-        case .small, .medium:
-            return 1
-        case .large:
-            return 2
-        }
-    }
 }
 
 enum ModuleType: String, Codable, CaseIterable {
@@ -93,10 +75,16 @@ enum ModuleType: String, Codable, CaseIterable {
         case .sessionVolume:
             return [.small, .medium, .large]
         }
-        
     }
-    
-//    var icon: String
+
+    var requiresHealthAccess: Bool {
+        switch self {
+        case .currentWeight, .weeklySteps, .sleep, .activityRings, .fitnessWorkouts:
+            return true
+        case .timer, .truesight, .nutrition, .sessionVolume:
+            return false
+        }
+    }
 }
 
 enum DashboardPreset: String, CaseIterable, Identifiable {
@@ -134,40 +122,24 @@ enum DashboardPreset: String, CaseIterable, Identifiable {
     }
 }
 
-enum DashboardMoveDirection {
-    case left
-    case right
-    case up
-    case down
-}
-
 struct DashboardModule: Identifiable, Codable {
     var id: String
     var type: ModuleType
     var size: ModuleSize
     var order: Int
     var isVisible: Bool
-    var gridX: Int?
-    var gridY: Int?
-    var position: CGPoint?
     
     init(
         id: String = UUID().uuidString,
         type: ModuleType,
         size: ModuleSize = .medium,
         order: Int = 0,
-        isVisible: Bool = true,
-        gridX: Int? = nil,
-        gridY: Int? = nil,
-        position: CGPoint? = nil
+        isVisible: Bool = true
     ) {
         self.id = id
         self.type = type
         self.size = size
         self.order = order
         self.isVisible = isVisible
-        self.gridX = gridX
-        self.gridY = gridY
-        self.position = position
     }
 }

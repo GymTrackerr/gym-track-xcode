@@ -1,28 +1,18 @@
-//
-//  StepBarGraph.swift
-//  GymTracker
-//
-//  Created by Daniel Kravec on 2025-11-08.
-//
-
 import SwiftUI
 import Charts
 
 struct MetricCard: View {
-    let title: String
     let value: String
-    let icon: String
-    @State var alignment: HorizontalAlignment = .leading
-    @State var pageNav: Bool = false
-    @State var hasBackground: Bool = true
+    var alignment: HorizontalAlignment = .leading
+    var pageNav: Bool = false
 
     var body: some View {
         VStack(alignment: alignment, spacing: 8) {
             HStack {
-                Text(String(value))
+                Text(value)
                     .font(.title3)
                     .fontWeight(.semibold)
-                if (pageNav) {
+                if pageNav {
                     Spacer()
                     Image(systemName: "chevron.right")
                         .foregroundColor(.secondary)
@@ -31,23 +21,12 @@ struct MetricCard: View {
         }
         .padding()
         .frame(maxWidth: .infinity)
-//        .if(hasBackground) { view in
-//            view.glassEffect(in: .rect(cornerRadius: 16.0))
-//        }
-//        .background(
-//            RoundedRectangle(cornerRadius: 16)
-//                .fill(Color(.systemBackground))
-//                .shadow(color: .gray.opacity(0.2), radius: 4, y: 2)
-//        )
-        
     }
 }
 
 struct MetricActivityRingCard: View {
-    let title: String
     let activityRings: ActivityRingStatus
-    @State var alignment: HorizontalAlignment = .leading
-    @State var hasBackground: Bool = true
+    var alignment: HorizontalAlignment = .leading
     
     var body: some View {
         VStack(alignment: alignment, spacing: 12) {            
@@ -157,6 +136,11 @@ struct StepBarGraph: View {
     var height: CGFloat = 140
     var barColor: Color = .blue
     @State private var dailySteps: [DayStep] = []
+    private static let weekdayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "E"
+        return formatter
+    }()
     
     struct DayStep: Identifiable {
         let id = UUID()
@@ -220,8 +204,6 @@ struct StepBarGraph: View {
     }
 
     private func shortDay(from date: Date) -> String {
-        let f = DateFormatter()
-        f.dateFormat = "E"
-        return f.string(from: date)
+        Self.weekdayFormatter.string(from: date)
     }
 }

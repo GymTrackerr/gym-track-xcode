@@ -180,10 +180,7 @@ struct SessionVolumeModuleView: View {
             .padding(.vertical, 2)
         } else {
             MetricCard(
-                title: module.type.displayName,
-                value: SessionService.formattedPounds(totalVolumeForWeek),
-                icon: module.type.iconName,
-                hasBackground: false
+                value: SessionService.formattedPounds(totalVolumeForWeek)
             )
         }
     }

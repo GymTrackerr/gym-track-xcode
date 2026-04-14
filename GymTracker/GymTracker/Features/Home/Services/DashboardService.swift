@@ -17,122 +17,15 @@ final class DashboardService: ServiceBase, ObservableObject {
         }
     }
 
-    func saveModules() {
-        do {
-            modules = Self.normalizedModules(modules)
-            let data = try JSONEncoder().encode(modules)
-            userDefaults.set(data, forKey: modulesKey)
-        } catch {
-            print("Failed to save modules: \(error)")
-        }
-    }
-
-    func updateModule(_ module: DashboardModule) {
-        guard let index = modules.firstIndex(where: { $0.id == module.id }) else { return }
-        modules[index] = Self.normalizedModule(module)
-        saveModules()
-    }
-
-    func updateModuleSize(_ moduleId: String, newSize: ModuleSize) {
-        updateModuleSize(moduleId, newSize: newSize, columns: 2)
-    }
-
-    func updateModuleSize(_ moduleId: String, newSize: ModuleSize, columns: Int) {
-        _ = columns
-        guard let index = modules.firstIndex(where: { $0.id == moduleId }) else { return }
-        let allowedSizes = modules[index].type.allowedSizes
-        modules[index].size = allowedSizes.contains(newSize) ? newSize : (allowedSizes.first ?? .small)
-        saveModules()
-    }
-
-    func toggleModuleVisibility(_ moduleId: String) {
-        guard let index = modules.firstIndex(where: { $0.id == moduleId }) else { return }
-        modules[index].isVisible.toggle()
-        saveModules()
-    }
-
-    func setModuleVisibility(_ moduleId: String, isVisible: Bool) {
-        setModuleVisibility(moduleId, isVisible: isVisible, columns: 2)
-    }
-
-    func setModuleVisibility(_ moduleId: String, isVisible: Bool, columns: Int) {
-        _ = columns
-        guard let index = modules.firstIndex(where: { $0.id == moduleId }) else { return }
-        modules[index].isVisible = isVisible
-        saveModules()
-    }
-
-    func getVisibleModules() -> [DashboardModule] {
+    var visibleModules: [DashboardModule] {
         modules.filter(\.isVisible)
-    }
-
-    func getVisibleModules(columns: Int) -> [DashboardModule] {
-        _ = columns
-        return getVisibleModules()
-    }
-
-    func addModule(_ type: ModuleType, size: ModuleSize) {
-        addModule(type, size: size, columns: 2)
-    }
-
-    func addModule(_ type: ModuleType, size: ModuleSize, columns: Int) {
-        _ = columns
-        let nextOrder = modules.count
-        let allowedSizes = type.allowedSizes
-        let normalizedSize = allowedSizes.contains(size) ? size : (allowedSizes.first ?? .small)
-
-        modules.append(
-            DashboardModule(
-                type: type,
-                size: normalizedSize,
-                order: nextOrder,
-                isVisible: true
-            )
-        )
-        saveModules()
-    }
-
-    func removeModule(_ moduleId: String) {
-        guard let index = modules.firstIndex(where: { $0.id == moduleId }) else { return }
-        modules[index].isVisible = false
-        saveModules()
-    }
-
-    func deleteAllModules() {
-        modules = modules.map { module in
-            var updated = module
-            updated.isVisible = false
-            return updated
-        }
-        saveModules()
-    }
-
-    func toggleEditMode() {
-        isEditingMode.toggle()
-    }
-
-    func resetToDefaults() {
-        modules = Self.normalizedModules(Self.defaultModules())
-        saveModules()
-    }
-
-    func modulesSnapshotForEditor() -> [DashboardModule] {
-        getVisibleModules()
-    }
-
-    func defaultModulesForEditor() -> [DashboardModule] {
-        Self.normalizedModules(Self.defaultModules()).filter(\.isVisible)
     }
 
     func modulesForPreset(_ preset: DashboardPreset) -> [DashboardModule] {
         Self.normalizedModules(Self.modules(for: preset)).filter(\.isVisible)
     }
 
-    func applyEditorModules(_ updatedModules: [DashboardModule]) {
-        applyVisibleModules(updatedModules)
-    }
-
-    func applyVisibleModules(_ updatedVisibleModules: [DashboardModule]) {
+    func saveVisibleModules(_ updatedVisibleModules: [DashboardModule]) {
         let visibleModules = Self.normalizedVisibleModules(updatedVisibleModules)
         let hiddenModules = Self.normalizedHiddenModules(
             modules.filter { !$0.isVisible }
@@ -149,41 +42,8 @@ final class DashboardService: ServiceBase, ObservableObject {
         saveModules()
     }
 
-    func moduleForDisplay(_ moduleId: String, columns: Int) -> DashboardModule? {
-        _ = columns
-        return modules.first(where: { $0.id == moduleId && $0.isVisible })
-    }
-
-    func applyPreset(_ preset: DashboardPreset, columns: Int) {
-        _ = columns
-        modules = Self.normalizedModules(Self.modules(for: preset))
-        saveModules()
-    }
-
-    func moveModule(_ moduleId: String, direction: DashboardMoveDirection, columns: Int) {
-        _ = columns
-        var visibleModules = getVisibleModules()
-        guard let currentIndex = visibleModules.firstIndex(where: { $0.id == moduleId }) else { return }
-
-        let targetIndex: Int
-        switch direction {
-        case .left, .up:
-            targetIndex = max(currentIndex - 1, 0)
-        case .right, .down:
-            targetIndex = min(currentIndex + 1, max(visibleModules.count - 1, 0))
-        }
-
-        guard targetIndex != currentIndex else { return }
-        let movedModule = visibleModules.remove(at: currentIndex)
-        visibleModules.insert(movedModule, at: targetIndex)
-        applyVisibleModules(visibleModules)
-    }
-
-    func moveModule(_ moduleId: String, toGridX x: Int, gridY y: Int, columns: Int) {
-        _ = columns
-        guard let index = modules.firstIndex(where: { $0.id == moduleId }) else { return }
-        modules[index].gridX = x
-        modules[index].gridY = y
+    func resetToDefaults() {
+        modules = Self.normalizedModules(Self.defaultModules())
         saveModules()
     }
 
@@ -195,6 +55,16 @@ final class DashboardService: ServiceBase, ObservableObject {
             return 3
         default:
             return 4
+        }
+    }
+
+    private func saveModules() {
+        do {
+            modules = Self.normalizedModules(modules)
+            let data = try JSONEncoder().encode(modules)
+            userDefaults.set(data, forKey: modulesKey)
+        } catch {
+            print("Failed to save modules: \(error)")
         }
     }
 
