@@ -19,7 +19,7 @@ final class DashboardService: ServiceBase, ObservableObject {
 
     func saveModules() {
         do {
-            normalizeModules()
+            modules = Self.normalizedModules(modules)
             let data = try JSONEncoder().encode(modules)
             userDefaults.set(data, forKey: modulesKey)
         } catch {
@@ -29,8 +29,7 @@ final class DashboardService: ServiceBase, ObservableObject {
 
     func updateModule(_ module: DashboardModule) {
         guard let index = modules.firstIndex(where: { $0.id == module.id }) else { return }
-        modules[index] = module
-        modules = DashboardPlacementEngine.arrangedModules(from: modules, columns: 2)
+        modules[index] = Self.normalizedModule(module)
         saveModules()
     }
 
@@ -39,23 +38,16 @@ final class DashboardService: ServiceBase, ObservableObject {
     }
 
     func updateModuleSize(_ moduleId: String, newSize: ModuleSize, columns: Int) {
+        _ = columns
         guard let index = modules.firstIndex(where: { $0.id == moduleId }) else { return }
-
         let allowedSizes = modules[index].type.allowedSizes
         modules[index].size = allowedSizes.contains(newSize) ? newSize : (allowedSizes.first ?? .small)
-        modules = DashboardPlacementEngine.reposition(
-            modules,
-            moduleId: moduleId,
-            desiredPosition: currentPosition(for: moduleId, columns: columns),
-            columns: columns
-        )
         saveModules()
     }
 
     func toggleModuleVisibility(_ moduleId: String) {
         guard let index = modules.firstIndex(where: { $0.id == moduleId }) else { return }
         modules[index].isVisible.toggle()
-        modules = DashboardPlacementEngine.arrangedModules(from: modules, columns: 2)
         saveModules()
     }
 
@@ -64,20 +56,19 @@ final class DashboardService: ServiceBase, ObservableObject {
     }
 
     func setModuleVisibility(_ moduleId: String, isVisible: Bool, columns: Int) {
+        _ = columns
         guard let index = modules.firstIndex(where: { $0.id == moduleId }) else { return }
         modules[index].isVisible = isVisible
-        modules = DashboardPlacementEngine.arrangedModules(from: modules, columns: columns)
         saveModules()
     }
 
     func getVisibleModules() -> [DashboardModule] {
-        getVisibleModules(columns: 2)
+        modules.filter(\.isVisible)
     }
 
     func getVisibleModules(columns: Int) -> [DashboardModule] {
-        DashboardPlacementEngine.arrangedModules(from: modules, columns: columns)
-            .filter(\.isVisible)
-            .sorted(by: DashboardPlacementEngine.layoutSort)
+        _ = columns
+        return getVisibleModules()
     }
 
     func addModule(_ type: ModuleType, size: ModuleSize) {
@@ -85,8 +76,10 @@ final class DashboardService: ServiceBase, ObservableObject {
     }
 
     func addModule(_ type: ModuleType, size: ModuleSize, columns: Int) {
-        let nextOrder = (modules.map(\.order).max() ?? -1) + 1
-        let normalizedSize = type.allowedSizes.contains(size) ? size : (type.allowedSizes.first ?? .small)
+        _ = columns
+        let nextOrder = modules.count
+        let allowedSizes = type.allowedSizes
+        let normalizedSize = allowedSizes.contains(size) ? size : (allowedSizes.first ?? .small)
 
         modules.append(
             DashboardModule(
@@ -96,15 +89,12 @@ final class DashboardService: ServiceBase, ObservableObject {
                 isVisible: true
             )
         )
-
-        modules = DashboardPlacementEngine.arrangedModules(from: modules, columns: columns)
         saveModules()
     }
 
     func removeModule(_ moduleId: String) {
         guard let index = modules.firstIndex(where: { $0.id == moduleId }) else { return }
         modules[index].isVisible = false
-        modules = DashboardPlacementEngine.arrangedModules(from: modules, columns: 2)
         saveModules()
     }
 
@@ -114,7 +104,6 @@ final class DashboardService: ServiceBase, ObservableObject {
             updated.isVisible = false
             return updated
         }
-        modules = DashboardPlacementEngine.arrangedModules(from: modules, columns: 2)
         saveModules()
     }
 
@@ -123,63 +112,90 @@ final class DashboardService: ServiceBase, ObservableObject {
     }
 
     func resetToDefaults() {
-        modules = DashboardPlacementEngine.arrangedModules(from: Self.defaultModules(), columns: 2)
+        modules = Self.normalizedModules(Self.defaultModules())
         saveModules()
     }
 
     func modulesSnapshotForEditor() -> [DashboardModule] {
-        DashboardPlacementEngine.arrangedModules(from: modules, columns: 2)
+        getVisibleModules()
     }
 
     func defaultModulesForEditor() -> [DashboardModule] {
-        Self.defaultModules()
+        Self.normalizedModules(Self.defaultModules()).filter(\.isVisible)
+    }
+
+    func modulesForPreset(_ preset: DashboardPreset) -> [DashboardModule] {
+        Self.normalizedModules(Self.modules(for: preset)).filter(\.isVisible)
     }
 
     func applyEditorModules(_ updatedModules: [DashboardModule]) {
-        modules = DashboardPlacementEngine.arrangedModules(from: updatedModules, columns: 2)
+        applyVisibleModules(updatedModules)
+    }
+
+    func applyVisibleModules(_ updatedVisibleModules: [DashboardModule]) {
+        let visibleModules = Self.normalizedVisibleModules(updatedVisibleModules)
+        let hiddenModules = Self.normalizedHiddenModules(
+            modules.filter { !$0.isVisible }
+        )
+
+        var combined = visibleModules
+        for hiddenModule in hiddenModules {
+            var next = hiddenModule
+            next.order = combined.count
+            combined.append(next)
+        }
+
+        modules = combined
         saveModules()
     }
 
     func moduleForDisplay(_ moduleId: String, columns: Int) -> DashboardModule? {
-        getVisibleModules(columns: columns).first(where: { $0.id == moduleId })
+        _ = columns
+        return modules.first(where: { $0.id == moduleId && $0.isVisible })
     }
 
     func applyPreset(_ preset: DashboardPreset, columns: Int) {
-        modules = DashboardPlacementEngine.arrangedModules(from: Self.modules(for: preset), columns: columns)
+        _ = columns
+        modules = Self.normalizedModules(Self.modules(for: preset))
         saveModules()
     }
 
     func moveModule(_ moduleId: String, direction: DashboardMoveDirection, columns: Int) {
-        guard let current = currentPosition(for: moduleId, columns: columns) else { return }
+        _ = columns
+        var visibleModules = getVisibleModules()
+        guard let currentIndex = visibleModules.firstIndex(where: { $0.id == moduleId }) else { return }
 
-        let target: DashboardGridPoint
+        let targetIndex: Int
         switch direction {
-        case .left:
-            target = DashboardGridPoint(x: current.x - 1, y: current.y)
-        case .right:
-            target = DashboardGridPoint(x: current.x + 1, y: current.y)
-        case .up:
-            target = DashboardGridPoint(x: current.x, y: current.y - 1)
-        case .down:
-            target = DashboardGridPoint(x: current.x, y: current.y + 1)
+        case .left, .up:
+            targetIndex = max(currentIndex - 1, 0)
+        case .right, .down:
+            targetIndex = min(currentIndex + 1, max(visibleModules.count - 1, 0))
         }
 
-        modules = DashboardPlacementEngine.reposition(modules, moduleId: moduleId, desiredPosition: target, columns: columns)
-        saveModules()
+        guard targetIndex != currentIndex else { return }
+        let movedModule = visibleModules.remove(at: currentIndex)
+        visibleModules.insert(movedModule, at: targetIndex)
+        applyVisibleModules(visibleModules)
     }
 
     func moveModule(_ moduleId: String, toGridX x: Int, gridY y: Int, columns: Int) {
-        modules = DashboardPlacementEngine.reposition(
-            modules,
-            moduleId: moduleId,
-            desiredPosition: DashboardGridPoint(x: x, y: y),
-            columns: columns
-        )
+        _ = columns
+        guard let index = modules.firstIndex(where: { $0.id == moduleId }) else { return }
+        modules[index].gridX = x
+        modules[index].gridY = y
         saveModules()
     }
 
     func defaultColumnCount(for availableWidth: CGFloat) -> Int {
-        DashboardPlacementEngine.defaultColumnCount(for: availableWidth)
+        switch availableWidth {
+        case ..<720:
+            return 2
+        case ..<1120:
+            return 3
+        default:
+            return 4
+        }
     }
 
     private func loadModules() {
@@ -189,27 +205,59 @@ final class DashboardService: ServiceBase, ObservableObject {
         }
 
         do {
-            modules = try JSONDecoder().decode([DashboardModule].self, from: data)
-            normalizeModules()
+            let decoded = try JSONDecoder().decode([DashboardModule].self, from: data)
+            modules = Self.normalizedModules(decoded)
         } catch {
             print("Failed to load modules: \(error)")
             modules = []
         }
     }
 
-    private func normalizeModules() {
-        modules = DashboardPlacementEngine.arrangedModules(from: modules, columns: 2)
+    private static func normalizedVisibleModules(_ modules: [DashboardModule]) -> [DashboardModule] {
+        normalizedModules(
+            modules.map { module in
+                var updated = normalizedModule(module)
+                updated.isVisible = true
+                return updated
+            }
+        )
     }
 
-    private func currentPosition(for moduleId: String, columns: Int) -> DashboardGridPoint? {
-        guard let module = DashboardPlacementEngine.arrangedModules(from: modules, columns: columns)
-            .first(where: { $0.id == moduleId }),
-              let x = module.gridX,
-              let y = module.gridY else {
-            return nil
-        }
+    private static func normalizedHiddenModules(_ modules: [DashboardModule]) -> [DashboardModule] {
+        normalizedModules(
+            modules.map { module in
+                var updated = normalizedModule(module)
+                updated.isVisible = false
+                return updated
+            }
+        )
+    }
 
-        return DashboardGridPoint(x: x, y: y)
+    private static func normalizedModules(_ modules: [DashboardModule]) -> [DashboardModule] {
+        let sortedModules = modules
+            .enumerated()
+            .sorted { lhs, rhs in
+                if lhs.element.order != rhs.element.order {
+                    return lhs.element.order < rhs.element.order
+                }
+                return lhs.offset < rhs.offset
+            }
+            .map(\.element)
+
+        return sortedModules.enumerated().map { index, module in
+            var normalized = normalizedModule(module)
+            normalized.order = index
+            return normalized
+        }
+    }
+
+    private static func normalizedModule(_ module: DashboardModule) -> DashboardModule {
+        var normalized = module
+        let allowedSizes = normalized.type.allowedSizes
+        if !allowedSizes.contains(normalized.size) {
+            normalized.size = allowedSizes.first ?? .small
+        }
+        return normalized
     }
 
     private static func defaultModules() -> [DashboardModule] {
@@ -254,225 +302,6 @@ final class DashboardService: ServiceBase, ObservableObject {
                 DashboardModule(type: .sessionVolume, size: .medium, order: 2),
                 DashboardModule(type: .truesight, size: .small, order: 3)
             ]
-        }
-    }
-}
-
-struct DashboardGridPoint {
-    let x: Int
-    let y: Int
-}
-
-struct DashboardGridCell: Hashable {
-    let x: Int
-    let y: Int
-}
-
-enum DashboardPlacementEngine {
-    static func defaultColumnCount(for availableWidth: CGFloat) -> Int {
-        switch availableWidth {
-        case ..<720:
-            return 2
-        case ..<1120:
-            return 3
-        default:
-            return 4
-        }
-    }
-
-    static func arrangedModules(from modules: [DashboardModule], columns: Int) -> [DashboardModule] {
-        let safeColumns = max(columns, 2)
-
-        let visible = modules
-            .filter(\.isVisible)
-            .sorted(by: preferredLayoutSort)
-            .map { module -> DashboardModule in
-                var module = module
-                if !module.type.allowedSizes.contains(module.size) {
-                    module.size = module.type.allowedSizes.first ?? .small
-                }
-                return module
-            }
-
-        let hidden = modules
-            .filter { !$0.isVisible }
-            .sorted { $0.order < $1.order }
-
-        var occupied = Set<DashboardGridCell>()
-        var placedVisible: [DashboardModule] = []
-
-        for module in visible {
-            var next = module
-            let placement = placementForModule(
-                next,
-                preferredPosition: preferredPosition(for: next, columns: safeColumns),
-                occupied: occupied,
-                columns: safeColumns
-            )
-            next.gridX = placement.x
-            next.gridY = placement.y
-            occupy(module: next, occupied: &occupied, columns: safeColumns)
-            placedVisible.append(next)
-        }
-
-        var combined = placedVisible.sorted(by: layoutSort) + hidden
-        for index in combined.indices {
-            combined[index].order = index
-        }
-        return combined
-    }
-
-    static func reposition(_ modules: [DashboardModule], moduleId: String, desiredPosition: DashboardGridPoint?, columns: Int) -> [DashboardModule] {
-        let arranged = arrangedModules(from: modules, columns: columns)
-        guard let moved = arranged.first(where: { $0.id == moduleId }) else { return arranged }
-
-        let hidden = arranged.filter { !$0.isVisible }
-        let others = arranged
-            .filter { $0.isVisible && $0.id != moduleId }
-            .sorted(by: layoutSort)
-
-        var occupied = Set<DashboardGridCell>()
-        var placedVisible: [DashboardModule] = []
-
-        var movedModule = moved
-        let movedPlacement = placementForModule(
-            movedModule,
-            preferredPosition: desiredPosition ?? preferredPosition(for: movedModule, columns: columns),
-            occupied: occupied,
-            columns: columns
-        )
-        movedModule.gridX = movedPlacement.x
-        movedModule.gridY = movedPlacement.y
-        occupy(module: movedModule, occupied: &occupied, columns: columns)
-        placedVisible.append(movedModule)
-
-        for module in others {
-            var next = module
-            let placement = placementForModule(
-                next,
-                preferredPosition: preferredPosition(for: next, columns: columns),
-                occupied: occupied,
-                columns: columns
-            )
-            next.gridX = placement.x
-            next.gridY = placement.y
-            occupy(module: next, occupied: &occupied, columns: columns)
-            placedVisible.append(next)
-        }
-
-        var combined = placedVisible.sorted(by: layoutSort) + hidden
-        for index in combined.indices {
-            combined[index].order = index
-        }
-        return combined
-    }
-
-    static func layoutSort(lhs: DashboardModule, rhs: DashboardModule) -> Bool {
-        let lhsY = lhs.gridY ?? 0
-        let rhsY = rhs.gridY ?? 0
-        if lhsY != rhsY { return lhsY < rhsY }
-
-        let lhsX = lhs.gridX ?? 0
-        let rhsX = rhs.gridX ?? 0
-        if lhsX != rhsX { return lhsX < rhsX }
-
-        return lhs.order < rhs.order
-    }
-
-    private static func preferredLayoutSort(lhs: DashboardModule, rhs: DashboardModule) -> Bool {
-        let lhsY = lhs.gridY ?? Int.max
-        let rhsY = rhs.gridY ?? Int.max
-        if lhsY != rhsY { return lhsY < rhsY }
-
-        let lhsX = lhs.gridX ?? Int.max
-        let rhsX = rhs.gridX ?? Int.max
-        if lhsX != rhsX { return lhsX < rhsX }
-
-        return lhs.order < rhs.order
-    }
-
-    private static func placementForModule(
-        _ module: DashboardModule,
-        preferredPosition: DashboardGridPoint?,
-        occupied: Set<DashboardGridCell>,
-        columns: Int
-    ) -> DashboardGridPoint {
-        if let preferredPosition {
-            let clamped = clamp(preferredPosition, for: module, columns: columns)
-            if canPlace(module: module, at: clamped, occupied: occupied, columns: columns) {
-                return clamped
-            }
-        }
-
-        return firstAvailablePosition(for: module, occupied: occupied, columns: columns)
-    }
-
-    private static func preferredPosition(for module: DashboardModule, columns: Int) -> DashboardGridPoint? {
-        guard let gridX = module.gridX, let gridY = module.gridY else { return nil }
-        return clamp(DashboardGridPoint(x: gridX, y: gridY), for: module, columns: columns)
-    }
-
-    private static func clamp(_ point: DashboardGridPoint, for module: DashboardModule, columns: Int) -> DashboardGridPoint {
-        let maxX = max(columns - min(module.size.columnSpan, columns), 0)
-        return DashboardGridPoint(
-            x: min(max(point.x, 0), maxX),
-            y: max(point.y, 0)
-        )
-    }
-
-    private static func firstAvailablePosition(
-        for module: DashboardModule,
-        occupied: Set<DashboardGridCell>,
-        columns: Int
-    ) -> DashboardGridPoint {
-        let maxX = max(columns - min(module.size.columnSpan, columns), 0)
-
-        for y in 0..<128 {
-            for x in 0...maxX {
-                let candidate = DashboardGridPoint(x: x, y: y)
-                if canPlace(module: module, at: candidate, occupied: occupied, columns: columns) {
-                    return candidate
-                }
-            }
-        }
-
-        return DashboardGridPoint(x: 0, y: 0)
-    }
-
-    private static func canPlace(
-        module: DashboardModule,
-        at point: DashboardGridPoint,
-        occupied: Set<DashboardGridCell>,
-        columns: Int
-    ) -> Bool {
-        let columnSpan = min(module.size.columnSpan, columns)
-        guard point.x >= 0, point.y >= 0, point.x + columnSpan <= columns else {
-            return false
-        }
-
-        for row in point.y..<(point.y + module.size.rowSpan) {
-            for column in point.x..<(point.x + columnSpan) {
-                if occupied.contains(DashboardGridCell(x: column, y: row)) {
-                    return false
-                }
-            }
-        }
-
-        return true
-    }
-
-    private static func occupy(module: DashboardModule, occupied: inout Set<DashboardGridCell>, columns: Int) {
-        let point = clamp(
-            DashboardGridPoint(x: module.gridX ?? 0, y: module.gridY ?? 0),
-            for: module,
-            columns: columns
-        )
-        let columnSpan = min(module.size.columnSpan, columns)
-
-        for row in point.y..<(point.y + module.size.rowSpan) {
-            for column in point.x..<(point.x + columnSpan) {
-                occupied.insert(DashboardGridCell(x: column, y: row))
-            }
         }
     }
 }

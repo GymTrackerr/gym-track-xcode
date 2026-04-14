@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 struct HomeView: View {
     @EnvironmentObject var userService: UserService
@@ -114,19 +115,17 @@ struct DashboardModulesView: View {
     @State private var selectedModuleID: String?
     @State private var showAddModuleSheet = false
     @State private var availableWidth: CGFloat = 0
-    @State private var draggingModuleID: String?
-    @State private var dragTranslation: CGSize = .zero
+    @State private var draftModules: [DashboardModule] = []
+    @State private var draggedModuleID: String?
 
     var body: some View {
         let effectiveWidth = max(availableWidth, UIScreen.main.bounds.width - 32)
-        let columns = dashboardService.defaultColumnCount(for: effectiveWidth)
-        let visibleModules = dashboardService.getVisibleModules(columns: columns)
-        let layout = DashboardGridLayout(
-            modules: visibleModules,
-            availableWidth: effectiveWidth,
-            columns: columns
-        )
-        let selectedModule = selectedModuleID.flatMap { dashboardService.moduleForDisplay($0, columns: columns) }
+        let columnCount = dashboardService.defaultColumnCount(for: effectiveWidth)
+        let liveModules = dashboardService.getVisibleModules(columns: columnCount)
+        let displayModules = dashboardService.isEditingMode ? draftModules : liveModules
+        let selectedModule = displayModules.first(where: { $0.id == selectedModuleID })
+        let columnWidth = dashboardColumnWidth(for: effectiveWidth, columns: columnCount)
+        let rows = dashboardRows(for: displayModules, columnCount: columnCount)
 
         VStack(alignment: .leading, spacing: 16) {
             if dashboardService.isEditingMode {
@@ -134,53 +133,47 @@ struct DashboardModulesView: View {
                     selectedModule: selectedModule,
                     onAddModule: { showAddModuleSheet = true },
                     onApplyPreset: { preset in
-                        dashboardService.applyPreset(preset, columns: columns)
-                        selectedModuleID = nil
+                        draftModules = dashboardService.modulesForPreset(preset)
+                        selectedModuleID = draftModules.first?.id
                     }
                 )
             }
 
-            if visibleModules.isEmpty {
+            if displayModules.isEmpty {
                 EmptyDashboardView()
             } else {
-                ZStack(alignment: .topLeading) {
-                    ForEach(layout.items) { item in
-                        dashboardModuleGridCell(module: item.module, layout: layout)
-                            .frame(
-                                width: item.frame.width,
-                                height: item.frame.height,
-                                alignment: .topLeading
-                            )
-                            .offset(
-                                x: item.frame.minX + (draggingModuleID == item.module.id ? dragTranslation.width : 0),
-                                y: item.frame.minY + (draggingModuleID == item.module.id ? dragTranslation.height : 0)
-                            )
-                            .zIndex(draggingModuleID == item.module.id ? 2 : 0)
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                        switch row {
+                        case let .compact(modules):
+                            LazyVGrid(columns: gridColumns(count: columnCount), spacing: 12) {
+                                ForEach(modules) { module in
+                                    dashboardCard(for: module, columnWidth: columnWidth)
+                                }
+                            }
+                        case let .expanded(module):
+                            dashboardCard(for: module, columnWidth: columnWidth)
+                        }
                     }
                 }
-                .frame(height: layout.totalHeight, alignment: .topLeading)
                 .animation(
                     .spring(response: 0.28, dampingFraction: 0.86),
-                    value: visibleModules.map { "\($0.id)-\($0.gridX ?? 0)-\($0.gridY ?? 0)-\($0.size.rawValue)-\($0.isVisible)" }
+                    value: displayModules.map { "\($0.id)-\($0.order)-\($0.size.rawValue)-\($0.isVisible)" }
                 )
             }
 
             if dashboardService.isEditingMode {
                 DashboardSelectedModuleControls(
                     module: selectedModule,
-                    onMove: { direction in
-                        guard let module = selectedModule else { return }
-                        dashboardService.moveModule(module.id, direction: direction, columns: columns)
-                    },
                     onSizeChange: { newSize in
-                        guard let module = selectedModule else { return }
-                        dashboardService.updateModuleSize(module.id, newSize: newSize, columns: columns)
+                        updateSelectedModule { module in
+                            let allowedSizes = module.type.allowedSizes
+                            module.size = allowedSizes.contains(newSize) ? newSize : (allowedSizes.first ?? .small)
+                        }
                     },
                     onToggleVisibility: { isVisible in
-                        guard let module = selectedModule else { return }
-                        dashboardService.setModuleVisibility(module.id, isVisible: isVisible, columns: columns)
                         if !isVisible {
-                            selectedModuleID = nil
+                            hideSelectedModule()
                         }
                     }
                 )
@@ -199,73 +192,190 @@ struct DashboardModulesView: View {
         )
         .sheet(isPresented: $showAddModuleSheet) {
             DashboardInlineAddModuleSheet(isPresented: $showAddModuleSheet) { type, size in
-                dashboardService.addModule(type, size: size, columns: columns)
-            }
-        }
-        .onChange(of: dashboardService.isEditingMode) { _, isEditing in
-            if !isEditing {
-                selectedModuleID = nil
-                draggingModuleID = nil
-                dragTranslation = .zero
-            } else if selectedModuleID == nil {
-                selectedModuleID = visibleModules.first?.id
+                addDraftModule(type: type, size: size)
             }
         }
         .onAppear {
-            if dashboardService.isEditingMode, selectedModuleID == nil {
-                selectedModuleID = visibleModules.first?.id
+            if dashboardService.isEditingMode {
+                beginEditing(with: liveModules)
             }
         }
-        .onChange(of: visibleModules.map(\.id)) { _, ids in
+        .onChange(of: dashboardService.isEditingMode) { _, isEditing in
+            if isEditing {
+                beginEditing(with: liveModules)
+            } else {
+                finishEditing()
+            }
+        }
+        .onChange(of: liveModules.map(\.id)) { _, ids in
+            guard !dashboardService.isEditingMode else { return }
             if let selectedModuleID, !ids.contains(selectedModuleID) {
                 self.selectedModuleID = ids.first
             }
         }
     }
 
-    @ViewBuilder
-    private func dashboardModuleGridCell(module: DashboardModule, layout: DashboardGridLayout) -> some View {
-        ModuleDisplayView(
-            module: module,
-            isEditing: dashboardService.isEditingMode,
-            isSelected: selectedModuleID == module.id,
-            onSelect: {
-                if dashboardService.isEditingMode {
-                    selectedModuleID = module.id
+    private func gridColumns(count: Int) -> [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 12, alignment: .top), count: max(count, 2))
+    }
+
+    private func dashboardColumnWidth(for width: CGFloat, columns: Int) -> CGFloat {
+        let safeColumns = max(columns, 2)
+        let totalSpacing = CGFloat(safeColumns - 1) * 12
+        return max((width - totalSpacing) / CGFloat(safeColumns), 120)
+    }
+
+    private func dashboardRows(for modules: [DashboardModule], columnCount: Int) -> [DashboardRenderRow] {
+        let safeColumnCount = max(columnCount, 2)
+        var rows: [DashboardRenderRow] = []
+        var compactModules: [DashboardModule] = []
+
+        for module in modules {
+            if module.size == .small {
+                compactModules.append(module)
+                if compactModules.count == safeColumnCount {
+                    rows.append(.compact(compactModules))
+                    compactModules.removeAll()
                 }
+            } else {
+                if !compactModules.isEmpty {
+                    rows.append(.compact(compactModules))
+                    compactModules.removeAll()
+                }
+                rows.append(.expanded(module))
             }
-        )
-        .overlay {
-            if dashboardService.isEditingMode {
-                Color.clear
-                    .contentShape(RoundedRectangle(cornerRadius: 12))
-                    .gesture(dragGesture(for: module, layout: layout))
-            }
+        }
+
+        if !compactModules.isEmpty {
+            rows.append(.compact(compactModules))
+        }
+
+        return rows
+    }
+
+    private func dashboardCardHeight(for module: DashboardModule, columnWidth: CGFloat) -> CGFloat {
+        let baseHeight = max(min(columnWidth * 0.92, 220), 124)
+        switch module.size {
+        case .small:
+            return baseHeight
+        case .medium:
+            return baseHeight * 1.18
+        case .large:
+            return baseHeight * 1.5
         }
     }
 
-    private func dragGesture(for module: DashboardModule, layout: DashboardGridLayout) -> some Gesture {
-        DragGesture(minimumDistance: 8)
-            .onChanged { value in
-                draggingModuleID = module.id
+    @ViewBuilder
+    private func dashboardCard(for module: DashboardModule, columnWidth: CGFloat) -> some View {
+        if dashboardService.isEditingMode {
+            DashboardEditableModuleCard(
+                module: module,
+                isSelected: selectedModuleID == module.id,
+                height: dashboardCardHeight(for: module, columnWidth: columnWidth),
+                onSelect: {
+                    selectedModuleID = module.id
+                }
+            )
+            .frame(maxWidth: module.size == .small ? nil : .infinity)
+            .onDrag {
+                draggedModuleID = module.id
                 selectedModuleID = module.id
-                dragTranslation = value.translation
+                return NSItemProvider(object: module.id as NSString)
+            } preview: {
+                DashboardModuleDragPreview(module: module)
             }
-            .onEnded { value in
-                let stepX = max(layout.columnWidth + layout.spacing, 1)
-                let stepY = max(layout.rowHeight + layout.spacing, 1)
-                let deltaX = Int((value.translation.width / stepX).rounded())
-                let deltaY = Int((value.translation.height / stepY).rounded())
-
-                let targetX = (module.gridX ?? 0) + deltaX
-                let targetY = (module.gridY ?? 0) + deltaY
-
-                dashboardService.moveModule(module.id, toGridX: targetX, gridY: targetY, columns: layout.columns)
-
-                draggingModuleID = nil
-                dragTranslation = .zero
-            }
+            .onDrop(
+                of: [UTType.text],
+                delegate: DashboardModuleDropDelegate(
+                    targetModuleID: module.id,
+                    modules: $draftModules,
+                    draggedModuleID: $draggedModuleID,
+                    selectedModuleID: $selectedModuleID
+                )
+            )
+        } else {
+            ModuleDisplayView(module: module)
+                .frame(
+                    maxWidth: module.size == .small ? nil : .infinity,
+                    minHeight: dashboardCardHeight(for: module, columnWidth: columnWidth),
+                    maxHeight: dashboardCardHeight(for: module, columnWidth: columnWidth)
+                )
+        }
     }
+
+    private func beginEditing(with modules: [DashboardModule]) {
+        draftModules = modules.enumerated().map { index, module in
+            var updated = module
+            updated.order = index
+            return updated
+        }
+        if let selectedModuleID, draftModules.contains(where: { $0.id == selectedModuleID }) {
+            return
+        }
+        selectedModuleID = draftModules.first?.id
+    }
+
+    private func finishEditing() {
+        guard !draftModules.isEmpty else {
+            dashboardService.applyEditorModules([])
+            selectedModuleID = nil
+            draggedModuleID = nil
+            return
+        }
+
+        dashboardService.applyEditorModules(draftModules)
+        if let selectedModuleID,
+           !draftModules.contains(where: { $0.id == selectedModuleID }) {
+            self.selectedModuleID = draftModules.first?.id
+        }
+        draggedModuleID = nil
+    }
+
+    private func addDraftModule(type: ModuleType, size: ModuleSize) {
+        let allowedSizes = type.allowedSizes
+        let normalizedSize = allowedSizes.contains(size) ? size : (allowedSizes.first ?? .small)
+        draftModules.append(
+            DashboardModule(
+                type: type,
+                size: normalizedSize,
+                order: draftModules.count,
+                isVisible: true
+            )
+        )
+        draftModules = reindexedDraftModules(draftModules)
+        selectedModuleID = draftModules.last?.id
+    }
+
+    private func updateSelectedModule(_ update: (inout DashboardModule) -> Void) {
+        guard let selectedModuleID,
+              let index = draftModules.firstIndex(where: { $0.id == selectedModuleID }) else {
+            return
+        }
+
+        update(&draftModules[index])
+        draftModules = reindexedDraftModules(draftModules)
+    }
+
+    private func hideSelectedModule() {
+        guard let selectedModuleID else { return }
+        draftModules.removeAll { $0.id == selectedModuleID }
+        draftModules = reindexedDraftModules(draftModules)
+        self.selectedModuleID = draftModules.first?.id
+    }
+
+    private func reindexedDraftModules(_ modules: [DashboardModule]) -> [DashboardModule] {
+        modules.enumerated().map { index, module in
+            var updated = module
+            updated.order = index
+            updated.isVisible = true
+            return updated
+        }
+    }
+}
+
+enum DashboardRenderRow {
+    case compact([DashboardModule])
+    case expanded(DashboardModule)
 }
 
 struct DashboardInlineEditorBar: View {
@@ -300,7 +410,7 @@ struct DashboardInlineEditorBar: View {
                 Spacer()
             }
 
-            Text(selectedModule == nil ? "Tap a module to edit its size, position, or visibility." : "Use the controls below to tune the selected card in place.")
+            Text(selectedModule == nil ? "Drag a card onto another card to reorder it, or tap one to edit its size." : "The selected card can be resized or hidden below while the grid stays live.")
                 .font(.footnote)
                 .foregroundColor(.secondary)
         }
@@ -313,7 +423,6 @@ struct DashboardInlineEditorBar: View {
 
 struct DashboardSelectedModuleControls: View {
     let module: DashboardModule?
-    let onMove: (DashboardMoveDirection) -> Void
     let onSizeChange: (ModuleSize) -> Void
     let onToggleVisibility: (Bool) -> Void
 
@@ -358,25 +467,13 @@ struct DashboardSelectedModuleControls: View {
                         }
                         .pickerStyle(.segmented)
                     }
-
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Move")
-                            .font(.subheadline.weight(.semibold))
-
-                        HStack(spacing: 12) {
-                            moveButton("arrow.left", direction: .left)
-                            moveButton("arrow.up", direction: .up)
-                            moveButton("arrow.down", direction: .down)
-                            moveButton("arrow.right", direction: .right)
-                        }
-                    }
                 }
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color(.secondarySystemGroupedBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 16))
             } else {
-                Text("Select a module to move it, resize it, or hide it.")
+                Text("Select a module to resize it or hide it.")
                     .font(.footnote)
                     .foregroundColor(.secondary)
                     .padding(16)
@@ -385,18 +482,6 @@ struct DashboardSelectedModuleControls: View {
                     .clipShape(RoundedRectangle(cornerRadius: 16))
             }
         }
-    }
-
-    private func moveButton(_ systemImage: String, direction: DashboardMoveDirection) -> some View {
-        Button {
-            onMove(direction)
-        } label: {
-            Image(systemName: systemImage)
-                .font(.body.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-        }
-        .buttonStyle(.bordered)
     }
 }
 
@@ -460,53 +545,104 @@ struct DashboardInlineAddModuleSheet: View {
     }
 }
 
-struct DashboardGridLayout {
-    struct Item: Identifiable {
-        let module: DashboardModule
-        let frame: CGRect
+struct DashboardEditableModuleCard: View {
+    let module: DashboardModule
+    let isSelected: Bool
+    let height: CGFloat
+    let onSelect: () -> Void
 
-        var id: String { module.id }
+    var body: some View {
+        ModuleDisplayView(
+            module: module,
+            isEditing: true,
+            isSelected: isSelected,
+            onSelect: onSelect
+        )
+        .frame(height: height)
+        .overlay(alignment: .topTrailing) {
+            Image(systemName: "line.3.horizontal")
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.secondary)
+                .padding(10)
+        }
+        .overlay(alignment: .bottomLeading) {
+            Text(module.size.displayName)
+                .font(.caption2.weight(.semibold))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(.ultraThinMaterial, in: Capsule())
+                .padding(10)
+        }
     }
+}
 
-    let items: [Item]
-    let totalHeight: CGFloat
-    let columnWidth: CGFloat
-    let rowHeight: CGFloat
-    let spacing: CGFloat
-    let columns: Int
+struct DashboardModuleDragPreview: View {
+    let module: DashboardModule
 
-    init(modules: [DashboardModule], availableWidth: CGFloat, columns: Int, spacing: CGFloat = 12) {
-        let safeColumns = max(columns, 2)
-        let usableWidth = max(availableWidth, 1)
-        let columnWidth = (usableWidth - spacing * CGFloat(safeColumns - 1)) / CGFloat(safeColumns)
-        let rowHeight = min(max(columnWidth * 0.72, 108), 190)
-        self.columnWidth = columnWidth
-        self.rowHeight = rowHeight
-        self.spacing = spacing
-        self.columns = safeColumns
-        self.items = modules.map { module in
-            Item(
-                module: module,
-                frame: CGRect(
-                    x: CGFloat(module.gridX ?? 0) * (columnWidth + spacing),
-                    y: CGFloat(module.gridY ?? 0) * (rowHeight + spacing),
-                    width: DashboardGridLayout.width(for: module, columnWidth: columnWidth, spacing: spacing, columns: safeColumns),
-                    height: DashboardGridLayout.height(for: module, rowHeight: rowHeight, spacing: spacing)
-                )
-            )
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: module.type.iconName)
+                .font(.body.weight(.semibold))
+                .foregroundColor(.secondary)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(module.type.displayName)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(.primary)
+                Text(module.size.displayName)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .frame(width: 200, alignment: .leading)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+struct DashboardModuleDropDelegate: DropDelegate {
+    let targetModuleID: String
+    @Binding var modules: [DashboardModule]
+    @Binding var draggedModuleID: String?
+    @Binding var selectedModuleID: String?
+
+    func dropEntered(info: DropInfo) {
+        guard let draggedModuleID,
+              draggedModuleID != targetModuleID,
+              let fromIndex = modules.firstIndex(where: { $0.id == draggedModuleID }),
+              let toIndex = modules.firstIndex(where: { $0.id == targetModuleID }) else {
+            return
         }
 
-        let maxRow = modules.map { ($0.gridY ?? 0) + $0.size.rowSpan }.max() ?? 0
-        self.totalHeight = max(CGFloat(maxRow) * rowHeight + CGFloat(max(maxRow - 1, 0)) * spacing, rowHeight)
+        var reordered = modules
+        let movedModule = reordered.remove(at: fromIndex)
+        reordered.insert(movedModule, at: toIndex)
+        modules = reindexed(reordered)
+        selectedModuleID = draggedModuleID
     }
 
-    private static func width(for module: DashboardModule, columnWidth: CGFloat, spacing: CGFloat, columns: Int) -> CGFloat {
-        let span = min(module.size.columnSpan, columns)
-        return CGFloat(span) * columnWidth + CGFloat(max(span - 1, 0)) * spacing
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
     }
 
-    private static func height(for module: DashboardModule, rowHeight: CGFloat, spacing: CGFloat) -> CGFloat {
-        CGFloat(module.size.rowSpan) * rowHeight + CGFloat(max(module.size.rowSpan - 1, 0)) * spacing
+    func performDrop(info: DropInfo) -> Bool {
+        draggedModuleID = nil
+        return true
+    }
+
+    func dropExited(info: DropInfo) {
+        selectedModuleID = draggedModuleID ?? selectedModuleID
+    }
+
+    private func reindexed(_ modules: [DashboardModule]) -> [DashboardModule] {
+        modules.enumerated().map { index, module in
+            var updated = module
+            updated.order = index
+            updated.isVisible = true
+            return updated
+        }
     }
 }
 
