@@ -130,7 +130,11 @@ struct DashboardModulesView: View {
         let liveModules = dashboardService.visibleModules
         let displayModules = dashboardService.isEditingMode ? draftModules : liveModules
         let columnWidth = dashboardColumnWidth(for: effectiveWidth, columns: columnCount)
-        let rows = dashboardRows(for: displayModules, columnCount: columnCount)
+        let rows = dashboardRows(
+            for: displayModules,
+            columnCount: columnCount,
+            columnWidth: columnWidth
+        )
         let existingTypes = Set(displayModules.map(\.type))
 
         VStack(alignment: .leading, spacing: 16) {
@@ -148,16 +152,15 @@ struct DashboardModulesView: View {
                 EmptyDashboardView()
             } else {
                 VStack(alignment: .leading, spacing: 12) {
-                    ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                        switch row {
-                        case let .compact(modules):
+                    ForEach(rows) { row in
+                        if row.usesGrid {
                             LazyVGrid(columns: gridColumns(count: columnCount), spacing: 12) {
-                                ForEach(modules) { module in
-                                    dashboardCard(for: module, columnWidth: columnWidth)
+                                ForEach(row.modules) { module in
+                                    dashboardCard(for: module, rowHeight: row.height)
                                 }
                             }
-                        case let .expanded(module):
-                            dashboardCard(for: module, columnWidth: columnWidth)
+                        } else if let module = row.modules.first {
+                            dashboardCard(for: module, rowHeight: row.height)
                         }
                     }
                 }
@@ -210,7 +213,11 @@ struct DashboardModulesView: View {
         return max((width - totalSpacing) / CGFloat(safeColumns), 120)
     }
 
-    private func dashboardRows(for modules: [DashboardModule], columnCount: Int) -> [DashboardRenderRow] {
+    private func dashboardRows(
+        for modules: [DashboardModule],
+        columnCount: Int,
+        columnWidth: CGFloat
+    ) -> [DashboardRenderRow] {
         let safeColumnCount = max(columnCount, 2)
         var rows: [DashboardRenderRow] = []
         var compactModules: [DashboardModule] = []
@@ -219,44 +226,62 @@ struct DashboardModulesView: View {
             if module.size == .small {
                 compactModules.append(module)
                 if compactModules.count == safeColumnCount {
-                    rows.append(.compact(compactModules))
+                    rows.append(
+                        DashboardRenderRow(
+                            modules: compactModules,
+                            height: rowHeight(for: compactModules, columnWidth: columnWidth),
+                            usesGrid: true
+                        )
+                    )
                     compactModules.removeAll()
                 }
             } else {
                 if !compactModules.isEmpty {
-                    rows.append(.compact(compactModules))
+                    rows.append(
+                        DashboardRenderRow(
+                            modules: compactModules,
+                            height: rowHeight(for: compactModules, columnWidth: columnWidth),
+                            usesGrid: true
+                        )
+                    )
                     compactModules.removeAll()
                 }
-                rows.append(.expanded(module))
+                rows.append(
+                    DashboardRenderRow(
+                        modules: [module],
+                        height: rowHeight(for: [module], columnWidth: columnWidth),
+                        usesGrid: false
+                    )
+                )
             }
         }
 
         if !compactModules.isEmpty {
-            rows.append(.compact(compactModules))
+            rows.append(
+                DashboardRenderRow(
+                    modules: compactModules,
+                    height: rowHeight(for: compactModules, columnWidth: columnWidth),
+                    usesGrid: true
+                )
+            )
         }
 
         return rows
     }
 
-    private func dashboardCardHeight(for module: DashboardModule, columnWidth: CGFloat) -> CGFloat {
-        let baseHeight = max(min(columnWidth * 0.92, 220), 124)
-        switch module.size {
-        case .small:
-            return baseHeight
-        case .medium:
-            return baseHeight * 1.18
-        case .large:
-            return baseHeight * 1.5
-        }
+    private func rowHeight(for modules: [DashboardModule], columnWidth: CGFloat) -> CGFloat {
+        modules
+            .map { DashboardModuleLayoutSpec(module: $0).height(for: columnWidth) }
+            .max() ?? 124
     }
 
     @ViewBuilder
-    private func dashboardCard(for module: DashboardModule, columnWidth: CGFloat) -> some View {
+    private func dashboardCard(for module: DashboardModule, rowHeight: CGFloat) -> some View {
         if dashboardService.isEditingMode {
             DashboardEditableModuleCard(
                 module: module,
                 isDragging: draggedModuleID == module.id,
-                height: dashboardCardHeight(for: module, columnWidth: columnWidth),
+                height: rowHeight,
                 onSizeChange: { newSize in
                     updateDraftModule(moduleID: module.id) { draftModule in
                         let allowedSizes = draftModule.type.allowedSizes
@@ -286,8 +311,8 @@ struct DashboardModulesView: View {
             ModuleDisplayView(module: module)
                 .frame(
                     maxWidth: module.size == .small ? nil : .infinity,
-                    minHeight: dashboardCardHeight(for: module, columnWidth: columnWidth),
-                    maxHeight: dashboardCardHeight(for: module, columnWidth: columnWidth)
+                    minHeight: rowHeight,
+                    maxHeight: rowHeight
                 )
         }
     }
@@ -337,9 +362,44 @@ struct DashboardModulesView: View {
     }
 }
 
-enum DashboardRenderRow {
-    case compact([DashboardModule])
-    case expanded(DashboardModule)
+struct DashboardRenderRow: Identifiable {
+    let modules: [DashboardModule]
+    let height: CGFloat
+    let usesGrid: Bool
+
+    var id: String {
+        modules.map(\.id).joined(separator: "-")
+    }
+}
+
+struct DashboardModuleLayoutSpec {
+    let heightMultiplier: CGFloat
+    let minimumHeight: CGFloat
+
+    init(module: DashboardModule) {
+        switch (module.type, module.size) {
+        case (.sessionVolume, .medium):
+            heightMultiplier = 1.35
+            minimumHeight = 182
+        case (.sessionVolume, .large):
+            heightMultiplier = 1.8
+            minimumHeight = 272
+        case (_, .small):
+            heightMultiplier = 1
+            minimumHeight = 124
+        case (_, .medium):
+            heightMultiplier = 1.18
+            minimumHeight = 146
+        case (_, .large):
+            heightMultiplier = 1.5
+            minimumHeight = 186
+        }
+    }
+
+    func height(for columnWidth: CGFloat) -> CGFloat {
+        let baseHeight = max(min(columnWidth * 0.92, 220), 124)
+        return max(baseHeight * heightMultiplier, minimumHeight)
+    }
 }
 
 struct DashboardInlineEditorBar: View {
