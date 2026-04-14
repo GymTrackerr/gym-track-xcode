@@ -1,13 +1,14 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 struct HomeView: View {
     @EnvironmentObject var userService: UserService
     @EnvironmentObject var hkManager: HealthKitManager
     @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
+    @EnvironmentObject var dashboardService: DashboardService
 
     @State private var openedSession: Session? = nil
-    @State private var showEditMenu: Bool = false
     
     var body: some View {
         Group {
@@ -20,15 +21,54 @@ struct HomeView: View {
                     .padding(.vertical, 12)
                 }
                 .scrollBounceBehavior(.basedOnSize)
+                .refreshable {
+                    await refreshHealthData(forceRefresh: true)
+                }
             } else {
                 Text("Please continue to onboarding")
             }
         }
         .task(id: userService.currentUser?.id) {
-            guard userService.currentUser?.isDemo != true else { return }
+            await refreshHealthData(requestAuthorization: true)
+        }
+        .navigationTitle(userService.currentUser.map { "Welcome \($0.name)" } ?? "Home")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                HStack(spacing: 16) {
+                    Button(action: {
+                        dashboardService.isEditingMode.toggle()
+                    }) {
+                        Label(
+                            dashboardService.isEditingMode ? "Done" : "Edit",
+                            systemImage: dashboardService.isEditingMode ? "checkmark.circle" : "pencil"
+                        )
+                    }
+                    NavigationLink(destination: SettingsView()) {
+                        Label("Settings", systemImage: "gearshape")
+                    }
+                }
+            }
+        }
+    }
+
+    private func refreshHealthData(
+        forceRefresh: Bool = false,
+        requestAuthorization: Bool = false
+    ) async {
+        guard let currentUser = userService.currentUser, currentUser.isDemo != true else { return }
+        guard currentUser.allowHealthAccess else { return }
+
+        if requestAuthorization {
             await hkManager.requestAuthorization()
-            await hkManager.fetchWorkouts()
-            guard let userId = userService.currentUser?.id.uuidString else { return }
+        }
+
+        await hkManager.fetchWorkouts()
+        let userId = currentUser.id.uuidString
+
+        if forceRefresh {
+            await healthKitDailyStore.forceRefreshRecentData(userId: userId)
+        } else {
             await healthKitDailyStore.refreshTodayIfNeeded(userId: userId)
             _ = try? await healthKitDailyStore.dailySummaries(
                 endingOn: Date(),
@@ -37,55 +77,20 @@ struct HomeView: View {
                 policy: .refreshIfStale
             )
         }
-        .navigationTitle(userService.currentUser != nil ? "Welcome \(userService.currentUser!.name)" : "Home" )
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                HStack(spacing: 16) {
-                    Button(action: { showEditMenu = true }) {
-                        Label("Edit", systemImage: "pencil")
-                    }
-                    NavigationLink(destination: SettingsView()) {
-                        Label("Settings", systemImage: "gearshape")
-                    }
-                }
-            }
-        }
-        .sheet(isPresented: $showEditMenu) {
-            DashboardEditView(isPresented: $showEditMenu)
-        }
     }
 }
 
 struct DashboardGridView: View {
-    @EnvironmentObject var dashboardService: DashboardService
     @EnvironmentObject var userService: UserService
     @Binding var openedSession: Session?
     
-    var visibleModules: [DashboardModule] {
-        dashboardService.getVisibleModules()
-    }
-    
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            if userService.currentUser?.allowHealthAccess ?? false {
-                if visibleModules.isEmpty {
-                    EmptyDashboardView()
-                } else {
-                    DashboardModulesView(visibleModules: visibleModules)
-                }
-            } else {
-                VStack(spacing: 16) {
-                    Text("Health Data Not Available")
-                        .font(.headline)
-                    Text("Please enable HealthKit access in Settings to see your dashboard")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
+            if userService.currentUser?.allowHealthAccess != true && userService.currentUser?.isDemo != true {
+                HealthAccessBanner()
             }
+
+            DashboardModulesView()
 
             VStack(alignment: .leading, spacing: 12) {
                 Text("Sessions")
@@ -94,6 +99,22 @@ struct DashboardGridView: View {
                 SessionsView(openedSession: $openedSession)
             }
         }
+    }
+}
+
+struct HealthAccessBanner: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Connect Apple Health")
+                .font(.headline)
+            Text("Health-backed cards like weight, steps, sleep, activity rings, and imported workouts will stay visible here once access is enabled in Settings.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }
 
@@ -106,7 +127,7 @@ struct EmptyDashboardView: View {
             Text("No Dashboard Modules")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
-            Text("Tap Edit to add modules")
+            Text("Tap Edit to add modules or apply a preset")
                 .font(.caption)
                 .foregroundColor(.secondary.opacity(0.7))
         }
@@ -116,148 +137,715 @@ struct EmptyDashboardView: View {
 }
 
 struct DashboardModulesView: View {
-    let visibleModules: [DashboardModule]
+    @EnvironmentObject var dashboardService: DashboardService
+    @State private var showAddModuleSheet = false
+    @State private var availableWidth: CGFloat = 0
+    @State private var draftModules: [DashboardModule] = []
+    @State private var draggedModuleID: String?
+
+    private let dashboardSpacing: CGFloat = 12
 
     var body: some View {
-        let spacing: CGFloat = 12
-        let padding: CGFloat = 32
-        let screenWidth = UIScreen.main.bounds.width
-        let availableWidth = screenWidth - padding
-        let cellSize = (availableWidth - spacing) / 2
-        let smallCellHeight: CGFloat = cellSize * 0.55 // 45% shorter for compact small tiles
-        
-        DashboardModulesList(
-            visibleModules: visibleModules,
-            cellSize: cellSize,
-            smallCellHeight: smallCellHeight
+        let effectiveWidth = max(availableWidth, UIScreen.main.bounds.width - 32)
+        let columnCount = dashboardService.defaultColumnCount(for: effectiveWidth)
+        let liveModules = dashboardService.visibleModules
+        let displayModules = dashboardService.isEditingMode ? draftModules : liveModules
+        let layout = DashboardGridLayout(
+            modules: displayModules,
+            availableWidth: effectiveWidth,
+            columnCount: columnCount,
+            spacing: dashboardSpacing
         )
-    }
-}
+        let existingTypes = Set(displayModules.map(\.type))
 
-struct DashboardModulesList: View {
-    let visibleModules: [DashboardModule]
-    let cellSize: CGFloat
-    let smallCellHeight: CGFloat
-    
-    var body: some View {
-        let rows = buildModuleRows()
-        VStack(spacing: 12) {
-            ForEach(rows.indices, id: \.self) { rowIndex in
-                let row = rows[rowIndex]
-                
-                if let module = row.module {
-                    DashboardFullWidthModule(module: module, cellSize: cellSize, smallCellHeight: smallCellHeight)
-                } else if !row.smallModules.isEmpty {
-                    DashboardSmallModulesGrid(modules: row.smallModules, cellSize: smallCellHeight)
-                }
+        VStack(alignment: .leading, spacing: 16) {
+            if dashboardService.isEditingMode {
+                DashboardInlineEditorBar(
+                    canAddModules: existingTypes.count < ModuleType.allCases.count,
+                    onAddModule: { showAddModuleSheet = true },
+                    onApplyPreset: { preset in
+                        draftModules = dashboardService.modulesForPreset(preset)
+                    }
+                )
             }
-        }
-    }
-    
-    private func buildModuleRows() -> [ModuleRow] {
-        var rows: [ModuleRow] = []
-        var smallBuffer: [DashboardModule] = []
-        
-        for (index, module) in visibleModules.enumerated() {
-            let isFullWidth = module.size == .medium || module.size == .large
-            let isLastModule = index == visibleModules.count - 1
-            let nextIsFullWidth = !isLastModule && (visibleModules[index + 1].size == .medium || visibleModules[index + 1].size == .large)
-            
-            if isFullWidth {
-                if !smallBuffer.isEmpty {
-                    rows.append(ModuleRow(smallModules: smallBuffer, module: nil))
-                    smallBuffer = []
-                }
-                rows.append(ModuleRow(smallModules: [], module: module))
+
+            if displayModules.isEmpty {
+                EmptyDashboardView()
             } else {
-                smallBuffer.append(module)
-                
-                if nextIsFullWidth || isLastModule {
-                    rows.append(ModuleRow(smallModules: smallBuffer, module: nil))
-                    smallBuffer = []
+                ZStack(alignment: .topLeading) {
+                    ForEach(layout.items) { item in
+                        dashboardCard(for: item)
+                            .offset(x: item.origin.x, y: item.origin.y)
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: layout.height, alignment: .topLeading)
+                .animation(
+                    .spring(response: 0.28, dampingFraction: 0.86),
+                    value: displayModules.map { "\($0.id)-\($0.order)-\($0.size.rawValue)-\($0.isVisible)" }
+                )
+            }
+        }
+        .background(
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear {
+                        availableWidth = proxy.size.width
+                    }
+                    .onChange(of: proxy.size.width) { _, newWidth in
+                        availableWidth = newWidth
+                    }
+            }
+        )
+        .sheet(isPresented: $showAddModuleSheet) {
+            DashboardInlineAddModuleSheet(
+                isPresented: $showAddModuleSheet,
+                existingTypes: existingTypes
+            ) { type, size in
+                addDraftModule(type: type, size: size)
+            }
+        }
+        .onAppear {
+            if dashboardService.isEditingMode {
+                beginEditing(with: liveModules)
+            }
+        }
+        .onChange(of: dashboardService.isEditingMode) { _, isEditing in
+            if isEditing {
+                beginEditing(with: liveModules)
+            } else {
+                finishEditing()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func dashboardCard(for item: DashboardGridLayoutItem) -> some View {
+        if dashboardService.isEditingMode {
+            DashboardEditableModuleCard(
+                module: item.module,
+                isDragging: draggedModuleID == item.module.id,
+                width: item.size.width,
+                height: item.size.height,
+                onSizeChange: { newSize in
+                    updateDraftModule(moduleID: item.module.id) { draftModule in
+                        let allowedSizes = draftModule.type.allowedSizes
+                        draftModule.size = allowedSizes.contains(newSize) ? newSize : (allowedSizes.first ?? .small)
+                    }
+                },
+                onHide: {
+                    hideDraftModule(moduleID: item.module.id)
+                }
+            )
+            .onDrag {
+                draggedModuleID = item.module.id
+                return NSItemProvider(object: item.module.id as NSString)
+            } preview: {
+                DashboardModuleDragPreview(module: item.module)
+            }
+            .onDrop(
+                of: [UTType.text],
+                delegate: DashboardModuleDropDelegate(
+                    targetModuleID: item.module.id,
+                    modules: $draftModules,
+                    draggedModuleID: $draggedModuleID
+                )
+            )
+        } else {
+            ModuleDisplayView(module: item.module)
+                .frame(width: item.size.width, height: item.size.height)
+        }
+    }
+
+    private func beginEditing(with modules: [DashboardModule]) {
+        draftModules = reindexedDraftModules(modules)
+    }
+
+    private func finishEditing() {
+        dashboardService.saveVisibleModules(draftModules)
+        draggedModuleID = nil
+    }
+
+    private func addDraftModule(type: ModuleType, size: ModuleSize) {
+        guard !draftModules.contains(where: { $0.type == type }) else { return }
+        let allowedSizes = type.allowedSizes
+        let normalizedSize = allowedSizes.contains(size) ? size : (allowedSizes.first ?? .small)
+        draftModules.append(
+            DashboardModule(
+                type: type,
+                size: normalizedSize,
+                order: draftModules.count,
+                isVisible: true
+            )
+        )
+        draftModules = reindexedDraftModules(draftModules)
+    }
+
+    private func updateDraftModule(moduleID: String, update: (inout DashboardModule) -> Void) {
+        guard let index = draftModules.firstIndex(where: { $0.id == moduleID }) else { return }
+        update(&draftModules[index])
+        draftModules = reindexedDraftModules(draftModules)
+    }
+
+    private func hideDraftModule(moduleID: String) {
+        draftModules.removeAll { $0.id == moduleID }
+        draftModules = reindexedDraftModules(draftModules)
+    }
+
+    private func reindexedDraftModules(_ modules: [DashboardModule]) -> [DashboardModule] {
+        modules.enumerated().map { index, module in
+            var updated = module
+            updated.order = index
+            updated.isVisible = true
+            return updated
+        }
+    }
+}
+
+struct DashboardGridLayoutItem: Identifiable {
+    let module: DashboardModule
+    let origin: CGPoint
+    let size: CGSize
+    let row: Int
+    let column: Int
+
+    var id: String { module.id }
+}
+
+struct DashboardGridLayout {
+    let items: [DashboardGridLayoutItem]
+    let height: CGFloat
+    let cellWidth: CGFloat
+    let cellHeight: CGFloat
+    let spacing: CGFloat
+
+    init(
+        modules: [DashboardModule],
+        availableWidth: CGFloat,
+        columnCount: Int,
+        spacing: CGFloat
+    ) {
+        let safeColumnCount = max(columnCount, 2)
+        let totalSpacing = CGFloat(safeColumnCount - 1) * spacing
+        let cellWidth = max((availableWidth - totalSpacing) / CGFloat(safeColumnCount), 120)
+        let cellHeight = max(min(cellWidth * 0.92, 220), 124)
+
+        var occupancy: [[Bool]] = []
+        var layoutItems: [DashboardGridLayoutItem] = []
+        var maxOccupiedRow = 0
+
+        func ensureRows(_ rowCount: Int) {
+            while occupancy.count < rowCount {
+                occupancy.append(Array(repeating: false, count: safeColumnCount))
+            }
+        }
+
+        func canPlace(row: Int, column: Int, columnSpan: Int, rowSpan: Int) -> Bool {
+            guard column + columnSpan <= safeColumnCount else { return false }
+            ensureRows(row + rowSpan)
+
+            for rowIndex in row..<(row + rowSpan) {
+                for columnIndex in column..<(column + columnSpan) {
+                    if occupancy[rowIndex][columnIndex] {
+                        return false
+                    }
+                }
+            }
+
+            return true
+        }
+
+        func markOccupied(row: Int, column: Int, columnSpan: Int, rowSpan: Int) {
+            for rowIndex in row..<(row + rowSpan) {
+                for columnIndex in column..<(column + columnSpan) {
+                    occupancy[rowIndex][columnIndex] = true
                 }
             }
         }
-        
-        return rows
-    }
-    
-    struct ModuleRow {
-        let smallModules: [DashboardModule]
-        let module: DashboardModule?
+
+        for module in modules {
+            let columnSpan = min(module.size.columnSpan, safeColumnCount)
+            let rowSpan = module.size.rowSpan
+            var targetRow = 0
+            var targetColumn = 0
+            var placed = false
+
+            while !placed {
+                ensureRows(targetRow + rowSpan)
+
+                for candidateColumn in 0...(safeColumnCount - columnSpan) {
+                    if canPlace(
+                        row: targetRow,
+                        column: candidateColumn,
+                        columnSpan: columnSpan,
+                        rowSpan: rowSpan
+                    ) {
+                        targetColumn = candidateColumn
+                        placed = true
+                        break
+                    }
+                }
+
+                if !placed {
+                    targetRow += 1
+                }
+            }
+
+            markOccupied(row: targetRow, column: targetColumn, columnSpan: columnSpan, rowSpan: rowSpan)
+
+            let itemWidth = (CGFloat(columnSpan) * cellWidth) + (CGFloat(columnSpan - 1) * spacing)
+            let itemHeight = (CGFloat(rowSpan) * cellHeight) + (CGFloat(rowSpan - 1) * spacing)
+            let origin = CGPoint(
+                x: CGFloat(targetColumn) * (cellWidth + spacing),
+                y: CGFloat(targetRow) * (cellHeight + spacing)
+            )
+
+            layoutItems.append(
+                DashboardGridLayoutItem(
+                    module: module,
+                    origin: origin,
+                    size: CGSize(width: itemWidth, height: itemHeight),
+                    row: targetRow,
+                    column: targetColumn
+                )
+            )
+            maxOccupiedRow = max(maxOccupiedRow, targetRow + rowSpan)
+        }
+
+        self.items = layoutItems
+        self.cellWidth = cellWidth
+        self.cellHeight = cellHeight
+        self.spacing = spacing
+        self.height = maxOccupiedRow > 0
+            ? (CGFloat(maxOccupiedRow) * cellHeight) + (CGFloat(maxOccupiedRow - 1) * spacing)
+            : 0
     }
 }
 
-struct DashboardSmallModulesGrid: View {
-    let modules: [DashboardModule]
-    let cellSize: CGFloat
-    
+struct DashboardInlineEditorBar: View {
+    let canAddModules: Bool
+    let onAddModule: () -> Void
+    let onApplyPreset: (DashboardPreset) -> Void
+
     var body: some View {
-        LazyVGrid(
-            columns: [
-                GridItem(.flexible(), spacing: 12),
-                GridItem(.flexible(), spacing: 12)
-            ],
-            spacing: 12
-        ) {
-            ForEach(modules, id: \.id) { module in
-                ModuleDisplayView(module: module)
-                    .frame(height: cellSize, alignment: .topLeading)
-                    .glassEffect(in: .rect(cornerRadius: 12.0))
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Button(action: onAddModule) {
+                    Label("Add Module", systemImage: "plus.circle.fill")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!canAddModules)
+
+                Menu {
+                    Section("Presets") {
+                        ForEach(DashboardPreset.productionCases) { preset in
+                            Button {
+                                onApplyPreset(preset)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(preset.displayName)
+                                    Text(preset.description)
+                                }
+                            }
+                        }
+                    }
+
+#if DEBUG
+                    Section("Debug Layout Tests") {
+                        ForEach(DashboardPreset.debugCases) { preset in
+                            Button {
+                                onApplyPreset(preset)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(preset.displayName)
+                                    Text(preset.description)
+                                }
+                            }
+                        }
+                    }
+#endif
+                } label: {
+                    Label("Presets", systemImage: "square.grid.2x2")
+                }
+                .buttonStyle(.bordered)
+
+                Spacer()
             }
+
+            Text("Drag cards to reorder them, and use the menu on each card to resize or hide it.")
+                .font(.footnote)
+                .foregroundColor(.secondary)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+struct DashboardInlineAddModuleSheet: View {
+    @Binding var isPresented: Bool
+    let existingTypes: Set<ModuleType>
+    let onAdd: (ModuleType, ModuleSize) -> Void
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if availableTypes.isEmpty {
+                    Text("All module types are already on your dashboard.")
+                        .foregroundColor(.secondary)
+                } else {
+                    if !smallTypes.isEmpty {
+                        Section("Small (1x1)") {
+                            ForEach(smallTypes, id: \.self) { type in
+                                addButton(for: type, size: .small)
+                            }
+                        }
+                    }
+
+                    if !mediumTypes.isEmpty {
+                        Section("Medium (2x1)") {
+                            ForEach(mediumTypes, id: \.self) { type in
+                                addButton(for: type, size: .medium)
+                            }
+                        }
+                    }
+
+                    if !largeTypes.isEmpty {
+                        Section("Large (2x2)") {
+                            ForEach(largeTypes, id: \.self) { type in
+                                addButton(for: type, size: .large)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Add Module")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        isPresented = false
+                    }
+                }
+            }
+        }
+    }
+
+    private var availableTypes: [ModuleType] {
+        ModuleType.allCases.filter { !existingTypes.contains($0) }
+    }
+
+    private var smallTypes: [ModuleType] {
+        availableTypes.filter { $0.allowedSizes.contains(.small) }
+    }
+
+    private var mediumTypes: [ModuleType] {
+        availableTypes.filter { $0.allowedSizes.contains(.medium) }
+    }
+
+    private var largeTypes: [ModuleType] {
+        availableTypes.filter { $0.allowedSizes.contains(.large) }
+    }
+
+    @ViewBuilder
+    private func addButton(for type: ModuleType, size: ModuleSize) -> some View {
+        Button {
+            onAdd(type, size)
+            isPresented = false
+        } label: {
+            HStack {
+                Label(type.displayName, systemImage: type.iconName)
+                Spacer()
+                Image(systemName: "plus.circle.fill")
+                    .foregroundColor(.blue)
+            }
+        }
+        .foregroundColor(.primary)
+    }
+}
+
+struct DashboardEditableModuleCard: View {
+    let module: DashboardModule
+    let isDragging: Bool
+    let width: CGFloat
+    let height: CGFloat
+    let onSizeChange: (ModuleSize) -> Void
+    let onHide: () -> Void
+
+    var body: some View {
+        ModuleDisplayView(
+            module: module,
+            isEditing: true,
+            headerAccessory: AnyView(moduleActionMenu)
+        )
+        .frame(width: width, height: height)
+        .scaleEffect(isDragging ? 0.97 : 1)
+        .opacity(isDragging ? 0.68 : 1)
+        .shadow(
+            color: isDragging ? Color.black.opacity(0.16) : Color.clear,
+            radius: isDragging ? 16 : 0,
+            y: isDragging ? 8 : 0
+        )
+        .animation(.easeInOut(duration: 0.18), value: isDragging)
+        .overlay(alignment: .bottomLeading) {
+            Text(module.size.displayName)
+                .font(.caption2.weight(.semibold))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(.ultraThinMaterial, in: Capsule())
+                .padding(10)
+        }
+        .overlay(alignment: .topLeading) {
+            Image(systemName: "hand.draw")
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.secondary)
+                .padding(10)
+        }
+    }
+
+    private var moduleActionMenu: some View {
+        Menu {
+            if module.type.allowedSizes.count > 1 {
+                Section("Size") {
+                    ForEach(module.type.allowedSizes, id: \.self) { size in
+                        Button {
+                            onSizeChange(size)
+                        } label: {
+                            if size == module.size {
+                                Label(size.displayName, systemImage: "checkmark")
+                            } else {
+                                Text(size.displayName)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Section {
+                Button(role: .destructive) {
+                    onHide()
+                } label: {
+                    Label("Remove Module", systemImage: "trash")
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle.fill")
+                .font(.title3)
+                .symbolRenderingMode(.hierarchical)
+                .foregroundColor(.primary.opacity(0.9))
+                .padding(6)
+                .background(.ultraThinMaterial, in: Circle())
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(0.28), lineWidth: 0.8)
+                )
         }
     }
 }
 
-struct DashboardFullWidthModule: View {
+struct DashboardModuleDragPreview: View {
     let module: DashboardModule
-    let cellSize: CGFloat
-    let smallCellHeight: CGFloat
-    
+
     var body: some View {
-        ModuleDisplayView(module: module)
-            .frame(
-                height: getHeight(for: module.size),
-                alignment: .topLeading
-            )
-            .glassEffect(in: .rect(cornerRadius: 12.0))
+        HStack(spacing: 10) {
+            Image(systemName: module.type.iconName)
+                .font(.body.weight(.semibold))
+                .foregroundColor(.secondary)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(module.type.displayName)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(.primary)
+                Text(module.size.displayName)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .frame(width: 200, alignment: .leading)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
     }
-    
-    private func getHeight(for size: ModuleSize) -> CGFloat {
-        switch size {
-        case .small:
-            return smallCellHeight
-        case .medium:
-            return cellSize
-        case .large:
-            return cellSize * 2 + 12
+}
+
+struct DashboardModuleDropDelegate: DropDelegate {
+    let targetModuleID: String
+    @Binding var modules: [DashboardModule]
+    @Binding var draggedModuleID: String?
+
+    func dropEntered(info: DropInfo) {
+        guard let draggedModuleID,
+              draggedModuleID != targetModuleID,
+              let fromIndex = modules.firstIndex(where: { $0.id == draggedModuleID }),
+              let toIndex = modules.firstIndex(where: { $0.id == targetModuleID }) else {
+            return
+        }
+
+        var reordered = modules
+        let movedModule = reordered.remove(at: fromIndex)
+        reordered.insert(movedModule, at: toIndex)
+        modules = reindexed(reordered)
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggedModuleID = nil
+        return true
+    }
+
+    private func reindexed(_ modules: [DashboardModule]) -> [DashboardModule] {
+        modules.enumerated().map { index, module in
+            var updated = module
+            updated.order = index
+            updated.isVisible = true
+            return updated
         }
     }
 }
 
 struct ModuleDisplayView: View {
+    @EnvironmentObject var userService: UserService
     let module: DashboardModule
+    var isEditing: Bool = false
+    var headerAccessory: AnyView? = nil
     
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Image(systemName: module.type.iconName)
-                    .foregroundColor(.secondary)
-                    .font(.body)
-                
-                Text(module.type.displayName)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Spacer()
+        DashboardModuleCardChrome(
+            module: module,
+            isEditing: isEditing,
+            headerAccessory: headerAccessory
+        ) {
+            if !hasHealthAccess && module.type.requiresHealthAccess {
+                DashboardHealthAccessPlaceholder(module: module)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    .padding(DashboardModuleVisualSpec(module.size).contentPadding)
+            } else {
+                DashboardModuleContent(module: module)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding(DashboardModuleVisualSpec(module.size).contentPadding)
             }
-            .padding(8)
-            
-            Divider()
-            
-            DashboardModuleContent(module: module)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .padding(8)
         }
+    }
+
+    private var hasHealthAccess: Bool {
+        (userService.currentUser?.allowHealthAccess ?? false) || (userService.currentUser?.isDemo ?? false)
+    }
+}
+
+struct DashboardModuleCardChrome<Content: View>: View {
+    let module: DashboardModule
+    let isEditing: Bool
+    let headerAccessory: AnyView?
+    let content: Content
+
+    init(
+        module: DashboardModule,
+        isEditing: Bool,
+        headerAccessory: AnyView? = nil,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.module = module
+        self.isEditing = isEditing
+        self.headerAccessory = headerAccessory
+        self.content = content()
+    }
+
+    var body: some View {
+        let spec = DashboardModuleVisualSpec(module.size)
+
+        ZStack {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(
+                    Color(.secondarySystemBackground)
+                        .opacity(isEditing ? 0.34 : 0.16)
+                )
+
+            VStack(spacing: 0) {
+                HStack(spacing: 8) {
+                    Image(systemName: module.type.iconName)
+                        .foregroundColor(.secondary)
+                        .font(.body)
+
+                    Text(module.type.displayName)
+                        .font(spec.headerFont)
+                        .foregroundColor(.secondary)
+
+                    Spacer()
+
+                    if let headerAccessory {
+                        headerAccessory
+                    }
+                }
+                .padding(spec.headerPadding)
+
+                Divider()
+
+                content
+                    .allowsHitTesting(!isEditing)
+            }
+            .glassEffect(in: .rect(cornerRadius: 12.0))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+
+            if isEditing {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.black.opacity(0.02))
+                    .allowsHitTesting(false)
+
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.white.opacity(0.35), lineWidth: 1.25)
+                    .allowsHitTesting(false)
+            }
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+struct DashboardModuleVisualSpec {
+    let headerPadding: CGFloat
+    let contentPadding: CGFloat
+    let headerFont: Font
+
+    init(_ size: ModuleSize) {
+        switch size {
+        case .small:
+            headerPadding = 8
+            contentPadding = 8
+            headerFont = .caption
+        case .medium:
+            headerPadding = 10
+            contentPadding = 10
+            headerFont = .caption
+        case .large:
+            headerPadding = 12
+            contentPadding = 12
+            headerFont = .subheadline
+        }
+    }
+}
+
+struct DashboardHealthAccessPlaceholder: View {
+    let module: DashboardModule
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(systemName: module.type.iconName)
+                .font(.title3.weight(.semibold))
+                .foregroundColor(.secondary)
+
+            Text("Connect Apple Health")
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.primary)
+            Text("\(module.type.displayName) will appear here once Health access is enabled.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(3)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -279,7 +867,7 @@ struct DashboardModuleContent: View {
         case .fitnessWorkouts:
             FitnessWorkoutsModuleView()
         case .truesight:
-            FitSightModuleView(module: module)
+            FitSightModuleView()
         case .nutrition:
             NutritionModuleView(module: module)
         case .sessionVolume:
@@ -289,15 +877,10 @@ struct DashboardModuleContent: View {
 }
 
 struct FitSightModuleView: View {
-    let module: DashboardModule
-    
     var body: some View {
         NavigationLink(destination: TrueSightView().appBackground()) {
             MetricCard(
-                title: module.type.displayName,
-                value: "View",
-                icon: module.type.iconName,
-                hasBackground: false
+                value: "View"
             )
         }
        
@@ -318,11 +901,8 @@ struct NutritionModuleView: View {
         } else {
             NavigationLink(destination: NutritionDayView().appBackground()) {
                 MetricCard(
-                    title: module.type.displayName,
                     value: smallCardValue,
-                    icon: module.type.iconName,
-                    pageNav: true,
-                    hasBackground: false
+                    pageNav: true
                 )
             }
             .task(id: userService.currentUser?.id) {
@@ -352,15 +932,16 @@ struct CurrentWeightModuleView: View {
     @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
     @EnvironmentObject var userService: UserService
     @State private var currentWeight: Double?
+
+    private var refreshID: String {
+        "\(userService.currentUser?.id.uuidString ?? "none")-\(healthKitDailyStore.refreshToken)"
+    }
     
     var body: some View {
         MetricCard(
-            title: "Current Weight",
-            value: currentWeight.map { String(format: "%.1f", $0) } ?? "N/A",
-            icon: "lock.fill",
-            hasBackground: false
+            value: currentWeight.map { String(format: "%.1f", $0) } ?? "N/A"
         )
-        .task(id: userService.currentUser?.id) {
+        .task(id: refreshID) {
             await loadCurrentWeight()
         }
     }
@@ -385,12 +966,16 @@ struct WeeklyStepsModuleView: View {
     @EnvironmentObject var userService: UserService
     @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
     @State private var weeklyStepsTotal: Double = 0
+
+    private var refreshID: String {
+        "\(userService.currentUser?.id.uuidString ?? "none")-\(healthKitDailyStore.refreshToken)"
+    }
     
     var body: some View {
         if module.size == .medium || module.size == .large {
             NavigationLink(destination: HealthHistoryChartView().appBackground()) {
                 StepBarGraph(
-                    height: module.size == .large ? 165 : 120,
+                    height: module.size == .large ? 132 : 82,
                     barColor: .blue
                 )
                 .padding(.horizontal, 4)
@@ -399,13 +984,10 @@ struct WeeklyStepsModuleView: View {
         } else {
             NavigationLink(destination: HealthHistoryChartView().appBackground()) {
                 MetricCard(
-                    title: "Weekly Steps",
-                    value: String(weeklyStepsTotal.rounded()),
-                    icon: "figure.walk.motion",
-                    hasBackground: false
+                    value: String(weeklyStepsTotal.rounded())
                 )
             }
-            .task(id: userService.currentUser?.id) {
+            .task(id: refreshID) {
                 await loadWeeklyTotal()
             }
         }
@@ -431,28 +1013,26 @@ struct SleepModuleView: View {
     @EnvironmentObject var userService: UserService
     @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
     @State private var sleepHours: Double?
+
+    private var refreshID: String {
+        "\(userService.currentUser?.id.uuidString ?? "none")-\(healthKitDailyStore.refreshToken)"
+    }
     
     var body: some View {
         Group {
             if let sleepHours {
                 MetricCard(
-                    title: "Sleep",
                     value: String(format: "%.1f", sleepHours) + " hrs",
-                    icon: "bed.double",
-                    alignment: .center,
-                    hasBackground: false
+                    alignment: .center
                 )
             } else {
                 MetricCard(
-                    title: "Sleep",
                     value: "N/A",
-                    icon: "bed.double",
-                    alignment: .center,
-                    hasBackground: false
+                    alignment: .center
                 )
             }
         }
-        .task(id: userService.currentUser?.id) {
+        .task(id: refreshID) {
             await loadSleep()
         }
     }
@@ -480,28 +1060,27 @@ struct ActivityRingsModuleView: View {
     @EnvironmentObject var userService: UserService
     @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
     @State private var ringStatus: ActivityRingStatus?
+
+    private var refreshID: String {
+        "\(userService.currentUser?.id.uuidString ?? "none")-\(healthKitDailyStore.refreshToken)"
+    }
     
     var body: some View {
         Group {
             if let ars = ringStatus {
                 MetricActivityRingCard(
-                    title: "Activity Rings",
                     activityRings: ars,
-                    alignment: .center,
-                    hasBackground: false
+                    alignment: .center
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             } else {
                 MetricCard(
-                    title: "Activity Rings",
                     value: "Loading...",
-                    icon: "gauge.with.needle",
-                    alignment: .center,
-                    hasBackground: false
+                    alignment: .center
                 )
             }
         }
-        .task(id: userService.currentUser?.id) {
+        .task(id: refreshID) {
             await loadRingStatus()
         }
     }
@@ -539,11 +1118,8 @@ struct TimerModuleView: View {
     var body: some View {
         NavigationLink(destination: TimerView().appBackground()) {
             MetricCard(
-                title: timerService.timer != nil ? "Timer" : "Start Timer",
                 value: timerService.timer != nil ? timerService.formatted : "--:--",
-                icon: "timer",
-                pageNav: true,
-                hasBackground: false
+                pageNav: true
             )
         }
     }
@@ -557,11 +1133,8 @@ struct FitnessWorkoutsModuleView: View {
     var body: some View {
         NavigationLink(destination: destinationView) {
             MetricCard(
-                title: "Fitness Workouts",
                 value: String(workoutCount),
-                icon: "figure.strengthtraining.traditional",
-                pageNav: true,
-                hasBackground: false
+                pageNav: true
             )
         }
     }
@@ -580,369 +1153,6 @@ struct FitnessWorkoutsModuleView: View {
         } else {
             HealthWorkoutView().appBackground()
         }
-    }
-}
-
-struct DashboardEditView: View {
-    @EnvironmentObject var dashboardService: DashboardService
-    @Binding var isPresented: Bool
-    @State private var draftModules: [DashboardModule] = []
-    @State private var showAddModule = false
-    @State private var selectedModuleSelection: ModuleSelection?
-    @State private var dragState: DragState?
-    
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 12) {
-                Button(action: {
-                    showAddModule = true
-                }) {
-                    Label("Add Module", systemImage: "plus.circle.fill")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundColor(.blue)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 14)
-                        .background(Color(.secondarySystemGroupedBackground))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14)
-                                .stroke(Color.gray.opacity(0.18), lineWidth: 1)
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-
-                ScrollView {
-                    VStack(spacing: 12) {
-                        ForEach(draftModules) { module in
-                            DashboardEditorRow(
-                                module: module,
-                                isDragging: dragState?.moduleID == module.id,
-                                dragOffset: dragOffset(for: module.id),
-                                onOpenSettings: {
-                                    selectedModuleSelection = ModuleSelection(id: module.id)
-                                },
-                                onDragChanged: { value in
-                                    updateDrag(for: module.id, translation: value.translation.height)
-                                },
-                                onDragEnded: { _ in
-                                    finishDrag()
-                                }
-                            )
-                            .padding(.horizontal, 16)
-                            .zIndex(dragState?.moduleID == module.id ? 1 : 0)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-            }
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle("Edit Dashboard")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Reset") {
-                        resetDraftModules()
-                    }
-                    .foregroundColor(.red)
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        saveDraftModules()
-                    }
-                }
-            }
-            .onAppear {
-                loadDraftModules()
-            }
-            .sheet(isPresented: $showAddModule) {
-                DashboardAddModuleSheet(isPresented: $showAddModule, modules: $draftModules)
-            }
-            .sheet(item: $selectedModuleSelection) { selection in
-                if let selectedIndex = draftModules.firstIndex(where: { $0.id == selection.id }) {
-                    DashboardModuleSettingsSheet(module: $draftModules[selectedIndex])
-                }
-            }
-        }
-    }
-
-    private func reindexDraftModules() {
-        for index in draftModules.indices {
-            draftModules[index].order = index
-        }
-    }
-
-    private func loadDraftModules() {
-        draftModules = dashboardService.modulesSnapshotForEditor()
-        dragState = nil
-    }
-
-    private func resetDraftModules() {
-        draftModules = dashboardService.defaultModulesForEditor()
-        reindexDraftModules()
-        dragState = nil
-    }
-
-    private func saveDraftModules() {
-        reindexDraftModules()
-        dashboardService.applyEditorModules(draftModules)
-        isPresented = false
-    }
-
-    private func dragOffset(for moduleID: String) -> CGFloat {
-        guard let dragState, dragState.moduleID == moduleID else { return 0 }
-        return dragState.displayOffset
-    }
-
-    private func updateDrag(for moduleID: String, translation: CGFloat) {
-        guard let moduleIndex = draftModules.firstIndex(where: { $0.id == moduleID }) else { return }
-
-        if dragState == nil {
-            dragState = DragState(
-                moduleID: moduleID,
-                startIndex: moduleIndex,
-                currentIndex: moduleIndex,
-                displayOffset: 0
-            )
-        }
-
-        guard var dragState, dragState.moduleID == moduleID else { return }
-
-        let rawShift = Int((translation / rowStep).rounded())
-        let targetIndex = max(0, min(draftModules.count - 1, dragState.startIndex + rawShift))
-
-        if targetIndex != dragState.currentIndex {
-            withAnimation(.interactiveSpring(response: 0.22, dampingFraction: 0.84)) {
-                let movingModule = draftModules.remove(at: dragState.currentIndex)
-                draftModules.insert(movingModule, at: targetIndex)
-            }
-            dragState.currentIndex = targetIndex
-        }
-
-        let rowShift = CGFloat(dragState.currentIndex - dragState.startIndex) * rowStep
-        dragState.displayOffset = translation - rowShift
-        self.dragState = dragState
-    }
-
-    private func finishDrag() {
-        withAnimation(.interactiveSpring(response: 0.22, dampingFraction: 0.84)) {
-            dragState = nil
-        }
-        reindexDraftModules()
-    }
-
-    private var rowStep: CGFloat { 92 }
-
-    private struct ModuleSelection: Identifiable {
-        let id: String
-    }
-
-    private struct DragState {
-        let moduleID: String
-        let startIndex: Int
-        var currentIndex: Int
-        var displayOffset: CGFloat
-    }
-}
-
-struct DashboardEditorRow: View {
-    let module: DashboardModule
-    let isDragging: Bool
-    let dragOffset: CGFloat
-    let onOpenSettings: () -> Void
-    let onDragChanged: (DragGesture.Value) -> Void
-    let onDragEnded: (DragGesture.Value) -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: module.type.iconName)
-                .foregroundColor(.secondary)
-                .font(.body)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(module.type.displayName)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-
-                HStack(spacing: 8) {
-                    Text(module.size.displayName)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    Text(module.isVisible ? "Visible" : "Hidden")
-                        .font(.caption)
-                        .foregroundColor(module.isVisible ? .green : .secondary)
-                }
-            }
-
-            Spacer()
-
-            Button(action: onOpenSettings) {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .frame(width: 32, height: 32)
-                    .background(Color(.secondarySystemGroupedBackground))
-                    .clipShape(Circle())
-            }
-            .buttonStyle(.plain)
-
-            Image(systemName: "line.3.horizontal")
-                .font(.body)
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 4)
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged(onDragChanged)
-                        .onEnded(onDragEnded)
-                )
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 12)
-        .background(Color(.systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(color: isDragging ? Color.black.opacity(0.12) : Color.clear, radius: 10, y: 4)
-        .scaleEffect(isDragging ? 1.02 : 1)
-        .offset(y: dragOffset)
-        .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.84), value: dragOffset)
-        .accessibilityElement(children: .combine)
-        .accessibilityHint("Use the reorder handle to move this module")
-    }
-}
-
-struct DashboardModuleSettingsSheet: View {
-    @Binding var module: DashboardModule
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    HStack(spacing: 12) {
-                        Image(systemName: module.type.iconName)
-                            .foregroundColor(.secondary)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(module.type.displayName)
-                                .font(.headline)
-                            Text(module.id)
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
-                        }
-                    }
-                }
-
-                Section("Visibility") {
-                    Toggle("Visible", isOn: $module.isVisible)
-                }
-
-                Section("Size") {
-                    Picker("Module Size", selection: $module.size) {
-                        ForEach(module.type.allowedSizes, id: \.self) { size in
-                            Text(size.displayName).tag(size)
-                        }
-                    }
-                    .pickerStyle(.inline)
-                }
-            }
-            .navigationTitle("Module Settings")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        if !module.type.allowedSizes.contains(module.size) {
-                            module.size = module.type.allowedSizes.first ?? .small
-                        }
-                        dismiss()
-                    }
-                }
-            }
-        }
-    }
-}
-
-struct DashboardAddModuleSheet: View {
-    @Binding var isPresented: Bool
-    @Binding var modules: [DashboardModule]
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section("Small (1x1)") {
-                    ForEach(ModuleType.allCases, id: \.self) { type in
-                        if type.allowedSizes.contains(.small) {
-                            addButton(for: type, size: .small)
-                        }
-                    }
-                }
-
-                Section("Medium (2x1)") {
-                    ForEach(ModuleType.allCases, id: \.self) { type in
-                        if type.allowedSizes.contains(.medium) {
-                            addButton(for: type, size: .medium)
-                        }
-                    }
-                }
-
-                Section("Large (2x2)") {
-                    ForEach(ModuleType.allCases, id: \.self) { type in
-                        if type.allowedSizes.contains(.large) {
-                            addButton(for: type, size: .large)
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Add Module")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        isPresented = false
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func addButton(for type: ModuleType, size: ModuleSize) -> some View {
-        Button(action: {
-            addOrEnable(type: type, size: size)
-            isPresented = false
-        }) {
-            HStack {
-                Label(type.displayName, systemImage: type.iconName)
-                Spacer()
-                Image(systemName: "plus.circle.fill")
-                    .foregroundColor(.blue)
-            }
-        }
-        .foregroundColor(.primary)
-    }
-
-    private func addOrEnable(type: ModuleType, size: ModuleSize) {
-        let nextOrder = (modules.map(\.order).max() ?? -1) + 1
-        let normalizedSize = type.allowedSizes.contains(size) ? size : (type.allowedSizes.first ?? .small)
-
-        modules.append(
-            DashboardModule(
-                type: type,
-                size: normalizedSize,
-                order: nextOrder,
-                isVisible: true
-            )
-        )
-
-        modules = modules
-            .sorted(by: { $0.order < $1.order })
-            .enumerated()
-            .map { index, module in
-                var updated = module
-                updated.order = index
-                return updated
-            }
     }
 }
 

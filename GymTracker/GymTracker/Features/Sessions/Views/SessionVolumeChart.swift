@@ -155,7 +155,7 @@ struct SessionVolumeModuleView: View {
                 } label: {
                     SessionVolumeChart(
                         points: points,
-                        chartHeight: module.size == .large ? 140 : 105
+                        chartHeight: module.size == .large ? 116 : 74
                     )
                 }
                 .buttonStyle(.plain)
@@ -180,10 +180,7 @@ struct SessionVolumeModuleView: View {
             .padding(.vertical, 2)
         } else {
             MetricCard(
-                title: module.type.displayName,
-                value: SessionService.formattedPounds(totalVolumeForWeek),
-                icon: module.type.iconName,
-                hasBackground: false
+                value: SessionService.formattedPounds(totalVolumeForWeek)
             )
         }
     }
