@@ -96,6 +96,11 @@ final class WatchSessionListener: NSObject, ObservableObject, WCSessionDelegate 
     }
 
     func stopTimer(delete: Bool = false) {
+        DispatchQueue.main.async {
+            self.timer = nil
+            self.wasPaused = false
+        }
+
         guard WCSession.default.isReachable else {
             print("iPhone not reachable, cannot stop timer")
             return
@@ -126,6 +131,7 @@ final class WatchSessionListener: NSObject, ObservableObject, WCSessionDelegate 
             case "timerCleared":
                 DispatchQueue.main.async {
                     self.timer = nil
+                    self.wasPaused = false
                     // self.pendingLength = 0
                 }
             case "updatePendingLength":

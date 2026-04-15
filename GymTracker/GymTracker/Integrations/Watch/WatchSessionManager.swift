@@ -96,6 +96,8 @@ final class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
         if let timer = timerController.timerSnapshot,
            let encoded = try? JSONEncoder().encode(timer) {
             context["timer"] = encoded
+        } else {
+            context["timer"] = NSNull()
         }
 
         return context
