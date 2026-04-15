@@ -313,13 +313,8 @@ final class LocalSessionRepository: SessionRepositoryProtocol {
         try modelContext.save()
     }
 
-    func saveSessionChanges(for sessionSet: SessionSet) throws {
-        try SyncRootMetadataManager.markUpdated(sessionSet.sessionEntry.session, in: modelContext)
-        try modelContext.save()
-    }
-
-    func saveSessionChanges(for sessionRep: SessionRep) throws {
-        try SyncRootMetadataManager.markUpdated(sessionRep.sessionSet.sessionEntry.session, in: modelContext)
+    func saveChanges(for session: Session) throws {
+        try SyncRootMetadataManager.markUpdated(session, in: modelContext)
         try modelContext.save()
     }
 

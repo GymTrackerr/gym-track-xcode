@@ -99,10 +99,7 @@ final class LocalRoutineRepository: RoutineRepositoryProtocol {
     }
 
     func renumberExerciseSplits(in routine: Routine) throws {
-        let exercises = routine.exerciseSplits.sorted { $0.order < $1.order }
-        for (index, exercise) in exercises.enumerated() {
-            exercise.order = index
-        }
+        reorderExerciseSplits(in: routine)
         try SyncRootMetadataManager.markUpdated(routine, in: modelContext)
         try modelContext.save()
     }
@@ -135,8 +132,8 @@ final class LocalRoutineRepository: RoutineRepositoryProtocol {
             routine.exerciseSplits.removeAll { $0.id == split.id }
         }
         try SyncRootMetadataManager.markUpdated(routine, in: modelContext)
+        reorderExerciseSplits(in: routine)
         try modelContext.save()
-        try renumberExerciseSplits(in: routine)
     }
 
     func moveExercises(in routine: Routine, from source: IndexSet, to destination: Int) throws {
@@ -154,11 +151,18 @@ final class LocalRoutineRepository: RoutineRepositoryProtocol {
             routine.exerciseSplits.append(exerciseSplit)
         }
         try SyncRootMetadataManager.markUpdated(routine, in: modelContext)
+        reorderExerciseSplits(in: routine)
         try modelContext.save()
-        try renumberExerciseSplits(in: routine)
     }
 
     func saveChanges() throws {
         try modelContext.save()
+    }
+
+    private func reorderExerciseSplits(in routine: Routine) {
+        let exercises = routine.exerciseSplits.sorted { $0.order < $1.order }
+        for (index, exercise) in exercises.enumerated() {
+            exercise.order = index
+        }
     }
 }

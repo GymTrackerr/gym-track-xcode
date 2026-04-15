@@ -30,8 +30,7 @@ protocol SessionRepositoryProtocol {
     func deleteSet(from sessionEntry: SessionEntry, sessionSet: SessionSet) throws
     func duplicateSet(_ sessionSet: SessionSet) throws -> SessionSet
     func moveSet(_ sessionSet: SessionSet, to targetExercise: Exercise) throws
-    func saveSessionChanges(for sessionSet: SessionSet) throws
-    func saveSessionChanges(for sessionRep: SessionRep) throws
+    func saveChanges(for session: Session) throws
     func toggleSetCompletion(_ sessionSet: SessionSet) throws
 
     func mostRecentRep(for exercise: Exercise) -> SessionRep?
