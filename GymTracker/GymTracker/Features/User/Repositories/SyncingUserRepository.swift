@@ -1,18 +1,15 @@
 import Foundation
 
-final class SyncingUserRepository: UserRepositoryProtocol {
+final class SyncingUserRepository: BaseSyncRepository, UserRepositoryProtocol {
     private let localRepository: UserRepositoryProtocol
-    private let queueStore: SyncQueueStore
-    private let eligibilityService: SyncEligibilityService
 
     init(
         localRepository: UserRepositoryProtocol,
         queueStore: SyncQueueStore,
         eligibilityService: SyncEligibilityService
     ) {
+        super.init(queueStore: queueStore, eligibilityService: eligibilityService)
         self.localRepository = localRepository
-        self.queueStore = queueStore
-        self.eligibilityService = eligibilityService
     }
 
     func fetchAccounts() throws -> [User] { try localRepository.fetchAccounts() }
@@ -34,11 +31,6 @@ final class SyncingUserRepository: UserRepositoryProtocol {
     }
 
     private func enqueue(for user: User, operation: SyncQueueOperation) {
-        SyncQueueMutationWriter.enqueueIfNeeded(
-            root: user,
-            operation: operation,
-            queueStore: queueStore,
-            eligibilityService: eligibilityService
-        )
+        enqueueRootMutationIfNeeded(root: user, operation: operation)
     }
 }

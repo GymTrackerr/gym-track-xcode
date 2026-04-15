@@ -7,10 +7,8 @@
 
 import Foundation
 
-final class SyncingExerciseRepository: ExerciseRepositoryProtocol {
+final class SyncingExerciseRepository: BaseSyncRepository, ExerciseRepositoryProtocol {
     private let localRepository: ExerciseRepositoryProtocol
-    private let queueStore: SyncQueueStore
-    private let eligibilityService: SyncEligibilityService
     private let payloadEncoder = JSONEncoder()
 
     init(
@@ -19,8 +17,7 @@ final class SyncingExerciseRepository: ExerciseRepositoryProtocol {
         eligibilityService: SyncEligibilityService
     ) {
         self.localRepository = localRepository
-        self.queueStore = queueStore
-        self.eligibilityService = eligibilityService
+        super.init(queueStore: queueStore, eligibilityService: eligibilityService)
     }
 
     func fetchActiveExercises(for userId: UUID) throws -> [Exercise] {
@@ -82,21 +79,19 @@ final class SyncingExerciseRepository: ExerciseRepositoryProtocol {
         for exercise: Exercise,
         operation: SyncQueueOperation
     ) {
-        guard eligibilityService.isQueueingAllowed else { return }
         guard exercise.isUserCreated else { return }
 
         do {
             let payload = try payloadEncoder.encode(ExerciseSyncPayload(exercise: exercise))
             let dependencyKey = "exercise:\(exercise.syncLinkedItemId)"
-            try queueStore.enqueueMutation(
-                modelType: .exercise,
-                linkedItemId: exercise.syncLinkedItemId,
+            enqueueRootMutationIfNeeded(
+                root: exercise,
                 operation: operation,
-                payloadSnapshotData: payload,
+                payloadData: payload,
                 dependencyKey: dependencyKey
             )
         } catch {
-            print("Failed to enqueue sync mutation for exercise \(exercise.id): \(error)")
+            print("Failed to encode sync payload for exercise \(exercise.id): \(error)")
         }
     }
 }

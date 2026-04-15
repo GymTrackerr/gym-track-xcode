@@ -1,18 +1,15 @@
 import Foundation
 
-final class SyncingRoutineRepository: RoutineRepositoryProtocol {
+final class SyncingRoutineRepository: BaseSyncRepository, RoutineRepositoryProtocol {
     private let localRepository: RoutineRepositoryProtocol
-    private let queueStore: SyncQueueStore
-    private let eligibilityService: SyncEligibilityService
 
     init(
         localRepository: RoutineRepositoryProtocol,
         queueStore: SyncQueueStore,
         eligibilityService: SyncEligibilityService
     ) {
+        super.init(queueStore: queueStore, eligibilityService: eligibilityService)
         self.localRepository = localRepository
-        self.queueStore = queueStore
-        self.eligibilityService = eligibilityService
     }
 
     func fetchActiveRoutines(for userId: UUID) throws -> [Routine] { try localRepository.fetchActiveRoutines(for: userId) }
@@ -89,11 +86,6 @@ final class SyncingRoutineRepository: RoutineRepositoryProtocol {
     func saveChanges() throws { try localRepository.saveChanges() }
 
     private func enqueue(for routine: Routine, operation: SyncQueueOperation) {
-        SyncQueueMutationWriter.enqueueIfNeeded(
-            root: routine,
-            operation: operation,
-            queueStore: queueStore,
-            eligibilityService: eligibilityService
-        )
+        enqueueRootMutationIfNeeded(root: routine, operation: operation)
     }
 }

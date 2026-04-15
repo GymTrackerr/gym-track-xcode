@@ -67,7 +67,7 @@ struct GymTrackerApp: App {
             worker: syncWorker
         )
         let localExerciseRepository = LocalExerciseRepository(modelContext: context)
-        let exerciseRepository = SyncingExerciseRepository(
+        let exerciseRepository = ExerciseSyncRepository(
             localRepository: localExerciseRepository,
             queueStore: syncQueueStore,
             eligibilityService: syncEligibilityService
@@ -160,7 +160,20 @@ struct GymTrackerApp: App {
         nutritionService.bind(to: userService)
         healthKitDailyStore.bind(to: userService)
         healthMetricsService.bind(to: userService)
+
+        // Service-level sync kickoff hooks run after user binding.
+        exerciseService.sync()
+        splitDayService.sync()
+        sessionService.sync()
+        setService.sync()
+        exerciseSplitDayService.sync()
+        sessionExerciseService.sync()
+        nutritionService.sync()
+        healthKitDailyStore.sync()
+        healthMetricsService.sync()
+
         syncCoordinator.start()
+        syncCoordinator.triggerSync(reason: "serviceSyncKickoff")
 
         self._dashboardService = StateObject(wrappedValue: dashboardService)
         self._userService = StateObject(wrappedValue: userService)
@@ -182,8 +195,7 @@ struct GymTrackerApp: App {
 
         self._watchSessionManager = StateObject(
             wrappedValue: WatchSessionManager(
-                timerController: WatchTimerBridge(timerService: timerService),
-//                exerciseService: exerciseSvc
+                timerController: WatchTimerBridge(timerService: timerService)
             )
         )
 

@@ -1,18 +1,15 @@
 import Foundation
 
-final class SyncingSessionRepository: SessionRepositoryProtocol {
+final class SyncingSessionRepository: BaseSyncRepository, SessionRepositoryProtocol {
     private let localRepository: SessionRepositoryProtocol
-    private let queueStore: SyncQueueStore
-    private let eligibilityService: SyncEligibilityService
 
     init(
         localRepository: SessionRepositoryProtocol,
         queueStore: SyncQueueStore,
         eligibilityService: SyncEligibilityService
     ) {
+        super.init(queueStore: queueStore, eligibilityService: eligibilityService)
         self.localRepository = localRepository
-        self.queueStore = queueStore
-        self.eligibilityService = eligibilityService
     }
 
     func fetchSessions(for userId: UUID?) throws -> [Session] { try localRepository.fetchSessions(for: userId) }
@@ -98,11 +95,6 @@ final class SyncingSessionRepository: SessionRepositoryProtocol {
     func mostRecentCardioSet(for exercise: Exercise) -> SessionSet? { localRepository.mostRecentCardioSet(for: exercise) }
 
     private func enqueue(for session: Session, operation: SyncQueueOperation) {
-        SyncQueueMutationWriter.enqueueIfNeeded(
-            root: session,
-            operation: operation,
-            queueStore: queueStore,
-            eligibilityService: eligibilityService
-        )
+        enqueueRootMutationIfNeeded(root: session, operation: operation)
     }
 }

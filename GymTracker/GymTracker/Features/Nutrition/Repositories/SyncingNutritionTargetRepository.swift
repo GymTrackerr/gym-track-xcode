@@ -1,18 +1,15 @@
 import Foundation
 
-final class SyncingNutritionTargetRepository: NutritionTargetRepositoryProtocol {
+final class SyncingNutritionTargetRepository: BaseSyncRepository, NutritionTargetRepositoryProtocol {
     private let localRepository: NutritionTargetRepositoryProtocol
-    private let queueStore: SyncQueueStore
-    private let eligibilityService: SyncEligibilityService
 
     init(
         localRepository: NutritionTargetRepositoryProtocol,
         queueStore: SyncQueueStore,
         eligibilityService: SyncEligibilityService
     ) {
+        super.init(queueStore: queueStore, eligibilityService: eligibilityService)
         self.localRepository = localRepository
-        self.queueStore = queueStore
-        self.eligibilityService = eligibilityService
     }
 
     func fetchTargets() throws -> [NutritionTarget] {
@@ -21,21 +18,11 @@ final class SyncingNutritionTargetRepository: NutritionTargetRepositoryProtocol 
 
     func insertNutritionTarget(_ target: NutritionTarget) throws {
         try localRepository.insertNutritionTarget(target)
-        SyncQueueMutationWriter.enqueueIfNeeded(
-            root: target,
-            operation: .create,
-            queueStore: queueStore,
-            eligibilityService: eligibilityService
-        )
+        enqueueRootMutationIfNeeded(root: target, operation: .create)
     }
 
     func saveNutritionTarget(_ target: NutritionTarget) throws {
         try localRepository.saveNutritionTarget(target)
-        SyncQueueMutationWriter.enqueueIfNeeded(
-            root: target,
-            operation: .update,
-            queueStore: queueStore,
-            eligibilityService: eligibilityService
-        )
+        enqueueRootMutationIfNeeded(root: target, operation: .update)
     }
 }

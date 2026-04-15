@@ -1,9 +1,7 @@
 import Foundation
 
-final class SyncingHealthKitDailyRepository: HealthKitDailyRepositoryProtocol {
+final class SyncingHealthKitDailyRepository: BaseSyncRepository, HealthKitDailyRepositoryProtocol {
     private let localRepository: HealthKitDailyRepositoryProtocol
-    private let queueStore: SyncQueueStore
-    private let eligibilityService: SyncEligibilityService
     private var pendingMutations: [(dto: HealthKitDailyAggregateData, operation: SyncQueueOperation)] = []
 
     init(
@@ -11,9 +9,8 @@ final class SyncingHealthKitDailyRepository: HealthKitDailyRepositoryProtocol {
         queueStore: SyncQueueStore,
         eligibilityService: SyncEligibilityService
     ) {
+        super.init(queueStore: queueStore, eligibilityService: eligibilityService)
         self.localRepository = localRepository
-        self.queueStore = queueStore
-        self.eligibilityService = eligibilityService
     }
 
     func fetchCachedSummary(userId: String, dayKey: String) throws -> HealthKitDailyAggregateData? {
@@ -38,12 +35,7 @@ final class SyncingHealthKitDailyRepository: HealthKitDailyRepositoryProtocol {
         try localRepository.upsertCache(with: dto, refreshedAt: refreshedAt, isToday: isToday, saveImmediately: saveImmediately)
         let operation: SyncQueueOperation = existing == nil ? .create : .update
         if saveImmediately {
-            SyncQueueMutationWriter.enqueueIfNeeded(
-                root: dto,
-                operation: operation,
-                queueStore: queueStore,
-                eligibilityService: eligibilityService
-            )
+            enqueueRootMutationIfNeeded(root: dto, operation: operation)
         } else {
             pendingMutations.append((dto: dto, operation: operation))
         }
@@ -56,12 +48,7 @@ final class SyncingHealthKitDailyRepository: HealthKitDailyRepositoryProtocol {
         let mutations = pendingMutations
         pendingMutations.removeAll()
         for mutation in mutations {
-            SyncQueueMutationWriter.enqueueIfNeeded(
-                root: mutation.dto,
-                operation: mutation.operation,
-                queueStore: queueStore,
-                eligibilityService: eligibilityService
-            )
+            enqueueRootMutationIfNeeded(root: mutation.dto, operation: mutation.operation)
         }
     }
 }

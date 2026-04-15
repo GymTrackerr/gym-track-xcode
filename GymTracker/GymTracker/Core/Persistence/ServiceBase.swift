@@ -25,6 +25,9 @@ class ServiceBase {
     
     // guard currentUser != nil else { return }
     func loadFeature() { }
+
+    // Optional per-service startup sync hook.
+    func sync() { }
     
     func bind(to userService: UserService) {
         userService.$currentUser

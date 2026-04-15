@@ -1,18 +1,15 @@
 import Foundation
 
-final class SyncingNutritionLogRepository: NutritionLogRepositoryProtocol {
+final class SyncingNutritionLogRepository: BaseSyncRepository, NutritionLogRepositoryProtocol {
     private let localRepository: NutritionLogRepositoryProtocol
-    private let queueStore: SyncQueueStore
-    private let eligibilityService: SyncEligibilityService
 
     init(
         localRepository: NutritionLogRepositoryProtocol,
         queueStore: SyncQueueStore,
         eligibilityService: SyncEligibilityService
     ) {
+        super.init(queueStore: queueStore, eligibilityService: eligibilityService)
         self.localRepository = localRepository
-        self.queueStore = queueStore
-        self.eligibilityService = eligibilityService
     }
 
     func fetchNutritionLogs(for userId: UUID, between start: Date, and end: Date) throws -> [NutritionLogEntry] {
@@ -25,31 +22,16 @@ final class SyncingNutritionLogRepository: NutritionLogRepositoryProtocol {
 
     func insertNutritionLogEntry(_ log: NutritionLogEntry) throws {
         try localRepository.insertNutritionLogEntry(log)
-        SyncQueueMutationWriter.enqueueIfNeeded(
-            root: log,
-            operation: .create,
-            queueStore: queueStore,
-            eligibilityService: eligibilityService
-        )
+        enqueueRootMutationIfNeeded(root: log, operation: .create)
     }
 
     func saveNutritionLogEntry(_ log: NutritionLogEntry) throws {
         try localRepository.saveNutritionLogEntry(log)
-        SyncQueueMutationWriter.enqueueIfNeeded(
-            root: log,
-            operation: .update,
-            queueStore: queueStore,
-            eligibilityService: eligibilityService
-        )
+        enqueueRootMutationIfNeeded(root: log, operation: .update)
     }
 
     func softDeleteNutritionLogEntry(_ log: NutritionLogEntry) throws {
         try localRepository.softDeleteNutritionLogEntry(log)
-        SyncQueueMutationWriter.enqueueIfNeeded(
-            root: log,
-            operation: .softDelete,
-            queueStore: queueStore,
-            eligibilityService: eligibilityService
-        )
+        enqueueRootMutationIfNeeded(root: log, operation: .softDelete)
     }
 }
