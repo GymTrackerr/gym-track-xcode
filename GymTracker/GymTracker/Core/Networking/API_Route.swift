@@ -26,6 +26,7 @@ extension APIRequestRoute {
 
 enum APIRoute: APIRequestRoute {
     case authInteractLogin
+    case authInteractExchange
     case authSession
     case authLogout
     case me
@@ -36,6 +37,8 @@ enum APIRoute: APIRequestRoute {
         switch self {
         case .authInteractLogin:
             return "/auth/providers/interact/login"
+        case .authInteractExchange:
+            return "/auth/providers/interact/exchange"
         case .authSession:
             return "/auth/session"
         case .authLogout:

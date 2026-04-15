@@ -13,6 +13,8 @@ struct GymTrackerApp: App {
     var sharedModelContainer: ModelContainer = SharedModelConfig.createSharedModelContainer()
 
     @StateObject var userService: UserService
+    @StateObject var backendAuthService: BackendAuthService
+    @StateObject var syncEligibilityState: SyncEligibilityState
     @StateObject var dashboardService: DashboardService
     @StateObject var timerService: TimerService
     @StateObject var exerciseService: ExerciseService
@@ -40,10 +42,12 @@ struct GymTrackerApp: App {
         
         let context = sharedModelContainer.mainContext
         LegacyStoreRecoveryService.recoverIfNeeded(destinationContext: context)
+        let syncEligibilityState = SyncEligibilityState()
 
         // Create — no currentUser passed
         let userService = UserService(context: context)
         userService.loadFeature()
+        let backendAuthService = BackendAuthService(eligibilityState: syncEligibilityState)
         
         let dashboardService = DashboardService(context: context)
         let timerService = TimerService(context: context)
@@ -69,6 +73,7 @@ struct GymTrackerApp: App {
         )
 
         // Bind AFTER creation
+        backendAuthService.bind(to: userService)
         dashboardService.bind(to: userService)
         timerService.bind(to: userService)
         exerciseService.bind(to: userService)
@@ -83,6 +88,8 @@ struct GymTrackerApp: App {
 
         self._dashboardService = StateObject(wrappedValue: dashboardService)
         self._userService = StateObject(wrappedValue: userService)
+        self._backendAuthService = StateObject(wrappedValue: backendAuthService)
+        self._syncEligibilityState = StateObject(wrappedValue: syncEligibilityState)
         self._timerService = StateObject(wrappedValue: timerService)
         self._exerciseService = StateObject(wrappedValue: exerciseService)
         self._splitDayService = StateObject(wrappedValue: splitDayService)
@@ -116,6 +123,8 @@ struct GymTrackerApp: App {
                 .environmentObject(healthMetricsService)
                 .environmentObject(watchSessionManager)
                 .environmentObject(userService)
+                .environmentObject(backendAuthService)
+                .environmentObject(syncEligibilityState)
                 .environmentObject(dashboardService)
                 .environmentObject(splitDayService)
                 .environmentObject(exerciseService)
@@ -143,4 +152,3 @@ struct RootView: View {
         }
     }
 }
-
