@@ -830,14 +830,6 @@ class NutritionService: ServiceBase, ObservableObject {
                     nutritionTarget = scoped
                     return scoped
                 }
-
-                if let legacy = targets.first(where: { $0.userId == nil }) {
-                    legacy.userId = currentUserId
-                    legacy.updatedAt = Date()
-                    try modelContext.save()
-                    nutritionTarget = legacy
-                    return legacy
-                }
             } else if let first = targets.first {
                 nutritionTarget = first
                 return first

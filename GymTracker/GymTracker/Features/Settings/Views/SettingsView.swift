@@ -366,13 +366,24 @@ struct SettingsView: View {
                 nutritionService.loadFeature()
                 backupAlertTitle = "Import Complete"
                 exportErrorMessage = """
-                Imported legacy: \(imported.foods) foods, \(imported.meals) meals, \(imported.foodLogs) logs.
-                Imported v2: \(imported.foodItems) food items, \(imported.mealRecipes) meal recipes, \(imported.nutritionLogEntries) nutrition logs.
+                Imported \(imported.foodItems) food items, \(imported.mealRecipes) meal recipes, \(imported.mealRecipeItems) recipe items, and \(imported.nutritionLogEntries) nutrition logs.
+                Updated \(imported.targets) nutrition targets.
                 """
                 showExportErrorAlert = true
             } catch {
                 backupAlertTitle = "Couldn’t Import"
-                exportErrorMessage = error.localizedDescription
+
+                if let backupError = error as? NutritionBackupService.BackupError {
+                    switch backupError {
+                    case .invalidSchemaVersion:
+                        exportErrorMessage = "This backup uses an unsupported nutrition format. Only schemaVersion 2 backups can be imported."
+                    default:
+                        exportErrorMessage = backupError.localizedDescription
+                    }
+                } else {
+                    exportErrorMessage = error.localizedDescription
+                }
+
                 showExportErrorAlert = true
             }
         }
@@ -622,11 +633,10 @@ struct TestDataShow : View {
     @State var sessionSets: [SessionSet] = []
     @State var sessionReps: [SessionRep] = []
     @State var sessionEntries: [SessionEntry] = []
-    @State var foods: [Food] = []
-    @State var foodLogs: [FoodLog] = []
-    @State var meals: [Meal] = []
-    @State var mealEntries: [MealEntry] = []
-    @State var mealItems: [MealItem] = []
+    @State var foodItems: [FoodItem] = []
+    @State var mealRecipes: [MealRecipe] = []
+    @State var mealRecipeItems: [MealRecipeItem] = []
+    @State var nutritionLogs: [NutritionLogEntry] = []
     @State var nutritionTargets: [NutritionTarget] = []
     @State var users: [User] = []
 
@@ -655,11 +665,10 @@ struct TestDataShow : View {
                 countRow("Session Entries", total: sessionEntries.count, current: sessionEntriesForCurrentUser.count)
                 countRow("Session Sets", total: sessionSets.count, current: sessionSetsForCurrentUser.count)
                 countRow("Session Reps", total: sessionReps.count, current: sessionRepsForCurrentUser.count)
-                countRow("Foods", total: foods.count, current: foodsForCurrentUser.count)
-                countRow("Food Logs", total: foodLogs.count, current: foodLogsForCurrentUser.count)
-                countRow("Meals", total: meals.count, current: mealsForCurrentUser.count)
-                countRow("Meal Entries", total: mealEntries.count, current: mealEntriesForCurrentUser.count)
-                countRow("Meal Items", total: mealItems.count, current: mealItemsForCurrentUser.count)
+                countRow("Food Items", total: foodItems.count, current: foodItemsForCurrentUser.count)
+                countRow("Meal Recipes", total: mealRecipes.count, current: mealRecipesForCurrentUser.count)
+                countRow("Meal Recipe Items", total: mealRecipeItems.count, current: mealRecipeItemsForCurrentUser.count)
+                countRow("Nutrition Logs", total: nutritionLogs.count, current: nutritionLogsForCurrentUser.count)
                 countRow("Nutrition Targets", total: nutritionTargets.count, current: nil)
             }
             Section("Split Days") {
@@ -828,25 +837,21 @@ struct TestDataShow : View {
         return sessionReps.filter { $0.sessionSet.sessionEntry.session.user_id == currentUserId }
     }
 
-    private var foodsForCurrentUser: [Food] {
-        filterForCurrentUser(foods, by: \.userId)
+    private var foodItemsForCurrentUser: [FoodItem] {
+        filterForCurrentUser(foodItems, by: \.userId)
     }
 
-    private var foodLogsForCurrentUser: [FoodLog] {
-        filterForCurrentUser(foodLogs, by: \.userId)
+    private var mealRecipesForCurrentUser: [MealRecipe] {
+        filterForCurrentUser(mealRecipes, by: \.userId)
     }
 
-    private var mealsForCurrentUser: [Meal] {
-        filterForCurrentUser(meals, by: \.userId)
-    }
-
-    private var mealEntriesForCurrentUser: [MealEntry] {
-        filterForCurrentUser(mealEntries, by: \.userId)
-    }
-
-    private var mealItemsForCurrentUser: [MealItem] {
+    private var mealRecipeItemsForCurrentUser: [MealRecipeItem] {
         guard let currentUserId else { return [] }
-        return mealItems.filter { $0.meal?.userId == currentUserId }
+        return mealRecipeItems.filter { $0.mealRecipe?.userId == currentUserId }
+    }
+
+    private var nutritionLogsForCurrentUser: [NutritionLogEntry] {
+        filterForCurrentUser(nutritionLogs, by: \.userId)
     }
 
     @ViewBuilder
@@ -876,11 +881,10 @@ struct TestDataShow : View {
         sessionReps = try! context.fetch(FetchDescriptor<SessionRep>(sortBy: [SortDescriptor(\.id)]))
         sessionEntries = try! context.fetch(FetchDescriptor<SessionEntry>(sortBy: [SortDescriptor(\.id)]))
 
-        foods = try! context.fetch(FetchDescriptor<Food>(sortBy: [SortDescriptor(\.createdAt)]))
-        foodLogs = try! context.fetch(FetchDescriptor<FoodLog>(sortBy: [SortDescriptor(\.timestamp)]))
-        meals = try! context.fetch(FetchDescriptor<Meal>(sortBy: [SortDescriptor(\.createdAt)]))
-        mealEntries = try! context.fetch(FetchDescriptor<MealEntry>(sortBy: [SortDescriptor(\.timestamp)]))
-        mealItems = try! context.fetch(FetchDescriptor<MealItem>(sortBy: [SortDescriptor(\.id)]))
+        foodItems = try! context.fetch(FetchDescriptor<FoodItem>(sortBy: [SortDescriptor(\.createdAt)]))
+        mealRecipes = try! context.fetch(FetchDescriptor<MealRecipe>(sortBy: [SortDescriptor(\.createdAt)]))
+        mealRecipeItems = try! context.fetch(FetchDescriptor<MealRecipeItem>(sortBy: [SortDescriptor(\.id)]))
+        nutritionLogs = try! context.fetch(FetchDescriptor<NutritionLogEntry>(sortBy: [SortDescriptor(\.timestamp)]))
         nutritionTargets = try! context.fetch(FetchDescriptor<NutritionTarget>(sortBy: [SortDescriptor(\.createdAt)]))
 
         users = try! context.fetch(FetchDescriptor<User>(sortBy: [SortDescriptor(\.lastLogin, order: .reverse)]))

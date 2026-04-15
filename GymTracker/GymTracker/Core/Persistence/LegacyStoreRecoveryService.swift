@@ -30,11 +30,6 @@ enum LegacyStoreRecoveryService {
         let sessionEntries = try source.fetch(FetchDescriptor<SessionEntry>())
         let sessionSets = try source.fetch(FetchDescriptor<SessionSet>())
         let sessionReps = try source.fetch(FetchDescriptor<SessionRep>())
-        let foods = try source.fetch(FetchDescriptor<Food>())
-        let meals = try source.fetch(FetchDescriptor<Meal>())
-        let mealEntries = try source.fetch(FetchDescriptor<MealEntry>())
-        let foodLogs = try source.fetch(FetchDescriptor<FoodLog>())
-        let mealItems = try source.fetch(FetchDescriptor<MealItem>())
         let nutritionTargets = try source.fetch(FetchDescriptor<NutritionTarget>())
         let trackerTimers = try source.fetch(FetchDescriptor<TrackerTimer>())
 
@@ -44,10 +39,6 @@ enum LegacyStoreRecoveryService {
         var sessionById: [UUID: Session] = [:]
         var entryById: [UUID: SessionEntry] = [:]
         var setById: [UUID: SessionSet] = [:]
-        var foodById: [UUID: Food] = [:]
-        var mealById: [UUID: Meal] = [:]
-        var mealEntryById: [UUID: MealEntry] = [:]
-
         for old in users {
             let copy = User(name: old.name)
             copy.id = old.id
@@ -142,82 +133,6 @@ enum LegacyStoreRecoveryService {
             copy.baseWeight = old.baseWeight
             copy.perSideWeight = old.perSideWeight
             copy.isPerSide = old.isPerSide
-            destination.insert(copy)
-        }
-
-        for old in foods {
-            let kind = FoodKind(rawValue: old.kindRaw) ?? .food
-            let unit = FoodUnit(rawValue: old.unitRaw) ?? .grams
-            let copy = Food(
-                userId: old.userId,
-                name: old.name,
-                brand: old.brand,
-                referenceLabel: old.referenceLabel,
-                gramsPerReference: old.gramsPerReference,
-                kcalPerReference: old.kcalPerReference,
-                proteinPerReference: old.proteinPerReference,
-                carbPerReference: old.carbPerReference,
-                fatPerReference: old.fatPerReference,
-                isArchived: old.isArchived,
-                isFavorite: old.isFavorite,
-                kind: kind,
-                unit: unit
-            )
-            copy.id = old.id
-            copy.createdAt = old.createdAt
-            copy.updatedAt = old.updatedAt
-            destination.insert(copy)
-            foodById[copy.id] = copy
-        }
-
-        for old in meals {
-            let category = FoodLogCategory(rawValue: old.defaultCategoryRaw) ?? .other
-            let copy = Meal(userId: old.userId, name: old.name, defaultCategory: category)
-            copy.id = old.id
-            copy.createdAt = old.createdAt
-            copy.updatedAt = old.updatedAt
-            destination.insert(copy)
-            mealById[copy.id] = copy
-        }
-
-        for old in mealEntries {
-            let category = FoodLogCategory(rawValue: old.categoryRaw) ?? .other
-            let linkedTemplateMeal = old.templateMeal.flatMap { mealById[$0.id] }
-            let copy = MealEntry(
-                userId: old.userId,
-                timestamp: old.timestamp,
-                category: category,
-                note: old.note,
-                templateMeal: linkedTemplateMeal
-            )
-            copy.id = old.id
-            destination.insert(copy)
-            mealEntryById[copy.id] = copy
-        }
-
-        for old in foodLogs {
-            guard let linkedFood = foodById[old.food.id] else { continue }
-            let category = FoodLogCategory(rawValue: old.categoryRaw) ?? .other
-            let linkedMealEntry = old.mealEntry.flatMap { mealEntryById[$0.id] }
-            let copy = FoodLog(
-                userId: old.userId,
-                timestamp: old.timestamp,
-                category: category,
-                grams: old.grams,
-                note: old.note,
-                quickCaloriesKcal: old.quickCaloriesKcal,
-                food: linkedFood,
-                mealEntry: linkedMealEntry
-            )
-            copy.id = old.id
-            destination.insert(copy)
-        }
-
-        for old in mealItems {
-            guard let linkedFood = foodById[old.food.id] else { continue }
-            let linkedMeal = old.meal.flatMap { mealById[$0.id] }
-            let copy = MealItem(order: old.order, grams: old.grams, meal: linkedMeal, food: linkedFood)
-            copy.id = old.id
             destination.insert(copy)
         }
 
