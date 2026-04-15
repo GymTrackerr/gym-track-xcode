@@ -19,6 +19,7 @@ protocol SessionRepositoryProtocol {
     func toggleEntryCompletion(_ sessionEntry: SessionEntry) throws
     func addExercise(to session: Session, exercise: Exercise) throws -> SessionEntry
     func removeExercise(from session: Session, sessionEntry: SessionEntry) throws
+    func removeExercises(from session: Session, entryIds: [UUID]) throws
     func moveExercises(in session: Session, from source: IndexSet, to destination: Int) throws
     func transferExerciseHistory(from source: Exercise, to target: Exercise, sessionIds: Set<UUID>) throws
 

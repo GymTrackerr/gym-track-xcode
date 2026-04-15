@@ -98,10 +98,7 @@ final class LocalSessionRepository: SessionRepositoryProtocol {
     }
 
     func renumberEntries(in session: Session) throws {
-        let sortedEntries = session.sessionEntries.sorted { $0.order < $1.order }
-        for (index, entry) in sortedEntries.enumerated() {
-            entry.order = index
-        }
+        reorderEntries(in: session)
         try modelContext.save()
     }
 
@@ -126,9 +123,24 @@ final class LocalSessionRepository: SessionRepositoryProtocol {
         if let persistedEntry = session.sessionEntries.first(where: { $0.id == sessionEntry.id }) {
             modelContext.delete(persistedEntry)
             session.sessionEntries.removeAll { $0.id == persistedEntry.id }
+            reorderEntries(in: session)
             try modelContext.save()
-            try renumberEntries(in: session)
         }
+    }
+
+    func removeExercises(from session: Session, entryIds: [UUID]) throws {
+        guard !entryIds.isEmpty else { return }
+
+        let idSet = Set(entryIds)
+        let persistedEntries = session.sessionEntries.filter { idSet.contains($0.id) }
+        guard !persistedEntries.isEmpty else { return }
+
+        for entry in persistedEntries {
+            modelContext.delete(entry)
+        }
+        session.sessionEntries.removeAll { idSet.contains($0.id) }
+        reorderEntries(in: session)
+        try modelContext.save()
     }
 
     func moveExercises(in session: Session, from source: IndexSet, to destination: Int) throws {
@@ -318,6 +330,13 @@ final class LocalSessionRepository: SessionRepositoryProtocol {
         let sortedSets = sessionEntry.sets.sorted { $0.order < $1.order }
         for (index, set) in sortedSets.enumerated() {
             set.order = index
+        }
+    }
+
+    private func reorderEntries(in session: Session) {
+        let sortedEntries = session.sessionEntries.sorted { $0.order < $1.order }
+        for (index, entry) in sortedEntries.enumerated() {
+            entry.order = index
         }
     }
 

@@ -60,7 +60,6 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
         for (_, exercise) in removingExercises.enumerated() {
             removeExercise(routine: routine, exercise: exercise)
         }
-        try? repository.saveChanges()
         endEditing()
         withAnimation {
             renumberExercises(routine: routine)

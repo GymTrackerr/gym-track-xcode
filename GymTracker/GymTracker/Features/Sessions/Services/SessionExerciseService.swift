@@ -105,17 +105,16 @@ class SessionExerciseService: ServiceBase, ObservableObject {
     
     func removeExercise(session:Session, offsets: IndexSet) {
         print("ofset \(offsets)")
-        
+
+        let sortedEntries = session.sessionEntries.sorted { $0.order < $1.order }
+        let entryIds: [UUID] = offsets.compactMap { (index: Int) -> UUID? in
+            guard sortedEntries.indices.contains(index) else { return nil }
+            return sortedEntries[index].id
+        }
+        guard !entryIds.isEmpty else { return }
+
         withAnimation {
-            DispatchQueue.main.async {
-                let sortedEntries = session.sessionEntries.sorted { $0.order < $1.order }
-                for index in offsets {
-                    guard sortedEntries.indices.contains(index) else { continue }
-                    let entry = sortedEntries[index]
-                    try? self.repository.removeExercise(from: session, sessionEntry: entry)
-                }
-                self.renumberExercises(session: session)
-            }
+            try? repository.removeExercises(from: session, entryIds: entryIds)
         }
     }
 
