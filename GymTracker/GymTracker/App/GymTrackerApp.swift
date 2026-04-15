@@ -53,8 +53,9 @@ struct GymTrackerApp: App {
             eligibilityService: syncEligibilityService,
             worker: syncWorker
         )
-        let exerciseRepository = LocalExerciseRepository(
-            modelContext: context,
+        let localExerciseRepository = LocalExerciseRepository(modelContext: context)
+        let exerciseRepository = SyncingExerciseRepository(
+            localRepository: localExerciseRepository,
             queueStore: syncQueueStore,
             eligibilityService: syncEligibilityService
         )

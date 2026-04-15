@@ -18,18 +18,9 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
     }
 
     private let modelContext: ModelContext
-    private let queueStore: SyncQueueStore?
-    private let eligibilityService: SyncEligibilityService?
-    private let payloadEncoder = JSONEncoder()
 
-    init(
-        modelContext: ModelContext,
-        queueStore: SyncQueueStore? = nil,
-        eligibilityService: SyncEligibilityService? = nil
-    ) {
+    init(modelContext: ModelContext) {
         self.modelContext = modelContext
-        self.queueStore = queueStore
-        self.eligibilityService = eligibilityService
     }
 
     func fetchActiveExercises(for userId: UUID) throws -> [Exercise] {
@@ -164,7 +155,6 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
         modelContext.insert(newItem)
         try SyncRootMetadataManager.markCreated(newItem, in: modelContext)
         try modelContext.save()
-        enqueueMutationIfNeeded(for: newItem, operation: .create)
         return newItem
     }
 
@@ -172,7 +162,6 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
         exercise.aliases = Array(Set(aliases)).sorted()
         try SyncRootMetadataManager.markUpdated(exercise, in: modelContext)
         try modelContext.save()
-        enqueueMutationIfNeeded(for: exercise, operation: .update)
     }
 
     func delete(_ exercise: Exercise) throws {
@@ -184,31 +173,26 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
             }
             try SyncRootMetadataManager.markSoftDeleted(exercise, in: modelContext)
             try modelContext.save()
-            enqueueMutationIfNeeded(for: exercise, operation: .softDelete)
             return
         }
 
         try SyncRootMetadataManager.markSoftDeleted(exercise, in: modelContext)
         try modelContext.save()
-        enqueueMutationIfNeeded(for: exercise, operation: .softDelete)
     }
 
     func restore(_ exercise: Exercise) throws {
         try SyncRootMetadataManager.markRestored(exercise, in: modelContext)
         try modelContext.save()
-        enqueueMutationIfNeeded(for: exercise, operation: .restore)
     }
 
     func reinsertOrRestore(_ exercise: Exercise) throws {
         if exercise.isArchived {
             try SyncRootMetadataManager.markRestored(exercise, in: modelContext)
             try modelContext.save()
-            enqueueMutationIfNeeded(for: exercise, operation: .restore)
         } else {
             modelContext.insert(exercise)
             try SyncRootMetadataManager.markCreated(exercise, in: modelContext)
             try modelContext.save()
-            enqueueMutationIfNeeded(for: exercise, operation: .create)
         }
     }
 
@@ -274,28 +258,6 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
 
     func saveChanges() throws {
         try modelContext.save()
-    }
-
-    private func enqueueMutationIfNeeded(
-        for exercise: Exercise,
-        operation: SyncQueueOperation
-    ) {
-        guard eligibilityService?.isQueueingAllowed == true else { return }
-        guard let queueStore else { return }
-
-        do {
-            let payload = try payloadEncoder.encode(ExerciseSyncPayload(exercise: exercise))
-            let dependencyKey = "exercise:\(exercise.syncLinkedItemId)"
-            try queueStore.enqueueMutation(
-                modelType: .exercise,
-                linkedItemId: exercise.syncLinkedItemId,
-                operation: operation,
-                payloadSnapshotData: payload,
-                dependencyKey: dependencyKey
-            )
-        } catch {
-            print("Failed to enqueue sync mutation for exercise \(exercise.id): \(error)")
-        }
     }
 
     private func applyApiPayload(_ apiExercise: ExerciseDTO, to exercise: Exercise) {
