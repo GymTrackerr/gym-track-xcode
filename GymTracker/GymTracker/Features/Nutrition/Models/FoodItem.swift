@@ -18,7 +18,7 @@ final class FoodItem {
     var isFavorite: Bool
     var kindRaw: Int
     var unitRaw: Int
-    var soft_deleted: Bool
+    var soft_deleted: Bool = false
     var syncMetaId: UUID?
     var createdAt: Date
     var updatedAt: Date

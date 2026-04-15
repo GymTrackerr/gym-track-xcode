@@ -5,7 +5,7 @@ import SwiftData
 final class NutritionTarget {
     var id: UUID = UUID()
     var userId: UUID?
-    var soft_deleted: Bool
+    var soft_deleted: Bool = false
     var syncMetaId: UUID?
     var createdAt: Date
     var updatedAt: Date

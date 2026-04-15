@@ -16,8 +16,8 @@ final class User {
     var lastLogin: Date
     var soft_deleted: Bool = false
     var syncMetaId: UUID? = nil
-    var createdAt: Date
-    var updatedAt: Date
+    var createdAt: Date = Date()
+    var updatedAt: Date = Date()
     var active: Bool = true
     var isDemo: Bool = false
     var allowHealthAccess: Bool = false

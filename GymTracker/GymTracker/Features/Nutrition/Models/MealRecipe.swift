@@ -11,7 +11,7 @@ final class MealRecipe {
     var defaultCategoryRaw: Int
     var cachedExtraNutrientsData: Data?
     var isArchived: Bool
-    var soft_deleted: Bool
+    var soft_deleted: Bool = false
     var syncMetaId: UUID?
     var createdAt: Date
     var updatedAt: Date

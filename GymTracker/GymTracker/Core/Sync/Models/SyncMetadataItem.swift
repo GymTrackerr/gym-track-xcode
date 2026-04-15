@@ -32,10 +32,9 @@ final class SyncMetadataItem {
         syncState: SyncMetadataState = .pending,
         lastErrorCode: String? = nil,
         lastErrorMessage: String? = nil,
-        createdAt: Date? = nil,
-        updatedAt: Date? = nil
+        createdAt: Date = Date(),
+        updatedAt: Date = Date()
     ) {
-        let timestamp = createdAt ?? updatedAt ?? Date()
         self.id = id
         self.linkedItemId = linkedItemId
         self.modelTypeRaw = modelType.rawValue
@@ -45,8 +44,8 @@ final class SyncMetadataItem {
         self.syncStateRaw = syncState.rawValue
         self.lastErrorCode = lastErrorCode
         self.lastErrorMessage = lastErrorMessage
-        self.createdAt = createdAt ?? timestamp
-        self.updatedAt = updatedAt ?? timestamp
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
     }
 
     var modelType: SyncModelType? {

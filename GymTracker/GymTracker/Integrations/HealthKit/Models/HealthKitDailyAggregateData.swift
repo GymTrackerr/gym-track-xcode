@@ -23,10 +23,10 @@ final class HealthKitDailyAggregateData {
     var schemaVersion: Double = 1.2
     var lastRefreshedAt: Date
     var isToday: Bool
-    var soft_deleted: Bool
+    var soft_deleted: Bool = false
     var syncMetaId: UUID?
-    var createdAt: Date
-    var updatedAt: Date
+    var createdAt: Date = Date()
+    var updatedAt: Date = Date()
 
     init(
         userId: String,
