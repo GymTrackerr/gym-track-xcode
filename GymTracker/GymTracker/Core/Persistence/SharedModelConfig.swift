@@ -12,6 +12,8 @@ struct SharedModelConfig {
     static let appGroupIdentifier = "group.net.novapro.GymTracker"
     static let schema = Schema([
         User.self,
+        SyncMetadataItem.self,
+        SyncQueueItem.self,
         Exercise.self,
         Session.self,
         SessionEntry.self,

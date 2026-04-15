@@ -78,7 +78,7 @@ class SetService: ServiceBase, ObservableObject {
         if (sessionSet.notes != create_notes) {
             sessionSet.notes = create_notes
             withAnimation {
-                try? repository.saveChanges()
+                try? repository.saveSessionChanges(for: sessionSet)
             }
         }
         
@@ -155,14 +155,14 @@ class SetService: ServiceBase, ObservableObject {
 
     func saveSetData(sessionSet: SessionSet) {
         withAnimation {
-            try? repository.saveChanges()
+            try? repository.saveSessionChanges(for: sessionSet)
         }
     }
     
 
     func saveRepData(sessionRep: SessionRep) {
         withAnimation {
-            try? repository.saveChanges()
+            try? repository.saveSessionChanges(for: sessionRep)
         }
     }
     

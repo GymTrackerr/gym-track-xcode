@@ -23,15 +23,23 @@ final class LocalSessionRepository: SessionRepositoryProtocol {
         if let userId {
             descriptor = FetchDescriptor<Session>(
                 predicate: #Predicate<Session> { session in
-                    session.user_id == userId
+                    session.user_id == userId && session.soft_deleted == false
                 },
                 sortBy: [SortDescriptor(\.timestamp)]
             )
         } else {
-            descriptor = FetchDescriptor<Session>(sortBy: [SortDescriptor(\.timestamp)])
+            descriptor = FetchDescriptor<Session>(
+                predicate: #Predicate<Session> { session in
+                    session.soft_deleted == false
+                },
+                sortBy: [SortDescriptor(\.timestamp)]
+            )
         }
-
-        return try modelContext.fetch(descriptor)
+        let sessions = try modelContext.fetch(descriptor)
+        if try SyncRootMetadataManager.prepareForRead(sessions, in: modelContext) {
+            try modelContext.save()
+        }
+        return sessions
     }
 
     func fetchSessions(in interval: DateInterval?, for userId: UUID?) throws -> [Session] {
@@ -44,30 +52,39 @@ final class LocalSessionRepository: SessionRepositoryProtocol {
 
             if let userId {
                 let predicate = #Predicate<Session> {
-                    $0.user_id == userId && $0.timestamp >= start && $0.timestamp < end
+                    $0.user_id == userId && $0.soft_deleted == false && $0.timestamp >= start && $0.timestamp < end
                 }
                 descriptor = FetchDescriptor(predicate: predicate, sortBy: sortBy)
             } else {
                 let predicate = #Predicate<Session> {
-                    $0.timestamp >= start && $0.timestamp < end
+                    $0.soft_deleted == false && $0.timestamp >= start && $0.timestamp < end
                 }
                 descriptor = FetchDescriptor(predicate: predicate, sortBy: sortBy)
             }
         } else if let userId {
             let predicate = #Predicate<Session> {
-                $0.user_id == userId
+                $0.user_id == userId && $0.soft_deleted == false
             }
             descriptor = FetchDescriptor(predicate: predicate, sortBy: sortBy)
         } else {
-            descriptor = FetchDescriptor(sortBy: sortBy)
+            descriptor = FetchDescriptor(
+                predicate: #Predicate<Session> { session in
+                    session.soft_deleted == false
+                },
+                sortBy: sortBy
+            )
         }
-
-        return try modelContext.fetch(descriptor)
+        let sessions = try modelContext.fetch(descriptor)
+        if try SyncRootMetadataManager.prepareForRead(sessions, in: modelContext) {
+            try modelContext.save()
+        }
+        return sessions
     }
 
     func createSession(userId: UUID, routine: Routine?, notes: String) throws -> Session {
         let session = Session(timestamp: Date(), user_id: userId, routine: routine, notes: notes)
         modelContext.insert(session)
+        try SyncRootMetadataManager.markCreated(session, in: modelContext)
 
         if let routine {
             createSessionExercises(session: session, routine: routine)
@@ -82,28 +99,31 @@ final class LocalSessionRepository: SessionRepositoryProtocol {
         if let routine {
             createSessionExercises(session: session, routine: routine)
         }
+        try SyncRootMetadataManager.markUpdated(session, in: modelContext)
         try modelContext.save()
     }
 
     func deleteSession(_ session: Session) throws {
-        modelContext.delete(session)
+        try SyncRootMetadataManager.markSoftDeleted(session, in: modelContext)
         try modelContext.save()
     }
 
     func deleteSessions(_ sessions: [Session]) throws {
         for session in sessions {
-            modelContext.delete(session)
+            try SyncRootMetadataManager.markSoftDeleted(session, in: modelContext)
         }
         try modelContext.save()
     }
 
     func renumberEntries(in session: Session) throws {
         reorderEntries(in: session)
+        try SyncRootMetadataManager.markUpdated(session, in: modelContext)
         try modelContext.save()
     }
 
     func toggleEntryCompletion(_ sessionEntry: SessionEntry) throws {
         sessionEntry.isCompleted.toggle()
+        try SyncRootMetadataManager.markUpdated(sessionEntry.session, in: modelContext)
         try modelContext.save()
     }
 
@@ -115,6 +135,7 @@ final class LocalSessionRepository: SessionRepositoryProtocol {
         )
         modelContext.insert(newSessionEntry)
         session.sessionEntries.append(newSessionEntry)
+        try SyncRootMetadataManager.markUpdated(session, in: modelContext)
         try modelContext.save()
         return newSessionEntry
     }
@@ -124,6 +145,7 @@ final class LocalSessionRepository: SessionRepositoryProtocol {
             modelContext.delete(persistedEntry)
             session.sessionEntries.removeAll { $0.id == persistedEntry.id }
             reorderEntries(in: session)
+            try SyncRootMetadataManager.markUpdated(session, in: modelContext)
             try modelContext.save()
         }
     }
@@ -140,6 +162,7 @@ final class LocalSessionRepository: SessionRepositoryProtocol {
         }
         session.sessionEntries.removeAll { idSet.contains($0.id) }
         reorderEntries(in: session)
+        try SyncRootMetadataManager.markUpdated(session, in: modelContext)
         try modelContext.save()
     }
 
@@ -149,6 +172,7 @@ final class LocalSessionRepository: SessionRepositoryProtocol {
         for (index, exercise) in exercises.enumerated() {
             exercise.order = index
         }
+        try SyncRootMetadataManager.markUpdated(session, in: modelContext)
         try modelContext.save()
     }
 
@@ -163,6 +187,7 @@ final class LocalSessionRepository: SessionRepositoryProtocol {
 
         for sourceEntry in sourceEntries {
             sourceEntry.exercise = target
+            try SyncRootMetadataManager.markUpdated(sourceEntry.session, in: modelContext)
         }
 
         try modelContext.save()
@@ -173,6 +198,7 @@ final class LocalSessionRepository: SessionRepositoryProtocol {
         newSet.isDropSet = isDropSet
         modelContext.insert(newSet)
         sessionEntry.sets.append(newSet)
+        try SyncRootMetadataManager.markUpdated(sessionEntry.session, in: modelContext)
         try modelContext.save()
         return newSet
     }
@@ -185,6 +211,7 @@ final class LocalSessionRepository: SessionRepositoryProtocol {
             count: 0
         )
         sessionSet.sessionReps.append(newRep)
+        try SyncRootMetadataManager.markUpdated(sessionSet.sessionEntry.session, in: modelContext)
         try modelContext.save()
         return newRep
     }
@@ -197,6 +224,7 @@ final class LocalSessionRepository: SessionRepositoryProtocol {
             count: reps
         )
         sessionSet.sessionReps.append(newRep)
+        try SyncRootMetadataManager.markUpdated(sessionSet.sessionEntry.session, in: modelContext)
         try modelContext.save()
         return newRep
     }
@@ -207,6 +235,7 @@ final class LocalSessionRepository: SessionRepositoryProtocol {
         if sessionSet.sessionReps.count <= 1 {
             sessionSet.isDropSet = false
         }
+        try SyncRootMetadataManager.markUpdated(sessionSet.sessionEntry.session, in: modelContext)
         try modelContext.save()
     }
 
@@ -214,6 +243,7 @@ final class LocalSessionRepository: SessionRepositoryProtocol {
         sessionEntry.sets.removeAll { $0.id == sessionSet.id }
         modelContext.delete(sessionSet)
         reorderSets(sessionEntry: sessionEntry)
+        try SyncRootMetadataManager.markUpdated(sessionEntry.session, in: modelContext)
         try modelContext.save()
     }
 
@@ -254,6 +284,7 @@ final class LocalSessionRepository: SessionRepositoryProtocol {
         modelContext.insert(duplicate)
         sourceEntry.sets.append(duplicate)
         reorderSets(sessionEntry: sourceEntry)
+        try SyncRootMetadataManager.markUpdated(sourceEntry.session, in: modelContext)
         try modelContext.save()
         return duplicate
     }
@@ -278,16 +309,23 @@ final class LocalSessionRepository: SessionRepositoryProtocol {
         if sourceEntry.id != targetEntry.id {
             reorderSets(sessionEntry: targetEntry)
         }
-
+        try SyncRootMetadataManager.markUpdated(session, in: modelContext)
         try modelContext.save()
     }
 
-    func saveChanges() throws {
+    func saveSessionChanges(for sessionSet: SessionSet) throws {
+        try SyncRootMetadataManager.markUpdated(sessionSet.sessionEntry.session, in: modelContext)
+        try modelContext.save()
+    }
+
+    func saveSessionChanges(for sessionRep: SessionRep) throws {
+        try SyncRootMetadataManager.markUpdated(sessionRep.sessionSet.sessionEntry.session, in: modelContext)
         try modelContext.save()
     }
 
     func toggleSetCompletion(_ sessionSet: SessionSet) throws {
         sessionSet.isCompleted.toggle()
+        try SyncRootMetadataManager.markUpdated(sessionSet.sessionEntry.session, in: modelContext)
         try modelContext.save()
     }
 
@@ -360,6 +398,9 @@ final class LocalSessionRepository: SessionRepositoryProtocol {
         for session in try modelContext.fetch(FetchDescriptor<Session>()) {
             if session.timestampDone == .distantPast || session.timestampDone == Date(timeIntervalSince1970: 0) {
                 session.timestampDone = session.timestamp
+                didChange = true
+            }
+            if try SyncRootMetadataManager.prepareForRead(session, in: modelContext) {
                 didChange = true
             }
         }

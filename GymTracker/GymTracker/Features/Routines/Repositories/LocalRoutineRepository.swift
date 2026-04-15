@@ -19,55 +19,70 @@ final class LocalRoutineRepository: RoutineRepositoryProtocol {
     func fetchActiveRoutines(for userId: UUID) throws -> [Routine] {
         let descriptor = FetchDescriptor<Routine>(
             predicate: #Predicate<Routine> { routine in
-                routine.user_id == userId && routine.isArchived == false
+                routine.user_id == userId && routine.soft_deleted == false && routine.isArchived == false
             },
             sortBy: [SortDescriptor(\.order)]
         )
-        return try modelContext.fetch(descriptor)
+        let routines = try modelContext.fetch(descriptor)
+        if try SyncRootMetadataManager.prepareForRead(routines, in: modelContext) {
+            try modelContext.save()
+        }
+        return routines
     }
 
     func fetchArchivedRoutines(for userId: UUID) throws -> [Routine] {
         let descriptor = FetchDescriptor<Routine>(
             predicate: #Predicate<Routine> { routine in
-                routine.user_id == userId && routine.isArchived == true
+                routine.user_id == userId && (routine.soft_deleted == true || routine.isArchived == true)
             },
             sortBy: [SortDescriptor(\.order)]
         )
-        return try modelContext.fetch(descriptor)
+        let routines = try modelContext.fetch(descriptor)
+        if try SyncRootMetadataManager.prepareForRead(routines, in: modelContext) {
+            try modelContext.save()
+        }
+        return routines
     }
 
     func fetchAllRoutines() throws -> [Routine] {
-        try modelContext.fetch(FetchDescriptor<Routine>())
+        let routines = try modelContext.fetch(FetchDescriptor<Routine>())
+        if try SyncRootMetadataManager.prepareForRead(routines, in: modelContext) {
+            try modelContext.save()
+        }
+        return routines
     }
 
     func createRoutine(name: String, userId: UUID, order: Int) throws -> Routine {
         let routine = Routine(order: order, name: name, user_id: userId)
         modelContext.insert(routine)
+        try SyncRootMetadataManager.markCreated(routine, in: modelContext)
         try modelContext.save()
         return routine
     }
 
     func setAliases(_ aliases: [String], for routine: Routine) throws {
         routine.aliases = Array(Set(aliases)).sorted()
+        try SyncRootMetadataManager.markUpdated(routine, in: modelContext)
         try modelContext.save()
     }
 
     func reinsertOrRestore(_ routine: Routine) throws {
         if routine.isArchived {
-            routine.isArchived = false
+            try SyncRootMetadataManager.markRestored(routine, in: modelContext)
         } else {
             modelContext.insert(routine)
+            try SyncRootMetadataManager.markCreated(routine, in: modelContext)
         }
         try modelContext.save()
     }
 
     func delete(_ routine: Routine) throws {
-        routine.isArchived = true
+        try SyncRootMetadataManager.markSoftDeleted(routine, in: modelContext)
         try modelContext.save()
     }
 
     func restore(_ routine: Routine) throws {
-        routine.isArchived = false
+        try SyncRootMetadataManager.markRestored(routine, in: modelContext)
         try modelContext.save()
     }
 
@@ -78,6 +93,7 @@ final class LocalRoutineRepository: RoutineRepositoryProtocol {
     func renumber(_ routines: [Routine]) throws {
         for (index, routine) in routines.enumerated() {
             routine.order = index
+            try SyncRootMetadataManager.markUpdated(routine, in: modelContext)
         }
         try modelContext.save()
     }
@@ -87,6 +103,7 @@ final class LocalRoutineRepository: RoutineRepositoryProtocol {
         for (index, exercise) in exercises.enumerated() {
             exercise.order = index
         }
+        try SyncRootMetadataManager.markUpdated(routine, in: modelContext)
         try modelContext.save()
     }
 
@@ -99,6 +116,7 @@ final class LocalRoutineRepository: RoutineRepositoryProtocol {
         )
         modelContext.insert(newExerciseSplit)
         routine.exerciseSplits.append(newExerciseSplit)
+        try SyncRootMetadataManager.markUpdated(routine, in: modelContext)
         try modelContext.save()
         return newExerciseSplit
     }
@@ -107,6 +125,7 @@ final class LocalRoutineRepository: RoutineRepositoryProtocol {
         if let exerciseSplit = routine.exerciseSplits.first(where: { $0.exercise == exercise }) {
             routine.exerciseSplits.removeAll { $0.id == exerciseSplit.id }
         }
+        try SyncRootMetadataManager.markUpdated(routine, in: modelContext)
         try modelContext.save()
     }
 
@@ -115,6 +134,7 @@ final class LocalRoutineRepository: RoutineRepositoryProtocol {
         for split in validSplits {
             routine.exerciseSplits.removeAll { $0.id == split.id }
         }
+        try SyncRootMetadataManager.markUpdated(routine, in: modelContext)
         try modelContext.save()
         try renumberExerciseSplits(in: routine)
     }
@@ -125,6 +145,7 @@ final class LocalRoutineRepository: RoutineRepositoryProtocol {
         for (index, exercise) in exercises.enumerated() {
             exercise.order = index
         }
+        try SyncRootMetadataManager.markUpdated(routine, in: modelContext)
         try modelContext.save()
     }
 
@@ -132,6 +153,7 @@ final class LocalRoutineRepository: RoutineRepositoryProtocol {
         if !routine.exerciseSplits.contains(where: { $0.id == exerciseSplit.id }) {
             routine.exerciseSplits.append(exerciseSplit)
         }
+        try SyncRootMetadataManager.markUpdated(routine, in: modelContext)
         try modelContext.save()
         try renumberExerciseSplits(in: routine)
     }

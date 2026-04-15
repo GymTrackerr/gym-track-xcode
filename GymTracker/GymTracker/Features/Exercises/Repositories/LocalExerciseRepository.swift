@@ -26,21 +26,29 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
     func fetchActiveExercises(for userId: UUID) throws -> [Exercise] {
         let descriptor = FetchDescriptor<Exercise>(
             predicate: #Predicate<Exercise> { exercise in
-                exercise.user_id == userId && exercise.isArchived == false
+                exercise.user_id == userId && exercise.soft_deleted == false && exercise.isArchived == false
             },
             sortBy: [SortDescriptor(\.name)]
         )
-        return try modelContext.fetch(descriptor)
+        let exercises = try modelContext.fetch(descriptor)
+        if try SyncRootMetadataManager.prepareForRead(exercises, in: modelContext) {
+            try modelContext.save()
+        }
+        return exercises
     }
 
     func fetchArchivedExercises(for userId: UUID) throws -> [Exercise] {
         let descriptor = FetchDescriptor<Exercise>(
             predicate: #Predicate<Exercise> { exercise in
-                exercise.user_id == userId && exercise.isArchived == true
+                exercise.user_id == userId && (exercise.soft_deleted == true || exercise.isArchived == true)
             },
             sortBy: [SortDescriptor(\.name)]
         )
-        return try modelContext.fetch(descriptor)
+        let exercises = try modelContext.fetch(descriptor)
+        if try SyncRootMetadataManager.prepareForRead(exercises, in: modelContext) {
+            try modelContext.save()
+        }
+        return exercises
     }
 
     func applyCatalogExercises(
@@ -54,6 +62,9 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
             }
         )
         let existingForUser = try modelContext.fetch(descriptor)
+        if try SyncRootMetadataManager.prepareForRead(existingForUser, in: modelContext) {
+            try modelContext.save()
+        }
         var existingByNpId: [String: [Exercise]] = [:]
         for exercise in existingForUser {
             guard let key = normalizedNpId(exercise.npId) else { continue }
@@ -70,7 +81,9 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
 
             if matches.isEmpty {
                 if allowInsert {
-                    modelContext.insert(Exercise(from: apiExercise, userId: userId))
+                    let newExercise = Exercise(from: apiExercise, userId: userId)
+                    modelContext.insert(newExercise)
+                    try SyncRootMetadataManager.markCreated(newExercise, in: modelContext)
                     inserted += 1
                 } else {
                     print("Update-only sync skipped insert for npId=\(npIdKey).")
@@ -83,6 +96,7 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
                 print("Exercise dedupe skipped for npId=\(npIdKey): ambiguous primary exercise selection.")
                 for exercise in matches where exercise.user_id == userId {
                     applyApiPayload(apiExercise, to: exercise)
+                    try SyncRootMetadataManager.markUpdated(exercise, in: modelContext)
                     updated += 1
                 }
                 existingByNpId[npIdKey] = matches
@@ -98,6 +112,7 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
             }
 
             applyApiPayload(apiExercise, to: primary)
+            try SyncRootMetadataManager.markUpdated(primary, in: modelContext)
             updated += 1
 
             var retained: [Exercise] = [primary]
@@ -138,12 +153,14 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
     func createExercise(name: String, type: ExerciseType, userId: UUID) throws -> Exercise {
         let newItem = Exercise(name: name, type: type, user_id: userId)
         modelContext.insert(newItem)
+        try SyncRootMetadataManager.markCreated(newItem, in: modelContext)
         try modelContext.save()
         return newItem
     }
 
     func setAliases(_ aliases: [String], for exercise: Exercise) throws {
         exercise.aliases = Array(Set(aliases)).sorted()
+        try SyncRootMetadataManager.markUpdated(exercise, in: modelContext)
         try modelContext.save()
     }
 
@@ -151,30 +168,29 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
         let hasPersistedHistory = try hasSessionHistory(exerciseID: exercise.id)
 
         if !exercise.sessionEntries.isEmpty || hasPersistedHistory {
-            exercise.isArchived = true
-
             for split in Array(exercise.splits) {
                 modelContext.delete(split)
             }
-
+            try SyncRootMetadataManager.markSoftDeleted(exercise, in: modelContext)
             try modelContext.save()
             return
         }
 
-        exercise.isArchived = true
+        try SyncRootMetadataManager.markSoftDeleted(exercise, in: modelContext)
         try modelContext.save()
     }
 
     func restore(_ exercise: Exercise) throws {
-        exercise.isArchived = false
+        try SyncRootMetadataManager.markRestored(exercise, in: modelContext)
         try modelContext.save()
     }
 
     func reinsertOrRestore(_ exercise: Exercise) throws {
         if exercise.isArchived {
-            exercise.isArchived = false
+            try SyncRootMetadataManager.markRestored(exercise, in: modelContext)
         } else {
             modelContext.insert(exercise)
+            try SyncRootMetadataManager.markCreated(exercise, in: modelContext)
         }
         try modelContext.save()
     }
@@ -225,6 +241,7 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
 
             primary.user_id = userId
             primary.aliases = Array(aliases).sorted()
+            try SyncRootMetadataManager.markUpdated(primary, in: modelContext)
 
             if didMergeGroup {
                 groupsMerged += 1

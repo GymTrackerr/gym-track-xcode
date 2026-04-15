@@ -16,6 +16,10 @@ final class Routine {
     var name: String
     var timestamp: Date
     var isArchived: Bool = false
+    var soft_deleted: Bool = false
+    var syncMetaId: UUID? = nil
+    var createdAt: Date = Date()
+    var updatedAt: Date = Date()
     var aliases: [String] = []
     
     @Relationship(deleteRule: .cascade)
@@ -25,11 +29,27 @@ final class Routine {
     var sessions: [Session] = []
     
     init(order: Int, name: String, user_id: UUID) {
+        let timestamp = Date()
+        
         self.order = order
         self.name = name
         self.user_id = user_id
-        self.timestamp = Date()
+        self.timestamp = timestamp
+        self.createdAt = timestamp
+        self.updatedAt = timestamp
         self.exerciseSplits = []
         self.sessions = []
+    }
+}
+
+extension Routine: SyncTrackedRoot {
+    static var syncModelType: SyncModelType { .routine }
+
+    var syncSeedDate: Date { timestamp }
+
+    var legacyDeleteBridgeValue: Bool? { isArchived }
+
+    func applyLegacyDeleteBridge(_ value: Bool) {
+        isArchived = value
     }
 }

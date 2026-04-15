@@ -27,6 +27,10 @@ final class Exercise {
     var cachedMedia: Bool? = false
     var isUserCreated: Bool = true       // Key flag
     var isArchived: Bool = false
+    var soft_deleted: Bool = false
+    var syncMetaId: UUID? = nil
+    var createdAt: Date = Date()
+    var updatedAt: Date = Date()
     var timestamp: Date
 
     // deletes the exerise split day
@@ -45,16 +49,22 @@ final class Exercise {
     }
 
     init(name:String, type: ExerciseType=ExerciseType.weight, user_id: UUID, isUserCreated: Bool = true) {
+        let timestamp = Date()
+
         self.name = name
         self.type = type.rawValue
         self.user_id = user_id
-        self.timestamp = Date()
+        self.timestamp = timestamp
+        self.createdAt = timestamp
+        self.updatedAt = timestamp
         self.isUserCreated = isUserCreated
         self.splits = []
         self.sessionEntries = []
     }
     
     init(from api: ExerciseDTO, userId: UUID) {
+        let timestamp = Date()
+
         self.npId = api.id
         self.isUserCreated = false
         self.user_id = userId
@@ -67,7 +77,9 @@ final class Exercise {
         self.category = api.category
         self.instructions = api.instructions
         self.images = api.images
-        self.timestamp = Date()
+        self.timestamp = timestamp
+        self.createdAt = timestamp
+        self.updatedAt = timestamp
         self.splits = []
         self.sessionEntries = []
     }
@@ -183,5 +195,18 @@ extension Exercise {
         self.instructions = api.instructions
         self.images = api.images
         self.isArchived = api.isArchived
+        self.soft_deleted = api.isArchived
+    }
+}
+
+extension Exercise: SyncTrackedRoot {
+    static var syncModelType: SyncModelType { .exercise }
+
+    var syncSeedDate: Date { timestamp }
+
+    var legacyDeleteBridgeValue: Bool? { isArchived }
+
+    func applyLegacyDeleteBridge(_ value: Bool) {
+        isArchived = value
     }
 }
