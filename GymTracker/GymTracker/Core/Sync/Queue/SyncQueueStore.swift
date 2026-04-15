@@ -16,9 +16,14 @@ final class SyncQueueStore {
     }
 
     private let modelContext: ModelContext
+    private var onQueueChange: (() -> Void)?
 
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
+    }
+
+    func setQueueChangeHandler(_ handler: @escaping () -> Void) {
+        onQueueChange = handler
     }
 
     @discardableResult
@@ -55,11 +60,13 @@ final class SyncQueueStore {
 
                 removeDuplicateOpenItems(openItems, keeping: primaryExisting)
                 try modelContext.save()
+                onQueueChange?()
                 return primaryExisting
             case .deleteExistingAndSkipNew:
                 modelContext.delete(primaryExisting)
                 removeDuplicateOpenItems(openItems, keeping: nil)
                 try modelContext.save()
+                onQueueChange?()
                 return nil
             }
         }
@@ -78,6 +85,7 @@ final class SyncQueueStore {
         )
         modelContext.insert(newItem)
         try modelContext.save()
+        onQueueChange?()
         return newItem
     }
 

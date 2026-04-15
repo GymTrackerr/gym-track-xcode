@@ -15,11 +15,11 @@ struct SyncEligibilitySnapshot: Equatable {
     let hasActiveLocalUser: Bool
 
     var isQueueingAllowed: Bool {
-        syncFeatureEnabled && authAvailable && hasActiveLocalUser
+        syncFeatureEnabled && hasActiveLocalUser
     }
 
     var isProcessingEligible: Bool {
-        isQueueingAllowed && networkAvailable
+        isQueueingAllowed && authAvailable && networkAvailable
     }
 }
 
@@ -27,21 +27,12 @@ final class SyncEligibilityService: ObservableObject {
     @Published private(set) var snapshot: SyncEligibilitySnapshot
 
     private let eligibilityState: SyncEligibilityState
-    private let userDefaults: UserDefaults
-    private let syncFeatureEnabledKey = "gymtracker.sync.feature.enabled"
     private var cancellables = Set<AnyCancellable>()
 
-    init(
-        eligibilityState: SyncEligibilityState,
-        userDefaults: UserDefaults = .standard
-    ) {
+    init(eligibilityState: SyncEligibilityState) {
         self.eligibilityState = eligibilityState
-        self.userDefaults = userDefaults
-
-        let syncFeatureEnabled = userDefaults.object(forKey: syncFeatureEnabledKey) as? Bool ?? false
-        eligibilityState.backendEnabled = syncFeatureEnabled
         self.snapshot = SyncEligibilitySnapshot(
-            syncFeatureEnabled: syncFeatureEnabled,
+            syncFeatureEnabled: eligibilityState.backendEnabled,
             networkAvailable: eligibilityState.networkAvailable,
             authAvailable: eligibilityState.authAvailable,
             hasActiveLocalUser: eligibilityState.hasActiveLocalUser
@@ -59,7 +50,6 @@ final class SyncEligibilityService: ObservableObject {
     }
 
     func setSyncFeatureEnabled(_ enabled: Bool) {
-        userDefaults.set(enabled, forKey: syncFeatureEnabledKey)
         eligibilityState.backendEnabled = enabled
         refreshSnapshot()
     }

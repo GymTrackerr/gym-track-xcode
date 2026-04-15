@@ -41,6 +41,10 @@ final class SyncCoordinator: ObservableObject {
         started = true
         runState = .monitoring
 
+        queueStore.setQueueChangeHandler { [weak self] in
+            self?.scheduleEvaluation(reason: "queueChanged")
+        }
+
         eligibilityService.$snapshot
             .removeDuplicates()
             .sink { [weak self] _ in
@@ -78,11 +82,11 @@ final class SyncCoordinator: ObservableObject {
         defer { runState = .monitoring }
 
         while true {
-            let result = try? worker.processNextEligibleItem(referenceDate: Date())
+            let result = try? await worker.processNextEligibleItem(referenceDate: Date())
             switch result {
             case .processedItem, .unsupportedItemSkipped:
                 continue
-            case .noWork, .remoteExecutionDisabled, .none:
+            case .noWork, .notEligible, .none:
                 return
             }
         }

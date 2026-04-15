@@ -52,11 +52,14 @@ struct GymTrackerApp: App {
         let syncMetadataStore = SyncMetadataStore(modelContext: context)
         
         let remoteExerciseRepository = RemoteExerciseRepository()
+        let syncHandlers = SyncFeatureRegistry.makeHandlers(
+            remoteExerciseRepository: remoteExerciseRepository
+        )
         let syncWorker = SyncWorker(
             queueStore: syncQueueStore,
             metadataStore: syncMetadataStore,
-            remoteExerciseRepository: remoteExerciseRepository,
-            remoteExecutionEnabled: true
+            eligibilityService: syncEligibilityService,
+            handlers: syncHandlers
         )
         let syncCoordinator = SyncCoordinator(
             queueStore: syncQueueStore,

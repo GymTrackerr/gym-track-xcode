@@ -9,7 +9,7 @@ import Foundation
 
 enum SyncWorkerResult: Equatable {
     case noWork
-    case remoteExecutionDisabled
+    case notEligible
     case processedItem
     case unsupportedItemSkipped
 }
@@ -17,45 +17,47 @@ enum SyncWorkerResult: Equatable {
 final class SyncWorker {
     private let queueStore: SyncQueueStore
     private let metadataStore: SyncMetadataStore
-    private let remoteExerciseRepository: RemoteExerciseRepository
-    private let remoteExecutionEnabled: Bool
+    private let eligibilityService: SyncEligibilityService
+    private let handlersByModelType: [SyncModelType: any SyncModelSyncHandler]
 
     init(
         queueStore: SyncQueueStore,
         metadataStore: SyncMetadataStore,
-        remoteExerciseRepository: RemoteExerciseRepository,
-        remoteExecutionEnabled: Bool = false
+        eligibilityService: SyncEligibilityService,
+        handlers: [any SyncModelSyncHandler]
     ) {
         self.queueStore = queueStore
         self.metadataStore = metadataStore
-        self.remoteExerciseRepository = remoteExerciseRepository
-        self.remoteExecutionEnabled = remoteExecutionEnabled
+        self.eligibilityService = eligibilityService
+        self.handlersByModelType = Dictionary(uniqueKeysWithValues: handlers.map { ($0.modelType, $0) })
     }
 
-    func processNextEligibleItem(referenceDate: Date = Date()) throws -> SyncWorkerResult {
-        guard remoteExecutionEnabled else {
-            return .remoteExecutionDisabled
+    func processNextEligibleItem(referenceDate: Date = Date()) async throws -> SyncWorkerResult {
+        guard eligibilityService.isProcessingEligible else {
+            return .notEligible
         }
+
+        let supportedModelTypes = Array(handlersByModelType.keys)
 
         guard let item = try queueStore.nextReadyItem(
             referenceDate: referenceDate,
-            supportedModelTypes: [.exercise]
+            supportedModelTypes: supportedModelTypes
         ) else {
             return .noWork
         }
 
         do {
-            try queueStore.markInFlight(item, at: referenceDate)
-            try metadataStore.markSyncing(
-                modelType: SyncModelType(rawValue: item.modelTypeRaw) ?? .exercise,
-                linkedItemId: item.linkedItemId,
-                at: referenceDate
-            )
+            guard let modelType = SyncModelType(rawValue: item.modelTypeRaw) else {
+                try queueStore.markDeadLetter(
+                    item,
+                    errorCode: "UNSUPPORTED_MODEL_TYPE",
+                    errorMessage: "Queue item model type is unknown.",
+                    at: referenceDate
+                )
+                return .unsupportedItemSkipped
+            }
 
-            switch item.modelType {
-            case .exercise:
-                try processExerciseItem(item)
-            default:
+            guard let handler = handlersByModelType[modelType] else {
                 try queueStore.markDeadLetter(
                     item,
                     errorCode: "UNSUPPORTED_MODEL_TYPE",
@@ -65,8 +67,17 @@ final class SyncWorker {
                 return .unsupportedItemSkipped
             }
 
+            try queueStore.markInFlight(item, at: referenceDate)
+            try metadataStore.markSyncing(
+                modelType: modelType,
+                linkedItemId: item.linkedItemId,
+                at: referenceDate
+            )
+
+            try await handler.process(item: item)
+
             try metadataStore.markSynced(
-                modelType: SyncModelType(rawValue: item.modelTypeRaw) ?? .exercise,
+                modelType: modelType,
                 linkedItemId: item.linkedItemId,
                 at: Date()
             )
@@ -90,50 +101,6 @@ final class SyncWorker {
                 at: Date()
             )
             return .processedItem
-        }
-    }
-
-    private func processExerciseItem(_ item: SyncQueueItem) throws {
-        guard let payloadData = item.payloadSnapshotData else {
-            throw APIHelperError.httpError(
-                statusCode: 0,
-                code: "MISSING_PAYLOAD",
-                message: "Queue item payload is missing.",
-                details: nil
-            )
-        }
-
-        let payload = try JSONDecoder().decode(ExerciseSyncPayload.self, from: payloadData)
-        let exercise = makeExercise(from: payload)
-        let semaphore = DispatchSemaphore(value: 0)
-        var taskError: Error?
-
-        Task {
-            do {
-                switch item.operation {
-                case .create, .update:
-                    _ = try await remoteExerciseRepository.upsertUserExercise(exercise)
-                case .softDelete:
-                    try await remoteExerciseRepository.deleteUserExercise(id: payload.id)
-                case .restore:
-                    _ = try await remoteExerciseRepository.restoreUserExercise(id: payload.id)
-                case .hardDelete, .none:
-                    throw APIHelperError.httpError(
-                        statusCode: 0,
-                        code: "UNSUPPORTED_OPERATION",
-                        message: "Exercise sync does not support this operation.",
-                        details: nil
-                    )
-                }
-            } catch {
-                taskError = error
-            }
-            semaphore.signal()
-        }
-
-        semaphore.wait()
-        if let taskError {
-            throw taskError
         }
     }
 
@@ -213,32 +180,5 @@ final class SyncWorker {
                 at: Date()
             )
         }
-    }
-
-    private func makeExercise(from payload: ExerciseSyncPayload) -> Exercise {
-        let userId = UUID(uuidString: payload.userId) ?? UUID()
-        let exercise = Exercise(
-            name: payload.name,
-            type: ExerciseType.fromPersisted(rawValue: payload.type),
-            user_id: userId,
-            isUserCreated: payload.isUserCreated
-        )
-        if let id = UUID(uuidString: payload.id) {
-            exercise.id = id
-        }
-        exercise.npId = payload.npId
-        exercise.aliases = payload.aliases
-        exercise.primary_muscles = payload.primaryMuscles
-        exercise.secondary_muscles = payload.secondaryMuscles
-        exercise.equipment = payload.equipment
-        exercise.category = payload.category
-        exercise.instructions = payload.instructions
-        exercise.images = payload.images
-        exercise.isArchived = payload.isArchived
-        exercise.soft_deleted = payload.softDeleted
-        exercise.createdAt = payload.createdAt
-        exercise.updatedAt = payload.updatedAt
-        exercise.timestamp = payload.createdAt
-        return exercise
     }
 }

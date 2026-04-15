@@ -60,7 +60,7 @@ final class LocalDeviceIdentityStore {
 }
 
 final class BackendSessionStore {
-    static let shared = BackendSessionStore()
+    static let shared: BackendSessionStore = BackendSessionStore()
 
     private let defaults = UserDefaults.standard
     private let activeLocalUserKey = "gymtracker.backend.session.active-local-user"

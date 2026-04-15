@@ -21,6 +21,8 @@ final class User {
     var active: Bool = true
     var isDemo: Bool = false
     var allowHealthAccess: Bool = false
+    var remoteAccountId: String? = nil
+    var remoteSyncEnabled: Bool = true
     
     var defaultTimer: Int = 90
     var showNutritionTab: Bool = true
@@ -39,6 +41,7 @@ final class User {
         let timestamp = Date()
         self.name = name
         self.isDemo = isDemo
+        self.remoteSyncEnabled = !isDemo
         self.timestamp = timestamp
         self.lastLogin = timestamp
         self.createdAt = timestamp

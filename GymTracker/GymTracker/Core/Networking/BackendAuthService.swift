@@ -139,6 +139,7 @@ final class BackendAuthService: ObservableObject {
             currentLocalUserId = activeLocalUserId
             sessionSnapshot = BackendSessionStore.shared.loadSession(for: activeLocalUserId)
             eligibilityState.hasActiveLocalUser = true
+            eligibilityState.backendEnabled = true
             eligibilityState.authAvailable = sessionSnapshot?.accessToken.isEmpty == false
         }
     }
@@ -146,6 +147,7 @@ final class BackendAuthService: ObservableObject {
     private func handleCurrentUserChange(_ user: User?) {
         currentLocalUserId = user?.id
         eligibilityState.hasActiveLocalUser = user != nil
+        eligibilityState.backendEnabled = user?.remoteSyncEnabled ?? false
         BackendSessionStore.shared.setActiveLocalUserId(user?.id)
 
         guard let localUserId = user?.id else {
@@ -163,6 +165,12 @@ final class BackendAuthService: ObservableObject {
         currentBackendUser = nil
         linkedProvider = nil
         lastErrorMessage = nil
+
+        if let accountUserId = sessionSnapshot?.accountUserId, user?.remoteAccountId == nil {
+            user?.remoteAccountId = accountUserId
+            user?.updatedAt = Date()
+        }
+
         eligibilityState.authAvailable = sessionSnapshot?.accessToken.isEmpty == false
     }
 
@@ -189,6 +197,7 @@ final class BackendAuthService: ObservableObject {
         linkedProvider = response.linkedProvider
         currentSession = nil
         lastErrorMessage = nil
+        eligibilityState.backendEnabled = true
         eligibilityState.authAvailable = true
     }
 
