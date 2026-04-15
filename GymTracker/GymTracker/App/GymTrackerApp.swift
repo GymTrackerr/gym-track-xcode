@@ -46,9 +46,12 @@ struct GymTrackerApp: App {
         let exerciseRepository = LocalExerciseRepository(modelContext: context)
         let routineRepository = LocalRoutineRepository(modelContext: context)
         let sessionRepository = LocalSessionRepository(modelContext: context)
+        let userRepository = LocalUserRepository(modelContext: context)
+        let nutritionRepository = LocalNutritionRepository(modelContext: context)
+        let healthKitDailyRepository = LocalHealthKitDailyRepository(modelContext: context)
 
         // Create — no currentUser passed
-        let userService = UserService(context: context)
+        let userService = UserService(context: context, repository: userRepository)
         userService.loadFeature()
         let backendAuthService = BackendAuthService(eligibilityState: syncEligibilityState)
         
@@ -60,11 +63,12 @@ struct GymTrackerApp: App {
         let setService = SetService(context: context, repository: sessionRepository)
         let exerciseSplitDayService = ExerciseSplitDayService(context: context, repository: routineRepository)
         let sessionExerciseService = SessionExerciseService(context: context, repository: sessionRepository)
-        let nutritionService = NutritionService(context: context)
+        let nutritionService = NutritionService(context: context, repository: nutritionRepository)
         let healthKitManager = HealthKitManager()
         let healthKitDateNormalizer = HealthKitDateNormalizer()
         let healthKitDailyStore = HealthKitDailyStore(
             context: context,
+            repository: healthKitDailyRepository,
             healthKitManager: healthKitManager,
             dateNormalizer: healthKitDateNormalizer
         )

@@ -42,9 +42,10 @@ final class SyncQueueItem {
         lastErrorCode: String? = nil,
         lastErrorMessage: String? = nil,
         requiresAuth: Bool = true,
-        createdAt: Date = Date(),
-        updatedAt: Date = Date()
+        createdAt: Date? = nil,
+        updatedAt: Date? = nil
     ) {
+        let timestamp = createdAt ?? updatedAt ?? Date()
         self.id = id
         self.modelTypeRaw = modelType.rawValue
         self.linkedItemId = linkedItemId
@@ -59,8 +60,8 @@ final class SyncQueueItem {
         self.lastErrorCode = lastErrorCode
         self.lastErrorMessage = lastErrorMessage
         self.requiresAuth = requiresAuth
-        self.createdAt = createdAt
-        self.updatedAt = updatedAt
+        self.createdAt = createdAt ?? timestamp
+        self.updatedAt = updatedAt ?? timestamp
     }
 
     var modelType: SyncModelType? {

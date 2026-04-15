@@ -25,6 +25,8 @@ final class NutritionLogEntry {
     var fatSnapshot: Double
     var extraNutrientsSnapshotData: Data?
     var recipeItemsSnapshotData: Data?
+    var soft_deleted: Bool
+    var syncMetaId: UUID?
     var createdAt: Date
     var updatedAt: Date
 
@@ -73,6 +75,8 @@ final class NutritionLogEntry {
         self.fatSnapshot = max(0, fatSnapshot)
         self.extraNutrientsSnapshotData = CodableJSONHelper.encode(extraNutrientsSnapshot)
         self.recipeItemsSnapshotData = CodableJSONHelper.encode(recipeItemsSnapshot)
+        self.soft_deleted = false
+        self.syncMetaId = nil
         self.createdAt = createdTimestamp
         self.updatedAt = createdTimestamp
     }
@@ -101,4 +105,10 @@ final class NutritionLogEntry {
         get { CodableJSONHelper.decode(recipeItemsSnapshotData) }
         set { recipeItemsSnapshotData = CodableJSONHelper.encode(newValue) }
     }
+}
+
+extension NutritionLogEntry: SyncTrackedRoot {
+    static var syncModelType: SyncModelType { .nutritionLogEntry }
+    var syncLinkedItemId: String { id.uuidString.lowercased() }
+    var syncSeedDate: Date { createdAt }
 }

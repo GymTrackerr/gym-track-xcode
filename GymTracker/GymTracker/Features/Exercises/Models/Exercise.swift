@@ -201,6 +201,7 @@ extension Exercise {
 
 extension Exercise: SyncTrackedRoot {
     static var syncModelType: SyncModelType { .exercise }
+    var syncLinkedItemId: String { id.uuidString.lowercased() }
 
     var syncSeedDate: Date { timestamp }
 

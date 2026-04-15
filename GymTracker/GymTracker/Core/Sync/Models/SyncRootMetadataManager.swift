@@ -9,11 +9,11 @@ import Foundation
 import SwiftData
 
 protocol SyncTrackedRoot: AnyObject {
-    var id: UUID { get set }
     var createdAt: Date { get set }
     var updatedAt: Date { get set }
     var soft_deleted: Bool { get set }
     var syncMetaId: UUID? { get set }
+    var syncLinkedItemId: String { get }
 
     static var syncModelType: SyncModelType { get }
     var syncSeedDate: Date { get }
@@ -137,7 +137,7 @@ enum SyncRootMetadataManager {
         for root: Root,
         in context: ModelContext
     ) throws -> (SyncMetadataItem, Bool, UUID) {
-        let linkedItemId = root.id.uuidString.lowercased()
+        let linkedItemId = root.syncLinkedItemId
 
         if let syncMetaId = root.syncMetaId,
            let metadata = try fetchMetadata(by: syncMetaId, in: context) {

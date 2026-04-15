@@ -41,6 +41,7 @@ final class Session {
 
 extension Session: SyncTrackedRoot {
     static var syncModelType: SyncModelType { .session }
+    var syncLinkedItemId: String { id.uuidString.lowercased() }
 
     var syncSeedDate: Date { timestamp }
 }

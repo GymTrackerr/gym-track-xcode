@@ -83,15 +83,18 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
     @Published private(set) var isBackfillingHistory: Bool = false
     @Published private(set) var backfillStatusText: String = ""
 
+    private let repository: HealthKitDailyRepositoryProtocol
     private let healthKitManager: HealthKitManager
     private let dateNormalizer: HealthKitDateNormalizer
     private var inFlightTasks: [String: Task<DailyAggregateSnapshot, Error>] = [:]
 
     init(
         context: ModelContext,
+        repository: HealthKitDailyRepositoryProtocol,
         healthKitManager: HealthKitManager,
         dateNormalizer: HealthKitDateNormalizer
     ) {
+        self.repository = repository
         self.healthKitManager = healthKitManager
         self.dateNormalizer = dateNormalizer
         super.init(context: context)
@@ -229,25 +232,12 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
     }
 
     func cachedDataBounds(userId: String) throws -> (oldest: Date?, newest: Date?) {
-        let descriptor = FetchDescriptor<HealthKitDailyAggregateData>(
-            predicate: #Predicate<HealthKitDailyAggregateData> { item in
-                item.userId == userId
-            },
-            sortBy: [SortDescriptor(\.dayStart)]
-        )
-        let items = try modelContext.fetch(descriptor)
+        let items = try repository.fetchCachedSummaries(userId: userId)
         return (items.first?.dayStart, items.last?.dayStart)
     }
 
     func cachedDailySummaries(userId: String) throws -> [HealthKitDailyAggregateData] {
-        let descriptor = FetchDescriptor<HealthKitDailyAggregateData>(
-            predicate: #Predicate<HealthKitDailyAggregateData> { item in
-                item.userId == userId
-            },
-            sortBy: [SortDescriptor(\.dayStart)]
-        )
-        let items = try modelContext.fetch(descriptor)
-        return items
+        try repository.fetchCachedSummaries(userId: userId)
     }
 
     func cachedDailySummaries(
@@ -372,22 +362,19 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         guard let cached = try fetchCachedSummary(userId: userId, dayKey: dayKey) else { return }
         cached.lastRefreshedAt = .distantPast
         cached.isToday = dateNormalizer.sameDay(cached.dayStart, Date())
-        try modelContext.save()
+        cached.updatedAt = Date()
+        try repository.saveChanges()
         refreshToken &+= 1
     }
 
     func invalidateAll(userId: String) throws {
-        let descriptor = FetchDescriptor<HealthKitDailyAggregateData>(
-            predicate: #Predicate<HealthKitDailyAggregateData> { item in
-                item.userId == userId
-            }
-        )
-        let cachedItems = try modelContext.fetch(descriptor)
+        let cachedItems = try repository.fetchCachedSummaries(userId: userId)
         for item in cachedItems {
             item.lastRefreshedAt = .distantPast
             item.isToday = dateNormalizer.sameDay(item.dayStart, Date())
+            item.updatedAt = Date()
         }
-        try modelContext.save()
+        try repository.saveChanges()
     }
 
     func notifyExternalSummaryImport() {
@@ -514,7 +501,7 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
                 resolved[snapshot.dayKey] = dto
             }
             if !snapshots.isEmpty {
-                try modelContext.save()
+                try repository.saveChanges()
             }
         }
 
@@ -530,13 +517,7 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
     }
 
     private func fetchCachedSummary(userId: String, dayKey: String) throws -> HealthKitDailyAggregateData? {
-        let cacheKey = makeCacheKey(userId: userId, dayKey: dayKey)
-        let descriptor = FetchDescriptor<HealthKitDailyAggregateData>(
-            predicate: #Predicate<HealthKitDailyAggregateData> { item in
-                item.cacheKey == cacheKey
-            }
-        )
-        return try modelContext.fetch(descriptor).first
+        try repository.fetchCachedSummary(userId: userId, dayKey: dayKey)
     }
 
     private func fetchCachedSummaries(
@@ -544,43 +525,18 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         from startDay: Date,
         to endDay: Date
     ) throws -> [String: HealthKitDailyAggregateData] {
-        let descriptor = FetchDescriptor<HealthKitDailyAggregateData>(
-            predicate: #Predicate<HealthKitDailyAggregateData> { item in
-                item.userId == userId && item.dayStart >= startDay && item.dayStart <= endDay
-            }
-        )
-        let items = try modelContext.fetch(descriptor)
-        return Dictionary(uniqueKeysWithValues: items.map { ($0.dayKey, $0) })
+        try repository.fetchCachedSummaries(userId: userId, from: startDay, to: endDay)
     }
 
     private func upsertCache(with dto: HealthKitDailyAggregateData, saveImmediately: Bool = true) throws {
         let refreshedAt = Date()
         let isToday = dateNormalizer.sameDay(dto.dayStart, Date())
-
-        if let existing = try fetchCachedSummary(userId: dto.userId, dayKey: dto.dayKey) {
-            existing.dayStart = dto.dayStart
-            existing.steps = dto.steps
-            existing.activeEnergyKcal = dto.activeEnergyKcal
-            existing.restingEnergyKcal = dto.restingEnergyKcal
-            existing.exerciseMinutes = dto.exerciseMinutes
-            existing.standHours = dto.standHours
-            existing.moveGoalKcal = dto.moveGoalKcal
-            existing.exerciseGoalMinutes = dto.exerciseGoalMinutes
-            existing.standGoalHours = dto.standGoalHours
-            existing.sleepSeconds = dto.sleepSeconds
-            existing.bodyWeightKg = dto.bodyWeightKg
-            existing.schemaVersion = dto.schemaVersion
-            existing.lastRefreshedAt = refreshedAt
-            existing.isToday = isToday
-        } else {
-            dto.lastRefreshedAt = refreshedAt
-            dto.isToday = isToday
-            modelContext.insert(dto)
-        }
-
-        if saveImmediately {
-            try modelContext.save()
-        }
+        try repository.upsertCache(
+            with: dto,
+            refreshedAt: refreshedAt,
+            isToday: isToday,
+            saveImmediately: saveImmediately
+        )
     }
 
     private func mapToDTO(_ cache: HealthKitDailyAggregateData) -> HealthKitDailyAggregateData {
@@ -642,14 +598,7 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
     private func upgradeCachedSummariesIfNeeded(userId: String) async {
         guard !isRunningSchemaUpgrade else { return }
 
-        let descriptor = FetchDescriptor<HealthKitDailyAggregateData>(
-            predicate: #Predicate<HealthKitDailyAggregateData> { item in
-                item.userId == userId
-            },
-            sortBy: [SortDescriptor(\.dayStart)]
-        )
-
-        guard let cached = try? modelContext.fetch(descriptor), !cached.isEmpty else { return }
+        guard let cached = try? repository.fetchCachedSummaries(userId: userId), !cached.isEmpty else { return }
 
         let needsUpgrade = cached.contains { $0.schemaVersion < HealthKitDailyAggregateData.currentSchemaVersion }
         guard needsUpgrade else { return }
@@ -681,12 +630,13 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
                 item.standGoalHours = upgraded.standGoalHours
                 item.bodyWeightKg = upgraded.bodyWeightKg
                 item.schemaVersion = HealthKitDailyAggregateData.currentSchemaVersion
+                item.updatedAt = Date()
                 changedAny = true
             }
         }
 
         if changedAny {
-            try? modelContext.save()
+            try? repository.saveChanges()
             refreshToken &+= 1
         }
     }

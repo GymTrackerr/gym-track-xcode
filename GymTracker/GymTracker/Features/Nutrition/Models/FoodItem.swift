@@ -18,6 +18,8 @@ final class FoodItem {
     var isFavorite: Bool
     var kindRaw: Int
     var unitRaw: Int
+    var soft_deleted: Bool
+    var syncMetaId: UUID?
     var createdAt: Date
     var updatedAt: Date
 
@@ -55,6 +57,8 @@ final class FoodItem {
         self.isFavorite = isFavorite
         self.kindRaw = kind.rawValue
         self.unitRaw = unit.rawValue
+        self.soft_deleted = isArchived
+        self.syncMetaId = nil
         self.createdAt = timestamp
         self.updatedAt = timestamp
         self.recipeItems = []
@@ -93,5 +97,16 @@ final class FoodItem {
     var fatPerUnit: Double {
         guard referenceQuantity > 0 else { return 0 }
         return fatPerReference / referenceQuantity
+    }
+}
+
+extension FoodItem: SyncTrackedRoot {
+    static var syncModelType: SyncModelType { .foodItem }
+    var syncLinkedItemId: String { id.uuidString.lowercased() }
+    var syncSeedDate: Date { createdAt }
+    var legacyDeleteBridgeValue: Bool? { isArchived }
+
+    func applyLegacyDeleteBridge(_ value: Bool) {
+        isArchived = value
     }
 }

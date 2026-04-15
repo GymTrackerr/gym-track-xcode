@@ -14,6 +14,10 @@ final class User {
     var name: String
     var timestamp: Date
     var lastLogin: Date
+    var soft_deleted: Bool = false
+    var syncMetaId: UUID? = nil
+    var createdAt: Date
+    var updatedAt: Date
     var active: Bool = true
     var isDemo: Bool = false
     var allowHealthAccess: Bool = false
@@ -32,9 +36,12 @@ final class User {
     var hapticAt5: Bool?
     
     init(name: String, isDemo: Bool = false) {
+        let timestamp = Date()
         self.name = name
         self.isDemo = isDemo
-        self.timestamp = Date()
-        self.lastLogin = Date()
+        self.timestamp = timestamp
+        self.lastLogin = timestamp
+        self.createdAt = timestamp
+        self.updatedAt = timestamp
     }
 }

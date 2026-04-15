@@ -11,6 +11,8 @@ final class MealRecipe {
     var defaultCategoryRaw: Int
     var cachedExtraNutrientsData: Data?
     var isArchived: Bool
+    var soft_deleted: Bool
+    var syncMetaId: UUID?
     var createdAt: Date
     var updatedAt: Date
 
@@ -34,6 +36,8 @@ final class MealRecipe {
         self.defaultCategoryRaw = defaultCategory.rawValue
         self.cachedExtraNutrientsData = CodableJSONHelper.encode(cachedExtraNutrients)
         self.isArchived = isArchived
+        self.soft_deleted = isArchived
+        self.syncMetaId = nil
         self.createdAt = timestamp
         self.updatedAt = timestamp
         self.items = []
@@ -47,5 +51,16 @@ final class MealRecipe {
     var cachedExtraNutrients: [String: Double]? {
         get { CodableJSONHelper.decode(cachedExtraNutrientsData) }
         set { cachedExtraNutrientsData = CodableJSONHelper.encode(newValue) }
+    }
+}
+
+extension MealRecipe: SyncTrackedRoot {
+    static var syncModelType: SyncModelType { .mealRecipe }
+    var syncLinkedItemId: String { id.uuidString.lowercased() }
+    var syncSeedDate: Date { createdAt }
+    var legacyDeleteBridgeValue: Bool? { isArchived }
+
+    func applyLegacyDeleteBridge(_ value: Bool) {
+        isArchived = value
     }
 }

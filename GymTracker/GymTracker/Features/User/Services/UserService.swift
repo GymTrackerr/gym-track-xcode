@@ -16,9 +16,11 @@ class UserService: ServiceBase, ObservableObject {
     @Published var onBoarding: Bool = false
     @Published var onBoardingScreen: Int = 0
     @Published var currentUserLoggedin: UUID
+    private let repository: UserRepositoryProtocol
 //    @Published override var currentUser: User?: User? = nil
     
-    override init (context: ModelContext) {
+    init(context: ModelContext, repository: UserRepositoryProtocol) {
+        self.repository = repository
         self.currentUserLoggedin = UUID()
 
         super.init(context: context)
@@ -47,12 +49,10 @@ class UserService: ServiceBase, ObservableObject {
 
     func loadAccounts(firstLoad: Bool = false) {
         print("loadingaccounts")
-        let descriptor = FetchDescriptor<User>(sortBy: [SortDescriptor(\.lastLogin, order: .reverse)])
-
         do {
             print("not ??")
 
-            accounts = try modelContext.fetch(descriptor)
+            accounts = try repository.fetchAccounts()
             
             print("ac", accounts.count)
             for item in accounts {
@@ -88,11 +88,12 @@ class UserService: ServiceBase, ObservableObject {
 
         withAnimation {
             account.lastLogin = Date()
+            account.updatedAt = account.lastLogin
             currentUser = account
             ensureDeviceIdForCurrentUser()
 
             do {
-                try modelContext.save()
+                try repository.saveChanges(for: account)
                 loadAccounts()
             } catch {
                 print("Failed to switch account: \(error)")
@@ -104,13 +105,13 @@ class UserService: ServiceBase, ObservableObject {
         withAnimation {
             LocalDeviceIdentityStore.shared.clearDeviceId(for: id)
             BackendSessionStore.shared.clearSession(for: id)
-            modelContext.delete(accounts.first(where: { $0.id == id })!)
-            
-            do {
-                try modelContext.save()
-                loadAccounts()
-            } catch {
-                print("Failed to save new split day: \(error)")
+            if let account = accounts.first(where: { $0.id == id }) {
+                do {
+                    try repository.delete(account)
+                    loadAccounts()
+                } catch {
+                    print("Failed to save new split day: \(error)")
+                }
             }
         }
     }
@@ -123,14 +124,8 @@ class UserService: ServiceBase, ObservableObject {
         
         
         withAnimation {
-//            modelContext.
-            let newItem = User(name:trimmedName)
-
-            
-            modelContext.insert(newItem)
-            
             do {
-                try modelContext.save()
+                let newItem = try repository.createUser(name: trimmedName, isDemo: false)
                 currentUser = newItem
                 ensureDeviceIdForCurrentUser()
                 accountCreated = true
@@ -150,70 +145,80 @@ class UserService: ServiceBase, ObservableObject {
     func hkUserAllow(connected: Bool, requested: Bool) {
         withAnimation {
             currentUser?.allowHealthAccess = connected && requested
-            try? modelContext.save()
+            currentUser?.updatedAt = Date()
+            if let currentUser { try? repository.saveChanges(for: currentUser) }
         }
     }
 
     func setShowNutritionTab(_ isVisible: Bool) {
         withAnimation {
             currentUser?.showNutritionTab = isVisible
-            try? modelContext.save()
+            currentUser?.updatedAt = Date()
+            if let currentUser { try? repository.saveChanges(for: currentUser) }
         }
     }
 
     func setTimerNotificationsEnabled(_ isEnabled: Bool) {
         withAnimation {
             currentUser?.timerNotificationsEnabled = isEnabled
-            try? modelContext.save()
+            currentUser?.updatedAt = Date()
+            if let currentUser { try? repository.saveChanges(for: currentUser) }
         }
     }
 
     func setTimerFinishedNotificationEnabled(_ isEnabled: Bool) {
         withAnimation {
             currentUser?.timerFinishedNotificationEnabled = isEnabled
-            try? modelContext.save()
+            currentUser?.updatedAt = Date()
+            if let currentUser { try? repository.saveChanges(for: currentUser) }
         }
     }
 
     func setAwayTooLongEnabled(_ isEnabled: Bool) {
         withAnimation {
             currentUser?.awayTooLongEnabled = isEnabled
-            try? modelContext.save()
+            currentUser?.updatedAt = Date()
+            if let currentUser { try? repository.saveChanges(for: currentUser) }
         }
     }
 
     func setAwayTooLongMinutes(_ minutes: Int) {
         withAnimation {
             currentUser?.awayTooLongMinutes = max(1, minutes)
-            try? modelContext.save()
+            currentUser?.updatedAt = Date()
+            if let currentUser { try? repository.saveChanges(for: currentUser) }
         }
     }
 
     func setCountdownHapticsEnabled(_ isEnabled: Bool) {
         withAnimation {
             currentUser?.countdownHapticsEnabled = isEnabled
-            try? modelContext.save()
+            currentUser?.updatedAt = Date()
+            if let currentUser { try? repository.saveChanges(for: currentUser) }
         }
     }
 
     func setHapticAt30(_ isEnabled: Bool) {
         withAnimation {
             currentUser?.hapticAt30 = isEnabled
-            try? modelContext.save()
+            currentUser?.updatedAt = Date()
+            if let currentUser { try? repository.saveChanges(for: currentUser) }
         }
     }
 
     func setHapticAt15(_ isEnabled: Bool) {
         withAnimation {
             currentUser?.hapticAt15 = isEnabled
-            try? modelContext.save()
+            currentUser?.updatedAt = Date()
+            if let currentUser { try? repository.saveChanges(for: currentUser) }
         }
     }
 
     func setHapticAt5(_ isEnabled: Bool) {
         withAnimation {
             currentUser?.hapticAt5 = isEnabled
-            try? modelContext.save()
+            currentUser?.updatedAt = Date()
+            if let currentUser { try? repository.saveChanges(for: currentUser) }
         }
     }
 }

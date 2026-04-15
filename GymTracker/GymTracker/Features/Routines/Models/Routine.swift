@@ -44,6 +44,7 @@ final class Routine {
 
 extension Routine: SyncTrackedRoot {
     static var syncModelType: SyncModelType { .routine }
+    var syncLinkedItemId: String { id.uuidString.lowercased() }
 
     var syncSeedDate: Date { timestamp }
 

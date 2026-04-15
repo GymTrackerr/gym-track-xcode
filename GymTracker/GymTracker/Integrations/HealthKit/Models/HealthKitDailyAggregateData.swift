@@ -23,6 +23,10 @@ final class HealthKitDailyAggregateData {
     var schemaVersion: Double = 1.2
     var lastRefreshedAt: Date
     var isToday: Bool
+    var soft_deleted: Bool
+    var syncMetaId: UUID?
+    var createdAt: Date
+    var updatedAt: Date
 
     init(
         userId: String,
@@ -42,6 +46,7 @@ final class HealthKitDailyAggregateData {
         lastRefreshedAt: Date = .distantPast,
         isToday: Bool = false
     ) {
+        let timestamp = Date()
         self.cacheKey = "\(userId)|\(dayKey)"
         self.userId = userId
         self.dayKey = dayKey
@@ -59,7 +64,17 @@ final class HealthKitDailyAggregateData {
         self.schemaVersion = schemaVersion
         self.lastRefreshedAt = lastRefreshedAt
         self.isToday = isToday
+        self.soft_deleted = false
+        self.syncMetaId = nil
+        self.createdAt = timestamp
+        self.updatedAt = timestamp
     }
 
     var id: String { "\(userId)|\(dayKey)" }
+}
+
+extension HealthKitDailyAggregateData: SyncTrackedRoot {
+    static var syncModelType: SyncModelType { .healthDailySummary }
+    var syncLinkedItemId: String { id.lowercased() }
+    var syncSeedDate: Date { dayStart }
 }
