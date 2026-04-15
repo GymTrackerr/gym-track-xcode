@@ -59,11 +59,51 @@ struct GymTrackerApp: App {
             queueStore: syncQueueStore,
             eligibilityService: syncEligibilityService
         )
-        let routineRepository = LocalRoutineRepository(modelContext: context)
-        let sessionRepository = LocalSessionRepository(modelContext: context)
-        let userRepository = LocalUserRepository(modelContext: context)
-        let nutritionRepository = LocalNutritionRepository(modelContext: context)
-        let healthKitDailyRepository = LocalHealthKitDailyRepository(modelContext: context)
+        let localRoutineRepository = LocalRoutineRepository(modelContext: context)
+        let routineRepository = SyncingRoutineRepository(
+            localRepository: localRoutineRepository,
+            queueStore: syncQueueStore,
+            eligibilityService: syncEligibilityService
+        )
+        let localSessionRepository = LocalSessionRepository(modelContext: context)
+        let sessionRepository = SyncingSessionRepository(
+            localRepository: localSessionRepository,
+            queueStore: syncQueueStore,
+            eligibilityService: syncEligibilityService
+        )
+        let localUserRepository = LocalUserRepository(modelContext: context)
+        let userRepository = SyncingUserRepository(
+            localRepository: localUserRepository,
+            queueStore: syncQueueStore,
+            eligibilityService: syncEligibilityService
+        )
+        let localNutritionRepository = LocalNutritionRepository(modelContext: context)
+        let nutritionCatalogRepository = SyncingNutritionCatalogRepository(
+            localRepository: localNutritionRepository,
+            queueStore: syncQueueStore,
+            eligibilityService: syncEligibilityService
+        )
+        let nutritionLogRepository = SyncingNutritionLogRepository(
+            localRepository: localNutritionRepository,
+            queueStore: syncQueueStore,
+            eligibilityService: syncEligibilityService
+        )
+        let nutritionTargetRepository = SyncingNutritionTargetRepository(
+            localRepository: localNutritionRepository,
+            queueStore: syncQueueStore,
+            eligibilityService: syncEligibilityService
+        )
+        let nutritionRepository = ComposedNutritionRepository(
+            catalogRepository: nutritionCatalogRepository,
+            logRepository: nutritionLogRepository,
+            targetRepository: nutritionTargetRepository
+        )
+        let localHealthKitDailyRepository = LocalHealthKitDailyRepository(modelContext: context)
+        let healthKitDailyRepository = SyncingHealthKitDailyRepository(
+            localRepository: localHealthKitDailyRepository,
+            queueStore: syncQueueStore,
+            eligibilityService: syncEligibilityService
+        )
 
         // Create — no currentUser passed
         let userService = UserService(context: context, repository: userRepository)
