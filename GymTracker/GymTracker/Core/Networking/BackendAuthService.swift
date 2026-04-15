@@ -16,7 +16,7 @@ final class SyncEligibilityState: ObservableObject {
     @Published var hasActiveLocalUser: Bool
 
     init(
-        backendEnabled: Bool = true,
+        backendEnabled: Bool = false,
         networkAvailable: Bool = true,
         authAvailable: Bool = false,
         hasActiveLocalUser: Bool = false

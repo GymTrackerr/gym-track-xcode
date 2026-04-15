@@ -37,14 +37,18 @@ final class SyncQueueItem {
         priority: Int = 100,
         status: SyncQueueStatus = .queued,
         attemptCount: Int = 0,
-        nextAttemptAt: Date = Date(),
+        nextAttemptAt: Date? = nil,
         lastAttemptAt: Date? = nil,
         lastErrorCode: String? = nil,
         lastErrorMessage: String? = nil,
         requiresAuth: Bool = true,
-        createdAt: Date = Date(),
-        updatedAt: Date = Date()
+        createdAt: Date? = nil,
+        updatedAt: Date? = nil
     ) {
+        let timestamp = Date()
+        let resolvedCreatedAt = createdAt ?? timestamp
+        let resolvedUpdatedAt = max(updatedAt ?? resolvedCreatedAt, resolvedCreatedAt)
+
         self.id = id
         self.modelTypeRaw = modelType.rawValue
         self.linkedItemId = linkedItemId
@@ -54,13 +58,13 @@ final class SyncQueueItem {
         self.priority = priority
         self.statusRaw = status.rawValue
         self.attemptCount = attemptCount
-        self.nextAttemptAt = nextAttemptAt
+        self.nextAttemptAt = nextAttemptAt ?? resolvedUpdatedAt
         self.lastAttemptAt = lastAttemptAt
         self.lastErrorCode = lastErrorCode
         self.lastErrorMessage = lastErrorMessage
         self.requiresAuth = requiresAuth
-        self.createdAt = createdAt
-        self.updatedAt = updatedAt
+        self.createdAt = resolvedCreatedAt
+        self.updatedAt = resolvedUpdatedAt
     }
     
     var modelType: SyncModelType? {

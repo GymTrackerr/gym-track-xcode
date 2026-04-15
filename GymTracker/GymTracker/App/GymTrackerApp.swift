@@ -15,6 +15,8 @@ struct GymTrackerApp: App {
     @StateObject var userService: UserService
     @StateObject var backendAuthService: BackendAuthService
     @StateObject var syncEligibilityState: SyncEligibilityState
+    @StateObject var syncEligibilityService: SyncEligibilityService
+    @StateObject var syncCoordinator: SyncCoordinator
     @StateObject var dashboardService: DashboardService
     @StateObject var timerService: TimerService
     @StateObject var exerciseService: ExerciseService
@@ -43,7 +45,19 @@ struct GymTrackerApp: App {
         let context = sharedModelContainer.mainContext
         LegacyStoreRecoveryService.recoverIfNeeded(destinationContext: context)
         let syncEligibilityState = SyncEligibilityState()
-        let exerciseRepository = LocalExerciseRepository(modelContext: context)
+        let syncEligibilityService = SyncEligibilityService(eligibilityState: syncEligibilityState)
+        let syncQueueStore = SyncQueueStore(modelContext: context)
+        let syncWorker = SyncWorker(queueStore: syncQueueStore)
+        let syncCoordinator = SyncCoordinator(
+            queueStore: syncQueueStore,
+            eligibilityService: syncEligibilityService,
+            worker: syncWorker
+        )
+        let exerciseRepository = LocalExerciseRepository(
+            modelContext: context,
+            queueStore: syncQueueStore,
+            eligibilityService: syncEligibilityService
+        )
         let routineRepository = LocalRoutineRepository(modelContext: context)
         let sessionRepository = LocalSessionRepository(modelContext: context)
         let userRepository = LocalUserRepository(modelContext: context)
@@ -92,11 +106,14 @@ struct GymTrackerApp: App {
         nutritionService.bind(to: userService)
         healthKitDailyStore.bind(to: userService)
         healthMetricsService.bind(to: userService)
+        syncCoordinator.start()
 
         self._dashboardService = StateObject(wrappedValue: dashboardService)
         self._userService = StateObject(wrappedValue: userService)
         self._backendAuthService = StateObject(wrappedValue: backendAuthService)
         self._syncEligibilityState = StateObject(wrappedValue: syncEligibilityState)
+        self._syncEligibilityService = StateObject(wrappedValue: syncEligibilityService)
+        self._syncCoordinator = StateObject(wrappedValue: syncCoordinator)
         self._timerService = StateObject(wrappedValue: timerService)
         self._exerciseService = StateObject(wrappedValue: exerciseService)
         self._splitDayService = StateObject(wrappedValue: splitDayService)
@@ -132,6 +149,8 @@ struct GymTrackerApp: App {
                 .environmentObject(userService)
                 .environmentObject(backendAuthService)
                 .environmentObject(syncEligibilityState)
+                .environmentObject(syncEligibilityService)
+                .environmentObject(syncCoordinator)
                 .environmentObject(dashboardService)
                 .environmentObject(splitDayService)
                 .environmentObject(exerciseService)
