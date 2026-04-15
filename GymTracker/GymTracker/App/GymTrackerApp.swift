@@ -43,6 +43,9 @@ struct GymTrackerApp: App {
         let context = sharedModelContainer.mainContext
         LegacyStoreRecoveryService.recoverIfNeeded(destinationContext: context)
         let syncEligibilityState = SyncEligibilityState()
+        let exerciseRepository = LocalExerciseRepository(modelContext: context)
+        let routineRepository = LocalRoutineRepository(modelContext: context)
+        let sessionRepository = LocalSessionRepository(modelContext: context)
 
         // Create — no currentUser passed
         let userService = UserService(context: context)
@@ -51,12 +54,12 @@ struct GymTrackerApp: App {
         
         let dashboardService = DashboardService(context: context)
         let timerService = TimerService(context: context)
-        let exerciseService = ExerciseService(context: context)
-        let splitDayService = RoutineService(context: context)
-        let sessionService = SessionService(context: context)
-        let setService = SetService(context: context)
-        let exerciseSplitDayService = ExerciseSplitDayService(context: context)
-        let sessionExerciseService = SessionExerciseService(context: context)
+        let exerciseService = ExerciseService(context: context, repository: exerciseRepository)
+        let splitDayService = RoutineService(context: context, repository: routineRepository)
+        let sessionService = SessionService(context: context, repository: sessionRepository)
+        let setService = SetService(context: context, repository: sessionRepository)
+        let exerciseSplitDayService = ExerciseSplitDayService(context: context, repository: routineRepository)
+        let sessionExerciseService = SessionExerciseService(context: context, repository: sessionRepository)
         let nutritionService = NutritionService(context: context)
         let healthKitManager = HealthKitManager()
         let healthKitDateNormalizer = HealthKitDateNormalizer()

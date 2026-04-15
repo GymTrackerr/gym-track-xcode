@@ -28,21 +28,19 @@ class ExerciseService : ServiceBase, ObservableObject {
 
     private let apiHelper: API_Helper
     private let exerciseApi: ExerciseApi
+    private let repository: ExerciseRepositoryProtocol
     private var isLoadingApiExercises = false
     private var apiSyncedUserId: UUID?
-    
-    private struct ExerciseRelationshipCounts {
-        let splitDays: Int
-        let sessionEntries: Int
 
-        var total: Int { splitDays + sessionEntries }
-        var allZero: Bool { splitDays == 0 && sessionEntries == 0 }
-    }
-
-    override init(context: ModelContext) {
-        let apiHelper = API_Helper()
+    init(
+        context: ModelContext,
+        repository: ExerciseRepositoryProtocol? = nil,
+        apiHelper: API_Helper = API_Helper(),
+        exerciseApi: ExerciseApi? = nil
+    ) {
         self.apiHelper = apiHelper
-        self.exerciseApi = ExerciseApi(apiHelper: apiHelper)
+        self.exerciseApi = exerciseApi ?? ExerciseApi(apiHelper: apiHelper)
+        self.repository = repository ?? LocalExerciseRepository(modelContext: context)
         super.init(context: context)
     }
 
@@ -65,15 +63,8 @@ class ExerciseService : ServiceBase, ObservableObject {
             return
         }
 
-        let descriptor = FetchDescriptor<Exercise>(
-            predicate: #Predicate<Exercise> { exercise in
-                exercise.user_id == userId && exercise.isArchived == false
-            },
-            sortBy: [SortDescriptor(\.name)]
-        )
-
         do {
-            exercises = try modelContext.fetch(descriptor)
+            exercises = try repository.fetchActiveExercises(for: userId)
             // verify exercises
             for exercise in exercises {
                 print("\(exercise.name) \(exercise.type)")
@@ -89,15 +80,8 @@ class ExerciseService : ServiceBase, ObservableObject {
             return
         }
 
-        let descriptor = FetchDescriptor<Exercise>(
-            predicate: #Predicate<Exercise> { exercise in
-                exercise.user_id == userId && exercise.isArchived == true
-            },
-            sortBy: [SortDescriptor(\.name)]
-        )
-
         do {
-            archivedExercises = try modelContext.fetch(descriptor)
+            archivedExercises = try repository.fetchArchivedExercises(for: userId)
         } catch {
             archivedExercises = []
         }
@@ -156,213 +140,7 @@ class ExerciseService : ServiceBase, ObservableObject {
         userId: UUID,
         allowInsert: Bool
     ) throws -> (inserted: Int, updated: Int, removed: Int) {
-        let descriptor = FetchDescriptor<Exercise>(
-            predicate: #Predicate<Exercise> { exercise in
-                exercise.user_id == userId
-            }
-        )
-        let existingForUser = try modelContext.fetch(descriptor)
-        var existingByNpId: [String: [Exercise]] = [:]
-        for exercise in existingForUser {
-            guard let key = normalizedNpId(exercise.npId) else { continue }
-            existingByNpId[key, default: []].append(exercise)
-        }
-
-        var inserted = 0
-        var updated = 0
-        var removed = 0
-
-        for apiExercise in data {
-            let npIdKey = normalizedNpId(apiExercise.id) ?? apiExercise.id.lowercased()
-            let matches = existingByNpId[npIdKey] ?? []
-
-            if matches.isEmpty {
-                if allowInsert {
-                    modelContext.insert(Exercise(from: apiExercise, userId: userId))
-                    inserted += 1
-                } else {
-                    print("Update-only sync skipped insert for npId=\(npIdKey).")
-                }
-                continue
-            }
-
-            let selection = preferredExercise(from: matches)
-            if selection.isAmbiguous {
-                print("Exercise dedupe skipped for npId=\(npIdKey): ambiguous primary exercise selection.")
-                for exercise in matches where exercise.user_id == userId {
-                    applyApiPayload(apiExercise, to: exercise)
-                    updated += 1
-                }
-                existingByNpId[npIdKey] = matches
-                continue
-            }
-            guard let primary = selection.primary else {
-                print("Exercise dedupe skipped for npId=\(npIdKey): no valid primary candidate.")
-                continue
-            }
-            guard primary.user_id == userId else {
-                print("Exercise dedupe skipped for npId=\(npIdKey): primary owner mismatch.")
-                continue
-            }
-
-            applyApiPayload(apiExercise, to: primary)
-            updated += 1
-
-            var retained: [Exercise] = [primary]
-            for duplicate in matches where duplicate.id != primary.id {
-                if imagesHaveChanged(existing: duplicate.images, incoming: apiExercise.images) {
-                    let oldCount = duplicate.images?.count ?? 0
-                    let newCount = apiExercise.images.count
-                    print("Exercise image update (duplicate retained): id=\(duplicate.id), npId=\(apiExercise.id), oldCount=\(oldCount), newCount=\(newCount). Marking cachedMedia=false.")
-                    duplicate.images = apiExercise.images
-                    duplicate.cachedMedia = false
-                }
-
-                guard duplicate.user_id == userId else {
-                    print("Exercise dedupe skipped for \(duplicate.id): duplicate owner mismatch.")
-                    retained.append(duplicate)
-                    continue
-                }
-
-                try mergeExerciseReferences(from: duplicate, to: primary, targetUserId: userId)
-                let relationshipCounts = try exerciseRelationshipCounts(forExerciseId: duplicate.id)
-                if relationshipCounts.allZero {
-                    modelContext.delete(duplicate)
-                    removed += 1
-                } else {
-                    print("Exercise dedupe skipped for \(duplicate.id): still linked (splits=\(relationshipCounts.splitDays), entries=\(relationshipCounts.sessionEntries)).")
-                    retained.append(duplicate)
-                }
-            }
-            existingByNpId[npIdKey] = retained
-        }
-
-        if inserted > 0 || updated > 0 || removed > 0 {
-            try modelContext.save()
-        }
-        return (inserted, updated, removed)
-    }
-
-    @MainActor
-    private func applyApiPayload(_ apiExercise: ExerciseDTO, to exercise: Exercise) {
-        exercise.npId = apiExercise.id
-        exercise.isUserCreated = false
-        exercise.name = apiExercise.name
-        exercise.type = ExerciseType.from(apiCategory: apiExercise.category).rawValue
-        exercise.primary_muscles = apiExercise.primaryMuscles
-        exercise.secondary_muscles = apiExercise.secondaryMuscles
-        exercise.equipment = apiExercise.equipment
-        exercise.category = apiExercise.category
-        exercise.instructions = apiExercise.instructions
-        if imagesHaveChanged(existing: exercise.images, incoming: apiExercise.images) {
-            let oldCount = exercise.images?.count ?? 0
-            let newCount = apiExercise.images.count
-            print("Exercise image update: id=\(exercise.id), npId=\(apiExercise.id), oldCount=\(oldCount), newCount=\(newCount). Marking cachedMedia=false.")
-            exercise.cachedMedia = false
-        }
-        exercise.images = apiExercise.images
-    }
-
-    @MainActor
-    private func mergeExerciseReferences(from duplicate: Exercise, to primary: Exercise, targetUserId: UUID) throws {
-        guard duplicate.id != primary.id else { return }
-
-        let duplicateId = duplicate.id
-
-        // Re-link by direct fetch so merge does not depend on inverse array fault state.
-        let splitDescriptor = FetchDescriptor<ExerciseSplitDay>(
-            predicate: #Predicate<ExerciseSplitDay> { split in
-                split.exercise.id == duplicateId
-            }
-        )
-        let splits = try modelContext.fetch(splitDescriptor)
-        for split in splits {
-            split.exercise = primary
-            split.routine.user_id = targetUserId
-            if !primary.splits.contains(where: { $0.id == split.id }) {
-                primary.splits.append(split)
-            }
-            if !split.routine.exerciseSplits.contains(where: { $0.id == split.id }) {
-                split.routine.exerciseSplits.append(split)
-            }
-        }
-
-        let entryDescriptor = FetchDescriptor<SessionEntry>(
-            predicate: #Predicate<SessionEntry> { entry in
-                entry.exercise.id == duplicateId
-            }
-        )
-        let entries = try modelContext.fetch(entryDescriptor)
-        for entry in entries {
-            entry.exercise = primary
-            entry.session.user_id = targetUserId
-            entry.session.routine?.user_id = targetUserId
-            if !primary.sessionEntries.contains(where: { $0.id == entry.id }) {
-                primary.sessionEntries.append(entry)
-            }
-        }
-    }
-
-    @MainActor
-    private func exerciseRelationshipCounts(_ exercise: Exercise) -> ExerciseRelationshipCounts {
-        ExerciseRelationshipCounts(
-            splitDays: exercise.splits.count,
-            sessionEntries: exercise.sessionEntries.count
-        )
-    }
-
-    @MainActor
-    private func exerciseRelationshipCounts(forExerciseId exerciseId: UUID) throws -> ExerciseRelationshipCounts {
-        let splitDescriptor = FetchDescriptor<ExerciseSplitDay>(
-            predicate: #Predicate<ExerciseSplitDay> { split in
-                split.exercise.id == exerciseId
-            }
-        )
-        let entryDescriptor = FetchDescriptor<SessionEntry>(
-            predicate: #Predicate<SessionEntry> { entry in
-                entry.exercise.id == exerciseId
-            }
-        )
-
-        return ExerciseRelationshipCounts(
-            splitDays: try modelContext.fetch(splitDescriptor).count,
-            sessionEntries: try modelContext.fetch(entryDescriptor).count
-        )
-    }
-
-    @MainActor
-    private func preferredExercise(from exercises: [Exercise]) -> (primary: Exercise?, isAmbiguous: Bool) {
-        guard !exercises.isEmpty else { return (nil, false) }
-
-        // Deterministic selection:
-        // 1) Most total relationships (splitDays + sessionEntries)
-        // 2) Oldest timestamp
-        // 3) Lexicographically smallest UUID string
-        let sorted = exercises.sorted { lhs, rhs in
-            let lhsCounts = exerciseRelationshipCounts(lhs)
-            let rhsCounts = exerciseRelationshipCounts(rhs)
-            if lhsCounts.total != rhsCounts.total {
-                return lhsCounts.total > rhsCounts.total
-            }
-            if lhs.timestamp != rhs.timestamp {
-                return lhs.timestamp < rhs.timestamp
-            }
-            return lhs.id.uuidString < rhs.id.uuidString
-        }
-
-        guard let first = sorted.first else { return (nil, false) }
-        let topCounts = exerciseRelationshipCounts(first)
-        let topBucket = sorted.filter {
-            let counts = exerciseRelationshipCounts($0)
-            return counts.total == topCounts.total && $0.timestamp == first.timestamp
-        }
-        if topBucket.count > 1 {
-            let distinctIds = Set(topBucket.map(\.id))
-            if distinctIds.count == 1 {
-                return (nil, true)
-            }
-        }
-        return (first, false)
+        try repository.applyCatalogExercises(data, for: userId, allowInsert: allowInsert)
     }
 
     @MainActor
@@ -394,7 +172,7 @@ class ExerciseService : ServiceBase, ObservableObject {
 
                 let cacheStatusAfter = await hasCachedMedia(for: exercise)
                 exercise.cachedMedia = cacheStatusAfter.thumbnail && cacheStatusAfter.gif
-                try? self.modelContext.save()
+                try? repository.saveChanges()
                 print("Finished caching exercise media: id=\(exercise.id), npId=\(exercise.npId ?? "nil"), thumbnailCached=\(cacheStatusAfter.thumbnail), gifCached=\(cacheStatusAfter.gif), cachedMedia=\(exercise.cachedMedia ?? false)")
             }
         } catch {
@@ -402,32 +180,9 @@ class ExerciseService : ServiceBase, ObservableObject {
         }
     }
 
-    private func normalizedNpId(_ value: String?) -> String? {
-        guard let value else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        return trimmed.lowercased()
-    }
-
-    private func imagesHaveChanged(existing: [String]?, incoming: [String]) -> Bool {
-        let normalizedExisting = (existing ?? [])
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        let normalizedIncoming = incoming
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        return normalizedExisting != normalizedIncoming
-    }
-
     @MainActor
     private func fetchExercisesForUser(userId: UUID) throws -> [Exercise] {
-        let descriptor = FetchDescriptor<Exercise>(
-            predicate: #Predicate<Exercise> { exercise in
-                exercise.user_id == userId && exercise.isArchived == false
-            },
-            sortBy: [SortDescriptor(\.name)]
-        )
-        return try modelContext.fetch(descriptor)
+        try repository.fetchActiveExercises(for: userId)
     }
     
     func search(query: String) -> [Exercise] {
@@ -452,9 +207,8 @@ class ExerciseService : ServiceBase, ObservableObject {
 
     @discardableResult
     func setAliases(for exercise: Exercise, aliases: [String]) -> Bool {
-        exercise.aliases = Array(Set(aliases)).sorted()
         do {
-            try modelContext.save()
+            try repository.setAliases(aliases, for: exercise)
             refreshExerciseLists()
             return true
         } catch {
@@ -506,14 +260,12 @@ class ExerciseService : ServiceBase, ObservableObject {
         guard !trimmedName.isEmpty else { return nil }
         guard let userId = currentUser?.id else { return nil }
         
-        let newItem = Exercise(name: trimmedName, type: selectedExerciseType, user_id: userId)
+        var newItem: Exercise?
         var failed = false
         
         withAnimation {
-            modelContext.insert(newItem)
-            
             do {
-                try modelContext.save()
+                newItem = try repository.createExercise(name: trimmedName, type: selectedExerciseType, userId: userId)
                 // Clear and dismiss sheet after successful save
                 editingExercise = false
                 editingContent = ""
@@ -529,7 +281,7 @@ class ExerciseService : ServiceBase, ObservableObject {
         if (failed==true) {
             return nil
         }
-        return newItem;
+        return newItem
     }
     
     func removeExercise(offsets: IndexSet) {
@@ -557,15 +309,8 @@ class ExerciseService : ServiceBase, ObservableObject {
     }
 
     func addRestoredExercise(_ exercise: Exercise) {
-        // For archived items, just unarchive
-        if exercise.isArchived {
-            exercise.isArchived = false
-        } else {
-            // For non-archived items that were deleted, re-insert and undelete
-            modelContext.insert(exercise)
-        }
         do {
-            try modelContext.save()
+            try repository.reinsertOrRestore(exercise)
             refreshExerciseLists()
         } catch {
             print("Failed to restore exercise: \(error)")
@@ -573,34 +318,15 @@ class ExerciseService : ServiceBase, ObservableObject {
     }
 
     func delete(_ exercise: Exercise) throws {
-        let hasPersistedHistory = try hasSessionHistory(exerciseID: exercise.id)
-
-        // If exercise has history → archive instead
-        if !exercise.sessionEntries.isEmpty || hasPersistedHistory {
-            exercise.isArchived = true
-
-            // Remove from templates
-            for split in Array(exercise.splits) {
-                modelContext.delete(split)
-            }
-
-            try modelContext.save()
-            return
-        }
-
-        // No history → mark as archived (soft delete) for undo support
-        exercise.isArchived = true
-        try modelContext.save()
+        try repository.delete(exercise)
     }
 
     func willArchiveOnDelete(_ exercise: Exercise) -> Bool {
-        let hasPersistedHistory = (try? hasSessionHistory(exerciseID: exercise.id)) ?? false
-        return !exercise.sessionEntries.isEmpty || hasPersistedHistory
+        repository.willArchiveOnDelete(exercise)
     }
 
     func restore(_ exercise: Exercise) throws {
-        exercise.isArchived = false
-        try modelContext.save()
+        try repository.restore(exercise)
         refreshExerciseLists()
     }
 
@@ -609,68 +335,10 @@ class ExerciseService : ServiceBase, ObservableObject {
         guard let currentUserId = currentUser?.id else {
             return NpIdMergeReport(groupsMerged: 0, duplicatesRemoved: 0)
         }
-
-        let allExercises = try modelContext.fetch(FetchDescriptor<Exercise>())
-
-        var groupedByNpId: [String: [Exercise]] = [:]
-        for exercise in allExercises {
-            guard let npId = normalizedNpId(exercise.npId) else { continue }
-            groupedByNpId[npId, default: []].append(exercise)
-        }
-
-        var groupsMerged = 0
-        var duplicatesRemoved = 0
-
-        for group in groupedByNpId.values where group.count > 1 {
-            let currentUserMatches = group.filter { $0.user_id == currentUserId }
-            guard !currentUserMatches.isEmpty else { continue }
-
-            let selection = preferredExercise(from: currentUserMatches)
-            guard let primary = selection.primary, !selection.isAmbiguous else { continue }
-
-            var aliases = Set((primary.aliases ?? []).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) })
-            var didMergeGroup = false
-
-            for duplicate in group where duplicate.id != primary.id {
-                for alias in duplicate.aliases ?? [] {
-                    let trimmed = alias.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !trimmed.isEmpty {
-                        aliases.insert(trimmed)
-                    }
-                }
-
-                try mergeExerciseReferences(from: duplicate, to: primary, targetUserId: currentUserId)
-
-                if try exerciseRelationshipCounts(forExerciseId: duplicate.id).allZero {
-                    modelContext.delete(duplicate)
-                    duplicatesRemoved += 1
-                    didMergeGroup = true
-                }
-            }
-
-            primary.user_id = currentUserId
-            primary.aliases = Array(aliases).sorted()
-
-            if didMergeGroup {
-                groupsMerged += 1
-            }
-        }
-
-        if groupsMerged > 0 || duplicatesRemoved > 0 {
-            try modelContext.save()
-        }
+        let report = try repository.mergeExercisesWithSameNpId(for: currentUserId)
 
         refreshExerciseLists()
-        return NpIdMergeReport(groupsMerged: groupsMerged, duplicatesRemoved: duplicatesRemoved)
-    }
-
-    private func hasSessionHistory(exerciseID: UUID) throws -> Bool {
-        let descriptor = FetchDescriptor<SessionEntry>(
-            predicate: #Predicate<SessionEntry> { entry in
-                entry.exercise.id == exerciseID
-            }
-        )
-        return try !modelContext.fetch(descriptor).isEmpty
+        return NpIdMergeReport(groupsMerged: report.groupsMerged, duplicatesRemoved: report.duplicatesRemoved)
     }
 
     private func refreshExerciseLists() {

@@ -14,22 +14,20 @@ class SessionExerciseService: ServiceBase, ObservableObject {
     @Published var addingExerciseSession: Bool = false
     @Published var addingExercises: [Exercise] = []
     @Published var removingExercises: [SessionEntry] = []
+    private let repository: SessionRepositoryProtocol
+
+    init(context: ModelContext, repository: SessionRepositoryProtocol? = nil) {
+        self.repository = repository ?? LocalSessionRepository(modelContext: context)
+        super.init(context: context)
+    }
     
     func renumberExercises(session: Session) {
-        let exercises = session.sessionEntries.sorted { $0.order < $1.order }
-        
-        for (i, exercise) in exercises.enumerated() {
-            print("number \(i)")
-            exercise.order = i
-        }
-        
-        try? modelContext.save()
+        try? repository.renumberEntries(in: session)
     }
 
     func toggleCompletion(sessionEntry: SessionEntry) {
         withAnimation {
-            sessionEntry.isCompleted.toggle()
-            try? modelContext.save()
+            try? repository.toggleEntryCompletion(sessionEntry)
         }
     }
     
@@ -92,32 +90,16 @@ class SessionExerciseService: ServiceBase, ObservableObject {
     }
     
     func addExercise(session: Session, exercise: Exercise)  {
-        // adds relations automatically
-        let newSessionEntry = SessionEntry(
-            order: session.sessionEntries.count,
-            session: session,
-            exercise: exercise
-        )
-        
         withAnimation {
-            modelContext.insert(newSessionEntry)
-            session.sessionEntries.append(newSessionEntry)
-            try? modelContext.save()
+            _ = try? repository.addExercise(to: session, exercise: exercise)
         }
     }
     
     func removeExercise(session: Session, sessionEntry: SessionEntry) {
         print("session exercise \(sessionEntry.id)")
         withAnimation {
-            if let esd = session.sessionEntries.first(where: { $0.id == sessionEntry.id }) {
-                // TODO: crashed here, EXC_BAD_ACESS
-                // this was     half solved by nullifying relationships in SessionEntry model
-                modelContext.delete(esd)
-                session.sessionEntries.removeAll { $0.id == esd.id }
-                try? modelContext.save()
-                self.renumberExercises(session: session)
-                self.loadFeature()
-            }
+            try? repository.removeExercise(from: session, sessionEntry: sessionEntry)
+            self.loadFeature()
         }
     }
     
@@ -130,44 +112,18 @@ class SessionExerciseService: ServiceBase, ObservableObject {
                 for index in offsets {
                     guard sortedEntries.indices.contains(index) else { continue }
                     let entry = sortedEntries[index]
-                    self.modelContext.delete(entry)
-                    session.sessionEntries.removeAll { $0.id == entry.id }
+                    try? self.repository.removeExercise(from: session, sessionEntry: entry)
                 }
-                
-                try? self.modelContext.save()
                 self.renumberExercises(session: session)
             }
         }
     }
 
     func transferExerciseHistory(from source: Exercise, to target: Exercise, sessionIds: Set<UUID>) throws {
-        guard source.id != target.id else { return }
-        guard source.type == target.type else { return }
-        guard !sessionIds.isEmpty else { return }
-
-        let sourceEntries = try modelContext.fetch(FetchDescriptor<SessionEntry>())
-            .filter { $0.exercise.id == source.id }
-            .filter { sessionIds.contains($0.session.id) }
-
-        guard !sourceEntries.isEmpty else { return }
-
-        for sourceEntry in sourceEntries {
-            // Just update the exercise reference - preserves isCompleted and all other state
-            sourceEntry.exercise = target
-        }
-
-        try modelContext.save()
+        try repository.transferExerciseHistory(from: source, to: target, sessionIds: sessionIds)
     }
     
     func moveExercise(session: Session, from source: IndexSet, to destination: Int) {
-        var exercises = session.sessionEntries.sorted { $0.order < $1.order }
-        
-        exercises.move(fromOffsets: source, toOffset: destination)
-        
-        for (i, exercise) in exercises.enumerated() {
-            exercise.order = i
-        }
-
-        try? modelContext.save()
+        try? repository.moveExercises(in: session, from: source, to: destination)
     }
 }

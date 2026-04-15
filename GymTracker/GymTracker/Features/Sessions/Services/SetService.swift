@@ -18,6 +18,12 @@ class SetService: ServiceBase, ObservableObject {
     @Published var create_notes: String = ""
     
     @Published var createReps: [SessionRep] = []
+    private let repository: SessionRepositoryProtocol
+
+    init(context: ModelContext, repository: SessionRepositoryProtocol? = nil) {
+        self.repository = repository ?? LocalSessionRepository(modelContext: context)
+        super.init(context: context)
+    }
     
     //    @Published var ÷
     
@@ -52,15 +58,12 @@ class SetService: ServiceBase, ObservableObject {
     }
     
     func addSet(sessionEntry: SessionEntry, notes: String, isDropSet: Bool) -> SessionSet? {
-        let newSet = SessionSet(order: sessionEntry.sets.count, sessionEntry: sessionEntry, notes: notes)
-        newSet.isDropSet = isDropSet
         var failed = false
+        var newSet: SessionSet?
 
         withAnimation {
             do {
-                modelContext.insert(newSet)
-                sessionEntry.sets.append(newSet)
-                try modelContext.save()
+                newSet = try repository.addSet(to: sessionEntry, notes: notes, isDropSet: isDropSet)
             } catch {
                 failed = true
             }
@@ -75,7 +78,7 @@ class SetService: ServiceBase, ObservableObject {
         if (sessionSet.notes != create_notes) {
             sessionSet.notes = create_notes
             withAnimation {
-                try? modelContext.save()
+                try? repository.saveChanges()
             }
         }
         
@@ -84,19 +87,13 @@ class SetService: ServiceBase, ObservableObject {
     }
     
     func createBlankRep(sessionSet: SessionSet) -> SessionRep? {
-        let newRep = SessionRep(
-            sessionSet: sessionSet,
-            weight: 0,
-            weight_unit: WeightUnit.lb,
-            count: 0
-        )
-
         var failedSave = false
-        createReps.append(newRep)
+        var newRep: SessionRep?
         withAnimation {
             do {
-                sessionSet.sessionReps.append(newRep)
-                try modelContext.save()
+                let created = try repository.createBlankRep(in: sessionSet)
+                createReps.append(created)
+                newRep = created
             } catch {
                 failedSave = true
             }
@@ -108,83 +105,33 @@ class SetService: ServiceBase, ObservableObject {
 
     @discardableResult
     func addRep(sessionSet: SessionSet, weight: Double, reps: Int, unit: WeightUnit) -> SessionRep? {
-        let newRep = SessionRep(
-            sessionSet: sessionSet,
-            weight: weight,
-            weight_unit: unit,
-            count: reps
-        )
-
+        var newRep: SessionRep?
         withAnimation {
-            sessionSet.sessionReps.append(newRep)
-            try? modelContext.save()
+            newRep = try? repository.addRep(to: sessionSet, weight: weight, reps: reps, unit: unit)
         }
 
         return newRep
     }
 
     func deleteRep(sessionSet: SessionSet, rep: SessionRep) {
-        sessionSet.sessionReps.removeAll { $0.id == rep.id }
-        modelContext.delete(rep)
-        if sessionSet.sessionReps.count <= 1 {
-            sessionSet.isDropSet = false
-        }
         withAnimation {
-            try? modelContext.save()
+            try? repository.deleteRep(from: sessionSet, rep: rep)
         }
     }
 
     func deleteSet(sessionEntry: SessionEntry, sessionSet: SessionSet) {
-        sessionEntry.sets.removeAll { $0.id == sessionSet.id }
-        modelContext.delete(sessionSet)
-        reorderSets(sessionEntry: sessionEntry)
         withAnimation {
-            try? modelContext.save()
+            try? repository.deleteSet(from: sessionEntry, sessionSet: sessionSet)
         }
     }
 
     @discardableResult
     func duplicateSet(_ sessionSet: SessionSet) -> SessionSet? {
-        let sourceEntry = sessionSet.sessionEntry
-        let insertionOrder = max(sessionSet.order + 1, 0)
-
-        let duplicate = SessionSet(
-            order: insertionOrder,
-            sessionEntry: sourceEntry,
-            notes: sessionSet.notes
-        )
-        duplicate.isDropSet = sessionSet.isDropSet
-        duplicate.isCompleted = sessionSet.isCompleted
-        duplicate.durationSeconds = sessionSet.durationSeconds
-        duplicate.distance = sessionSet.distance
-        duplicate.paceSeconds = sessionSet.paceSeconds
-        duplicate.distanceUnit = sessionSet.distanceUnit
-        duplicate.restSeconds = sessionSet.restSeconds
-
-        for sourceRep in sessionSet.sessionReps {
-            let copiedRep = SessionRep(
-                sessionSet: duplicate,
-                weight: sourceRep.weight,
-                weight_unit: sourceRep.weightUnit,
-                count: sourceRep.count,
-                notes: sourceRep.notes
-            )
-            copiedRep.baseWeight = sourceRep.baseWeight
-            copiedRep.perSideWeight = sourceRep.perSideWeight
-            copiedRep.isPerSide = sourceRep.isPerSide
-            duplicate.sessionReps.append(copiedRep)
-        }
-
         var failed = false
+        var duplicate: SessionSet?
         withAnimation {
             do {
-                for set in sourceEntry.sets where set.order >= insertionOrder {
-                    set.order += 1
-                }
-                modelContext.insert(duplicate)
-                sourceEntry.sets.append(duplicate)
-                reorderSets(sessionEntry: sourceEntry)
-                try modelContext.save()
+                duplicate = try repository.duplicateSet(sessionSet)
             } catch {
                 failed = true
             }
@@ -195,92 +142,33 @@ class SetService: ServiceBase, ObservableObject {
     }
 
     func moveSet(_ sessionSet: SessionSet, to targetExercise: Exercise) throws {
-        let sourceEntry = sessionSet.sessionEntry
-        let session = sourceEntry.session
-        guard sourceEntry.exercise.id != targetExercise.id else { return }
-
-        let targetEntry = SessionEntryResolver.ensureSessionEntry(
-            for: targetExercise,
-            in: session,
-            context: modelContext
-        )
-
-        sourceEntry.sets.removeAll { $0.id == sessionSet.id }
-        sessionSet.sessionEntry = targetEntry
-        sessionSet.order = targetEntry.sets.count
-        targetEntry.sets.append(sessionSet)
-
-        reorderSets(sessionEntry: sourceEntry)
-        if sourceEntry.id != targetEntry.id {
-            reorderSets(sessionEntry: targetEntry)
-        }
-
-        try modelContext.save()
-    }
-
-    private func recentEntries(for exercise: Exercise) -> [SessionEntry] {
-        let descriptor = FetchDescriptor<SessionEntry>()
-        let allEntries = (try? modelContext.fetch(descriptor)) ?? []
-        return allEntries
-            .filter { $0.exercise.id == exercise.id }
-            .sorted { $0.session.timestamp > $1.session.timestamp }
+        try repository.moveSet(sessionSet, to: targetExercise)
     }
 
     func mostRecentRep(for exercise: Exercise) -> SessionRep? {
-        for entry in recentEntries(for: exercise) {
-            let sortedSets = entry.sets.sorted { $0.timestamp > $1.timestamp }
-            for sessionSet in sortedSets {
-                for rep in sessionSet.sessionReps.reversed() {
-                    if rep.weight > 0 || rep.count > 0 {
-                        return rep
-                    }
-                }
-            }
-        }
-        return nil
+        repository.mostRecentRep(for: exercise)
     }
 
     func mostRecentCardioSet(for exercise: Exercise) -> SessionSet? {
-        for entry in recentEntries(for: exercise) {
-            let sortedSets = entry.sets.sorted { $0.timestamp > $1.timestamp }
-            for sessionSet in sortedSets where isMeaningfulCardioSet(sessionSet) {
-                return sessionSet
-            }
-        }
-        return nil
-    }
-
-    private func isMeaningfulCardioSet(_ sessionSet: SessionSet) -> Bool {
-        let hasDuration = (sessionSet.durationSeconds ?? 0) > 0
-        let hasDistance = (sessionSet.distance ?? 0) > 0
-        let hasPace = (sessionSet.paceSeconds ?? 0) > 0
-        return hasDuration || hasDistance || hasPace
-    }
-
-    private func reorderSets(sessionEntry: SessionEntry) {
-        let sortedSets = sessionEntry.sets.sorted { $0.order < $1.order }
-        for (index, set) in sortedSets.enumerated() {
-            set.order = index
-        }
+        repository.mostRecentCardioSet(for: exercise)
     }
 
     func saveSetData(sessionSet: SessionSet) {
         withAnimation {
-            try? modelContext.save()
+            try? repository.saveChanges()
         }
     }
     
 
     func saveRepData(sessionRep: SessionRep) {
         withAnimation {
-            try? modelContext.save()
+            try? repository.saveChanges()
         }
     }
     
     func toggleSetCompletion(sessionSet: SessionSet) {
         withAnimation {
-            sessionSet.isCompleted.toggle()
-            try? modelContext.save()
+            try? repository.toggleSetCompletion(sessionSet)
         }
     }
 }

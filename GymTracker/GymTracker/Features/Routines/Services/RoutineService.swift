@@ -18,6 +18,12 @@ class RoutineService : ServiceBase, ObservableObject {
     @Published var editingSplit: Bool = false
     
     @Published var editingNotes: String = ""
+    private let repository: RoutineRepositoryProtocol
+
+    init(context: ModelContext, repository: RoutineRepositoryProtocol? = nil) {
+        self.repository = repository ?? LocalRoutineRepository(modelContext: context)
+        super.init(context: context)
+    }
     
     override func loadFeature() {
         self.loadSplitDays()
@@ -34,15 +40,8 @@ class RoutineService : ServiceBase, ObservableObject {
             return
         }
 
-        let descriptor = FetchDescriptor<Routine>(
-            predicate: #Predicate<Routine> { routine in
-                routine.user_id == userId && routine.isArchived == true
-            },
-            sortBy: [SortDescriptor(\.order)]
-        )
-
         do {
-            archivedRoutines = try modelContext.fetch(descriptor)
+            archivedRoutines = try repository.fetchArchivedRoutines(for: userId)
         } catch {
             archivedRoutines = []
         }
@@ -54,15 +53,8 @@ class RoutineService : ServiceBase, ObservableObject {
             return
         }
 
-        let descriptor = FetchDescriptor<Routine>(
-            predicate: #Predicate<Routine> { routine in
-                routine.user_id == userId && routine.isArchived == false
-            },
-            sortBy: [SortDescriptor(\.order)]
-        )
-
         do {
-            routines = try modelContext.fetch(descriptor)
+            routines = try repository.fetchActiveRoutines(for: userId)
         } catch {
             routines = []
         }
@@ -91,9 +83,8 @@ class RoutineService : ServiceBase, ObservableObject {
 
     @discardableResult
     func setAliases(for routine: Routine, aliases: [String]) -> Bool {
-        routine.aliases = Array(Set(aliases)).sorted()
         do {
-            try modelContext.save()
+            try repository.setAliases(aliases, for: routine)
             loadSplitDays()
             return true
         } catch {
@@ -108,13 +99,11 @@ class RoutineService : ServiceBase, ObservableObject {
         guard let userId = currentUser?.id else { return nil }
         
         let nextOrder = (routines.map { $0.order }.max() ?? -1) + 1
-        let newItem = Routine(order: nextOrder, name: trimmedName, user_id: userId)
+        var newItem: Routine?
         var failedAdd = false
         withAnimation {
-//            let newItem = Routine(order: routines.count, name: trimmedName)
-            modelContext.insert(newItem)
             do {
-                try modelContext.save()
+                newItem = try repository.createRoutine(name: trimmedName, userId: userId, order: nextOrder)
                 editingSplit = false
                 editingContent = ""
                 loadSplitDays()
@@ -147,15 +136,8 @@ class RoutineService : ServiceBase, ObservableObject {
     }
     
     func addRestoredRoutine(_ routine: Routine) {
-        // For archived items, just unarchive
-        if routine.isArchived {
-            routine.isArchived = false
-        } else {
-            // For non-archived items that were deleted, re-insert
-            modelContext.insert(routine)
-        }
         do {
-            try modelContext.save()
+            try repository.reinsertOrRestore(routine)
             loadSplitDays()
             renumberSplitDays()
         } catch {
@@ -164,8 +146,7 @@ class RoutineService : ServiceBase, ObservableObject {
     }
     
     func clearSplitDays() {
-        let descriptor = FetchDescriptor<Routine>()
-        if let items = try? modelContext.fetch(descriptor) {
+        if let items = try? repository.fetchAllRoutines() {
             for item in items {
                 try? delete(item)
             }
@@ -174,9 +155,8 @@ class RoutineService : ServiceBase, ObservableObject {
     }
 
     func printSplitDays() {
-        let descriptor = FetchDescriptor<Routine>()
         do {
-            let items = try modelContext.fetch(descriptor)
+            let items = try repository.fetchAllRoutines()
             print("SplitDays count: \(items.count)")
             for item in items {
                 print("id: \(item.id), name: \(item.name), order: \(item.order), timestamp: \(item.timestamp)")
@@ -194,32 +174,19 @@ class RoutineService : ServiceBase, ObservableObject {
     }
     
     func renumberSplitDays() {
-        for (i, day) in routines.enumerated() {
-            day.order = i
-        }
-        try? modelContext.save()
+        try? repository.renumber(routines)
     }
 
     func delete(_ routine: Routine) throws {
-        // If routine has session history → archive
-        if !routine.sessions.isEmpty {
-            routine.isArchived = true
-            try modelContext.save()
-            return
-        }
-
-        // No history → mark as archived (soft delete) for undo support
-        routine.isArchived = true
-        try modelContext.save()
+        try repository.delete(routine)
     }
 
     func willArchiveOnDelete(_ routine: Routine) -> Bool {
-        !routine.sessions.isEmpty
+        repository.willArchiveOnDelete(routine)
     }
 
     func restore(_ routine: Routine) throws {
-        routine.isArchived = false
-        try modelContext.save()
+        try repository.restore(routine)
         loadSplitDays()
     }
 }

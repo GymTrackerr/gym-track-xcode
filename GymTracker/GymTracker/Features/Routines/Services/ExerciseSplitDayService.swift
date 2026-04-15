@@ -14,16 +14,15 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
     @Published var addingExerciseSplit: Bool = false
     @Published var addingExercises: [Exercise] = []
     @Published var removingExercises: [Exercise] = []
+    private let repository: RoutineRepositoryProtocol
+
+    init(context: ModelContext, repository: RoutineRepositoryProtocol? = nil) {
+        self.repository = repository ?? LocalRoutineRepository(modelContext: context)
+        super.init(context: context)
+    }
     
     func renumberExercises(routine: Routine) {
-        let exercises = routine.exerciseSplits.sorted { $0.order < $1.order }
-        
-        for (i, exercise) in exercises.enumerated() {
-            print("number \(i)")
-            exercise.order = i
-        }
-        
-        try? modelContext.save()
+        try? repository.renumberExerciseSplits(in: routine)
     }
     
     // helpers
@@ -61,7 +60,7 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
         for (_, exercise) in removingExercises.enumerated() {
             removeExercise(routine: routine, exercise: exercise)
         }
-        try? modelContext.save()
+        try? repository.saveChanges()
         endEditing()
         withAnimation {
             renumberExercises(routine: routine)
@@ -88,31 +87,16 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
     }
     
     func addExercise(routine: Routine, exercise: Exercise)  {
-        // adds relations automatically
-        // TODO: why cant i just do the count? not order
-        guard !routine.exerciseSplits.contains(where: { $0.exercise.id == exercise.id }) else { return }
-        let newESD = ExerciseSplitDay(
-            order: routine.exerciseSplits.count,
-            routine: routine,
-            exercise: exercise
-        )
-        
-        modelContext.insert(newESD)
-        routine.exerciseSplits.append(newESD)
+        _ = try? repository.addExercise(to: routine, exercise: exercise)
     }
     
     func saveChanges() {
-        try? modelContext.save()
+        try? repository.saveChanges()
     }
     
     func removeExercise(routine:Routine, exercise: Exercise) {
         withAnimation {
-            let esd = routine.exerciseSplits.first(where: { $0.exercise == exercise })
-            if let esd = esd {
-                // Just remove from relationship - don't hard-delete for undo support
-                routine.exerciseSplits.removeAll { $0.id == esd.id }
-            }
-            try? modelContext.save()
+            try? repository.removeExercise(from: routine, exercise: exercise)
         }
     }
     
@@ -120,37 +104,17 @@ class ExerciseSplitDayService: ServiceBase, ObservableObject {
         guard !splitIds.isEmpty else { return }
         
         withAnimation {
-            let validSplits = routine.exerciseSplits.filter { splitIds.contains($0.id) }
-            for split in validSplits {
-                // Just remove from relationship - don't hard-delete for undo support
-                routine.exerciseSplits.removeAll { $0.id == split.id }
-            }
-            
-            try? modelContext.save()
-            renumberExercises(routine: routine)
+            try? repository.removeExerciseSplits(from: routine, splitIds: splitIds)
         }
     }
     
     func moveExercise(routine: Routine, from source: IndexSet, to destination: Int) {
-        var exercises = routine.exerciseSplits.sorted { $0.order < $1.order }
-        
-        exercises.move(fromOffsets: source, toOffset: destination)
-        
-        for (i, exercise) in exercises.enumerated() {
-            exercise.order = i
-        }
-        
-        try? modelContext.save()
+        try? repository.moveExercises(in: routine, from: source, to: destination)
     }
     
     func addRestoredExerciseSplit(routine: Routine, exerciseSplit: ExerciseSplitDay) {
-        // Re-add the split back to the routine
-        if !routine.exerciseSplits.contains(where: { $0.id == exerciseSplit.id }) {
-            routine.exerciseSplits.append(exerciseSplit)
-        }
         do {
-            try modelContext.save()
-            renumberExercises(routine: routine)
+            try repository.reinsertExerciseSplit(exerciseSplit, into: routine)
         } catch {
             print("Failed to restore exercise split: \(error)")
         }
