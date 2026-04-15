@@ -77,6 +77,14 @@ final class SyncCoordinator: ObservableObject {
         runState = .processing
         defer { runState = .monitoring }
 
-        _ = try? worker.processNextEligibleItem(referenceDate: timestamp)
+        while true {
+            let result = try? worker.processNextEligibleItem(referenceDate: Date())
+            switch result {
+            case .processedItem, .unsupportedItemSkipped:
+                continue
+            case .noWork, .remoteExecutionDisabled, .none:
+                return
+            }
+        }
     }
 }

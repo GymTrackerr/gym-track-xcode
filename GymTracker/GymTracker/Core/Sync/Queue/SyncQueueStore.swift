@@ -81,10 +81,12 @@ final class SyncQueueStore {
         return newItem
     }
 
-    func nextReadyItem(referenceDate: Date = Date()) throws -> SyncQueueItem? {
+    func nextReadyItem(
+        referenceDate: Date = Date(),
+        supportedModelTypes: [SyncModelType]? = nil
+    ) throws -> SyncQueueItem? {
         let queuedRaw = SyncQueueStatus.queued.rawValue
         let retryRaw = SyncQueueStatus.retryScheduled.rawValue
-
         let descriptor = FetchDescriptor<SyncQueueItem>(
             predicate: #Predicate<SyncQueueItem> { item in
                 (item.statusRaw == queuedRaw || item.statusRaw == retryRaw) && item.nextAttemptAt <= referenceDate
@@ -94,7 +96,14 @@ final class SyncQueueStore {
                 SortDescriptor(\.createdAt, order: .forward)
             ]
         )
-        return try modelContext.fetch(descriptor).first
+        let items = try modelContext.fetch(descriptor)
+
+        guard let supportedModelTypes else {
+            return items.first
+        }
+
+        let supportedRawValues = Set(supportedModelTypes.map(\.rawValue))
+        return items.first { supportedRawValues.contains($0.modelTypeRaw) }
     }
 
     func markInFlight(_ item: SyncQueueItem, at timestamp: Date = Date()) throws {
@@ -129,6 +138,20 @@ final class SyncQueueStore {
 
     func remove(_ item: SyncQueueItem) throws {
         modelContext.delete(item)
+        try modelContext.save()
+    }
+
+    func markDeadLetter(
+        _ item: SyncQueueItem,
+        errorCode: String?,
+        errorMessage: String?,
+        at timestamp: Date = Date()
+    ) throws {
+        item.status = .deadLetter
+        item.lastAttemptAt = timestamp
+        item.lastErrorCode = errorCode
+        item.lastErrorMessage = errorMessage
+        item.updatedAt = timestamp
         try modelContext.save()
     }
 

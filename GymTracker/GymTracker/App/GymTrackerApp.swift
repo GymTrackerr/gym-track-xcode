@@ -43,11 +43,21 @@ struct GymTrackerApp: App {
         }
         
         let context = sharedModelContainer.mainContext
+        
         LegacyStoreRecoveryService.recoverIfNeeded(destinationContext: context)
+        
         let syncEligibilityState = SyncEligibilityState()
         let syncEligibilityService = SyncEligibilityService(eligibilityState: syncEligibilityState)
         let syncQueueStore = SyncQueueStore(modelContext: context)
-        let syncWorker = SyncWorker(queueStore: syncQueueStore)
+        let syncMetadataStore = SyncMetadataStore(modelContext: context)
+        
+        let remoteExerciseRepository = RemoteExerciseRepository()
+        let syncWorker = SyncWorker(
+            queueStore: syncQueueStore,
+            metadataStore: syncMetadataStore,
+            remoteExerciseRepository: remoteExerciseRepository,
+            remoteExecutionEnabled: true
+        )
         let syncCoordinator = SyncCoordinator(
             queueStore: syncQueueStore,
             eligibilityService: syncEligibilityService,

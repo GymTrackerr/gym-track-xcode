@@ -83,6 +83,7 @@ final class SyncingExerciseRepository: ExerciseRepositoryProtocol {
         operation: SyncQueueOperation
     ) {
         guard eligibilityService.isQueueingAllowed else { return }
+        guard exercise.isUserCreated else { return }
 
         do {
             let payload = try payloadEncoder.encode(ExerciseSyncPayload(exercise: exercise))

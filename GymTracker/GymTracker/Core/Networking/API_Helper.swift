@@ -11,6 +11,17 @@ import Foundation
 enum APIHelperError: Error {
     case invalidResponse
     case missingAccessToken
+    case httpError(statusCode: Int, code: String?, message: String?, details: String?)
+}
+
+struct APIErrorEnvelope: Decodable {
+    struct APIErrorBody: Decodable {
+        let code: String?
+        let message: String?
+        let details: String?
+    }
+
+    let error: APIErrorBody
 }
 
 struct BackendSessionSnapshot: Codable {
@@ -167,6 +178,22 @@ class API_Helper : Observable {
         return try await executeRequest(route: route, httpMethod: httpMethod, body: bodyData, additionalHeaders: additionalHeaders)
     }
 
+    func asyncAuthorizedRequestData<T: Decodable, Body: Encodable>(
+        route: APIRequestRoute,
+        httpMethod: APIHTTPMethod = .POST,
+        body: Body,
+        additionalHeaders: [String: String] = [:],
+        encoder: JSONEncoder = JSONEncoder()
+    ) async throws -> T {
+        let bodyData = try encoder.encode(body)
+        return try await executeRequest(
+            route: route,
+            httpMethod: httpMethod,
+            body: bodyData,
+            additionalHeaders: authorizedHeaders(merging: additionalHeaders)
+        )
+    }
+
     func asyncRequestData<T: Decodable>(
         urlString: String,
         errorType: String = "normal",
@@ -249,13 +276,15 @@ class API_Helper : Observable {
                 let decodedData = try JSONDecoder().decode(T.self, from: data)
                 return decodedData
             } else {
-                // Log the raw error response for debugging
-                if let errorString = String(data: data, encoding: .utf8) {
-                    print("Error response string: \(errorString)")
-                }
+                let envelope = try? JSONDecoder().decode(APIErrorEnvelope.self, from: data)
+                let errorString = String(data: data, encoding: .utf8)
 
-                // Decode the error response
-                throw APIHelperError.invalidResponse
+                throw APIHelperError.httpError(
+                    statusCode: httpResponse.statusCode,
+                    code: envelope?.error.code,
+                    message: envelope?.error.message,
+                    details: envelope?.error.details ?? errorString
+                )
             }
         } catch {
             throw error
