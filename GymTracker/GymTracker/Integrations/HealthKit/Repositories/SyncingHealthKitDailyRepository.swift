@@ -1,6 +1,6 @@
 import Foundation
 
-final class SyncingHealthKitDailyRepository: BaseSyncRepository, HealthKitDailyRepositoryProtocol {
+final class HealthKitDailySyncRepository: BaseSyncRepository, HealthKitDailyRepositoryProtocol {
     private let localRepository: HealthKitDailyRepositoryProtocol
     private var pendingMutations: [(dto: HealthKitDailyAggregateData, operation: SyncQueueOperation)] = []
 
@@ -9,8 +9,8 @@ final class SyncingHealthKitDailyRepository: BaseSyncRepository, HealthKitDailyR
         queueStore: SyncQueueStore,
         eligibilityService: SyncEligibilityService
     ) {
-        super.init(queueStore: queueStore, eligibilityService: eligibilityService)
         self.localRepository = localRepository
+        super.init(queueStore: queueStore, eligibilityService: eligibilityService)
     }
 
     func fetchCachedSummary(userId: String, dayKey: String) throws -> HealthKitDailyAggregateData? {

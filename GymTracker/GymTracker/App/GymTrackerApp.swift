@@ -73,35 +73,35 @@ struct GymTrackerApp: App {
             eligibilityService: syncEligibilityService
         )
         let localRoutineRepository = LocalRoutineRepository(modelContext: context)
-        let routineRepository = SyncingRoutineRepository(
+        let routineRepository = RoutineSyncRepository(
             localRepository: localRoutineRepository,
             queueStore: syncQueueStore,
             eligibilityService: syncEligibilityService
         )
         let localSessionRepository = LocalSessionRepository(modelContext: context)
-        let sessionRepository = SyncingSessionRepository(
+        let sessionRepository = SessionSyncRepository(
             localRepository: localSessionRepository,
             queueStore: syncQueueStore,
             eligibilityService: syncEligibilityService
         )
         let localUserRepository = LocalUserRepository(modelContext: context)
-        let userRepository = SyncingUserRepository(
+        let userRepository = UserSyncRepository(
             localRepository: localUserRepository,
             queueStore: syncQueueStore,
             eligibilityService: syncEligibilityService
         )
         let localNutritionRepository = LocalNutritionRepository(modelContext: context)
-        let nutritionCatalogRepository = SyncingNutritionCatalogRepository(
+        let nutritionCatalogRepository = NutritionCatalogSyncRepository(
             localRepository: localNutritionRepository,
             queueStore: syncQueueStore,
             eligibilityService: syncEligibilityService
         )
-        let nutritionLogRepository = SyncingNutritionLogRepository(
+        let nutritionLogRepository = NutritionLogSyncRepository(
             localRepository: localNutritionRepository,
             queueStore: syncQueueStore,
             eligibilityService: syncEligibilityService
         )
-        let nutritionTargetRepository = SyncingNutritionTargetRepository(
+        let nutritionTargetRepository = NutritionTargetSyncRepository(
             localRepository: localNutritionRepository,
             queueStore: syncQueueStore,
             eligibilityService: syncEligibilityService
@@ -112,7 +112,7 @@ struct GymTrackerApp: App {
             targetRepository: nutritionTargetRepository
         )
         let localHealthKitDailyRepository = LocalHealthKitDailyRepository(modelContext: context)
-        let healthKitDailyRepository = SyncingHealthKitDailyRepository(
+        let healthKitDailyRepository = HealthKitDailySyncRepository(
             localRepository: localHealthKitDailyRepository,
             queueStore: syncQueueStore,
             eligibilityService: syncEligibilityService

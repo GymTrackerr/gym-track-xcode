@@ -1,6 +1,6 @@
 import Foundation
 
-final class SyncingSessionRepository: BaseSyncRepository, SessionRepositoryProtocol {
+final class SessionSyncRepository: BaseSyncRepository, SessionRepositoryProtocol {
     private let localRepository: SessionRepositoryProtocol
 
     init(
@@ -8,8 +8,8 @@ final class SyncingSessionRepository: BaseSyncRepository, SessionRepositoryProto
         queueStore: SyncQueueStore,
         eligibilityService: SyncEligibilityService
     ) {
-        super.init(queueStore: queueStore, eligibilityService: eligibilityService)
         self.localRepository = localRepository
+        super.init(queueStore: queueStore, eligibilityService: eligibilityService)
     }
 
     func fetchSessions(for userId: UUID?) throws -> [Session] { try localRepository.fetchSessions(for: userId) }

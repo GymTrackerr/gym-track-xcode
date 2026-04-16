@@ -1,6 +1,6 @@
 import Foundation
 
-final class SyncingRoutineRepository: BaseSyncRepository, RoutineRepositoryProtocol {
+final class RoutineSyncRepository: BaseSyncRepository, RoutineRepositoryProtocol {
     private let localRepository: RoutineRepositoryProtocol
 
     init(
@@ -8,8 +8,8 @@ final class SyncingRoutineRepository: BaseSyncRepository, RoutineRepositoryProto
         queueStore: SyncQueueStore,
         eligibilityService: SyncEligibilityService
     ) {
-        super.init(queueStore: queueStore, eligibilityService: eligibilityService)
         self.localRepository = localRepository
+        super.init(queueStore: queueStore, eligibilityService: eligibilityService)
     }
 
     func fetchActiveRoutines(for userId: UUID) throws -> [Routine] { try localRepository.fetchActiveRoutines(for: userId) }

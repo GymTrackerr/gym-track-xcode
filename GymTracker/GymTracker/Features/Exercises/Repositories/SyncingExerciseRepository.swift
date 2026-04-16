@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class SyncingExerciseRepository: BaseSyncRepository, ExerciseRepositoryProtocol {
+final class ExerciseSyncRepository: BaseSyncRepository, ExerciseRepositoryProtocol {
     private let localRepository: ExerciseRepositoryProtocol
     private let payloadEncoder = JSONEncoder()
 

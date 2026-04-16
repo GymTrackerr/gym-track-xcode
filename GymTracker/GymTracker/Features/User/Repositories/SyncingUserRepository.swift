@@ -1,6 +1,6 @@
 import Foundation
 
-final class SyncingUserRepository: BaseSyncRepository, UserRepositoryProtocol {
+final class UserSyncRepository: BaseSyncRepository, UserRepositoryProtocol {
     private let localRepository: UserRepositoryProtocol
 
     init(
@@ -8,8 +8,8 @@ final class SyncingUserRepository: BaseSyncRepository, UserRepositoryProtocol {
         queueStore: SyncQueueStore,
         eligibilityService: SyncEligibilityService
     ) {
-        super.init(queueStore: queueStore, eligibilityService: eligibilityService)
         self.localRepository = localRepository
+        super.init(queueStore: queueStore, eligibilityService: eligibilityService)
     }
 
     func fetchAccounts() throws -> [User] { try localRepository.fetchAccounts() }

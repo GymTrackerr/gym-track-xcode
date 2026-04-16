@@ -1,6 +1,6 @@
 import Foundation
 
-final class SyncingNutritionTargetRepository: BaseSyncRepository, NutritionTargetRepositoryProtocol {
+final class NutritionTargetSyncRepository: BaseSyncRepository, NutritionTargetRepositoryProtocol {
     private let localRepository: NutritionTargetRepositoryProtocol
 
     init(
@@ -8,8 +8,8 @@ final class SyncingNutritionTargetRepository: BaseSyncRepository, NutritionTarge
         queueStore: SyncQueueStore,
         eligibilityService: SyncEligibilityService
     ) {
-        super.init(queueStore: queueStore, eligibilityService: eligibilityService)
         self.localRepository = localRepository
+        super.init(queueStore: queueStore, eligibilityService: eligibilityService)
     }
 
     func fetchTargets() throws -> [NutritionTarget] {
