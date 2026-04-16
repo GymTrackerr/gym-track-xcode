@@ -44,6 +44,7 @@ final class RemoteExerciseRepository {
 
     func fetchUserExercises(
         updatedAfter: Date? = nil,
+        deletedAfter: Date? = nil,
         includeDeleted: Bool = true
     ) async throws -> [GymTrackerExerciseDTO] {
         var queryItems = [URLQueryItem(name: "source", value: "user")]
@@ -55,6 +56,14 @@ final class RemoteExerciseRepository {
                 URLQueryItem(
                     name: "updatedAfter",
                     value: iso8601Formatter.string(from: updatedAfter)
+                )
+            )
+        }
+        if let deletedAfter {
+            queryItems.append(
+                URLQueryItem(
+                    name: "deletedAfter",
+                    value: iso8601Formatter.string(from: deletedAfter)
                 )
             )
         }

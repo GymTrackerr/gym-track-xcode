@@ -19,14 +19,24 @@ final class ExerciseSyncHandler: SyncModelSyncHandler {
     func process(item: SyncQueueItem) async throws {
         guard let payloadData = item.payloadSnapshotData else {
             throw APIHelperError.httpError(
-                statusCode: 0,
+                statusCode: 400,
                 code: "MISSING_PAYLOAD",
                 message: "Queue item payload is missing.",
                 details: nil
             )
         }
 
-        let payload = try JSONDecoder().decode(ExerciseSyncPayload.self, from: payloadData)
+        let payload: ExerciseSyncPayload
+        do {
+            payload = try JSONDecoder().decode(ExerciseSyncPayload.self, from: payloadData)
+        } catch {
+            throw APIHelperError.httpError(
+                statusCode: 400,
+                code: "INVALID_PAYLOAD",
+                message: "Queue item payload could not be decoded.",
+                details: error.localizedDescription
+            )
+        }
         let exercise = makeExercise(from: payload)
 
         switch item.operation {
@@ -38,7 +48,7 @@ final class ExerciseSyncHandler: SyncModelSyncHandler {
             _ = try await remoteExerciseRepository.restoreUserExercise(id: payload.id)
         case .hardDelete, .none:
             throw APIHelperError.httpError(
-                statusCode: 0,
+                statusCode: 400,
                 code: "UNSUPPORTED_OPERATION",
                 message: "Exercise sync does not support this operation.",
                 details: nil
