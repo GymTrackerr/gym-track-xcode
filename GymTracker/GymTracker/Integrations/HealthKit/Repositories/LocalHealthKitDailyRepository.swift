@@ -49,10 +49,29 @@ final class LocalHealthKitDailyRepository: HealthKitDailyRepositoryProtocol {
         return items
     }
 
+    func fetchUnsyncedPastSummaries(userId: String, before dayStart: Date, limit: Int) throws -> [HealthKitDailyAggregateData] {
+        var descriptor = FetchDescriptor<HealthKitDailyAggregateData>(
+            predicate: #Predicate<HealthKitDailyAggregateData> { item in
+                item.userId == userId &&
+                item.soft_deleted == false &&
+                item.dayStart < dayStart &&
+                item.isFullySynced == false
+            },
+            sortBy: [SortDescriptor(\.dayStart, order: .reverse)]
+        )
+        descriptor.fetchLimit = max(limit, 0)
+        let items = try modelContext.fetch(descriptor)
+        if try SyncRootMetadataManager.prepareForRead(items, in: modelContext) {
+            try modelContext.save()
+        }
+        return items
+    }
+
     func upsertCache(
         with dto: HealthKitDailyAggregateData,
         refreshedAt: Date,
         isToday: Bool,
+        isFullySynced: Bool,
         saveImmediately: Bool = true
     ) throws {
         if let existing = try fetchCachedSummary(userId: dto.userId, dayKey: dto.dayKey) {
@@ -70,11 +89,13 @@ final class LocalHealthKitDailyRepository: HealthKitDailyRepositoryProtocol {
             existing.schemaVersion = dto.schemaVersion
             existing.lastRefreshedAt = refreshedAt
             existing.isToday = isToday
+            existing.isFullySynced = isFullySynced
             existing.soft_deleted = false
             try SyncRootMetadataManager.markUpdated(existing, in: modelContext)
         } else {
             dto.lastRefreshedAt = refreshedAt
             dto.isToday = isToday
+            dto.isFullySynced = isFullySynced
             modelContext.insert(dto)
             try SyncRootMetadataManager.markCreated(dto, in: modelContext)
         }

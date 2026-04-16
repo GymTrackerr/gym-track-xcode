@@ -82,16 +82,12 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             timerService.appDidBecomeActive()
-            guard userService.currentUser?.isDemo != true else { return }
-            guard let userId = userService.currentUser?.id.uuidString else { return }
-            Task {
-                await healthKitDailyStore.refreshTodayIfNeeded(userId: userId)
-            }
         }
         .task(id: userService.currentUser?.id.uuidString) {
             guard userService.currentUser?.isDemo != true else { return }
             guard let userId = userService.currentUser?.id.uuidString else { return }
-            _ = await healthKitDailyStore.backfillHistoryIfNeededDaily(userId: userId)
+            guard userService.currentUser?.allowHealthAccess == true else { return }
+            _ = await healthKitDailyStore.smartPullHealthData(userId: userId)
         }
         .onChange(of: userService.currentUser?.showNutritionTab ?? true) {
             if !(userService.currentUser?.showNutritionTab ?? true), localSelected == 3 {
@@ -361,7 +357,13 @@ struct OnBoardScreenAccountLink: View {
 struct OnBoardScreenExerciseCatalog: View {
     @EnvironmentObject var userService: UserService
     @EnvironmentObject var exerciseService: ExerciseService
+    @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
     @State private var shouldDownloadExerciseDB = true
+    @State private var selectedHealthRange: HealthHistorySyncRange = .defaultSelection
+
+    private var canSyncHealthHistory: Bool {
+        userService.currentUser?.allowHealthAccess == true
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -373,6 +375,43 @@ struct OnBoardScreenExerciseCatalog: View {
                 .foregroundStyle(.secondary)
 
             Toggle("Download ExerciseDB in the background", isOn: $shouldDownloadExerciseDB)
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Optional: Download Apple Health history now")
+                    .font(.headline)
+
+                Picker("History range", selection: $selectedHealthRange) {
+                    ForEach(HealthHistorySyncRange.allCases) { range in
+                        Text(range.title).tag(range)
+                    }
+                }
+                .pickerStyle(.menu)
+
+                Button {
+                    guard let userId = userService.currentUser?.id.uuidString else { return }
+                    Task(priority: .utility) {
+                        _ = await healthKitDailyStore.fullRefreshHealthHistory(
+                            userId: userId,
+                            range: selectedHealthRange
+                        )
+                    }
+                } label: {
+                    Text(healthKitDailyStore.isBackfillingHistory ? "Downloading Health History..." : "Download Health History Now")
+                }
+                .buttonStyle(.bordered)
+                .disabled(!canSyncHealthHistory || healthKitDailyStore.isBackfillingHistory)
+
+                if healthKitDailyStore.isBackfillingHistory {
+                    ProgressView(value: progressValue)
+                    Text(healthKitDailyStore.backfillStatusText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if !canSyncHealthHistory {
+                    Text("Enable Apple Health access first if you want to download history now.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             Spacer()
 
@@ -387,6 +426,18 @@ struct OnBoardScreenExerciseCatalog: View {
             .clipShape(Capsule())
         }
         .padding(24)
+    }
+
+    private var progressValue: Double {
+        guard healthKitDailyStore.backfillProgressTotal > 0 else { return 0 }
+        return min(
+            max(
+                Double(healthKitDailyStore.backfillProgressCompleted) /
+                Double(healthKitDailyStore.backfillProgressTotal),
+                0
+            ),
+            1
+        )
     }
 }
 

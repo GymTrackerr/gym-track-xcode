@@ -15,7 +15,7 @@ final class API_Data {
 
     private let environment: Environment
 
-    init(environment: Environment = .development) {
+    init(environment: Environment = .production) {
         self.environment = environment
     }
 

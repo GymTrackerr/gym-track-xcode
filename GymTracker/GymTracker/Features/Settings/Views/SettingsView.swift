@@ -36,6 +36,7 @@ struct SettingsView: View {
     @State private var exportErrorMessage = ""
     @State private var showExerciseTransferTool = false
     @State private var newUserName: String = ""
+    @State private var selectedHealthHistoryRange: HealthHistorySyncRange = .defaultSelection
 
     var body: some View {
         VStack {
@@ -255,6 +256,55 @@ struct SettingsView: View {
                 }
 
                 Section("Apple Health Summary") {
+                    Picker("History Range", selection: $selectedHealthHistoryRange) {
+                        ForEach(HealthHistorySyncRange.allCases) { range in
+                            Text(range.title).tag(range)
+                        }
+                    }
+
+                    Button {
+                        triggerSmartPullNow()
+                    } label: {
+                        HStack {
+                            Image(systemName: "bolt.fill")
+                            Text("Smart Pull Now")
+                        }
+                    }
+                    .disabled(
+                        healthKitDailyStore.isBackfillingHistory ||
+                        userService.currentUser?.allowHealthAccess != true ||
+                        userService.currentUser?.isDemo == true
+                    )
+
+                    Button {
+                        triggerFullHealthRefresh()
+                    } label: {
+                        HStack {
+                            Image(systemName: "arrow.clockwise.circle")
+                            Text("Full Refresh (\(selectedHealthHistoryRange.title))")
+                        }
+                    }
+                    .disabled(
+                        healthKitDailyStore.isBackfillingHistory ||
+                        userService.currentUser?.allowHealthAccess != true ||
+                        userService.currentUser?.isDemo == true
+                    )
+
+                    if userService.currentUser?.allowHealthAccess != true {
+                        Text("Enable Apple Health access first to use Smart Pull or Full Refresh.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if healthKitDailyStore.isBackfillingHistory {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ProgressView(value: healthProgressValue)
+                            Text(healthKitDailyStore.backfillStatusText)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
                     Button {
                         exportAppleHealthSummaryBackup()
                     } label: {
@@ -337,6 +387,44 @@ struct SettingsView: View {
             backupAlertTitle = "Couldn’t Export"
             exportErrorMessage = error.localizedDescription
             showExportErrorAlert = true
+        }
+    }
+
+    private var healthProgressValue: Double {
+        guard healthKitDailyStore.backfillProgressTotal > 0 else { return 0 }
+        return min(
+            max(
+                Double(healthKitDailyStore.backfillProgressCompleted) /
+                Double(healthKitDailyStore.backfillProgressTotal),
+                0
+            ),
+            1
+        )
+    }
+
+    private func triggerSmartPullNow() {
+        guard let currentUser = userService.currentUser else { return }
+        guard currentUser.isDemo != true else { return }
+        guard currentUser.allowHealthAccess else { return }
+
+        let userId = currentUser.id.uuidString
+        Task(priority: .utility) {
+            _ = await healthKitDailyStore.smartPullHealthData(userId: userId)
+        }
+    }
+
+    private func triggerFullHealthRefresh() {
+        guard let currentUser = userService.currentUser else { return }
+        guard currentUser.isDemo != true else { return }
+        guard currentUser.allowHealthAccess else { return }
+
+        let userId = currentUser.id.uuidString
+        let selectedRange = selectedHealthHistoryRange
+        Task(priority: .utility) {
+            _ = await healthKitDailyStore.fullRefreshHealthHistory(
+                userId: userId,
+                range: selectedRange
+            )
         }
     }
 

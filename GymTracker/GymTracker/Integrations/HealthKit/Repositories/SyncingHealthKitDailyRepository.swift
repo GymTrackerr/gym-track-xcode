@@ -25,14 +25,25 @@ final class HealthKitDailySyncRepository: BaseSyncRepository, HealthKitDailyRepo
         try localRepository.fetchCachedSummaries(userId: userId)
     }
 
+    func fetchUnsyncedPastSummaries(userId: String, before dayStart: Date, limit: Int) throws -> [HealthKitDailyAggregateData] {
+        try localRepository.fetchUnsyncedPastSummaries(userId: userId, before: dayStart, limit: limit)
+    }
+
     func upsertCache(
         with dto: HealthKitDailyAggregateData,
         refreshedAt: Date,
         isToday: Bool,
+        isFullySynced: Bool,
         saveImmediately: Bool
     ) throws {
         let existing = try localRepository.fetchCachedSummary(userId: dto.userId, dayKey: dto.dayKey)
-        try localRepository.upsertCache(with: dto, refreshedAt: refreshedAt, isToday: isToday, saveImmediately: saveImmediately)
+        try localRepository.upsertCache(
+            with: dto,
+            refreshedAt: refreshedAt,
+            isToday: isToday,
+            isFullySynced: isFullySynced,
+            saveImmediately: saveImmediately
+        )
         let operation: SyncQueueOperation = existing == nil ? .create : .update
         if saveImmediately {
             enqueueRootMutationIfNeeded(root: dto, operation: operation)

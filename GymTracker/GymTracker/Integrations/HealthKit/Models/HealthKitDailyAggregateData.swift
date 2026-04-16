@@ -23,6 +23,7 @@ final class HealthKitDailyAggregateData {
     var schemaVersion: Double = 1.2
     var lastRefreshedAt: Date
     var isToday: Bool
+    var isFullySynced: Bool = false
     var soft_deleted: Bool = false
     var syncMetaId: UUID?
     var createdAt: Date = Date()
@@ -44,7 +45,8 @@ final class HealthKitDailyAggregateData {
         bodyWeightKg: Double,
         schemaVersion: Double = HealthKitDailyAggregateData.defaultSchemaVersion,
         lastRefreshedAt: Date = .distantPast,
-        isToday: Bool = false
+        isToday: Bool = false,
+        isFullySynced: Bool = false
     ) {
         let timestamp = Date()
         self.cacheKey = "\(userId)|\(dayKey)"
@@ -64,6 +66,7 @@ final class HealthKitDailyAggregateData {
         self.schemaVersion = schemaVersion
         self.lastRefreshedAt = lastRefreshedAt
         self.isToday = isToday
+        self.isFullySynced = isFullySynced
         self.soft_deleted = false
         self.syncMetaId = nil
         self.createdAt = timestamp

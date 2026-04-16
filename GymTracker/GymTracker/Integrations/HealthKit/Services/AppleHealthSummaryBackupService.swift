@@ -101,6 +101,7 @@ final class AppleHealthSummaryBackupService {
         do {
             for day in incomingByDayKey.values.sorted(by: { $0.dayStart < $1.dayStart }) {
                 if let existingSummary = existingByDayKey[day.dayKey] {
+                    let isToday = dateNormalizer.sameDay(day.dayStart, Date())
                     existingSummary.dayStart = day.dayStart
                     existingSummary.steps = day.steps
                     existingSummary.activeEnergyKcal = day.activeEnergyKcal
@@ -114,9 +115,11 @@ final class AppleHealthSummaryBackupService {
                     existingSummary.bodyWeightKg = day.bodyWeightKg
                     existingSummary.schemaVersion = day.schemaVersion
                     existingSummary.lastRefreshedAt = day.lastRefreshedAt
-                    existingSummary.isToday = dateNormalizer.sameDay(day.dayStart, Date())
+                    existingSummary.isToday = isToday
+                    existingSummary.isFullySynced = isToday ? false : day.isFullySynced
                     updated += 1
                 } else {
+                    let isToday = dateNormalizer.sameDay(day.dayStart, Date())
                     let summary = HealthKitDailyAggregateData(
                         userId: userId,
                         dayKey: day.dayKey,
@@ -133,7 +136,8 @@ final class AppleHealthSummaryBackupService {
                         bodyWeightKg: day.bodyWeightKg,
                         schemaVersion: day.schemaVersion,
                         lastRefreshedAt: day.lastRefreshedAt,
-                        isToday: dateNormalizer.sameDay(day.dayStart, Date())
+                        isToday: isToday,
+                        isFullySynced: isToday ? false : day.isFullySynced
                     )
                     modelContext.insert(summary)
                     existingByDayKey[day.dayKey] = summary
@@ -232,7 +236,8 @@ final class AppleHealthSummaryBackupService {
                 sleepSeconds: max(0, dto.sleepSeconds ?? 0),
                 bodyWeightKg: max(0, dto.bodyWeightKg ?? 0),
                 schemaVersion: dto.summarySchemaVersion ?? HealthKitDailyAggregateData.currentSchemaVersion,
-                lastRefreshedAt: dto.lastRefreshedAt ?? .distantPast
+                lastRefreshedAt: dto.lastRefreshedAt ?? .distantPast,
+                isFullySynced: dto.isFullySynced ?? false
             ))
         }
 
@@ -288,6 +293,7 @@ private struct NormalizedSummary {
     let bodyWeightKg: Double
     let schemaVersion: Double
     let lastRefreshedAt: Date
+    let isFullySynced: Bool
 }
 
 private struct AppleHealthSummaryTransferEnvelope: Codable {
@@ -421,6 +427,7 @@ private struct AppleHealthSummaryDayDTO: Codable {
     let bodyWeightKg: Double?
     let summarySchemaVersion: Double?
     let lastRefreshedAt: Date?
+    let isFullySynced: Bool?
 
     enum CodingKeys: String, CodingKey {
         case dayKey
@@ -450,6 +457,7 @@ private struct AppleHealthSummaryDayDTO: Codable {
         case summarySchemaVersion
         case schemaVersion
         case lastRefreshedAt
+        case isFullySynced
     }
 
     init(_ summary: HealthKitDailyAggregateData) {
@@ -467,6 +475,7 @@ private struct AppleHealthSummaryDayDTO: Codable {
         bodyWeightKg = summary.bodyWeightKg
         summarySchemaVersion = summary.schemaVersion
         lastRefreshedAt = summary.lastRefreshedAt
+        isFullySynced = summary.isFullySynced
     }
 
     init(from decoder: Decoder) throws {
@@ -499,6 +508,7 @@ private struct AppleHealthSummaryDayDTO: Codable {
         summarySchemaVersion = try container.decodeIfPresent(Double.self, forKey: .summarySchemaVersion)
             ?? container.decodeIfPresent(Double.self, forKey: .schemaVersion)
         lastRefreshedAt = try container.decodeIfPresent(Date.self, forKey: .lastRefreshedAt)
+        isFullySynced = try container.decodeIfPresent(Bool.self, forKey: .isFullySynced)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -517,5 +527,6 @@ private struct AppleHealthSummaryDayDTO: Codable {
         try container.encodeIfPresent(bodyWeightKg, forKey: .bodyWeightKg)
         try container.encodeIfPresent(summarySchemaVersion, forKey: .summarySchemaVersion)
         try container.encodeIfPresent(lastRefreshedAt, forKey: .lastRefreshedAt)
+        try container.encodeIfPresent(isFullySynced, forKey: .isFullySynced)
     }
 }

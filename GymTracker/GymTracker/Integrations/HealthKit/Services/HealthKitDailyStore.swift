@@ -24,6 +24,9 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
 
     private let staleInterval: TimeInterval = 15 * 60
     private let batchingThreshold = 3
+    private let smartPullUnsyncedPastDayLimit = 30
+    private let defaultHistoryRefreshChunkDays = 120
+    private let compatibilitySmartPullVersion = 1
     private var isRunningSchemaUpgrade = false
 
     private struct DailyAggregateSnapshot: Sendable {
@@ -90,6 +93,7 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
     private let dateNormalizer: HealthKitDateNormalizer
     private let defaults = UserDefaults.standard
     private var inFlightTasks: [String: Task<DailyAggregateSnapshot, Error>] = [:]
+    private var smartPullTasks: [String: Task<Bool, Never>] = [:]
 
     init(
         context: ModelContext,
@@ -104,9 +108,20 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
     }
 
     override func loadFeature() {
-        guard let userId = currentUser?.id.uuidString else { return }
-        Task { [weak self] in
-            await self?.upgradeCachedSummariesIfNeeded(userId: userId)
+        guard
+            let userId = currentUser?.id.uuidString,
+            currentUser?.isDemo != true
+        else {
+            return
+        }
+        let allowHealthAccess = currentUser?.allowHealthAccess == true
+        Task(priority: .utility) { [weak self] in
+            guard let self else { return }
+            await self.upgradeCachedSummariesIfNeeded(userId: userId)
+            await self.runCompatibilitySmartPullIfNeeded(
+                userId: userId,
+                allowHealthAccess: allowHealthAccess
+            )
         }
     }
 
@@ -234,6 +249,88 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         refreshToken &+= 1
     }
 
+    @discardableResult
+    func smartPullHealthData(userId: String) async -> Bool {
+        if let existingTask = smartPullTasks[userId] {
+            return await existingTask.value
+        }
+
+        let task = Task(priority: .utility) { @MainActor [weak self] in
+            guard let self else { return false }
+            defer { self.smartPullTasks[userId] = nil }
+            return await self.runSmartPullHealthData(userId: userId)
+        }
+        smartPullTasks[userId] = task
+        return await task.value
+    }
+
+    @discardableResult
+    func fullRefreshHealthHistory(
+        userId: String,
+        range: HealthHistorySyncRange = .defaultSelection,
+        chunkDays: Int? = nil
+    ) async -> Bool {
+        if isBackfillingHistory {
+            return true
+        }
+
+        let calendar = Calendar.current
+        let todayStart = dateNormalizer.startOfDay(Date())
+        let rangeStart = dateNormalizer.startOfDay(range.startDay(endingOn: todayStart, calendar: calendar))
+        let historyChunkDays = max(chunkDays ?? defaultHistoryRefreshChunkDays, 1)
+        let totalDays = max((calendar.dateComponents([.day], from: rangeStart, to: todayStart).day ?? 0) + 1, 1)
+
+        isBackfillingHistory = true
+        backfillProgressCompleted = 0
+        backfillProgressTotal = totalDays
+        backfillStatusText = "Syncing Apple Health history..."
+        defer {
+            isBackfillingHistory = false
+            backfillStatusText = ""
+        }
+
+        var processedDays = 0
+        var cursorEnd = todayStart
+
+        while cursorEnd >= rangeStart {
+            if Task.isCancelled {
+                return false
+            }
+            await Task.yield()
+
+            let daysRemaining = max((calendar.dateComponents([.day], from: rangeStart, to: cursorEnd).day ?? 0) + 1, 1)
+            let requestDays = min(historyChunkDays, daysRemaining)
+            let progress = min(Int((Double(processedDays) / Double(totalDays)) * 100.0), 99)
+            backfillStatusText = "Syncing Apple Health history... \(progress)%"
+            backfillProgressCompleted = min(processedDays, totalDays)
+
+            do {
+                _ = try await dailySummaries(
+                    endingOn: cursorEnd,
+                    days: requestDays,
+                    userId: userId,
+                    policy: .forceRefresh
+                )
+            } catch {
+                backfillStatusText = "Health sync failed: \(error.localizedDescription)"
+                return false
+            }
+
+            processedDays += requestDays
+            backfillProgressCompleted = min(processedDays, totalDays)
+
+            guard let nextEnd = calendar.date(byAdding: .day, value: -requestDays, to: cursorEnd) else {
+                break
+            }
+            cursorEnd = nextEnd
+        }
+
+        backfillStatusText = "Syncing Apple Health history... 100%"
+        backfillProgressCompleted = totalDays
+        refreshToken &+= 1
+        return true
+    }
+
     func cachedDataBounds(userId: String) throws -> (oldest: Date?, newest: Date?) {
         let items = try repository.fetchCachedSummaries(userId: userId)
         return (items.first?.dayStart, items.last?.dayStart)
@@ -285,88 +382,13 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         chunkDays: Int = 180,
         emptyChunkStop: Int = 4
     ) async -> Bool {
-        if isBackfillingHistory {
-            return true
-        }
-
-        let calendar = Calendar.current
-        let now = Date()
-        let absoluteStart = calendar.date(byAdding: .year, value: -maxYearsBack, to: now) ?? now
-        let bounds = try? cachedDataBounds(userId: userId)
-        let initialEnd = (bounds?.oldest ?? now).addingTimeInterval(-24 * 60 * 60)
-
-        if initialEnd <= absoluteStart {
-            return true
-        }
-
-        let requestedTotalDays = max((calendar.dateComponents([.day], from: absoluteStart, to: initialEnd).day ?? 0) + 1, 1)
-        isBackfillingHistory = true
-        backfillStatusText = "Loading HealthKit history..."
-        backfillProgressCompleted = 0
-        backfillProgressTotal = max(requestedTotalDays, 1)
-        defer {
-            isBackfillingHistory = false
-            backfillStatusText = ""
-        }
-
-        var cursorEnd = initialEnd
-        var processedDays = 0
-        var wroteAnyData = false
-        var foundAnyData = false
-        var emptyChunkStreak = 0
-
-        while cursorEnd > absoluteStart {
-            if Task.isCancelled { return false }
-            await Task.yield()
-
-            let daysCovered = max((calendar.dateComponents([.day], from: absoluteStart, to: cursorEnd).day ?? 0) + 1, 1)
-            let requestDays = min(chunkDays, daysCovered)
-
-            let progress = min(Int((Double(processedDays) / Double(requestedTotalDays)) * 100.0), 99)
-            backfillStatusText = "Loading HealthKit history... \(progress)%"
-            backfillProgressCompleted = min(processedDays, requestedTotalDays)
-
-            if let summaries = try? await dailySummaries(
-                endingOn: cursorEnd,
-                days: requestDays,
-                userId: userId,
-                policy: .refreshIfStale
-            ) {
-                wroteAnyData = true
-                let chunkHasData = summaries.contains { summary in
-                    summary.steps > 0 ||
-                    summary.activeEnergyKcal > 0 ||
-                    summary.restingEnergyKcal > 0 ||
-                    (summary.exerciseMinutes ?? 0) > 0 ||
-                    (summary.standHours ?? 0) > 0 ||
-                    summary.sleepSeconds > 0
-                }
-
-                if chunkHasData {
-                    foundAnyData = true
-                    emptyChunkStreak = 0
-                } else if foundAnyData {
-                    emptyChunkStreak += 1
-                    if emptyChunkStreak >= emptyChunkStop {
-                        break
-                    }
-                }
-            }
-
-            processedDays += requestDays
-            backfillProgressCompleted = min(processedDays, requestedTotalDays)
-            guard let nextEnd = calendar.date(byAdding: .day, value: -requestDays, to: cursorEnd) else {
-                break
-            }
-            cursorEnd = nextEnd
-        }
-
-        backfillStatusText = "Loading HealthKit history... 100%"
-        backfillProgressCompleted = requestedTotalDays
-        if wroteAnyData {
-            refreshToken &+= 1
-        }
-        return true
+        _ = maxYearsBack
+        _ = emptyChunkStop
+        return await fullRefreshHealthHistory(
+            userId: userId,
+            range: .all,
+            chunkDays: chunkDays
+        )
     }
 
     func backfillHistoryIfNeededDaily(
@@ -400,6 +422,7 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         guard let cached = try fetchCachedSummary(userId: userId, dayKey: dayKey) else { return }
         cached.lastRefreshedAt = .distantPast
         cached.isToday = dateNormalizer.sameDay(cached.dayStart, Date())
+        cached.isFullySynced = false
         cached.updatedAt = Date()
         try repository.saveChanges()
         refreshToken &+= 1
@@ -410,6 +433,7 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         for item in cachedItems {
             item.lastRefreshedAt = .distantPast
             item.isToday = dateNormalizer.sameDay(item.dayStart, Date())
+            item.isFullySynced = false
             item.updatedAt = Date()
         }
         try repository.saveChanges()
@@ -546,12 +570,35 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         return resolved
     }
 
+    private func runSmartPullHealthData(userId: String) async -> Bool {
+        let todayStart = dateNormalizer.startOfDay(Date())
+        var refreshTargets = Set<Date>([todayStart])
+
+        if let unsynced = try? repository.fetchUnsyncedPastSummaries(
+            userId: userId,
+            before: todayStart,
+            limit: smartPullUnsyncedPastDayLimit
+        ) {
+            for summary in unsynced {
+                refreshTargets.insert(dateNormalizer.startOfDay(summary.dayStart))
+            }
+        }
+
+        do {
+            _ = try await refreshDays(Array(refreshTargets).sorted(), userId: userId)
+            refreshToken &+= 1
+            return true
+        } catch {
+            return false
+        }
+    }
+
     private func shouldRefresh(cached: HealthKitDailyAggregateData, dayStart: Date) -> Bool {
         if dateNormalizer.sameDay(dayStart, Date()) {
             let age = Date().timeIntervalSince(cached.lastRefreshedAt)
             return age > staleInterval
         }
-        return cached.lastRefreshedAt == .distantPast
+        return cached.isFullySynced == false || cached.lastRefreshedAt == .distantPast
     }
 
     private func fetchCachedSummary(userId: String, dayKey: String) throws -> HealthKitDailyAggregateData? {
@@ -569,10 +616,12 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
     private func upsertCache(with dto: HealthKitDailyAggregateData, saveImmediately: Bool = true) throws {
         let refreshedAt = Date()
         let isToday = dateNormalizer.sameDay(dto.dayStart, Date())
+        let isFullySynced = !isToday
         try repository.upsertCache(
             with: dto,
             refreshedAt: refreshedAt,
             isToday: isToday,
+            isFullySynced: isFullySynced,
             saveImmediately: saveImmediately
         )
     }
@@ -631,6 +680,20 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
 
         blocks.append(currentBlock)
         return blocks
+    }
+
+    private func runCompatibilitySmartPullIfNeeded(
+        userId: String,
+        allowHealthAccess: Bool
+    ) async {
+        guard allowHealthAccess else { return }
+        let key = "gymtracker.hk.smart-pull-compat.v\(compatibilitySmartPullVersion).\(userId.lowercased())"
+        guard defaults.bool(forKey: key) == false else { return }
+
+        let didSync = await smartPullHealthData(userId: userId)
+        if didSync {
+            defaults.set(true, forKey: key)
+        }
     }
 
     private func upgradeCachedSummariesIfNeeded(userId: String) async {

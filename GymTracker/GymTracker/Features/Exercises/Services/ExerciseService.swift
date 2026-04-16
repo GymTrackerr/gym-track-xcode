@@ -173,11 +173,11 @@ class ExerciseService : ServiceBase, ObservableObject {
     }
 
     func loadApiExercises() async {
-        await syncCatalogNow(force: true)
+        await syncCatalogFromLegacyApiTrigger()
     }
 
     func refreshApiExercisesWithoutInsert() async {
-        await syncCatalogNow(force: true)
+        await syncCatalogFromLegacyApiTrigger()
     }
 
     func setCatalogSyncEnabled(_ enabled: Bool) {
@@ -377,6 +377,10 @@ class ExerciseService : ServiceBase, ObservableObject {
 
     private func saveState(_ state: ExerciseCatalogSyncState, for userId: UUID) {
         catalogSyncStateStore.save(state, for: userId)
+    }
+
+    private func syncCatalogFromLegacyApiTrigger() async {
+        await syncCatalogNow(force: true)
     }
     
     func search(query: String) -> [Exercise] {

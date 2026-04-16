@@ -22,7 +22,7 @@ struct HomeView: View {
                 }
                 .scrollBounceBehavior(.basedOnSize)
                 .refreshable {
-                    await refreshHealthData(forceRefresh: true)
+                    await refreshHealthData()
                 }
             } else {
                 Text("Please continue to onboarding")
@@ -53,30 +53,19 @@ struct HomeView: View {
     }
 
     private func refreshHealthData(
-        forceRefresh: Bool = false,
         requestAuthorization: Bool = false
     ) async {
         guard let currentUser = userService.currentUser, currentUser.isDemo != true else { return }
         guard currentUser.allowHealthAccess else { return }
 
-        if requestAuthorization {
+        if requestAuthorization, hkManager.hkRequested == false {
             await hkManager.requestAuthorization()
         }
 
         await hkManager.fetchWorkouts()
         let userId = currentUser.id.uuidString
 
-        if forceRefresh {
-            await healthKitDailyStore.forceRefreshRecentData(userId: userId)
-        } else {
-            await healthKitDailyStore.refreshTodayIfNeeded(userId: userId)
-            _ = try? await healthKitDailyStore.dailySummaries(
-                endingOn: Date(),
-                days: 7,
-                userId: userId,
-                policy: .refreshIfStale
-            )
-        }
+        _ = await healthKitDailyStore.smartPullHealthData(userId: userId)
     }
 }
 
@@ -193,7 +182,7 @@ struct HealthBackfillProgressCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Health History Backfill")
+            Text("Health Sync")
                 .font(.headline)
             ProgressView(value: progress)
             Text(healthKitDailyStore.backfillStatusText)
