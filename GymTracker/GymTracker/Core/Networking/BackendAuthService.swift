@@ -41,6 +41,8 @@ final class BackendAuthService: ObservableObject {
 
     let apiHelper: API_Helper
     let eligibilityState: SyncEligibilityState
+    private let eligibilityStateStore: SyncEligibilityStateStore
+    private let bootstrapCoordinator: AccountBootstrapCoordinating?
 
     private var cancellables = Set<AnyCancellable>()
     private let pathMonitor = NWPathMonitor()
@@ -50,10 +52,14 @@ final class BackendAuthService: ObservableObject {
 
     init(
         apiHelper: API_Helper = API_Helper(),
-        eligibilityState: SyncEligibilityState = SyncEligibilityState()
+        eligibilityState: SyncEligibilityState = SyncEligibilityState(),
+        eligibilityStateStore: SyncEligibilityStateStore = .shared,
+        bootstrapCoordinator: AccountBootstrapCoordinating? = nil
     ) {
         self.apiHelper = apiHelper
         self.eligibilityState = eligibilityState
+        self.eligibilityStateStore = eligibilityStateStore
+        self.bootstrapCoordinator = bootstrapCoordinator
 
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -61,6 +67,7 @@ final class BackendAuthService: ObservableObject {
 
         startNetworkMonitor()
         restoreStoredSessionForActiveUser()
+        bindEligibilityPersistence()
     }
 
     deinit {
@@ -104,6 +111,7 @@ final class BackendAuthService: ObservableObject {
         currentSession = response
         linkedProvider = response.linkedProvider
         eligibilityState.authAvailable = true
+        triggerBootstrapIfEligible(accountUserId: response.user.id)
         return response
     }
 
@@ -138,9 +146,14 @@ final class BackendAuthService: ObservableObject {
         if let activeLocalUserId = BackendSessionStore.shared.activeLocalUserId() {
             currentLocalUserId = activeLocalUserId
             sessionSnapshot = BackendSessionStore.shared.loadSession(for: activeLocalUserId)
+            let persistedEligibility = eligibilityStateStore.load(for: activeLocalUserId)
             eligibilityState.hasActiveLocalUser = true
-            eligibilityState.backendEnabled = true
+            eligibilityState.backendEnabled = persistedEligibility?.backendEnabled ?? true
+            if let persistedEligibility {
+                eligibilityState.networkAvailable = persistedEligibility.networkAvailable
+            }
             eligibilityState.authAvailable = sessionSnapshot?.accessToken.isEmpty == false
+            triggerBootstrapIfEligible(accountUserId: sessionSnapshot?.accountUserId)
         }
     }
 
@@ -172,6 +185,7 @@ final class BackendAuthService: ObservableObject {
         }
 
         eligibilityState.authAvailable = sessionSnapshot?.accessToken.isEmpty == false
+        triggerBootstrapIfEligible(accountUserId: sessionSnapshot?.accountUserId)
     }
 
     @MainActor
@@ -199,6 +213,7 @@ final class BackendAuthService: ObservableObject {
         lastErrorMessage = nil
         eligibilityState.backendEnabled = true
         eligibilityState.authAvailable = true
+        triggerBootstrapIfEligible(accountUserId: response.user.id)
     }
 
     @MainActor
@@ -213,6 +228,51 @@ final class BackendAuthService: ObservableObject {
         linkedProvider = nil
         lastErrorMessage = nil
         eligibilityState.authAvailable = false
+    }
+
+    private func bindEligibilityPersistence() {
+        Publishers.CombineLatest4(
+            eligibilityState.$backendEnabled,
+            eligibilityState.$networkAvailable,
+            eligibilityState.$authAvailable,
+            eligibilityState.$hasActiveLocalUser
+        )
+        .sink { [weak self] backendEnabled, networkAvailable, authAvailable, hasActiveLocalUser in
+            guard
+                let self,
+                let localUserId = self.currentLocalUserId
+            else { return }
+
+            let snapshot = PersistedSyncEligibilitySnapshot(
+                backendEnabled: backendEnabled,
+                networkAvailable: networkAvailable,
+                authAvailable: authAvailable,
+                hasActiveLocalUser: hasActiveLocalUser,
+                updatedAt: Date()
+            )
+            self.eligibilityStateStore.save(snapshot, for: localUserId)
+        }
+        .store(in: &cancellables)
+    }
+
+    private func triggerBootstrapIfEligible(accountUserId: String?) {
+        guard
+            let bootstrapCoordinator,
+            let localUserId = currentLocalUserId,
+            let accountUserId,
+            accountUserId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        else { return }
+
+        let syncEnabled =
+            eligibilityState.backendEnabled &&
+            eligibilityState.networkAvailable &&
+            eligibilityState.authAvailable &&
+            eligibilityState.hasActiveLocalUser
+        bootstrapCoordinator.triggerBootstrapIfNeeded(
+            localUserId: localUserId,
+            accountUserId: accountUserId,
+            syncEnabled: syncEnabled
+        )
     }
 
     private func parseDate(_ value: String) -> Date? {

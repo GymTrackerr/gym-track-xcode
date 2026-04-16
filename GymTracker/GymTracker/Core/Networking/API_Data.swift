@@ -15,14 +15,14 @@ final class API_Data {
 
     private let environment: Environment
 
-    init(environment: Environment = .production) {
+    init(environment: Environment = .development) {
         self.environment = environment
     }
 
     var hostURLString: String {
         switch environment {
         case .development:
-            return "http://192.168.3.21:5002"
+            return "http://127.0.0.1:5002"
         case .production:
             return "https://api.trackerr.ca"
         }

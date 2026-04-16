@@ -110,7 +110,9 @@ struct ContentView: View {
         }
         .onAppear {
 #if DEBUG
-            DebugHarness.runAll()
+            Task.detached(priority: .background) {
+                DebugHarness.runAll()
+            }
 #endif
         }
 #if false
@@ -173,6 +175,8 @@ struct OnBoardView: View {
             case 1:
                 OnBoardScreenPermissions()
             case 2:
+                OnBoardScreenAccountLink()
+            case 3:
                 OnBoardScreenFinal()
             default:
                 EmptyView()
@@ -302,7 +306,7 @@ struct OnBoardScreenFinal: View {
 
             
             Button("Done") {
-                userService.onBoardingScreen = 3
+                userService.onBoardingScreen = 4
                 userService.onBoarding = false
             }
             .frame(maxWidth: .infinity)
@@ -314,6 +318,43 @@ struct OnBoardScreenFinal: View {
         .padding(24)
 
 //        .appBackground()
+    }
+}
+
+struct OnBoardScreenAccountLink: View {
+    @EnvironmentObject var userService: UserService
+    @EnvironmentObject var backendAuthService: BackendAuthService
+
+    private var isLinked: Bool {
+        guard let accessToken = backendAuthService.sessionSnapshot?.accessToken else {
+            return false
+        }
+        return accessToken.isEmpty == false
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Text("Optional: Link Your Interact Account")
+                .font(.largeTitle)
+                .bold()
+
+            Text("Linking enables cloud sync for supported data. You can skip this now and link later in Settings.")
+                .foregroundStyle(.secondary)
+
+            InteractAccountLinkCard()
+
+            Spacer()
+
+            Button(isLinked ? "Continue" : "Skip for Now") {
+                userService.onBoardingScreen = 3
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color.accentColor)
+            .foregroundStyle(.white)
+            .clipShape(Capsule())
+        }
+        .padding(24)
     }
 }
 

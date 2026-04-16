@@ -118,10 +118,18 @@ struct GymTrackerApp: App {
             eligibilityService: syncEligibilityService
         )
 
+        let exerciseBootstrapCoordinator = ExerciseBootstrapCoordinator(
+            localRepository: localExerciseRepository,
+            remoteRepository: remoteExerciseRepository
+        )
+
         // Create — no currentUser passed
         let userService = UserService(context: context, repository: userRepository)
         userService.loadFeature()
-        let backendAuthService = BackendAuthService(eligibilityState: syncEligibilityState)
+        let backendAuthService = BackendAuthService(
+            eligibilityState: syncEligibilityState,
+            bootstrapCoordinator: exerciseBootstrapCoordinator
+        )
         
         let dashboardService = DashboardService(context: context)
         let timerService = TimerService(context: context)

@@ -112,6 +112,12 @@ final class RemoteExerciseRepository {
     }
 }
 
+extension RemoteExerciseRepository: RemoteExerciseBootstrapUploading {
+    func upsertForBootstrap(_ exercise: Exercise) async throws {
+        _ = try await upsertUserExercise(exercise)
+    }
+}
+
 private struct RemoteExerciseDeleteResponse: Decodable {
     let ok: Bool
     let id: String

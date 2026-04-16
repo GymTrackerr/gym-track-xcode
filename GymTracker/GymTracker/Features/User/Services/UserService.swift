@@ -158,6 +158,14 @@ class UserService: ServiceBase, ObservableObject {
         }
     }
 
+    func setRemoteSyncEnabled(_ isEnabled: Bool) {
+        withAnimation {
+            currentUser?.remoteSyncEnabled = isEnabled
+            currentUser?.updatedAt = Date()
+            if let currentUser { try? repository.saveChanges(for: currentUser) }
+        }
+    }
+
     func setTimerNotificationsEnabled(_ isEnabled: Bool) {
         withAnimation {
             currentUser?.timerNotificationsEnabled = isEnabled

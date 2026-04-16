@@ -101,6 +101,19 @@ struct SettingsView: View {
                     }
                 }
 
+                Section("Account Sync (Optional)") {
+                    InteractAccountLinkCard()
+
+                    Toggle(
+                        "Enable Remote Sync For This Account",
+                        isOn: Binding(
+                            get: { userService.currentUser?.remoteSyncEnabled ?? false },
+                            set: { userService.setRemoteSyncEnabled($0) }
+                        )
+                    )
+                    .disabled(userService.currentUser?.isDemo == true)
+                }
+
                 NavigationLink {
                     DemoSeedView()
                 } label: {
