@@ -141,6 +141,9 @@ class HealthKitManager: ObservableObject {
         }
 
         hkConnected = ok
+        if ok {
+            hkRequested = true
+        }
     }
     
     func fetchWeeklySteps() async {

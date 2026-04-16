@@ -27,6 +27,7 @@ struct SettingsView: View {
     @EnvironmentObject var exerciseSplitDayService: ExerciseSplitDayService
     @EnvironmentObject var sessionExerciseService: SessionExerciseService
     @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
+    @EnvironmentObject var hkManager: HealthKitManager
     @State private var shareItem: BackupShareItem?
     @State private var showImportPicker = false
     @State private var importTarget: BackupImportTarget = .nutrition
@@ -37,6 +38,8 @@ struct SettingsView: View {
     @State private var showExerciseTransferTool = false
     @State private var newUserName: String = ""
     @State private var selectedHealthHistoryRange: HealthHistorySyncRange = .defaultSelection
+    @State private var isEnablingHealthAccess = false
+    @State private var showHealthBackfillPrompt = false
 
     var body: some View {
         VStack {
@@ -255,6 +258,39 @@ struct SettingsView: View {
 
                 }
 
+                Section("Apple Health Access") {
+                    Text(healthAccessStatusText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if userService.currentUser?.isDemo == true {
+                        Text("Apple Health access is disabled for demo accounts.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if userService.currentUser?.allowHealthAccess == true {
+                        Button {
+                            disableHealthAccessForCurrentUser()
+                        } label: {
+                            HStack {
+                                Image(systemName: "xmark.circle")
+                                Text("Disable For This Account")
+                            }
+                        }
+                    } else {
+                        Button {
+                            Task(priority: .utility) {
+                                await enableHealthAccessFromSettings()
+                            }
+                        } label: {
+                            HStack {
+                                Image(systemName: "heart.circle")
+                                Text(isEnablingHealthAccess ? "Enabling Apple Health..." : "Enable Apple Health Access")
+                            }
+                        }
+                        .disabled(isEnablingHealthAccess)
+                    }
+                }
+
                 Section("Apple Health Summary") {
                     Picker("History Range", selection: $selectedHealthHistoryRange) {
                         ForEach(HealthHistorySyncRange.allCases) { range in
@@ -332,6 +368,27 @@ struct SettingsView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(exportErrorMessage)
+        }
+        .confirmationDialog(
+            "Pull Apple Health Data Now?",
+            isPresented: $showHealthBackfillPrompt,
+            titleVisibility: .visible
+        ) {
+            Button("Smart Pull Now") {
+                triggerSmartPullNow()
+            }
+            Button("Full Refresh (\(selectedHealthHistoryRange.title))") {
+                triggerFullHealthRefresh()
+            }
+            Button("Not Now", role: .cancel) { }
+        } message: {
+            Text("Health access is enabled for this account. You can start syncing now or do it later from Settings.")
+        }
+        .onAppear {
+            guard userService.currentUser?.isDemo != true else { return }
+            Task(priority: .utility) {
+                await hkManager.refreshConnectionState()
+            }
         }
 #if os(iOS)
         .sheet(item: $shareItem) { item in
@@ -426,6 +483,58 @@ struct SettingsView: View {
                 range: selectedRange
             )
         }
+    }
+
+    private var healthAccessStatusText: String {
+        if userService.currentUser?.isDemo == true {
+            return "Apple Health is unavailable in demo mode."
+        }
+        if userService.currentUser?.allowHealthAccess == true {
+            return hkManager.hkConnected
+                ? "Apple Health is enabled for this account."
+                : "Enabled for this account, but Apple Health permission appears unavailable right now."
+        }
+        if hkManager.hkConnected {
+            return "Apple Health permission is available on this device, but disabled for this account."
+        }
+        return "Apple Health is currently disabled for this account."
+    }
+
+    @MainActor
+    private func enableHealthAccessFromSettings() async {
+        guard let targetUserId = userService.currentUser?.id else { return }
+        guard userService.currentUser?.isDemo != true else { return }
+
+        isEnablingHealthAccess = true
+        defer { isEnablingHealthAccess = false }
+
+        await hkManager.refreshConnectionState()
+
+        if hkManager.hkConnected {
+            guard userService.currentUser?.id == targetUserId else { return }
+            userService.hkUserAllow(connected: true, requested: true)
+            showHealthBackfillPrompt = true
+            return
+        }
+
+        await hkManager.requestAuthorization()
+        guard userService.currentUser?.id == targetUserId else { return }
+
+        userService.hkUserAllow(connected: hkManager.hkConnected, requested: hkManager.hkRequested)
+
+        if userService.currentUser?.allowHealthAccess == true {
+            showHealthBackfillPrompt = true
+            return
+        }
+
+        backupAlertTitle = "Apple Health Access"
+        exportErrorMessage = "Permission was not granted. You can enable it in the Health app and try again."
+        showExportErrorAlert = true
+    }
+
+    private func disableHealthAccessForCurrentUser() {
+        guard userService.currentUser?.isDemo != true else { return }
+        userService.hkUserAllow(connected: false, requested: false)
     }
 
     private func exportExerciseBackup() {

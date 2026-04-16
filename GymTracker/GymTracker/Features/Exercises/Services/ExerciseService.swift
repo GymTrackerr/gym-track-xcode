@@ -172,14 +172,6 @@ class ExerciseService : ServiceBase, ObservableObject {
         }
     }
 
-    func loadApiExercises() async {
-        await syncCatalogFromLegacyApiTrigger()
-    }
-
-    func refreshApiExercisesWithoutInsert() async {
-        await syncCatalogFromLegacyApiTrigger()
-    }
-
     func setCatalogSyncEnabled(_ enabled: Bool) {
         guard let userId = currentUser?.id else { return }
         var state = stateForUser(userId)
@@ -379,10 +371,6 @@ class ExerciseService : ServiceBase, ObservableObject {
         catalogSyncStateStore.save(state, for: userId)
     }
 
-    private func syncCatalogFromLegacyApiTrigger() async {
-        await syncCatalogNow(force: true)
-    }
-    
     func search(query: String) -> [Exercise] {
         print("searching exercise \(query)")
         guard !query.isEmpty else { return exercises }
@@ -604,21 +592,5 @@ extension ExerciseService {
         }
         
         return result
-    }
-}
-
-extension API_Helper {
-    func fetchExercises() async throws -> [ExerciseDTO] {
-        let result = try await asyncRequestRawData(route: APIRoute.exerciseDB)
-        guard 200..<300 ~= result.response.statusCode else {
-            let body = String(data: result.data, encoding: .utf8)
-            throw APIHelperError.httpError(
-                statusCode: result.response.statusCode,
-                code: nil,
-                message: "ExerciseDB request failed.",
-                details: body
-            )
-        }
-        return try ArrayOrEnvelopeDecoder.decode([ExerciseDTO].self, from: result.data)
     }
 }

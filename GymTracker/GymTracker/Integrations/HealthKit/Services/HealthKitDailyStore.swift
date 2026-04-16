@@ -376,47 +376,6 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         }
     }
 
-    func backfillHistoryIfNeeded(
-        userId: String,
-        maxYearsBack: Int = 25,
-        chunkDays: Int = 180,
-        emptyChunkStop: Int = 4
-    ) async -> Bool {
-        _ = maxYearsBack
-        _ = emptyChunkStop
-        return await fullRefreshHealthHistory(
-            userId: userId,
-            range: .all,
-            chunkDays: chunkDays
-        )
-    }
-
-    func backfillHistoryIfNeededDaily(
-        userId: String,
-        maxYearsBack: Int = 25,
-        chunkDays: Int = 180,
-        emptyChunkStop: Int = 4
-    ) async -> Bool {
-        let key = "gymtracker.hk.backfill.last-at.\(userId.lowercased())"
-        if let lastRunAt = defaults.object(forKey: key) as? Date {
-            let age = Date().timeIntervalSince(lastRunAt)
-            if age < 24 * 60 * 60 {
-                return true
-            }
-        }
-
-        let result = await backfillHistoryIfNeeded(
-            userId: userId,
-            maxYearsBack: maxYearsBack,
-            chunkDays: chunkDays,
-            emptyChunkStop: emptyChunkStop
-        )
-        if result {
-            defaults.set(Date(), forKey: key)
-        }
-        return result
-    }
-
     func invalidateDay(for day: Date, userId: String) throws {
         let dayKey = dateNormalizer.dayKey(day)
         guard let cached = try fetchCachedSummary(userId: userId, dayKey: dayKey) else { return }
@@ -573,21 +532,25 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
     private func runSmartPullHealthData(userId: String) async -> Bool {
         let todayStart = dateNormalizer.startOfDay(Date())
         var refreshTargets = Set<Date>([todayStart])
+        var loadedUnsyncedTargets = true
 
-        if let unsynced = try? repository.fetchUnsyncedPastSummaries(
-            userId: userId,
-            before: todayStart,
-            limit: smartPullUnsyncedPastDayLimit
-        ) {
+        do {
+            let unsynced = try repository.fetchUnsyncedPastSummaries(
+                userId: userId,
+                before: todayStart,
+                limit: smartPullUnsyncedPastDayLimit
+            )
             for summary in unsynced {
                 refreshTargets.insert(dateNormalizer.startOfDay(summary.dayStart))
             }
+        } catch {
+            loadedUnsyncedTargets = false
         }
 
         do {
             _ = try await refreshDays(Array(refreshTargets).sorted(), userId: userId)
             refreshToken &+= 1
-            return true
+            return loadedUnsyncedTargets
         } catch {
             return false
         }
