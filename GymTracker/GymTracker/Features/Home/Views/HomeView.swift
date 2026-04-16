@@ -82,10 +82,27 @@ struct HomeView: View {
 
 struct DashboardGridView: View {
     @EnvironmentObject var userService: UserService
+    @EnvironmentObject var exerciseService: ExerciseService
+    @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
     @Binding var openedSession: Session?
     
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
+            if exerciseService.showExistingUserCatalogPrompt {
+                ExerciseCatalogPromptBanner(
+                    onEnable: { exerciseService.acceptExistingUserCatalogPromptAndSync() },
+                    onDismiss: { exerciseService.dismissExistingUserCatalogPrompt() }
+                )
+            }
+
+            if exerciseService.isCatalogSyncInFlight {
+                ExerciseCatalogSyncProgressCard()
+            }
+
+            if healthKitDailyStore.isBackfillingHistory {
+                HealthBackfillProgressCard()
+            }
+
             if userService.currentUser?.allowHealthAccess != true && userService.currentUser?.isDemo != true {
                 HealthAccessBanner()
             }
@@ -99,6 +116,94 @@ struct DashboardGridView: View {
                 SessionsView(openedSession: $openedSession)
             }
         }
+    }
+}
+
+struct ExerciseCatalogPromptBanner: View {
+    let onEnable: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Download ExerciseDB?")
+                .font(.headline)
+            Text("Enable optional ExerciseDB sync for faster exercise browsing and cached thumbnails.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+
+            HStack(spacing: 12) {
+                Button("Enable Sync", action: onEnable)
+                    .buttonStyle(.borderedProminent)
+                Button("Not Now", action: onDismiss)
+                    .buttonStyle(.bordered)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+struct ExerciseCatalogSyncProgressCard: View {
+    @EnvironmentObject var exerciseService: ExerciseService
+
+    private var progress: Double {
+        guard exerciseService.catalogSyncProgressTotal > 0 else { return 0 }
+        return min(
+            max(
+                Double(exerciseService.catalogSyncProgressCompleted) /
+                Double(exerciseService.catalogSyncProgressTotal),
+                0
+            ),
+            1
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("ExerciseDB Sync")
+                .font(.headline)
+            ProgressView(value: progress)
+            Text(exerciseService.catalogSyncStatusText)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+struct HealthBackfillProgressCard: View {
+    @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
+
+    private var progress: Double {
+        guard healthKitDailyStore.backfillProgressTotal > 0 else { return 0 }
+        return min(
+            max(
+                Double(healthKitDailyStore.backfillProgressCompleted) /
+                Double(healthKitDailyStore.backfillProgressTotal),
+                0
+            ),
+            1
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Health History Backfill")
+                .font(.headline)
+            ProgressView(value: progress)
+            Text(healthKitDailyStore.backfillStatusText)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }
 

@@ -36,6 +36,13 @@ final class ExerciseSyncRepository: BaseSyncRepository, ExerciseRepositoryProtoc
         try localRepository.applyCatalogExercises(data, for: userId, allowInsert: allowInsert)
     }
 
+    func applyRemoteUserExercises(
+        _ data: [GymTrackerExerciseDTO],
+        for userId: UUID
+    ) throws -> (inserted: Int, updated: Int, removed: Int) {
+        try localRepository.applyRemoteUserExercises(data, for: userId)
+    }
+
     func createExercise(name: String, type: ExerciseType, userId: UUID) throws -> Exercise {
         let exercise = try localRepository.createExercise(name: name, type: type, userId: userId)
         enqueueMutationIfNeeded(for: exercise, operation: .create)

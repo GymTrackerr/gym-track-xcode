@@ -138,7 +138,7 @@ class API_Helper : Observable {
         httpMethod: APIHTTPMethod = .GET,
         additionalHeaders: [String: String] = [:]
     ) async throws -> ListResponse<T> {
-        try await executeRequest(route: route, httpMethod: httpMethod, body: nil, additionalHeaders: additionalHeaders)
+        try await executeRequestList(route: route, httpMethod: httpMethod, body: nil, additionalHeaders: additionalHeaders)
     }
 
     func asyncAuthorizedRequestData<T: Decodable>(
@@ -159,7 +159,7 @@ class API_Helper : Observable {
         httpMethod: APIHTTPMethod = .GET,
         additionalHeaders: [String: String] = [:]
     ) async throws -> ListResponse<T> {
-        try await executeRequest(
+        try await executeRequestList(
             route: route,
             httpMethod: httpMethod,
             body: nil,
@@ -213,6 +213,34 @@ class API_Helper : Observable {
         return try await executeRequest(request: request)
     }
 
+    func asyncRequestRawData(
+        route: APIRequestRoute,
+        httpMethod: APIHTTPMethod = .GET,
+        additionalHeaders: [String: String] = [:]
+    ) async throws -> (data: Data, response: HTTPURLResponse) {
+        let request = try makeRequest(
+            route: route,
+            httpMethod: httpMethod,
+            body: nil,
+            additionalHeaders: additionalHeaders
+        )
+        return try await executeRawRequest(request: request)
+    }
+
+    func asyncAuthorizedRequestRawData(
+        route: APIRequestRoute,
+        httpMethod: APIHTTPMethod = .GET,
+        additionalHeaders: [String: String] = [:]
+    ) async throws -> (data: Data, response: HTTPURLResponse) {
+        let request = try makeRequest(
+            route: route,
+            httpMethod: httpMethod,
+            body: nil,
+            additionalHeaders: authorizedHeaders(merging: additionalHeaders)
+        )
+        return try await executeRawRequest(request: request)
+    }
+
     func url(for route: APIRequestRoute) -> URL? {
         guard var components = URLComponents(string: baseAPIurl) else { return nil }
         components.path += route.path
@@ -249,6 +277,42 @@ class API_Helper : Observable {
         body: Data?,
         additionalHeaders: [String: String]
     ) async throws -> T {
+        let request = try makeRequest(
+            route: route,
+            httpMethod: httpMethod,
+            body: body,
+            additionalHeaders: additionalHeaders
+        )
+        return try await executeRequest(request: request)
+    }
+
+    private func executeRequestList<T: Decodable>(
+        route: APIRequestRoute,
+        httpMethod: APIHTTPMethod,
+        body: Data?,
+        additionalHeaders: [String: String]
+    ) async throws -> ListResponse<T> {
+        let request = try makeRequest(
+            route: route,
+            httpMethod: httpMethod,
+            body: body,
+            additionalHeaders: additionalHeaders
+        )
+        let (data, response) = try await executeRawRequest(request: request)
+        guard 200..<300 ~= response.statusCode else {
+            throw parseHTTPError(data: data, response: response)
+        }
+        let decoder = JSONDecoder()
+        let envelope = try decoder.decode(ListEnvelope<T>.self, from: data)
+        return ListResponse(items: envelope.items)
+    }
+
+    private func makeRequest(
+        route: APIRequestRoute,
+        httpMethod: APIHTTPMethod,
+        body: Data?,
+        additionalHeaders: [String: String]
+    ) throws -> URLRequest {
         guard let url = url(for: route) else {
             throw APIHelperError.invalidResponse
         }
@@ -260,34 +324,36 @@ class API_Helper : Observable {
             request.setValue(value, forHTTPHeaderField: key)
         }
         request.httpBody = body
-
-        return try await executeRequest(request: request)
+        return request
     }
 
     private func executeRequest<T: Decodable>(request: URLRequest) async throws -> T {
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await executeRawRequest(request: request)
 
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw APIHelperError.invalidResponse
-            }
-
-            if 200..<300 ~= httpResponse.statusCode {
-                let decodedData = try JSONDecoder().decode(T.self, from: data)
-                return decodedData
-            } else {
-                let envelope = try? JSONDecoder().decode(APIErrorEnvelope.self, from: data)
-                let errorString = String(data: data, encoding: .utf8)
-
-                throw APIHelperError.httpError(
-                    statusCode: httpResponse.statusCode,
-                    code: envelope?.error.code,
-                    message: envelope?.error.message,
-                    details: envelope?.error.details ?? errorString
-                )
-            }
-        } catch {
-            throw error
+        if 200..<300 ~= response.statusCode {
+            let decodedData = try JSONDecoder().decode(T.self, from: data)
+            return decodedData
         }
+        throw parseHTTPError(data: data, response: response)
+    }
+
+    private func executeRawRequest(request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIHelperError.invalidResponse
+        }
+        return (data, httpResponse)
+    }
+
+    private func parseHTTPError(data: Data, response: HTTPURLResponse) -> APIHelperError {
+        let envelope = try? JSONDecoder().decode(APIErrorEnvelope.self, from: data)
+        let errorString = String(data: data, encoding: .utf8)
+
+        return .httpError(
+            statusCode: response.statusCode,
+            code: envelope?.error.code,
+            message: envelope?.error.message,
+            details: envelope?.error.details ?? errorString
+        )
     }
 }

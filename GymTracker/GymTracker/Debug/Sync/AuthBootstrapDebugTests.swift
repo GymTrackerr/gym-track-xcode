@@ -292,6 +292,10 @@ private final class StubLocalExerciseRepository: ExerciseRepositoryProtocol {
         (0, 0, 0)
     }
 
+    func applyRemoteUserExercises(_ data: [GymTrackerExerciseDTO], for userId: UUID) throws -> (inserted: Int, updated: Int, removed: Int) {
+        (0, 0, 0)
+    }
+
     func createExercise(name: String, type: ExerciseType, userId: UUID) throws -> Exercise {
         Exercise(name: name, type: type, user_id: userId)
     }

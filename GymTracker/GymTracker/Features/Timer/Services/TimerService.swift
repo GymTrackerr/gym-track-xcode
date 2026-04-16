@@ -23,7 +23,9 @@ class TimerService: ServiceBase, ObservableObject {
     private var isApplyingPendingTimerCommand = false
     private var lastLiveActivitySyncAt = Date.distantPast
     private var lastTimerStateSyncAt = Date.distantPast
+    private var lastExternalReloadAt = Date.distantPast
     private let liveActivityResyncInterval: TimeInterval = 2
+    private let externalReloadInterval: TimeInterval = 5
     private let appGroupIdentifier = "group.net.novapro.GymTracker"
     private let pendingTimerControlCommandKey = "pendingTimerControlCommand"
     private let timerFinishedNotificationId = "timer.finished.active"
@@ -66,16 +68,16 @@ class TimerService: ServiceBase, ObservableObject {
                 guard let self else { return }
                 guard !self.isApplyingPendingTimerCommand else { return }
 
-                if self.timer == nil && !self.timerWasLocallyUpdated {
+                let now = Date()
+                if self.timer == nil
+                    && !self.timerWasLocallyUpdated
+                    && now.timeIntervalSince(self.lastExternalReloadAt) >= self.externalReloadInterval {
                     self.loadTimer()
+                    self.lastExternalReloadAt = now
                 }
 
                 if self.applyPendingTimerControlCommandIfNeeded() {
                     return
-                }
-                
-                if !self.timerWasLocallyUpdated {
-                    self.loadTimer()   // Only reload if widget changed it
                 }
                 self.timerWasLocallyUpdated = false
                 

@@ -91,9 +91,7 @@ struct ContentView: View {
         .task(id: userService.currentUser?.id.uuidString) {
             guard userService.currentUser?.isDemo != true else { return }
             guard let userId = userService.currentUser?.id.uuidString else { return }
-            Task(priority: .background) {
-                _ = await healthKitDailyStore.backfillHistoryIfNeeded(userId: userId)
-            }
+            _ = await healthKitDailyStore.backfillHistoryIfNeededDaily(userId: userId)
         }
         .onChange(of: userService.currentUser?.showNutritionTab ?? true) {
             if !(userService.currentUser?.showNutritionTab ?? true), localSelected == 3 {
@@ -177,6 +175,8 @@ struct OnBoardView: View {
             case 2:
                 OnBoardScreenAccountLink()
             case 3:
+                OnBoardScreenExerciseCatalog()
+            case 4:
                 OnBoardScreenFinal()
             default:
                 EmptyView()
@@ -306,7 +306,7 @@ struct OnBoardScreenFinal: View {
 
             
             Button("Done") {
-                userService.onBoardingScreen = 4
+                userService.onBoardingScreen = 5
                 userService.onBoarding = false
             }
             .frame(maxWidth: .infinity)
@@ -347,6 +347,38 @@ struct OnBoardScreenAccountLink: View {
 
             Button(isLinked ? "Continue" : "Skip for Now") {
                 userService.onBoardingScreen = 3
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color.accentColor)
+            .foregroundStyle(.white)
+            .clipShape(Capsule())
+        }
+        .padding(24)
+    }
+}
+
+struct OnBoardScreenExerciseCatalog: View {
+    @EnvironmentObject var userService: UserService
+    @EnvironmentObject var exerciseService: ExerciseService
+    @State private var shouldDownloadExerciseDB = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Text("Exercise Library Download")
+                .font(.largeTitle)
+                .bold()
+
+            Text("Download ExerciseDB now for faster browsing and offline thumbnails. This is optional and you can change it later in Settings.")
+                .foregroundStyle(.secondary)
+
+            Toggle("Download ExerciseDB in the background", isOn: $shouldDownloadExerciseDB)
+
+            Spacer()
+
+            Button("Continue") {
+                exerciseService.completeOnboardingCatalogChoice(downloadCatalog: shouldDownloadExerciseDB)
+                userService.onBoardingScreen = 4
             }
             .frame(maxWidth: .infinity)
             .padding()

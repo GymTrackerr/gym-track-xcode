@@ -10,6 +10,53 @@ import SwiftData
 import Combine
 internal import CoreData
 
+enum ExerciseCatalogSyncPhase: String {
+    case idle
+    case checking
+    case downloading
+    case applying
+    case cachingThumbnails
+    case completed
+    case failed
+}
+
+struct ExerciseCatalogSyncState: Codable {
+    var optedIn: Bool
+    var hasSeenExistingUserPrompt: Bool
+    var etag: String?
+    var lastSuccessfulSyncAt: Date?
+    var lastAttemptAt: Date?
+}
+
+final class ExerciseCatalogSyncStateStore {
+    static let shared = ExerciseCatalogSyncStateStore()
+
+    private let defaults: UserDefaults
+    private let keyPrefix: String
+
+    init(
+        defaults: UserDefaults = .standard,
+        keyPrefix: String = "gymtracker.exercise-catalog-sync."
+    ) {
+        self.defaults = defaults
+        self.keyPrefix = keyPrefix
+    }
+
+    func load(for userId: UUID) -> ExerciseCatalogSyncState? {
+        guard let data = defaults.data(forKey: key(for: userId)) else { return nil }
+        return try? JSONDecoder().decode(ExerciseCatalogSyncState.self, from: data)
+    }
+
+    func save(_ state: ExerciseCatalogSyncState, for userId: UUID) {
+        guard let data = try? JSONEncoder().encode(state) else { return }
+        defaults.set(data, forKey: key(for: userId))
+    }
+
+    private func key(for userId: UUID) -> String {
+        "\(keyPrefix)\(userId.uuidString.lowercased())"
+    }
+}
+
 class ExerciseService : ServiceBase, ObservableObject {
     struct NpIdMergeReport {
         let groupsMerged: Int
@@ -22,38 +69,80 @@ class ExerciseService : ServiceBase, ObservableObject {
     @Published var editingExercise: Bool = false
     @Published var selectedExerciseType: ExerciseType = ExerciseType.weight
     
-    // for api data
+    @Published private(set) var catalogSyncPhase: ExerciseCatalogSyncPhase = .idle
+    @Published private(set) var catalogSyncProgressCompleted: Int = 0
+    @Published private(set) var catalogSyncProgressTotal: Int = 0
+    @Published private(set) var catalogSyncStatusText: String = ""
+    @Published private(set) var catalogSyncEnabledForCurrentUser: Bool = false
+    @Published private(set) var showExistingUserCatalogPrompt: Bool = false
+    @Published private(set) var lastCatalogSyncError: String?
+    @Published private(set) var lastCatalogRouteUsed: String?
+    @Published private(set) var lastUserRouteUsed: String?
 
-    @Published var apiExercises: [ExerciseDTO] = []
+    var isCatalogSyncInFlight: Bool {
+        switch catalogSyncPhase {
+        case .checking, .downloading, .applying, .cachingThumbnails:
+            return true
+        case .idle, .completed, .failed:
+            return false
+        }
+    }
 
     private let apiHelper: API_Helper
-    private let exerciseApi: ExerciseApi
     private let repository: ExerciseRepositoryProtocol
-    private var isLoadingApiExercises = false
-    private var apiSyncedUserId: UUID?
+    private let routeResolver: ExerciseRouteResolver
+    private let catalogSyncStateStore: ExerciseCatalogSyncStateStore
+    private let catalogSyncTTL: TimeInterval = 24 * 60 * 60
+    private let thumbnailPrefetchConcurrency: Int = 3
+    private var catalogSyncTask: Task<Void, Never>?
 
     init(
         context: ModelContext,
         repository: ExerciseRepositoryProtocol? = nil,
         apiHelper: API_Helper = API_Helper(),
-        exerciseApi: ExerciseApi? = nil
+        routeResolver: ExerciseRouteResolver = ExerciseRouteResolver(),
+        catalogSyncStateStore: ExerciseCatalogSyncStateStore = .shared
     ) {
         self.apiHelper = apiHelper
-        self.exerciseApi = exerciseApi ?? ExerciseApi(apiHelper: apiHelper)
         self.repository = repository ?? LocalExerciseRepository(modelContext: context)
+        self.routeResolver = routeResolver
+        self.catalogSyncStateStore = catalogSyncStateStore
         super.init(context: context)
     }
 
     override func loadFeature() {
         refreshExerciseLists()
-        guard let userId = currentUser?.id else { return }
-        guard currentUser?.isDemo != true else {
-            apiSyncedUserId = nil
+        guard let user = currentUser else {
+            catalogSyncTask?.cancel()
+            catalogSyncTask = nil
+            catalogSyncEnabledForCurrentUser = false
+            showExistingUserCatalogPrompt = false
+            catalogSyncPhase = .idle
+            catalogSyncProgressCompleted = 0
+            catalogSyncProgressTotal = 0
+            catalogSyncStatusText = ""
+            lastCatalogSyncError = nil
+            lastCatalogRouteUsed = nil
+            lastUserRouteUsed = nil
             return
         }
-        guard apiSyncedUserId != userId else { return }
-        Task {
-            await self.loadApiExercises()
+
+        guard user.isDemo != true else {
+            catalogSyncTask?.cancel()
+            catalogSyncTask = nil
+            catalogSyncEnabledForCurrentUser = false
+            showExistingUserCatalogPrompt = false
+            lastCatalogRouteUsed = nil
+            lastUserRouteUsed = nil
+            return
+        }
+
+        let state = stateForUser(user.id)
+        catalogSyncEnabledForCurrentUser = state.optedIn
+        showExistingUserCatalogPrompt = !state.hasSeenExistingUserPrompt && !state.optedIn
+
+        if state.optedIn {
+            syncCatalogIfNeeded(reason: "userChanged")
         }
     }
     
@@ -65,10 +154,6 @@ class ExerciseService : ServiceBase, ObservableObject {
 
         do {
             exercises = try repository.fetchActiveExercises(for: userId)
-            // verify exercises
-            for exercise in exercises {
-                print("\(exercise.name) \(exercise.type)")
-            }
         } catch {
             exercises = []
         }
@@ -88,101 +173,210 @@ class ExerciseService : ServiceBase, ObservableObject {
     }
 
     func loadApiExercises() async {
-        await loadApiExercises(allowInsert: true)
+        await syncCatalogNow(force: true)
     }
 
     func refreshApiExercisesWithoutInsert() async {
-        await loadApiExercises(allowInsert: false)
+        await syncCatalogNow(force: true)
     }
 
-    private func loadApiExercises(allowInsert: Bool) async {
-        let userId: UUID
-        guard let startedUserId = await MainActor.run(body: { () -> UUID? in
-            guard !self.isLoadingApiExercises else { return nil }
-            guard let userId = self.currentUser?.id else { return nil }
-            self.isLoadingApiExercises = true
-            return userId
-        }) else {
+    func setCatalogSyncEnabled(_ enabled: Bool) {
+        guard let userId = currentUser?.id else { return }
+        var state = stateForUser(userId)
+        state.optedIn = enabled
+        state.hasSeenExistingUserPrompt = true
+        saveState(state, for: userId)
+        catalogSyncEnabledForCurrentUser = enabled
+        showExistingUserCatalogPrompt = false
+
+        if enabled {
+            syncCatalogIfNeeded(reason: "toggleEnabled")
+        }
+    }
+
+    func syncCatalogNow(force: Bool = true) async {
+        if let existingTask = catalogSyncTask {
+            await existingTask.value
+            if !force {
+                return
+            }
+        }
+        let task = Task(priority: .utility) { @MainActor [weak self] in
+            guard let self else { return }
+            await self.runCatalogSync(force: force, reason: "manual")
+        }
+        catalogSyncTask = task
+        await task.value
+    }
+
+    func acceptExistingUserCatalogPromptAndSync() {
+        guard let userId = currentUser?.id else { return }
+        var state = stateForUser(userId)
+        state.optedIn = true
+        state.hasSeenExistingUserPrompt = true
+        saveState(state, for: userId)
+        catalogSyncEnabledForCurrentUser = true
+        showExistingUserCatalogPrompt = false
+        Task(priority: .utility) { @MainActor in
+            await self.syncCatalogNow(force: true)
+        }
+    }
+
+    func dismissExistingUserCatalogPrompt() {
+        guard let userId = currentUser?.id else { return }
+        var state = stateForUser(userId)
+        state.hasSeenExistingUserPrompt = true
+        saveState(state, for: userId)
+        showExistingUserCatalogPrompt = false
+    }
+
+    func completeOnboardingCatalogChoice(downloadCatalog: Bool) {
+        guard let userId = currentUser?.id else { return }
+        var state = stateForUser(userId)
+        state.optedIn = downloadCatalog
+        state.hasSeenExistingUserPrompt = true
+        saveState(state, for: userId)
+        catalogSyncEnabledForCurrentUser = downloadCatalog
+        showExistingUserCatalogPrompt = false
+
+        if downloadCatalog {
+            Task(priority: .utility) { @MainActor in
+                await self.syncCatalogNow(force: true)
+            }
+        }
+    }
+
+    private func syncCatalogIfNeeded(reason: String) {
+        guard catalogSyncTask == nil else { return }
+        catalogSyncTask = Task(priority: .utility) { @MainActor [weak self] in
+            guard let self else { return }
+            await self.runCatalogSync(force: false, reason: reason)
+        }
+    }
+
+    private func runCatalogSync(force: Bool, reason: String) async {
+        defer { catalogSyncTask = nil }
+
+        guard let user = currentUser else { return }
+        guard user.isDemo != true else { return }
+        guard !Task.isCancelled else { return }
+
+        var state = stateForUser(user.id)
+        if !force && !state.optedIn {
             return
         }
-        userId = startedUserId
-
-        defer {
-            Task { @MainActor in
-                self.isLoadingApiExercises = false
+        if !force, let lastSuccess = state.lastSuccessfulSyncAt {
+            let age = Date().timeIntervalSince(lastSuccess)
+            if age < catalogSyncTTL {
+                return
             }
         }
+
+        catalogSyncPhase = .checking
+        catalogSyncProgressCompleted = 0
+        catalogSyncProgressTotal = 1
+        catalogSyncStatusText = "Checking ExerciseDB..."
+        lastCatalogSyncError = nil
+
+        let hasAuth = (BackendSessionStore.shared.accessToken?.isEmpty == false)
+        let catalogSource = routeResolver.catalogSource(for: hasAuth)
+        lastCatalogRouteUsed = catalogSource.routeDescription
+        lastUserRouteUsed = nil
+        var shouldPrefetchThumbnails = false
 
         do {
-            let data = try await exerciseApi.getExercises()
-            let result = try await MainActor.run {
-                try self.applyApiExercises(data, userId: userId, allowInsert: allowInsert)
-            }
-            await MainActor.run {
-                self.loadExercises()
-                self.loadArchivedExercises()
-                self.apiSyncedUserId = userId
+            let catalogResult = try await catalogSource.fetchCatalog(ifNoneMatch: state.etag)
+            state.lastAttemptAt = Date()
+
+            switch catalogResult {
+            case .notModified(let etag):
+                if let etag, !etag.isEmpty {
+                    state.etag = etag
+                }
+                state.lastSuccessfulSyncAt = Date()
+
+            case .catalog(let items, let etag):
+                catalogSyncPhase = .downloading
+                catalogSyncStatusText = "Downloading ExerciseDB..."
+                catalogSyncProgressCompleted = 0
+                catalogSyncProgressTotal = max(items.count, 1)
+
+                catalogSyncPhase = .applying
+                catalogSyncStatusText = "Applying ExerciseDB updates..."
+                _ = try repository.applyCatalogExercises(items, for: user.id, allowInsert: true)
+                refreshExerciseLists()
+                catalogSyncProgressCompleted = catalogSyncProgressTotal
+                shouldPrefetchThumbnails = true
+
+                if let etag, !etag.isEmpty {
+                    state.etag = etag
+                }
+                state.lastSuccessfulSyncAt = Date()
             }
 
-            // TODO, only cache on launch
-            await cacheMediaForUserExercises(userId: userId)
-            print("Cached all non-user exercise thumbnails and GIFs.")
-            let modeLabel = allowInsert ? "full sync" : "update-only sync"
-            print("Loaded \(data.count) exercises from API (\(result.inserted) new, \(result.updated) updated, \(result.removed) deduped) [\(modeLabel)]")
+            if let userSource = routeResolver.userSource(for: hasAuth) {
+                lastUserRouteUsed = userSource.routeDescription
+                let remoteUserRecords = try await userSource.fetchUserExercises()
+                _ = try repository.applyRemoteUserExercises(remoteUserRecords, for: user.id)
+                refreshExerciseLists()
+            }
+
+            if shouldPrefetchThumbnails {
+                catalogSyncPhase = .cachingThumbnails
+                catalogSyncStatusText = "Caching thumbnails..."
+                let cacheCandidates = exercises
+                    .filter { $0.isUserCreated == false }
+                    .filter { !($0.images ?? []).isEmpty }
+                catalogSyncProgressCompleted = 0
+                catalogSyncProgressTotal = max(min(cacheCandidates.count, 300), 1)
+                await prefetchThumbnails(for: cacheCandidates)
+            }
+
+            saveState(state, for: user.id)
+            catalogSyncPhase = .completed
+            catalogSyncStatusText = "ExerciseDB sync complete."
+            _ = reason
         } catch {
-            print("Error loading API exercises: \(error)")
+            state.lastAttemptAt = Date()
+            saveState(state, for: user.id)
+
+            catalogSyncPhase = .failed
+            catalogSyncStatusText = "ExerciseDB sync failed."
+            lastCatalogSyncError = error.localizedDescription
         }
     }
 
-    @MainActor
-    private func applyApiExercises(
-        _ data: [ExerciseDTO],
-        userId: UUID,
-        allowInsert: Bool
-    ) throws -> (inserted: Int, updated: Int, removed: Int) {
-        try repository.applyCatalogExercises(data, for: userId, allowInsert: allowInsert)
-    }
-
-    @MainActor
-    private func cacheMediaForUserExercises(userId: UUID) async {
-        do {
-            let cacheCandidates = try fetchExercisesForUser(userId: userId)
-            for exercise in cacheCandidates {
-                let imageCount = exercise.images?.count ?? 0
-                if imageCount == 0 {
-                    print("Skipping media cache: id=\(exercise.id), npId=\(exercise.npId ?? "nil"), no images present.")
-                    exercise.cachedMedia = false
-                    continue
-                }
-
-                let cacheStatusBefore = await hasCachedMedia(for: exercise)
-                if exercise.cachedMedia == true && cacheStatusBefore.thumbnail && cacheStatusBefore.gif {
-                    print("Skipping media cache: id=\(exercise.id), npId=\(exercise.npId ?? "nil"), already cached.")
-                    continue
-                }
-                if exercise.cachedMedia == true && (!cacheStatusBefore.thumbnail || !cacheStatusBefore.gif) {
-                    print("Media cache flag stale: id=\(exercise.id), npId=\(exercise.npId ?? "nil"), thumbnailCached=\(cacheStatusBefore.thumbnail), gifCached=\(cacheStatusBefore.gif). Re-caching.")
-                }
-
-                print("Caching exercise media: id=\(exercise.id), npId=\(exercise.npId ?? "nil"), imageCount=\(imageCount)")
-
-                async let thumb = self.cacheThumbnail(for: exercise, forceRefresh: true)
-                async let gif = self.cacheGIF(for: exercise, forceRefresh: true)
-                _ = await (thumb, gif)
-
-                let cacheStatusAfter = await hasCachedMedia(for: exercise)
-                exercise.cachedMedia = cacheStatusAfter.thumbnail && cacheStatusAfter.gif
-                try? repository.saveChanges()
-                print("Finished caching exercise media: id=\(exercise.id), npId=\(exercise.npId ?? "nil"), thumbnailCached=\(cacheStatusAfter.thumbnail), gifCached=\(cacheStatusAfter.gif), cachedMedia=\(exercise.cachedMedia ?? false)")
-            }
-        } catch {
-            print("Failed to load exercises for media caching: \(error)")
+    private func prefetchThumbnails(for exercisesToCache: [Exercise]) async {
+        guard !exercisesToCache.isEmpty else {
+            catalogSyncProgressCompleted = 1
+            catalogSyncProgressTotal = 1
+            return
         }
+
+        let limitedCandidates = Array(exercisesToCache.prefix(300))
+        for exercise in limitedCandidates {
+            if Task.isCancelled { break }
+            _ = await cacheThumbnail(for: exercise, forceRefresh: false)
+            catalogSyncProgressCompleted += 1
+            if catalogSyncProgressCompleted % max(thumbnailPrefetchConcurrency, 1) == 0 {
+                await Task.yield()
+            }
+        }
+        catalogSyncProgressCompleted = min(catalogSyncProgressCompleted, catalogSyncProgressTotal)
     }
 
-    @MainActor
-    private func fetchExercisesForUser(userId: UUID) throws -> [Exercise] {
-        try repository.fetchActiveExercises(for: userId)
+    private func stateForUser(_ userId: UUID) -> ExerciseCatalogSyncState {
+        catalogSyncStateStore.load(for: userId) ?? ExerciseCatalogSyncState(
+            optedIn: false,
+            hasSeenExistingUserPrompt: false,
+            etag: nil,
+            lastSuccessfulSyncAt: nil,
+            lastAttemptAt: nil
+        )
+    }
+
+    private func saveState(_ state: ExerciseCatalogSyncState, for userId: UUID) {
+        catalogSyncStateStore.save(state, for: userId)
     }
     
     func search(query: String) -> [Exercise] {
@@ -354,11 +548,8 @@ extension ExerciseService {
             let first = exercise.images?.first,
             let url = apiHelper.resolveMediaURL(first)
         else {
-            print("Missing or invalid thumbnail URL for \(exercise.name)")
             return nil
         }
-
-        print("Thumbnail for \(exercise.name) → \(url.absoluteString)")
         return url
     }
 
@@ -367,11 +558,8 @@ extension ExerciseService {
             let last = exercise.images?.last,
             let url = apiHelper.resolveMediaURL(last)
         else {
-            print("⚠️ Missing or invalid GIF URL for \(exercise.name)")
             return nil
         }
-
-        print("GIF for \(exercise.name) → \(url.absoluteString)")
         return url
     }
 
@@ -417,7 +605,16 @@ extension ExerciseService {
 
 extension API_Helper {
     func fetchExercises() async throws -> [ExerciseDTO] {
-        let response: ListResponse<ExerciseDTO> = try await asyncRequestListData(route: APIRoute.exercises)
-        return response.items
+        let result = try await asyncRequestRawData(route: APIRoute.exerciseDB)
+        guard 200..<300 ~= result.response.statusCode else {
+            let body = String(data: result.data, encoding: .utf8)
+            throw APIHelperError.httpError(
+                statusCode: result.response.statusCode,
+                code: nil,
+                message: "ExerciseDB request failed.",
+                details: body
+            )
+        }
+        return try ArrayOrEnvelopeDecoder.decode([ExerciseDTO].self, from: result.data)
     }
 }

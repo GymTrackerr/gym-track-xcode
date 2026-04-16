@@ -82,10 +82,13 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
     @Published private(set) var refreshToken: Int = 0
     @Published private(set) var isBackfillingHistory: Bool = false
     @Published private(set) var backfillStatusText: String = ""
+    @Published private(set) var backfillProgressCompleted: Int = 0
+    @Published private(set) var backfillProgressTotal: Int = 0
 
     private let repository: HealthKitDailyRepositoryProtocol
     private let healthKitManager: HealthKitManager
     private let dateNormalizer: HealthKitDateNormalizer
+    private let defaults = UserDefaults.standard
     private var inFlightTasks: [String: Task<DailyAggregateSnapshot, Error>] = [:]
 
     init(
@@ -282,6 +285,10 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         chunkDays: Int = 180,
         emptyChunkStop: Int = 4
     ) async -> Bool {
+        if isBackfillingHistory {
+            return true
+        }
+
         let calendar = Calendar.current
         let now = Date()
         let absoluteStart = calendar.date(byAdding: .year, value: -maxYearsBack, to: now) ?? now
@@ -292,14 +299,16 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
             return true
         }
 
+        let requestedTotalDays = max((calendar.dateComponents([.day], from: absoluteStart, to: initialEnd).day ?? 0) + 1, 1)
         isBackfillingHistory = true
         backfillStatusText = "Loading HealthKit history..."
+        backfillProgressCompleted = 0
+        backfillProgressTotal = max(requestedTotalDays, 1)
         defer {
             isBackfillingHistory = false
             backfillStatusText = ""
         }
 
-        let requestedTotalDays = max((calendar.dateComponents([.day], from: absoluteStart, to: initialEnd).day ?? 0) + 1, 1)
         var cursorEnd = initialEnd
         var processedDays = 0
         var wroteAnyData = false
@@ -315,6 +324,7 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
 
             let progress = min(Int((Double(processedDays) / Double(requestedTotalDays)) * 100.0), 99)
             backfillStatusText = "Loading HealthKit history... \(progress)%"
+            backfillProgressCompleted = min(processedDays, requestedTotalDays)
 
             if let summaries = try? await dailySummaries(
                 endingOn: cursorEnd,
@@ -344,6 +354,7 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
             }
 
             processedDays += requestDays
+            backfillProgressCompleted = min(processedDays, requestedTotalDays)
             guard let nextEnd = calendar.date(byAdding: .day, value: -requestDays, to: cursorEnd) else {
                 break
             }
@@ -351,10 +362,37 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         }
 
         backfillStatusText = "Loading HealthKit history... 100%"
+        backfillProgressCompleted = requestedTotalDays
         if wroteAnyData {
             refreshToken &+= 1
         }
         return true
+    }
+
+    func backfillHistoryIfNeededDaily(
+        userId: String,
+        maxYearsBack: Int = 25,
+        chunkDays: Int = 180,
+        emptyChunkStop: Int = 4
+    ) async -> Bool {
+        let key = "gymtracker.hk.backfill.last-at.\(userId.lowercased())"
+        if let lastRunAt = defaults.object(forKey: key) as? Date {
+            let age = Date().timeIntervalSince(lastRunAt)
+            if age < 24 * 60 * 60 {
+                return true
+            }
+        }
+
+        let result = await backfillHistoryIfNeeded(
+            userId: userId,
+            maxYearsBack: maxYearsBack,
+            chunkDays: chunkDays,
+            emptyChunkStop: emptyChunkStop
+        )
+        if result {
+            defaults.set(Date(), forKey: key)
+        }
+        return result
     }
 
     func invalidateDay(for day: Date, userId: String) throws {

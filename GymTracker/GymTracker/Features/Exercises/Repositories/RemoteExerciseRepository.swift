@@ -118,6 +118,43 @@ extension RemoteExerciseRepository: RemoteExerciseBootstrapUploading {
     }
 }
 
+final class AuthenticatedUserExerciseSource: UserExerciseSource {
+    private let repository: RemoteExerciseRepository
+
+    init(repository: RemoteExerciseRepository = RemoteExerciseRepository()) {
+        self.repository = repository
+    }
+
+    var routeDescription: String {
+        "/v1/exercises?source=user"
+    }
+
+    func fetchUserExercises() async throws -> [GymTrackerExerciseDTO] {
+        let items = try await repository.fetchUserExercises(
+            updatedAfter: nil,
+            deletedAfter: nil,
+            includeDeleted: true
+        )
+        return items.filter(isExpectedUserRecord(_:))
+    }
+
+    private func isExpectedUserRecord(_ dto: GymTrackerExerciseDTO) -> Bool {
+        let source = dto.source.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if source == "user" {
+            return true
+        }
+        if source == "catalog" {
+            return false
+        }
+
+        // Defensive fallback for older payload variants with inconsistent source fields.
+        if UUID(uuidString: dto.id) != nil {
+            return true
+        }
+        return dto.isUserCreated
+    }
+}
+
 private struct RemoteExerciseDeleteResponse: Decodable {
     let ok: Bool
     let id: String

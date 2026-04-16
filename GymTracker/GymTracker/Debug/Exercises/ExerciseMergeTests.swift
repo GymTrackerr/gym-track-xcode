@@ -11,7 +11,11 @@ final class ExerciseMergeDebug {
 
         print("=== ExerciseMergeDebug start ===")
         let results = [
-            test1MergeRelinksReferencesAndDeletesDuplicate()
+            test1MergeRelinksReferencesAndDeletesDuplicate(),
+            test2CatalogApplyDoesNotMutateUserCreatedExercise(),
+            test3ArrayOrEnvelopeDecodesBareArrayAndListEnvelope(),
+            test4RouteResolverKeepsCatalogOnPublicRoute(),
+            test5ArrayOrEnvelopeRejectsMalformedEnvelope()
         ]
         let passCount = results.filter { $0 }.count
         print("=== ExerciseMergeDebug done: \(passCount)/\(results.count) passed ===")
@@ -94,6 +98,116 @@ final class ExerciseMergeDebug {
             return ok
         } catch {
             return fail("merge-test1", "Unexpected error: \(error)")
+        }
+    }
+
+    @discardableResult
+    private static func test2CatalogApplyDoesNotMutateUserCreatedExercise() -> Bool {
+        do {
+            let harness = try makeHarness()
+            let currentUser = User(name: "Current")
+            harness.context.insert(currentUser)
+
+            let userCreated = Exercise(name: "My Press", type: .weight, user_id: currentUser.id, isUserCreated: true)
+            userCreated.npId = "bench_press"
+            harness.context.insert(userCreated)
+            try harness.context.save()
+
+            let repository = LocalExerciseRepository(modelContext: harness.context)
+            let dto = ExerciseDTO(
+                id: "bench_press",
+                name: "Bench Press",
+                force: nil,
+                level: nil,
+                mechanic: nil,
+                equipment: "barbell",
+                primaryMuscles: ["chest"],
+                secondaryMuscles: ["triceps"],
+                instructions: ["Press bar up"],
+                category: "strength",
+                images: ["/v1/exercisedb/static/bench_press/image1.jpg", "/v1/exercisedb/static/bench_press/animation.gif"]
+            )
+
+            _ = try repository.applyCatalogExercises([dto], for: currentUser.id, allowInsert: false)
+            let all = try harness.context.fetch(FetchDescriptor<Exercise>())
+
+            let pass = check("merge-test2", all.count == 1, "Expected no catalog insert in update-only mode")
+                && check("merge-test2", all.first?.name == "My Press", "Expected user-created exercise to remain unchanged")
+                && check("merge-test2", all.first?.isUserCreated == true, "Expected exercise to remain user-created")
+            print("[merge-test2] \(pass ? "PASS" : "FAIL")")
+            return pass
+        } catch {
+            return fail("merge-test2", "Unexpected error: \(error)")
+        }
+    }
+
+    @discardableResult
+    private static func test3ArrayOrEnvelopeDecodesBareArrayAndListEnvelope() -> Bool {
+        do {
+            let bareArrayJSON = """
+            [{"id":"x","name":"X","force":null,"level":null,"mechanic":null,"equipment":null,"primaryMuscles":[],"secondaryMuscles":[],"instructions":[],"category":"strength","images":[]}]
+            """.data(using: .utf8) ?? Data()
+            let envelopeJSON = """
+            {"list":[{"id":"y","name":"Y","force":null,"level":null,"mechanic":null,"equipment":null,"primaryMuscles":[],"secondaryMuscles":[],"instructions":[],"category":"strength","images":[]}]}
+            """.data(using: .utf8) ?? Data()
+
+            let bareDecoded = try ArrayOrEnvelopeDecoder.decode([ExerciseDTO].self, from: bareArrayJSON)
+            let envelopeDecoded = try ArrayOrEnvelopeDecoder.decode([ExerciseDTO].self, from: envelopeJSON)
+
+            let pass = check("merge-test3", bareDecoded.count == 1, "Expected one DTO from bare array")
+                && check("merge-test3", envelopeDecoded.count == 1, "Expected one DTO from envelope list")
+                && check("merge-test3", bareDecoded.first?.id == "x", "Expected bare array id x")
+                && check("merge-test3", envelopeDecoded.first?.id == "y", "Expected envelope id y")
+            print("[merge-test3] \(pass ? "PASS" : "FAIL")")
+            return pass
+        } catch {
+            return fail("merge-test3", "Unexpected error: \(error)")
+        }
+    }
+
+    @discardableResult
+    private static func test4RouteResolverKeepsCatalogOnPublicRoute() -> Bool {
+        final class StubCatalogSource: ExerciseCatalogSource {
+            let routeDescription: String
+            init(routeDescription: String) { self.routeDescription = routeDescription }
+            func fetchCatalog(ifNoneMatch: String?) async throws -> ExerciseCatalogFetchResult {
+                _ = ifNoneMatch
+                return .notModified(etag: nil)
+            }
+        }
+
+        final class StubUserSource: UserExerciseSource {
+            let routeDescription: String
+            init(routeDescription: String) { self.routeDescription = routeDescription }
+            func fetchUserExercises() async throws -> [GymTrackerExerciseDTO] { [] }
+        }
+
+        let catalog = StubCatalogSource(routeDescription: "/v1/exercisedb")
+        let user = StubUserSource(routeDescription: "/v1/exercises?source=user")
+        let resolver = ExerciseRouteResolver(catalogSource: catalog, userSource: user)
+
+        let loggedOutCatalogRoute = resolver.catalogSource(for: false).routeDescription
+        let loggedInCatalogRoute = resolver.catalogSource(for: true).routeDescription
+        let loggedOutUserRoute = resolver.userSource(for: false)
+        let loggedInUserRoute = resolver.userSource(for: true)?.routeDescription
+
+        let pass = check("merge-test4", loggedOutCatalogRoute == "/v1/exercisedb", "Expected logged-out catalog route to use public ExerciseDB")
+            && check("merge-test4", loggedInCatalogRoute == "/v1/exercisedb", "Expected logged-in catalog route to remain public ExerciseDB")
+            && check("merge-test4", loggedOutUserRoute == nil, "Expected logged-out user route to be nil")
+            && check("merge-test4", loggedInUserRoute == "/v1/exercises?source=user", "Expected logged-in user route to use /v1/exercises?source=user")
+        print("[merge-test4] \(pass ? "PASS" : "FAIL")")
+        return pass
+    }
+
+    @discardableResult
+    private static func test5ArrayOrEnvelopeRejectsMalformedEnvelope() -> Bool {
+        let malformedJSON = "{}".data(using: .utf8) ?? Data()
+        do {
+            _ = try ArrayOrEnvelopeDecoder.decode([ExerciseDTO].self, from: malformedJSON)
+            return fail("merge-test5", "Expected malformed envelope decode to throw")
+        } catch {
+            print("[merge-test5] PASS")
+            return true
         }
     }
 

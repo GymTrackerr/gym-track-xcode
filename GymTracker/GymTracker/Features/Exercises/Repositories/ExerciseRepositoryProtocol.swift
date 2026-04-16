@@ -20,6 +20,10 @@ protocol ExerciseRepositoryProtocol {
         for userId: UUID,
         allowInsert: Bool
     ) throws -> (inserted: Int, updated: Int, removed: Int)
+    func applyRemoteUserExercises(
+        _ data: [GymTrackerExerciseDTO],
+        for userId: UUID
+    ) throws -> (inserted: Int, updated: Int, removed: Int)
     func createExercise(name: String, type: ExerciseType, userId: UUID) throws -> Exercise
     func setAliases(_ aliases: [String], for exercise: Exercise) throws
     func delete(_ exercise: Exercise) throws

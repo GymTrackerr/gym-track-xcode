@@ -48,16 +48,8 @@ class UserService: ServiceBase, ObservableObject {
     }
 
     func loadAccounts(firstLoad: Bool = false) {
-        print("loadingaccounts")
         do {
-            print("not ??")
-
             accounts = try repository.fetchAccounts()
-            
-            print("ac", accounts.count)
-            for item in accounts {
-                print("id: \(item.id), name: \(item.name), timestamp: \(item.timestamp)")
-            }
 
             if let first = accounts.first {
                 currentUser = first
@@ -73,14 +65,12 @@ class UserService: ServiceBase, ObservableObject {
             }
             
         } catch {
-            print("not create")
             accounts = []
             currentUser = nil
             accountCreated = false
             onBoarding = true
 
         }
-        print("??")
     }
 
     func switchAccount(to userId: UUID) {
@@ -118,7 +108,6 @@ class UserService: ServiceBase, ObservableObject {
     
      
     func addUser(text: String) {
-        print("ccreating \(text)")
         let trimmedName = text.trimmingCharacters(in: .whitespaces)
         guard !trimmedName.isEmpty else { return  }
         

@@ -184,14 +184,22 @@ struct SettingsView: View {
                 }
 
                 Section("Exercises") {
+                    Toggle(
+                        "Enable ExerciseDB Catalog Sync",
+                        isOn: Binding(
+                            get: { exerciseService.catalogSyncEnabledForCurrentUser },
+                            set: { exerciseService.setCatalogSyncEnabled($0) }
+                        )
+                    )
+
                     Button {
                         Task {
-                            await exerciseService.refreshApiExercisesWithoutInsert()
+                            await exerciseService.syncCatalogNow(force: true)
                         }
                     } label: {
                         HStack {
                             Image(systemName: "arrow.clockwise")
-                            Text("Refresh API Exercises (No Inserts)")
+                            Text("Sync ExerciseDB Now")
                         }
                     }
 

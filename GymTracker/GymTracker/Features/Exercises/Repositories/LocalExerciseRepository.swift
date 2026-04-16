@@ -67,6 +67,7 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
         }
         var existingByNpId: [String: [Exercise]] = [:]
         for exercise in existingForUser {
+            guard exercise.isUserCreated == false else { continue }
             guard let key = normalizedNpId(exercise.npId) else { continue }
             existingByNpId[key, default: []].append(exercise)
         }
@@ -95,9 +96,10 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
             if selection.isAmbiguous {
                 print("Exercise dedupe skipped for npId=\(npIdKey): ambiguous primary exercise selection.")
                 for exercise in matches where exercise.user_id == userId {
-                    applyApiPayload(apiExercise, to: exercise)
-                    try SyncRootMetadataManager.markUpdated(exercise, in: modelContext)
-                    updated += 1
+                    if applyApiPayload(apiExercise, to: exercise) {
+                        try SyncRootMetadataManager.markUpdated(exercise, in: modelContext)
+                        updated += 1
+                    }
                 }
                 existingByNpId[npIdKey] = matches
                 continue
@@ -111,9 +113,10 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
                 continue
             }
 
-            applyApiPayload(apiExercise, to: primary)
-            try SyncRootMetadataManager.markUpdated(primary, in: modelContext)
-            updated += 1
+            if applyApiPayload(apiExercise, to: primary) {
+                try SyncRootMetadataManager.markUpdated(primary, in: modelContext)
+                updated += 1
+            }
 
             var retained: [Exercise] = [primary]
             for duplicate in matches where duplicate.id != primary.id {
@@ -142,6 +145,53 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
                 }
             }
             existingByNpId[npIdKey] = retained
+        }
+
+        if inserted > 0 || updated > 0 || removed > 0 {
+            try modelContext.save()
+        }
+        return (inserted, updated, removed)
+    }
+
+    func applyRemoteUserExercises(
+        _ data: [GymTrackerExerciseDTO],
+        for userId: UUID
+    ) throws -> (inserted: Int, updated: Int, removed: Int) {
+        let descriptor = FetchDescriptor<Exercise>(
+            predicate: #Predicate<Exercise> { exercise in
+                exercise.user_id == userId
+            }
+        )
+        let existingForUser = try modelContext.fetch(descriptor)
+        if try SyncRootMetadataManager.prepareForRead(existingForUser, in: modelContext) {
+            try modelContext.save()
+        }
+
+        var existingById: [String: Exercise] = [:]
+        for exercise in existingForUser where exercise.isUserCreated {
+            existingById[exercise.id.uuidString.lowercased()] = exercise
+        }
+
+        var inserted = 0
+        var updated = 0
+        var removed = 0
+
+        for remoteExercise in data {
+            guard UUID(uuidString: remoteExercise.id) != nil else { continue }
+            let key = remoteExercise.id.lowercased()
+            if let existing = existingById[key] {
+                if applyGymTrackerPayload(remoteExercise, to: existing, defaultUserId: userId) {
+                    try SyncRootMetadataManager.markUpdated(existing, in: modelContext)
+                    updated += 1
+                }
+            } else {
+                let created = Exercise(from: remoteExercise, userId: userId)
+                created.isUserCreated = true
+                created.npId = nil
+                modelContext.insert(created)
+                try SyncRootMetadataManager.markCreated(created, in: modelContext)
+                inserted += 1
+            }
         }
 
         if inserted > 0 || updated > 0 || removed > 0 {
@@ -260,23 +310,133 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
         try modelContext.save()
     }
 
-    private func applyApiPayload(_ apiExercise: ExerciseDTO, to exercise: Exercise) {
-        exercise.npId = apiExercise.id
-        exercise.isUserCreated = false
-        exercise.name = apiExercise.name
-        exercise.type = ExerciseType.from(apiCategory: apiExercise.category).rawValue
-        exercise.primary_muscles = apiExercise.primaryMuscles
-        exercise.secondary_muscles = apiExercise.secondaryMuscles
-        exercise.equipment = apiExercise.equipment
-        exercise.category = apiExercise.category
-        exercise.instructions = apiExercise.instructions
+    @discardableResult
+    private func applyApiPayload(_ apiExercise: ExerciseDTO, to exercise: Exercise) -> Bool {
+        var didChange = false
+        let normalizedNpIdValue = normalizedNpId(apiExercise.id) ?? apiExercise.id
+        if normalizedNpId(exercise.npId) != normalizedNpIdValue.lowercased() {
+            exercise.npId = apiExercise.id
+            didChange = true
+        }
+        if exercise.isUserCreated {
+            exercise.isUserCreated = false
+            didChange = true
+        }
+        if exercise.name != apiExercise.name {
+            exercise.name = apiExercise.name
+            didChange = true
+        }
+        let resolvedType = ExerciseType.from(apiCategory: apiExercise.category).rawValue
+        if exercise.type != resolvedType {
+            exercise.type = resolvedType
+            didChange = true
+        }
+        if exercise.primary_muscles != apiExercise.primaryMuscles {
+            exercise.primary_muscles = apiExercise.primaryMuscles
+            didChange = true
+        }
+        if exercise.secondary_muscles != apiExercise.secondaryMuscles {
+            exercise.secondary_muscles = apiExercise.secondaryMuscles
+            didChange = true
+        }
+        if exercise.equipment != apiExercise.equipment {
+            exercise.equipment = apiExercise.equipment
+            didChange = true
+        }
+        if exercise.category != apiExercise.category {
+            exercise.category = apiExercise.category
+            didChange = true
+        }
+        if exercise.instructions != apiExercise.instructions {
+            exercise.instructions = apiExercise.instructions
+            didChange = true
+        }
         if imagesHaveChanged(existing: exercise.images, incoming: apiExercise.images) {
             let oldCount = exercise.images?.count ?? 0
             let newCount = apiExercise.images.count
             print("Exercise image update: id=\(exercise.id), npId=\(apiExercise.id), oldCount=\(oldCount), newCount=\(newCount). Marking cachedMedia=false.")
             exercise.cachedMedia = false
+            didChange = true
         }
-        exercise.images = apiExercise.images
+        if exercise.images != apiExercise.images {
+            exercise.images = apiExercise.images
+            didChange = true
+        }
+
+        return didChange
+    }
+
+    @discardableResult
+    private func applyGymTrackerPayload(
+        _ dto: GymTrackerExerciseDTO,
+        to exercise: Exercise,
+        defaultUserId: UUID
+    ) -> Bool {
+        var didChange = false
+
+        if exercise.isUserCreated != true {
+            exercise.isUserCreated = true
+            didChange = true
+        }
+
+        if exercise.user_id != defaultUserId {
+            exercise.user_id = defaultUserId
+            didChange = true
+        }
+
+        if exercise.name != dto.name {
+            exercise.name = dto.name
+            didChange = true
+        }
+        let resolvedType = ExerciseType.from(apiCategory: dto.type).rawValue
+        if exercise.type != resolvedType {
+            exercise.type = resolvedType
+            didChange = true
+        }
+        if exercise.aliases != dto.aliases {
+            exercise.aliases = dto.aliases
+            didChange = true
+        }
+        if exercise.primary_muscles != dto.primaryMuscles {
+            exercise.primary_muscles = dto.primaryMuscles
+            didChange = true
+        }
+        if exercise.secondary_muscles != dto.secondaryMuscles {
+            exercise.secondary_muscles = dto.secondaryMuscles
+            didChange = true
+        }
+        if exercise.equipment != dto.equipment {
+            exercise.equipment = dto.equipment
+            didChange = true
+        }
+        if exercise.category != dto.category {
+            exercise.category = dto.category
+            didChange = true
+        }
+        if exercise.instructions != dto.instructions {
+            exercise.instructions = dto.instructions
+            didChange = true
+        }
+        if imagesHaveChanged(existing: exercise.images, incoming: dto.images) {
+            exercise.cachedMedia = false
+            didChange = true
+        }
+        if exercise.images != dto.images {
+            exercise.images = dto.images
+            didChange = true
+        }
+
+        let archived = dto.isArchived
+        if exercise.isArchived != archived {
+            exercise.isArchived = archived
+            didChange = true
+        }
+        if exercise.soft_deleted != archived {
+            exercise.soft_deleted = archived
+            didChange = true
+        }
+
+        return didChange
     }
 
     private func mergeExerciseReferences(from duplicate: Exercise, to primary: Exercise, targetUserId: UUID) throws {

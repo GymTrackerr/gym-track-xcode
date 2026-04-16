@@ -30,6 +30,7 @@ enum APIRoute: APIRequestRoute {
     case authSession
     case authLogout
     case me
+    case exerciseDB
     case exercises
     case exercise(id: String)
 
@@ -45,6 +46,8 @@ enum APIRoute: APIRequestRoute {
             return "/auth/logout"
         case .me:
             return "/me"
+        case .exerciseDB:
+            return "/exercisedb"
         case .exercises:
             return "/exercises"
         case .exercise(let id):

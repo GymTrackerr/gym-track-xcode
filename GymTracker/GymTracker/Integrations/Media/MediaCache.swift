@@ -47,19 +47,16 @@ actor MediaCache {
             if FileManager.default.fileExists(atPath: destination.path) {
                 do {
                     try FileManager.default.removeItem(at: destination)
-                    print("Force refresh removed cached file for \(url.absoluteString)")
                 } catch {
                     print("Failed to remove cached file during force refresh for \(url.absoluteString): \(error)")
                 }
             }
         } else if let existing = cachedFile(for: url) {
             if isValidImageFile(at: existing) {
-                print("Using existing cache file \(existing) for \(url.absoluteString)")
                 return existing
             } else {
                 do {
                     try FileManager.default.removeItem(at: existing)
-                    print("Removed invalid cached media file \(existing) for \(url.absoluteString)")
                 } catch {
                     print("Failed removing invalid cached media file \(existing): \(error)")
                 }
