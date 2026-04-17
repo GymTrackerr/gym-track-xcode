@@ -76,7 +76,6 @@ struct NutritionHistoryChartView: View {
             emptyStateTextProvider: { _ in
                 "No \(selectedMetric.title.lowercased()) data in this timeframe."
             },
-            fallbackLookbackMonths: selectedMetric == .energyBalance ? 12 : nil,
             reloadToken: healthKitDailyStore.chartRefreshToken
         )
     }
@@ -113,7 +112,7 @@ struct NutritionHistoryChartView: View {
         let rawNutritionBounds: (Date?, Date?) = (try? nutritionService.nutritionBounds(for: .calories)) ?? (nil, nil)
         let nutritionBounds: (oldest: Date?, newest: Date?) = (rawNutritionBounds.0, rawNutritionBounds.1)
 
-        if selectedEnergyFilter == .surplusDeficit {
+        if selectedEnergyFilter == .surplusDeficit || selectedEnergyFilter == .nutrition {
             return nutritionBounds
         }
 
@@ -121,20 +120,44 @@ struct NutritionHistoryChartView: View {
             return nutritionBounds
         }
 
-        let healthBounds: (oldest: Date?, newest: Date?) =
-            (try? healthKitDailyStore.cachedDataBounds(userId: userId)) ?? (oldest: nil, newest: nil)
-
-        let mergedOldest = minDate(nutritionBounds.oldest, healthBounds.oldest)
-        let mergedNewest = maxDate(nutritionBounds.newest, healthBounds.newest)
-        let calendar = Calendar.current
-        let fallbackOldest = calendar.startOfDay(
-            for: calendar.date(byAdding: .month, value: -12, to: Date()) ?? Date()
+        let healthBounds = healthEnergyBounds(
+            userId: userId,
+            filter: selectedEnergyFilter
         )
 
-        return (
-            oldest: minDate(mergedOldest, fallbackOldest),
-            newest: maxDate(mergedNewest, Date())
-        )
+        if selectedEnergyFilter == .summary {
+            return (
+                oldest: minDate(nutritionBounds.oldest, healthBounds.oldest),
+                newest: maxDate(nutritionBounds.newest, healthBounds.newest)
+            )
+        }
+
+        return healthBounds
+    }
+
+    private func healthEnergyBounds(
+        userId: String,
+        filter: NutritionEnergySecondaryFilter
+    ) -> (oldest: Date?, newest: Date?) {
+        let summaries = (try? healthKitDailyStore.cachedDailySummaries(userId: userId)) ?? []
+        let qualifyingDates = summaries.compactMap { summary -> Date? in
+            switch filter {
+            case .summary:
+                return (summary.activeEnergyKcal + summary.restingEnergyKcal) > 0 ? summary.dayStart : nil
+            case .active:
+                return summary.activeEnergyKcal > 0 ? summary.dayStart : nil
+            case .resting:
+                return summary.restingEnergyKcal > 0 ? summary.dayStart : nil
+            case .surplusDeficit, .nutrition:
+                return nil
+            }
+        }
+
+        guard let oldest = qualifyingDates.min(), let newest = qualifyingDates.max() else {
+            return (nil, nil)
+        }
+
+        return (oldest: oldest, newest: newest)
     }
 
     private func energyBalanceSummary(

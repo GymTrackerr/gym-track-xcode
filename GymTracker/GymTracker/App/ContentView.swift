@@ -419,6 +419,16 @@ struct OnBoardScreenExerciseCatalog: View {
             .clipShape(Capsule())
         }
         .padding(24)
+        .onAppear {
+            selectedHealthRange = userService.currentHealthHistorySyncRange()
+        }
+        .onChange(of: userService.currentUser?.id) { _, _ in
+            selectedHealthRange = userService.currentHealthHistorySyncRange()
+        }
+        .onChange(of: selectedHealthRange) { _, newValue in
+            guard userService.currentUser?.isDemo != true else { return }
+            userService.setCurrentHealthHistorySyncRange(newValue)
+        }
     }
 
     private var progressValue: Double {

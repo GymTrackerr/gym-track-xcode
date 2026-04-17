@@ -26,6 +26,7 @@ final class User {
     
     var defaultTimer: Int = 90
     var showNutritionTab: Bool = true
+    var preferredHealthHistorySyncRangeRaw: String?
 
     // Phase 9 optional timer feedback settings (non-destructive)
     var timerNotificationsEnabled: Bool?

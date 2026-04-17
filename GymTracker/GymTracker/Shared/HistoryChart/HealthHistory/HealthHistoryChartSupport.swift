@@ -84,7 +84,7 @@ enum HealthHistoryChartSupport {
 
             if metric == .weight {
                 let weightSamples = bucketSummaries
-                    .compactMap { $0.bodyWeightKg }
+                    .map { $0.bodyWeightKg }
                     .filter { $0 > 0 && $0.isFinite }
                 guard !weightSamples.isEmpty else { 
                     return nil
@@ -134,7 +134,7 @@ enum HealthHistoryChartSupport {
         case .totalUsedCalories:
             return summary.activeEnergyKcal + summary.restingEnergyKcal
         case .weight:
-            return summary.bodyWeightKg ?? 0
+            return summary.bodyWeightKg
         }
     }
 }

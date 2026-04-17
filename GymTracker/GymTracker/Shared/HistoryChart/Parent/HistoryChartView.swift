@@ -653,33 +653,41 @@ struct HistoryChartView<FilterControls: View>: View {
     private func refreshCachedBounds() {
         let rawBounds = dataBoundsProvider()
         let sanitized = HistoryChartCalculator.sanitizeBounds(oldest: rawBounds.oldest, newest: rawBounds.newest)
+        guard let fallbackOldest = fallbackOldestDate() else {
+            cachedDataBounds = sanitized
+            return
+        }
 
         if sanitized.oldest != nil, sanitized.newest != nil {
             cachedDataBounds = sanitized
-            return
-        }
-
-        if cachedDataBounds.oldest != nil, cachedDataBounds.newest != nil {
-            return
-        }
-
-        if let fallbackOldest = fallbackOldestDate() {
-            cachedDataBounds = (oldest: fallbackOldest, newest: Date())
         } else {
-            cachedDataBounds = sanitized
+            cachedDataBounds = (oldest: fallbackOldest, newest: Date())
         }
     }
 
     private func earliestAllowedWindowStart(for timeframe: HistoryChartTimeframe) -> Date {
-        if let oldestDataDate = cachedDataBounds.oldest {
-            return HistoryChartCalculator.currentWindow(for: timeframe, now: oldestDataDate).start
+        let oldestDataDate = cachedDataBounds.oldest
+        let fallbackOldest = fallbackOldestDate()
+
+        let effectiveOldest: Date?
+        switch (oldestDataDate, fallbackOldest) {
+        case let (data?, _):
+            // Prefer real cached bounds whenever available.
+            effectiveOldest = data
+        case let (nil, fallback?):
+            effectiveOldest = fallback
+        default:
+            effectiveOldest = nil
         }
 
-        if let fallbackOldest = fallbackOldestDate() {
-            return HistoryChartCalculator.currentWindow(for: timeframe, now: fallbackOldest).start
+        guard let effectiveOldest else {
+            return HistoryChartCalculator.currentWindow(for: timeframe, now: Date()).start
         }
 
-        return HistoryChartCalculator.currentWindow(for: timeframe, now: Date()).start
+        // Align the floor to the same anchor system used for scroll snapping.
+        // This avoids allowing extra pre-data room in 6M/5Y where currentWindow
+        // uses centered ranges.
+        return snappedRangeStart(for: effectiveOldest, timeframe: timeframe)
     }
 
     private func fallbackOldestDate(now: Date = Date()) -> Date? {
@@ -805,6 +813,10 @@ struct HistoryChartView<FilterControls: View>: View {
     }
 
     private func snappedRangeStart(for date: Date) -> Date {
+        snappedRangeStart(for: date, timeframe: timeframe)
+    }
+
+    private func snappedRangeStart(for date: Date, timeframe: HistoryChartTimeframe) -> Date {
         Calendar.current.dateInterval(of: timeframe.windowCalendarComponent, for: date)?.start ?? date
     }
 

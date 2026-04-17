@@ -155,6 +155,21 @@ class UserService: ServiceBase, ObservableObject {
         }
     }
 
+    func currentHealthHistorySyncRange() -> HealthHistorySyncRange {
+        guard let raw = currentUser?.preferredHealthHistorySyncRangeRaw else {
+            return .defaultSelection
+        }
+        return HealthHistorySyncRange(rawValue: raw) ?? .defaultSelection
+    }
+
+    func setCurrentHealthHistorySyncRange(_ range: HealthHistorySyncRange) {
+        withAnimation {
+            currentUser?.preferredHealthHistorySyncRangeRaw = range.rawValue
+            currentUser?.updatedAt = Date()
+            if let currentUser { try? repository.saveChanges(for: currentUser) }
+        }
+    }
+
     func setTimerNotificationsEnabled(_ isEnabled: Bool) {
         withAnimation {
             currentUser?.timerNotificationsEnabled = isEnabled

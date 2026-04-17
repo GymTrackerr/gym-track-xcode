@@ -51,7 +51,6 @@ struct HealthHistoryChartView: View {
             emptyStateTextProvider: { _ in
                 "No \(selectedMetric.title.lowercased()) data in this timeframe."
             },
-            fallbackLookbackMonths: 12,
             reloadToken: healthKitDailyStore.chartRefreshToken
         )
         .safeAreaInset(edge: .bottom) {
@@ -71,15 +70,30 @@ struct HealthHistoryChartView: View {
 
     private func getDataBounds() -> (oldest: Date?, newest: Date?) {
         guard let userId = userService.currentUser?.id.uuidString else { return (nil, nil) }
-        let cached: (oldest: Date?, newest: Date?) =
-            (try? healthKitDailyStore.cachedDataBounds(userId: userId)) ?? (oldest: nil, newest: nil)
-        let calendar = Calendar.current
-        let fallbackOldest = calendar.startOfDay(
-            for: calendar.date(byAdding: .month, value: -12, to: Date()) ?? Date()
-        )
-        let resolvedOldest = cached.oldest.map { min($0, fallbackOldest) } ?? fallbackOldest
-        let resolvedNewest = cached.newest.map { max($0, Date()) } ?? Date()
-        return (oldest: resolvedOldest, newest: resolvedNewest)
+        let summaries = (try? healthKitDailyStore.cachedDailySummaries(userId: userId)) ?? []
+        let metricDates = summaries.compactMap { summary -> Date? in
+            switch selectedMetric {
+            case .steps:
+                return summary.steps > 0 ? summary.dayStart : nil
+            case .sleepHours:
+                return summary.sleepSeconds > 0 ? summary.dayStart : nil
+            case .activeEnergy:
+                return summary.activeEnergyKcal > 0 ? summary.dayStart : nil
+            case .restingEnergy:
+                return summary.restingEnergyKcal > 0 ? summary.dayStart : nil
+            case .totalUsedCalories:
+                return (summary.activeEnergyKcal + summary.restingEnergyKcal) > 0 ? summary.dayStart : nil
+            case .weight:
+                guard summary.bodyWeightKg > 0 else { return nil }
+                return summary.dayStart
+            }
+        }
+
+        guard let oldest = metricDates.min(), let newest = metricDates.max() else {
+            return (nil, nil)
+        }
+
+        return (oldest: oldest, newest: newest)
     }
 
     private var metricPicker: some View {

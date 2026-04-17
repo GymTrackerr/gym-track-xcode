@@ -385,10 +385,18 @@ struct SettingsView: View {
             Text("Health access is enabled for this account. You can start syncing now or do it later from Settings.")
         }
         .onAppear {
+            loadSelectedHealthHistoryRangeFromUser()
             guard userService.currentUser?.isDemo != true else { return }
             Task(priority: .utility) {
                 await hkManager.refreshConnectionState()
             }
+        }
+        .onChange(of: userService.currentUser?.id) { _, _ in
+            loadSelectedHealthHistoryRangeFromUser()
+        }
+        .onChange(of: selectedHealthHistoryRange) { _, newValue in
+            guard userService.currentUser?.isDemo != true else { return }
+            userService.setCurrentHealthHistorySyncRange(newValue)
         }
 #if os(iOS)
         .sheet(item: $shareItem) { item in
@@ -535,6 +543,10 @@ struct SettingsView: View {
     private func disableHealthAccessForCurrentUser() {
         guard userService.currentUser?.isDemo != true else { return }
         userService.hkUserAllow(connected: false, requested: false)
+    }
+
+    private func loadSelectedHealthHistoryRangeFromUser() {
+        selectedHealthHistoryRange = userService.currentHealthHistorySyncRange()
     }
 
     private func exportExerciseBackup() {
