@@ -30,7 +30,6 @@ struct GymTrackerApp: App {
     @StateObject var watchSessionManager: WatchSessionManager
     @StateObject var healthKitManager: HealthKitManager
     @StateObject var healthKitDailyStore: HealthKitDailyStore
-    @StateObject var healthMetricsService: HealthMetricsService
     @StateObject var toastManager = ActionToastManager()
 
     init() {
@@ -148,12 +147,6 @@ struct GymTrackerApp: App {
             healthKitManager: healthKitManager,
             dateNormalizer: healthKitDateNormalizer
         )
-        let healthMetricsService = HealthMetricsService(
-            context: context,
-            dailyStore: healthKitDailyStore,
-            nutritionService: nutritionService,
-            dateNormalizer: healthKitDateNormalizer
-        )
 
         // Bind AFTER creation
         backendAuthService.bind(to: userService)
@@ -167,7 +160,6 @@ struct GymTrackerApp: App {
         sessionExerciseService.bind(to: userService)
         nutritionService.bind(to: userService)
         healthKitDailyStore.bind(to: userService)
-        healthMetricsService.bind(to: userService)
 
         // Service-level sync kickoff hooks run after user binding.
         exerciseService.sync()
@@ -178,7 +170,6 @@ struct GymTrackerApp: App {
         sessionExerciseService.sync()
         nutritionService.sync()
         healthKitDailyStore.sync()
-        healthMetricsService.sync()
 
         syncCoordinator.start()
         syncCoordinator.triggerSync(reason: "serviceSyncKickoff")
@@ -199,7 +190,6 @@ struct GymTrackerApp: App {
         self._nutritionService = StateObject(wrappedValue: nutritionService)
         self._healthKitManager = StateObject(wrappedValue: healthKitManager)
         self._healthKitDailyStore = StateObject(wrappedValue: healthKitDailyStore)
-        self._healthMetricsService = StateObject(wrappedValue: healthMetricsService)
 
         self._watchSessionManager = StateObject(
             wrappedValue: WatchSessionManager(
@@ -218,7 +208,6 @@ struct GymTrackerApp: App {
                 .environmentObject(toastManager)
                 .environmentObject(healthKitManager)
                 .environmentObject(healthKitDailyStore)
-                .environmentObject(healthMetricsService)
                 .environmentObject(watchSessionManager)
                 .environmentObject(userService)
                 .environmentObject(backendAuthService)

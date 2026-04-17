@@ -31,6 +31,10 @@ final class ComposedNutritionRepository: NutritionRepositoryProtocol {
         try logRepository.fetchNutritionLogs(for: userId, in: interval)
     }
 
+    func fetchNutritionLogBounds(for userId: UUID) throws -> (oldest: Date?, newest: Date?) {
+        try logRepository.fetchNutritionLogBounds(for: userId)
+    }
+
     func fetchTargets() throws -> [NutritionTarget] {
         try targetRepository.fetchTargets()
     }

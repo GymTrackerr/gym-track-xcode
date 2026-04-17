@@ -56,7 +56,7 @@ enum HealthHistoryChartSupport {
 
             let metric = metricProvider()
             let aggregationMode = aggregationModeProvider()
-            let summaries = (try? store.cachedDailySummaries(in: interval, userId: userId)) ?? []
+            let summaries = (try? store.cachedExistingDailySummaries(in: interval, userId: userId)) ?? []
             return points(
                 from: summaries,
                 interval: interval,

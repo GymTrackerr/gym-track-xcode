@@ -23,11 +23,9 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
     }
 
     private let staleInterval: TimeInterval = 15 * 60
-    private let batchingThreshold = 3
+    private let batchingThreshold = 2
     private let smartPullUnsyncedPastDayLimit = 30
     private let defaultHistoryRefreshChunkDays = 120
-    private let compatibilitySmartPullVersion = 1
-    private var isRunningSchemaUpgrade = false
 
     private struct DailyAggregateSnapshot: Sendable {
         let userId: String
@@ -83,6 +81,7 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
     }
 
     @Published private(set) var refreshToken: Int = 0
+    @Published private(set) var chartRefreshToken: Int = 0
     @Published private(set) var isBackfillingHistory: Bool = false
     @Published private(set) var backfillStatusText: String = ""
     @Published private(set) var backfillProgressCompleted: Int = 0
@@ -91,7 +90,6 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
     private let repository: HealthKitDailyRepositoryProtocol
     private let healthKitManager: HealthKitManager
     private let dateNormalizer: HealthKitDateNormalizer
-    private let defaults = UserDefaults.standard
     private var inFlightTasks: [String: Task<DailyAggregateSnapshot, Error>] = [:]
     private var smartPullTasks: [String: Task<Bool, Never>] = [:]
 
@@ -108,21 +106,8 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
     }
 
     override func loadFeature() {
-        guard
-            let userId = currentUser?.id.uuidString,
-            currentUser?.isDemo != true
-        else {
-            return
-        }
-        let allowHealthAccess = currentUser?.allowHealthAccess == true
-        Task(priority: .utility) { [weak self] in
-            guard let self else { return }
-            await self.upgradeCachedSummariesIfNeeded(userId: userId)
-            await self.runCompatibilitySmartPullIfNeeded(
-                userId: userId,
-                allowHealthAccess: allowHealthAccess
-            )
-        }
+        // Intentionally no launch-time fetches here.
+        // Home/Settings initiate smart pull or full refresh explicitly.
     }
 
     func dailySummary(
@@ -247,20 +232,38 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
             policy: .forceRefresh
         )
         refreshToken &+= 1
+        chartRefreshToken &+= 1
     }
 
     @discardableResult
     func smartPullHealthData(userId: String) async -> Bool {
-        if let existingTask = smartPullTasks[userId] {
+        await smartPullHealthData(userId: userId, includeUnsyncedPastDays: true)
+    }
+
+    @discardableResult
+    func smartPullTodayOnly(userId: String) async -> Bool {
+        await smartPullHealthData(userId: userId, includeUnsyncedPastDays: false)
+    }
+
+    @discardableResult
+    private func smartPullHealthData(
+        userId: String,
+        includeUnsyncedPastDays: Bool
+    ) async -> Bool {
+        let taskKey = "\(userId)|\(includeUnsyncedPastDays ? "full" : "today")"
+        if let existingTask = smartPullTasks[taskKey] {
             return await existingTask.value
         }
 
         let task = Task(priority: .utility) { @MainActor [weak self] in
             guard let self else { return false }
-            defer { self.smartPullTasks[userId] = nil }
-            return await self.runSmartPullHealthData(userId: userId)
+            defer { self.smartPullTasks[taskKey] = nil }
+            return await self.runSmartPullHealthData(
+                userId: userId,
+                includeUnsyncedPastDays: includeUnsyncedPastDays
+            )
         }
-        smartPullTasks[userId] = task
+        smartPullTasks[taskKey] = task
         return await task.value
     }
 
@@ -328,12 +331,12 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         backfillStatusText = "Syncing Apple Health history... 100%"
         backfillProgressCompleted = totalDays
         refreshToken &+= 1
+        chartRefreshToken &+= 1
         return true
     }
 
     func cachedDataBounds(userId: String) throws -> (oldest: Date?, newest: Date?) {
-        let items = try repository.fetchCachedSummaries(userId: userId)
-        return (items.first?.dayStart, items.last?.dayStart)
+        try repository.fetchCachedBounds(userId: userId)
     }
 
     func cachedDailySummaries(userId: String) throws -> [HealthKitDailyAggregateData] {
@@ -376,6 +379,18 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         }
     }
 
+    func cachedExistingDailySummaries(
+        in interval: DateInterval,
+        userId: String
+    ) throws -> [HealthKitDailyAggregateData] {
+        guard interval.end > interval.start else { return [] }
+        let startDay = dateNormalizer.startOfDay(interval.start)
+        let clampedEnd = interval.end.addingTimeInterval(-1)
+        let endDay = dateNormalizer.startOfDay(max(clampedEnd, interval.start))
+        let cachedByDayKey = try fetchCachedSummaries(userId: userId, from: startDay, to: endDay)
+        return cachedByDayKey.values.sorted { $0.dayStart < $1.dayStart }
+    }
+
     func invalidateDay(for day: Date, userId: String) throws {
         let dayKey = dateNormalizer.dayKey(day)
         guard let cached = try fetchCachedSummary(userId: userId, dayKey: dayKey) else { return }
@@ -385,6 +400,7 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         cached.updatedAt = Date()
         try repository.saveChanges()
         refreshToken &+= 1
+        chartRefreshToken &+= 1
     }
 
     func invalidateAll(userId: String) throws {
@@ -396,10 +412,12 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
             item.updatedAt = Date()
         }
         try repository.saveChanges()
+        chartRefreshToken &+= 1
     }
 
     func notifyExternalSummaryImport() {
         refreshToken &+= 1
+        chartRefreshToken &+= 1
     }
 
     private func refreshDay(dayStart: Date, userId: String) async throws -> HealthKitDailyAggregateData {
@@ -529,27 +547,33 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         return resolved
     }
 
-    private func runSmartPullHealthData(userId: String) async -> Bool {
+    private func runSmartPullHealthData(
+        userId: String,
+        includeUnsyncedPastDays: Bool
+    ) async -> Bool {
         let todayStart = dateNormalizer.startOfDay(Date())
         var refreshTargets = Set<Date>([todayStart])
         var loadedUnsyncedTargets = true
 
-        do {
-            let unsynced = try repository.fetchUnsyncedPastSummaries(
-                userId: userId,
-                before: todayStart,
-                limit: smartPullUnsyncedPastDayLimit
-            )
-            for summary in unsynced {
-                refreshTargets.insert(dateNormalizer.startOfDay(summary.dayStart))
+        if includeUnsyncedPastDays {
+            do {
+                let unsynced = try repository.fetchUnsyncedPastSummaries(
+                    userId: userId,
+                    before: todayStart,
+                    limit: smartPullUnsyncedPastDayLimit
+                )
+                for summary in unsynced {
+                    refreshTargets.insert(dateNormalizer.startOfDay(summary.dayStart))
+                }
+            } catch {
+                loadedUnsyncedTargets = false
             }
-        } catch {
-            loadedUnsyncedTargets = false
         }
 
         do {
             _ = try await refreshDays(Array(refreshTargets).sorted(), userId: userId)
             refreshToken &+= 1
+            chartRefreshToken &+= 1
             return loadedUnsyncedTargets
         } catch {
             return false
@@ -645,63 +669,4 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         return blocks
     }
 
-    private func runCompatibilitySmartPullIfNeeded(
-        userId: String,
-        allowHealthAccess: Bool
-    ) async {
-        guard allowHealthAccess else { return }
-        let key = "gymtracker.hk.smart-pull-compat.v\(compatibilitySmartPullVersion).\(userId.lowercased())"
-        guard defaults.bool(forKey: key) == false else { return }
-
-        let didSync = await smartPullHealthData(userId: userId)
-        if didSync {
-            defaults.set(true, forKey: key)
-        }
-    }
-
-    private func upgradeCachedSummariesIfNeeded(userId: String) async {
-        guard !isRunningSchemaUpgrade else { return }
-
-        guard let cached = try? repository.fetchCachedSummaries(userId: userId), !cached.isEmpty else { return }
-
-        let needsUpgrade = cached.contains { $0.schemaVersion < HealthKitDailyAggregateData.currentSchemaVersion }
-        guard needsUpgrade else { return }
-
-        isRunningSchemaUpgrade = true
-        defer { isRunningSchemaUpgrade = false }
-
-        let firstDay = cached.first?.dayStart ?? Date()
-        let lastDay = cached.last?.dayStart ?? firstDay
-
-        guard let fetched = try? await healthKitManager.fetchDailyAggregates(
-            from: firstDay,
-            to: lastDay,
-            userId: userId,
-            calendar: .current
-        ) else {
-            return
-        }
-
-        let fetchedByKey = Dictionary(uniqueKeysWithValues: fetched.map { ($0.dayKey, $0) })
-        var changedAny = false
-
-        for item in cached where item.schemaVersion < HealthKitDailyAggregateData.currentSchemaVersion {
-            if let upgraded = fetchedByKey[item.dayKey] {
-                item.exerciseMinutes = upgraded.exerciseMinutes
-                item.standHours = upgraded.standHours
-                item.moveGoalKcal = upgraded.moveGoalKcal
-                item.exerciseGoalMinutes = upgraded.exerciseGoalMinutes
-                item.standGoalHours = upgraded.standGoalHours
-                item.bodyWeightKg = upgraded.bodyWeightKg
-                item.schemaVersion = HealthKitDailyAggregateData.currentSchemaVersion
-                item.updatedAt = Date()
-                changedAny = true
-            }
-        }
-
-        if changedAny {
-            try? repository.saveChanges()
-            refreshToken &+= 1
-        }
-    }
 }

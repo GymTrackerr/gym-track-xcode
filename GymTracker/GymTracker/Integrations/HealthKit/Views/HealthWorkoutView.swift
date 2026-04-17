@@ -86,7 +86,16 @@ struct HealthWorkoutView: View {
             .padding(.vertical, 12)
 
             // Workouts List
-            if filteredWorkouts.isEmpty {
+            if isLoading && filteredWorkouts.isEmpty {
+                VStack(spacing: 12) {
+                    ProgressView()
+                    Text("Loading workouts...")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxHeight: .infinity)
+                .padding()
+            } else if filteredWorkouts.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "dumbbell.fill")
                         .font(.system(size: 40))
@@ -111,11 +120,14 @@ struct HealthWorkoutView: View {
                 .scrollContentBackground(.hidden)
             }
         }
-//        .task {
-//            isLoading = true
-//            await hkManager.fetchWorkouts(days: 90)
-//            isLoading = false
-//        }
+        .task {
+            isLoading = true
+            await hkManager.fetchWorkoutsIfNeeded(days: 90)
+            if hkManager.workouts.isEmpty {
+                await hkManager.fetchWorkouts(days: 90)
+            }
+            isLoading = false
+        }
     }
 
     // Helper Methods

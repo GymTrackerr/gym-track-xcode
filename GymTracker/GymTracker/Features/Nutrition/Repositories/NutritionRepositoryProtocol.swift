@@ -17,6 +17,7 @@ protocol NutritionCatalogRepositoryProtocol {
 protocol NutritionLogRepositoryProtocol {
     func fetchNutritionLogs(for userId: UUID, between start: Date, and end: Date) throws -> [NutritionLogEntry]
     func fetchNutritionLogs(for userId: UUID, in interval: DateInterval) throws -> [NutritionLogEntry]
+    func fetchNutritionLogBounds(for userId: UUID) throws -> (oldest: Date?, newest: Date?)
     func insertNutritionLogEntry(_ log: NutritionLogEntry) throws
     func saveNutritionLogEntry(_ log: NutritionLogEntry) throws
     func softDeleteNutritionLogEntry(_ log: NutritionLogEntry) throws

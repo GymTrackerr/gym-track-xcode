@@ -700,14 +700,9 @@ class NutritionService: ServiceBase, ObservableObject {
 
     func nutritionBounds(for metric: NutritionSeriesMetric) throws -> (oldest: Date?, newest: Date?) {
         let userId = try requireUserId()
+        _ = metric
         do {
-            let logs = try repository.fetchNutritionLogs(
-                for: userId,
-                in: DateInterval(start: .distantPast, end: .distantFuture)
-            )
-            let oldest = logs.min(by: { $0.timestamp < $1.timestamp })?.timestamp
-            let newest = logs.max(by: { $0.timestamp < $1.timestamp })?.timestamp
-            return (oldest, newest)
+            return try repository.fetchNutritionLogBounds(for: userId)
         } catch {
             throw NutritionError.persistence("Could not load nutrition bounds.")
         }

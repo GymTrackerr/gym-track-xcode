@@ -27,7 +27,7 @@ struct NutritionHistoryChartView: View {
                         return []
                     }
                     let logs = (try? nutritionService.logsInDateInterval(interval)) ?? []
-                    let health = (try? healthKitDailyStore.cachedDailySummaries(in: interval, userId: userId)) ?? []
+                    let health = (try? healthKitDailyStore.cachedExistingDailySummaries(in: interval, userId: userId)) ?? []
                     return NutritionChartCalculator.energyBalancePoints(
                         logs: logs,
                         healthSummaries: health,
@@ -44,6 +44,9 @@ struct NutritionHistoryChartView: View {
                         metric: selectedMetric
                     )
                 }
+            },
+            loadIntervalProvider: { interval, timeframe in
+                HistoryChartLoadSupport.bufferedInterval(for: interval, timeframe: timeframe)
             },
             dataBoundsProvider: {
                 if selectedMetric == .energyBalance {
@@ -72,7 +75,9 @@ struct NutritionHistoryChartView: View {
             },
             emptyStateTextProvider: { _ in
                 "No \(selectedMetric.title.lowercased()) data in this timeframe."
-            }
+            },
+            fallbackLookbackMonths: selectedMetric == .energyBalance ? 12 : nil,
+            reloadToken: healthKitDailyStore.chartRefreshToken
         )
     }
 
@@ -105,7 +110,7 @@ struct NutritionHistoryChartView: View {
     }
 
     private func energyBalanceBounds() -> (oldest: Date?, newest: Date?) {
-        let rawNutritionBounds = (try? nutritionService.nutritionBounds(for: .calories)) ?? (nil, nil)
+        let rawNutritionBounds: (Date?, Date?) = (try? nutritionService.nutritionBounds(for: .calories)) ?? (nil, nil)
         let nutritionBounds: (oldest: Date?, newest: Date?) = (rawNutritionBounds.0, rawNutritionBounds.1)
 
         if selectedEnergyFilter == .surplusDeficit {
@@ -116,14 +121,19 @@ struct NutritionHistoryChartView: View {
             return nutritionBounds
         }
 
-        let health = (try? healthKitDailyStore.cachedDailySummaries(userId: userId)) ?? []
-        let energyHealth = health.filter { ($0.activeEnergyKcal + $0.restingEnergyKcal) > 0 }
-        let healthOldest = energyHealth.min(by: { $0.dayStart < $1.dayStart })?.dayStart
-        let healthNewest = energyHealth.max(by: { $0.dayStart < $1.dayStart })?.dayStart
+        let healthBounds: (oldest: Date?, newest: Date?) =
+            (try? healthKitDailyStore.cachedDataBounds(userId: userId)) ?? (oldest: nil, newest: nil)
+
+        let mergedOldest = minDate(nutritionBounds.oldest, healthBounds.oldest)
+        let mergedNewest = maxDate(nutritionBounds.newest, healthBounds.newest)
+        let calendar = Calendar.current
+        let fallbackOldest = calendar.startOfDay(
+            for: calendar.date(byAdding: .month, value: -12, to: Date()) ?? Date()
+        )
 
         return (
-            oldest: minDate(nutritionBounds.oldest, healthOldest),
-            newest: maxDate(nutritionBounds.newest, healthNewest)
+            oldest: minDate(mergedOldest, fallbackOldest),
+            newest: maxDate(mergedNewest, Date())
         )
     }
 
@@ -287,7 +297,7 @@ struct NutritionHistoryChartView: View {
 
         let interval = DateInterval(start: point.startDate, end: point.endDate)
         let logs = (try? nutritionService.logsInDateInterval(interval)) ?? []
-        let health = (try? healthKitDailyStore.cachedDailySummaries(in: interval, userId: userId)) ?? []
+        let health = (try? healthKitDailyStore.cachedExistingDailySummaries(in: interval, userId: userId)) ?? []
 
         var eatenByDay: [Date: Double] = [:]
         for log in logs {
@@ -348,7 +358,7 @@ struct NutritionHistoryChartView: View {
 
         let interval = DateInterval(start: point.startDate, end: point.endDate)
         let logs = (try? nutritionService.logsInDateInterval(interval)) ?? []
-        let health = (try? healthKitDailyStore.cachedDailySummaries(in: interval, userId: userId)) ?? []
+        let health = (try? healthKitDailyStore.cachedExistingDailySummaries(in: interval, userId: userId)) ?? []
 
         let logDays = Set(logs.map { Calendar.current.startOfDay(for: $0.timestamp) })
         let healthDays = Set(health.map { Calendar.current.startOfDay(for: $0.dayStart) })

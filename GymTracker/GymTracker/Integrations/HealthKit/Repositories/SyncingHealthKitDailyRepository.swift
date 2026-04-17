@@ -25,6 +25,10 @@ final class HealthKitDailySyncRepository: BaseSyncRepository, HealthKitDailyRepo
         try localRepository.fetchCachedSummaries(userId: userId)
     }
 
+    func fetchCachedBounds(userId: String) throws -> (oldest: Date?, newest: Date?) {
+        try localRepository.fetchCachedBounds(userId: userId)
+    }
+
     func fetchUnsyncedPastSummaries(userId: String, before dayStart: Date, limit: Int) throws -> [HealthKitDailyAggregateData] {
         try localRepository.fetchUnsyncedPastSummaries(userId: userId, before: dayStart, limit: limit)
     }

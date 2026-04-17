@@ -50,7 +50,9 @@ struct HealthHistoryChartView: View {
             },
             emptyStateTextProvider: { _ in
                 "No \(selectedMetric.title.lowercased()) data in this timeframe."
-            }
+            },
+            fallbackLookbackMonths: 12,
+            reloadToken: healthKitDailyStore.chartRefreshToken
         )
         .safeAreaInset(edge: .bottom) {
             if healthKitDailyStore.isBackfillingHistory {
@@ -69,20 +71,15 @@ struct HealthHistoryChartView: View {
 
     private func getDataBounds() -> (oldest: Date?, newest: Date?) {
         guard let userId = userService.currentUser?.id.uuidString else { return (nil, nil) }
-        
-        do {
-            let all = try healthKitDailyStore.cachedDailySummaries(userId: userId)
-            let filtered = all.filter {
-                HealthHistoryChartSupport.metricValue(for: $0, metric: selectedMetric) > 0
-            }
-            guard !filtered.isEmpty else { return (nil, nil) }
-
-            let oldest = filtered.min(by: { $0.dayStart < $1.dayStart })?.dayStart
-            let newest = filtered.max(by: { $0.dayStart < $1.dayStart })?.dayStart
-            return (oldest, newest)
-        } catch {
-            return (nil, nil)
-        }
+        let cached: (oldest: Date?, newest: Date?) =
+            (try? healthKitDailyStore.cachedDataBounds(userId: userId)) ?? (oldest: nil, newest: nil)
+        let calendar = Calendar.current
+        let fallbackOldest = calendar.startOfDay(
+            for: calendar.date(byAdding: .month, value: -12, to: Date()) ?? Date()
+        )
+        let resolvedOldest = cached.oldest.map { min($0, fallbackOldest) } ?? fallbackOldest
+        let resolvedNewest = cached.newest.map { max($0, Date()) } ?? Date()
+        return (oldest: resolvedOldest, newest: resolvedNewest)
     }
 
     private var metricPicker: some View {

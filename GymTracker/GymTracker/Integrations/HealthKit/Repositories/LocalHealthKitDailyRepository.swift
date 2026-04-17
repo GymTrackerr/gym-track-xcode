@@ -15,11 +15,7 @@ final class LocalHealthKitDailyRepository: HealthKitDailyRepositoryProtocol {
                 item.cacheKey == cacheKey && item.soft_deleted == false
             }
         )
-        let summary = try modelContext.fetch(descriptor).first
-        if let summary, try SyncRootMetadataManager.prepareForRead(summary, in: modelContext) {
-            try modelContext.save()
-        }
-        return summary
+        return try modelContext.fetch(descriptor).first
     }
 
     func fetchCachedSummaries(userId: String, from startDay: Date, to endDay: Date) throws -> [String: HealthKitDailyAggregateData] {
@@ -29,9 +25,6 @@ final class LocalHealthKitDailyRepository: HealthKitDailyRepositoryProtocol {
             }
         )
         let items = try modelContext.fetch(descriptor)
-        if try SyncRootMetadataManager.prepareForRead(items, in: modelContext) {
-            try modelContext.save()
-        }
         return Dictionary(uniqueKeysWithValues: items.map { ($0.dayKey, $0) })
     }
 
@@ -42,11 +35,30 @@ final class LocalHealthKitDailyRepository: HealthKitDailyRepositoryProtocol {
             },
             sortBy: [SortDescriptor(\.dayStart)]
         )
-        let items = try modelContext.fetch(descriptor)
-        if try SyncRootMetadataManager.prepareForRead(items, in: modelContext) {
-            try modelContext.save()
-        }
-        return items
+        return try modelContext.fetch(descriptor)
+    }
+
+    func fetchCachedBounds(userId: String) throws -> (oldest: Date?, newest: Date?) {
+        var oldestDescriptor = FetchDescriptor<HealthKitDailyAggregateData>(
+            predicate: #Predicate<HealthKitDailyAggregateData> { item in
+                item.userId == userId && item.soft_deleted == false
+            },
+            sortBy: [SortDescriptor(\.dayStart, order: .forward)]
+        )
+        oldestDescriptor.fetchLimit = 1
+
+        var newestDescriptor = FetchDescriptor<HealthKitDailyAggregateData>(
+            predicate: #Predicate<HealthKitDailyAggregateData> { item in
+                item.userId == userId && item.soft_deleted == false
+            },
+            sortBy: [SortDescriptor(\.dayStart, order: .reverse)]
+        )
+        newestDescriptor.fetchLimit = 1
+
+        let oldest = try modelContext.fetch(oldestDescriptor).first
+        let newest = try modelContext.fetch(newestDescriptor).first
+
+        return (oldest?.dayStart, newest?.dayStart)
     }
 
     func fetchUnsyncedPastSummaries(userId: String, before dayStart: Date, limit: Int) throws -> [HealthKitDailyAggregateData] {
@@ -60,11 +72,7 @@ final class LocalHealthKitDailyRepository: HealthKitDailyRepositoryProtocol {
             sortBy: [SortDescriptor(\.dayStart, order: .reverse)]
         )
         descriptor.fetchLimit = max(limit, 0)
-        let items = try modelContext.fetch(descriptor)
-        if try SyncRootMetadataManager.prepareForRead(items, in: modelContext) {
-            try modelContext.save()
-        }
-        return items
+        return try modelContext.fetch(descriptor)
     }
 
     func upsertCache(

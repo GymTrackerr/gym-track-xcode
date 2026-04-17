@@ -201,7 +201,7 @@ struct StepBarGraph: View {
                 endingOn: Date(),
                 days: 7,
                 userId: userId,
-                policy: .refreshIfStale
+                policy: .cachedOnly
             )) ?? []
             dailySteps = summaries.map { DayStep(date: $0.dayStart, value: $0.steps) }
         }

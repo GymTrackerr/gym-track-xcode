@@ -1,7 +1,22 @@
+import Combine
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
 
+@MainActor
+final class HomeDashboardHealthSnapshot: ObservableObject {
+    @Published var isCollecting: Bool = false
+    @Published var hasLoaded: Bool = false
+    @Published var workoutsCount: Int?
+    @Published var currentWeightKg: Double?
+    @Published var weeklyStepsTotal: Double?
+    @Published var sleepHours: Double?
+    @Published var activityRings: ActivityRingStatus?
+    @Published var lastUpdatedAt: Date?
+    var ownerUserId: UUID?
+}
+
+@MainActor
 struct HomeView: View {
     @EnvironmentObject var userService: UserService
     @EnvironmentObject var hkManager: HealthKitManager
@@ -9,6 +24,7 @@ struct HomeView: View {
     @EnvironmentObject var dashboardService: DashboardService
 
     @State private var openedSession: Session? = nil
+    @StateObject private var homeHealthSnapshot = HomeDashboardHealthSnapshot()
     
     var body: some View {
         Group {
@@ -22,14 +38,15 @@ struct HomeView: View {
                 }
                 .scrollBounceBehavior(.basedOnSize)
                 .refreshable {
-                    await refreshHealthData()
+                    await refreshHealthData(waitForSync: true)
                 }
             } else {
                 Text("Please continue to onboarding")
             }
         }
-        .task(id: userService.currentUser?.id) {
-            await refreshHealthData(requestAuthorization: true)
+        .environmentObject(homeHealthSnapshot)
+        .task(id: healthRefreshTaskID) {
+            await refreshHealthData(requestAuthorization: true, waitForSync: false)
         }
         .navigationTitle(userService.currentUser.map { "Welcome \($0.name)" } ?? "Home")
         .navigationBarTitleDisplayMode(.inline)
@@ -53,19 +70,111 @@ struct HomeView: View {
     }
 
     private func refreshHealthData(
-        requestAuthorization: Bool = false
+        requestAuthorization: Bool = false,
+        waitForSync: Bool = false
     ) async {
         guard let currentUser = userService.currentUser, currentUser.isDemo != true else { return }
-        guard currentUser.allowHealthAccess else { return }
+        guard currentUser.allowHealthAccess else {
+            if homeHealthSnapshot.ownerUserId == currentUser.id {
+                homeHealthSnapshot.isCollecting = false
+                homeHealthSnapshot.hasLoaded = false
+            }
+            return
+        }
 
         if requestAuthorization, hkManager.hkRequested == false {
             await hkManager.requestAuthorization()
         }
 
-        await hkManager.fetchWorkouts()
-        let userId = currentUser.id.uuidString
+        if waitForSync {
+            await collectDashboardHealthSnapshot(for: currentUser)
+        } else {
+            Task(priority: .utility) {
+                await collectDashboardHealthSnapshot(for: currentUser)
+            }
+        }
+    }
+
+    private var healthRefreshTaskID: String {
+        let userId = userService.currentUser?.id.uuidString ?? "none"
+        let allowHealth = userService.currentUser?.allowHealthAccess == true
+        return "\(userId)-\(allowHealth ? "health-on" : "health-off")"
+    }
+
+    @MainActor
+    private func collectDashboardHealthSnapshot(for user: User) async {
+        let userId = user.id.uuidString
+        if homeHealthSnapshot.ownerUserId != user.id {
+            homeHealthSnapshot.ownerUserId = user.id
+            homeHealthSnapshot.hasLoaded = false
+            homeHealthSnapshot.workoutsCount = nil
+            homeHealthSnapshot.currentWeightKg = nil
+            homeHealthSnapshot.weeklyStepsTotal = nil
+            homeHealthSnapshot.sleepHours = nil
+            homeHealthSnapshot.activityRings = nil
+            homeHealthSnapshot.lastUpdatedAt = nil
+        }
+        homeHealthSnapshot.isCollecting = true
+        defer {
+            if userService.currentUser?.id == user.id {
+                homeHealthSnapshot.isCollecting = false
+            }
+        }
+
+        await hkManager.fetchWorkoutsIfNeeded(days: 90)
+        if hkManager.workouts.isEmpty {
+            await hkManager.fetchWorkouts(days: 90)
+        }
 
         _ = await healthKitDailyStore.smartPullHealthData(userId: userId)
+
+        guard userService.currentUser?.id == user.id else { return }
+
+        let today = Date()
+        let weekSummaries = try? await healthKitDailyStore.dailySummaries(
+            endingOn: today,
+            days: 7,
+            userId: userId,
+            policy: .cachedOnly
+        )
+        let todaySummary = weekSummaries?.last
+
+        var resolvedWeight = todaySummary?.bodyWeightKg
+        if (resolvedWeight ?? 0) <= 0 {
+            resolvedWeight = await hkManager.latestBodyWeightKg()
+        }
+
+        var resolvedSleepHours: Double?
+        if let sleepSeconds = todaySummary?.sleepSeconds, sleepSeconds > 0 {
+            resolvedSleepHours = sleepSeconds / 3600
+        } else if let fallbackSleep = await hkManager.latestSleepDurationWithin(hours: 30), fallbackSleep > 0 {
+            resolvedSleepHours = fallbackSleep / 3600
+        }
+
+        var resolvedRings = activityRingStatus(from: todaySummary)
+        if resolvedRings == nil {
+            resolvedRings = await hkManager.fetchActivityRingStatusSnapshot(for: today)
+        }
+
+        homeHealthSnapshot.workoutsCount = hkManager.workouts.count
+        homeHealthSnapshot.currentWeightKg = (resolvedWeight ?? 0) > 0 ? resolvedWeight : nil
+        homeHealthSnapshot.weeklyStepsTotal = weekSummaries?.reduce(0.0, { $0 + $1.steps }) ?? 0
+        homeHealthSnapshot.sleepHours = resolvedSleepHours
+        homeHealthSnapshot.activityRings = resolvedRings
+        homeHealthSnapshot.hasLoaded = true
+        homeHealthSnapshot.lastUpdatedAt = Date()
+    }
+
+    private func activityRingStatus(from summary: HealthKitDailyAggregateData?) -> ActivityRingStatus? {
+        guard let summary else { return nil }
+        return ActivityRingStatus(
+            moveRingValue: summary.activeEnergyKcal,
+            moveRingGoal: max(summary.moveGoalKcal ?? 520, 1),
+            exerciseRingValue: summary.exerciseMinutes ?? 0,
+            exerciseRingGoal: max(summary.exerciseGoalMinutes ?? 30, 1),
+            standRingValue: summary.standHours ?? 0,
+            standRingGoal: max(summary.standGoalHours ?? 12, 1)
+        )
     }
 }
 
@@ -984,7 +1093,8 @@ struct FitSightModuleView: View {
 struct NutritionModuleView: View {
     let module: DashboardModule
     @EnvironmentObject var userService: UserService
-    @EnvironmentObject var healthMetricsService: HealthMetricsService
+    @EnvironmentObject var nutritionService: NutritionService
+    @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
     @State private var deficitSurplus: Double?
 
     var body: some View {
@@ -1013,57 +1123,49 @@ struct NutritionModuleView: View {
     }
 
     private func loadDeficit() async {
-        guard let userId = healthMetricsService.currentUser?.id.uuidString else {
+        guard let userId = userService.currentUser?.id.uuidString else {
             deficitSurplus = nil
             return
         }
         deficitSurplus = nil
-        deficitSurplus = try? await healthMetricsService.deficitSurplus(for: Date(), userId: userId)
+        do {
+            let day = Date()
+            let health = try await healthKitDailyStore.dailySummary(
+                for: day,
+                userId: userId,
+                policy: .cachedOnly
+            )
+            let intake = try nutritionService.calorieIntake(for: day)
+            deficitSurplus = (health.activeEnergyKcal + health.restingEnergyKcal) - intake
+        } catch {
+            deficitSurplus = nil
+        }
     }
 }
 
 struct CurrentWeightModuleView: View {
-    @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
-    @EnvironmentObject var userService: UserService
-    @State private var currentWeight: Double?
-
-    private var refreshID: String {
-        "\(userService.currentUser?.id.uuidString ?? "none")-\(healthKitDailyStore.refreshToken)"
-    }
+    @EnvironmentObject var homeHealthSnapshot: HomeDashboardHealthSnapshot
     
     var body: some View {
         MetricCard(
-            value: currentWeight.map { String(format: "%.1f", $0) } ?? "N/A"
+            value: displayValue
         )
-        .task(id: refreshID) {
-            await loadCurrentWeight()
-        }
     }
 
-    private func loadCurrentWeight() async {
-        guard let userId = userService.currentUser?.id.uuidString else {
-            currentWeight = nil
-            return
+    private var displayValue: String {
+        if let currentWeight = homeHealthSnapshot.currentWeightKg {
+            return String(format: "%.1f", currentWeight)
         }
-        currentWeight = nil
-        let summary = try? await healthKitDailyStore.dailySummary(
-            for: Date(),
-            userId: userId,
-            policy: .refreshIfStale
-        )
-        currentWeight = summary?.bodyWeightKg
+        if homeHealthSnapshot.isCollecting && !homeHealthSnapshot.hasLoaded {
+            return "Loading..."
+        }
+        return "N/A"
     }
 }
 
 struct WeeklyStepsModuleView: View {
     let module: DashboardModule
-    @EnvironmentObject var userService: UserService
-    @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
-    @State private var weeklyStepsTotal: Double = 0
-
-    private var refreshID: String {
-        "\(userService.currentUser?.id.uuidString ?? "none")-\(healthKitDailyStore.refreshToken)"
-    }
+    @EnvironmentObject var homeHealthSnapshot: HomeDashboardHealthSnapshot
     
     var body: some View {
         if module.size == .medium || module.size == .large {
@@ -1078,45 +1180,36 @@ struct WeeklyStepsModuleView: View {
         } else {
             NavigationLink(destination: HealthHistoryChartView().appBackground()) {
                 MetricCard(
-                    value: String(weeklyStepsTotal.rounded())
+                    value: displayValue
                 )
-            }
-            .task(id: refreshID) {
-                await loadWeeklyTotal()
             }
         }
     }
 
-    private func loadWeeklyTotal() async {
-        guard let userId = userService.currentUser?.id.uuidString else {
-            weeklyStepsTotal = 0
-            return
+    private var displayValue: String {
+        if let steps = homeHealthSnapshot.weeklyStepsTotal {
+            return String(Int(steps.rounded()))
         }
-        weeklyStepsTotal = 0
-        let summaries = try? await healthKitDailyStore.dailySummaries(
-            endingOn: Date(),
-            days: 7,
-            userId: userId,
-            policy: .refreshIfStale
-        )
-        weeklyStepsTotal = summaries?.reduce(0, { $0 + $1.steps }) ?? 0
+        if homeHealthSnapshot.isCollecting && !homeHealthSnapshot.hasLoaded {
+            return "Loading..."
+        }
+        return "0"
     }
 }
 
 struct SleepModuleView: View {
-    @EnvironmentObject var userService: UserService
-    @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
-    @State private var sleepHours: Double?
-
-    private var refreshID: String {
-        "\(userService.currentUser?.id.uuidString ?? "none")-\(healthKitDailyStore.refreshToken)"
-    }
+    @EnvironmentObject var homeHealthSnapshot: HomeDashboardHealthSnapshot
     
     var body: some View {
         Group {
-            if let sleepHours {
+            if let sleepHours = homeHealthSnapshot.sleepHours {
                 MetricCard(
                     value: String(format: "%.1f", sleepHours) + " hrs",
+                    alignment: .center
+                )
+            } else if homeHealthSnapshot.isCollecting && !homeHealthSnapshot.hasLoaded {
+                MetricCard(
+                    value: "Loading...",
                     alignment: .center
                 )
             } else {
@@ -1126,83 +1219,32 @@ struct SleepModuleView: View {
                 )
             }
         }
-        .task(id: refreshID) {
-            await loadSleep()
-        }
-    }
-
-    private func loadSleep() async {
-        guard let userId = userService.currentUser?.id.uuidString else {
-            sleepHours = nil
-            return
-        }
-        sleepHours = nil
-        let summary = try? await healthKitDailyStore.dailySummary(
-            for: Date(),
-            userId: userId,
-            policy: .refreshIfStale
-        )
-        guard let sleepSeconds = summary?.sleepSeconds, sleepSeconds > 0 else {
-            sleepHours = nil
-            return
-        }
-        sleepHours = sleepSeconds / 3600
     }
 }
 
 struct ActivityRingsModuleView: View {
-    @EnvironmentObject var userService: UserService
-    @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
-    @State private var ringStatus: ActivityRingStatus?
-
-    private var refreshID: String {
-        "\(userService.currentUser?.id.uuidString ?? "none")-\(healthKitDailyStore.refreshToken)"
-    }
+    @EnvironmentObject var homeHealthSnapshot: HomeDashboardHealthSnapshot
     
     var body: some View {
         Group {
-            if let ars = ringStatus {
+            if let ars = homeHealthSnapshot.activityRings {
                 MetricActivityRingCard(
                     activityRings: ars,
                     alignment: .center
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            } else {
+            } else if homeHealthSnapshot.isCollecting && !homeHealthSnapshot.hasLoaded {
                 MetricCard(
                     value: "Loading...",
                     alignment: .center
                 )
+            } else {
+                MetricCard(
+                    value: "N/A",
+                    alignment: .center
+                )
             }
         }
-        .task(id: refreshID) {
-            await loadRingStatus()
-        }
-    }
-
-    private func loadRingStatus() async {
-        guard let userId = userService.currentUser?.id.uuidString else {
-            ringStatus = nil
-            return
-        }
-        ringStatus = nil
-        let summary = try? await healthKitDailyStore.dailySummary(
-            for: Date(),
-            userId: userId,
-            policy: .refreshIfStale
-        )
-        guard let summary else {
-            ringStatus = nil
-            return
-        }
-
-        ringStatus = ActivityRingStatus(
-            moveRingValue: summary.activeEnergyKcal,
-            moveRingGoal: max(summary.moveGoalKcal ?? 520, 1),
-            exerciseRingValue: summary.exerciseMinutes ?? 0,
-            exerciseRingGoal: max(summary.exerciseGoalMinutes ?? 30, 1),
-            standRingValue: summary.standHours ?? 0,
-            standRingGoal: max(summary.standGoalHours ?? 12, 1)
-        )
     }
 }
 
@@ -1220,6 +1262,7 @@ struct TimerModuleView: View {
 }
 
 struct FitnessWorkoutsModuleView: View {
+    @EnvironmentObject var homeHealthSnapshot: HomeDashboardHealthSnapshot
     @EnvironmentObject var hkManager: HealthKitManager
     @EnvironmentObject var userService: UserService
     @EnvironmentObject var sessionService: SessionService
@@ -1227,17 +1270,23 @@ struct FitnessWorkoutsModuleView: View {
     var body: some View {
         NavigationLink(destination: destinationView) {
             MetricCard(
-                value: String(workoutCount),
+                value: workoutDisplayValue,
                 pageNav: true
             )
         }
     }
 
-    private var workoutCount: Int {
+    private var workoutDisplayValue: String {
         if userService.currentUser?.isDemo == true {
-            return sessionService.sessions.count
+            return String(sessionService.sessions.count)
         }
-        return hkManager.workouts.count
+        if let count = homeHealthSnapshot.workoutsCount {
+            return String(count)
+        }
+        if homeHealthSnapshot.isCollecting && !homeHealthSnapshot.hasLoaded {
+            return "Loading..."
+        }
+        return String(hkManager.workouts.count)
     }
 
     @ViewBuilder

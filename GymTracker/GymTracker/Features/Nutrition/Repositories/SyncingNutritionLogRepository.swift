@@ -20,6 +20,10 @@ final class NutritionLogSyncRepository: BaseSyncRepository, NutritionLogReposito
         try localRepository.fetchNutritionLogs(for: userId, in: interval)
     }
 
+    func fetchNutritionLogBounds(for userId: UUID) throws -> (oldest: Date?, newest: Date?) {
+        try localRepository.fetchNutritionLogBounds(for: userId)
+    }
+
     func insertNutritionLogEntry(_ log: NutritionLogEntry) throws {
         try localRepository.insertNutritionLogEntry(log)
         enqueueRootMutationIfNeeded(root: log, operation: .create)

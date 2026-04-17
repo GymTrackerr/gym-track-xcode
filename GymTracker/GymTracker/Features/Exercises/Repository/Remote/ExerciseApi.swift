@@ -7,40 +7,6 @@
 
 import Foundation
 
-// Legacy direct ExerciseDB client used for local-only catalog refresh paths during migration.
-final class ExerciseApi {
-    private let apiHelper: API_Helper
-
-    init(apiHelper: API_Helper = API_Helper()) {
-        self.apiHelper = apiHelper
-    }
-
-    // get post replies
-    func getExercises() async throws -> [ExerciseDTO] {
-        let result = try await apiHelper.asyncRequestRawData(route: APIRoute.exerciseDB)
-        guard 200..<300 ~= result.response.statusCode else {
-            let body = String(data: result.data, encoding: .utf8)
-            throw APIHelperError.httpError(
-                statusCode: result.response.statusCode,
-                code: nil,
-                message: "ExerciseDB request failed.",
-                details: body
-            )
-        }
-        return try ArrayOrEnvelopeDecoder.decode([ExerciseDTO].self, from: result.data)
-    }
-    
-    func getExercise(exerciseID: String) async throws -> ExerciseDTO {
-        do {
-            let APIUrl = apiHelper.baseAPIurl + "/exercisedb/" + exerciseID
-            return try await apiHelper.asyncRequestData(urlString: APIUrl)
-        } catch {
-            print(error)
-            throw error
-        }
-    }
-}
-
 enum ExerciseCatalogFetchResult {
     case notModified(etag: String?)
     case catalog(items: [ExerciseDTO], etag: String?)
@@ -141,33 +107,4 @@ struct GymTrackerExerciseDTO: Identifiable, Codable {
     let createdAt: String?
     let updatedAt: String?
     let deletedAt: String?
-}
-
-// GymTracker backend client for signed-in remote exercise reads/writes.
-final class GymTrackerExerciseApi {
-    private let apiHelper: API_Helper
-
-    init(apiHelper: API_Helper = API_Helper()) {
-        self.apiHelper = apiHelper
-    }
-
-    func getExercises() async throws -> [GymTrackerExerciseDTO] {
-        let response: ListResponse<GymTrackerExerciseDTO> =
-            try await apiHelper.asyncAuthorizedRequestListData(route: UserExerciseListRoute())
-        return response.items
-    }
-
-    func getExercise(exerciseID: String) async throws -> GymTrackerExerciseDTO {
-        try await apiHelper.asyncAuthorizedRequestData(route: APIRoute.exercise(id: exerciseID))
-    }
-}
-
-private struct UserExerciseListRoute: APIRequestRoute {
-    var path: String { "/exercises" }
-    var queryItems: [URLQueryItem] {
-        [
-            URLQueryItem(name: "source", value: "user"),
-            URLQueryItem(name: "includeDeleted", value: "true")
-        ]
-    }
 }

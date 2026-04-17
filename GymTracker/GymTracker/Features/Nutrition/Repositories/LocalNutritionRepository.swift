@@ -43,15 +43,34 @@ final class LocalNutritionRepository: NutritionRepositoryProtocol {
             },
             sortBy: [SortDescriptor(\.timestamp)]
         )
-        let logs = try modelContext.fetch(descriptor)
-        if try SyncRootMetadataManager.prepareForRead(logs, in: modelContext) {
-            try modelContext.save()
-        }
-        return logs
+        return try modelContext.fetch(descriptor)
     }
 
     func fetchNutritionLogs(for userId: UUID, in interval: DateInterval) throws -> [NutritionLogEntry] {
         try fetchNutritionLogs(for: userId, between: interval.start, and: interval.end)
+    }
+
+    func fetchNutritionLogBounds(for userId: UUID) throws -> (oldest: Date?, newest: Date?) {
+        var oldestDescriptor = FetchDescriptor<NutritionLogEntry>(
+            predicate: #Predicate<NutritionLogEntry> { log in
+                log.userId == userId && log.soft_deleted == false
+            },
+            sortBy: [SortDescriptor(\.timestamp, order: .forward)]
+        )
+        oldestDescriptor.fetchLimit = 1
+
+        var newestDescriptor = FetchDescriptor<NutritionLogEntry>(
+            predicate: #Predicate<NutritionLogEntry> { log in
+                log.userId == userId && log.soft_deleted == false
+            },
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+        )
+        newestDescriptor.fetchLimit = 1
+
+        let oldestEntry = try modelContext.fetch(oldestDescriptor).first
+        let newestEntry = try modelContext.fetch(newestDescriptor).first
+
+        return (oldestEntry?.timestamp, newestEntry?.timestamp)
     }
 
     func fetchTargets() throws -> [NutritionTarget] {
