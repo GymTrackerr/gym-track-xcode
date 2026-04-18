@@ -114,10 +114,16 @@ class API_Helper : Observable {
     var apiData = API_Data()
 
     var baseAPIurl: String {
-        apiData.getURL()
+        apiData.baseURLString(for: .backend)
     }
     var hostURL: String {
-        apiData.getHostURL()
+        apiData.hostURLString(for: .backend)
+    }
+    var exerciseDBBaseURL: String {
+        apiData.baseURLString(for: .exerciseDB)
+    }
+    var exerciseDBHostURL: String {
+        apiData.hostURLString(for: .exerciseDB)
     }
     var errorTime:Date = Date()
     
@@ -242,7 +248,7 @@ class API_Helper : Observable {
     }
 
     func url(for route: APIRequestRoute) -> URL? {
-        guard var components = URLComponents(string: baseAPIurl) else { return nil }
+        guard var components = URLComponents(string: apiData.baseURLString(for: route.baseURLKind)) else { return nil }
         components.path += route.path
         if !route.queryItems.isEmpty {
             components.queryItems = route.queryItems
@@ -251,8 +257,11 @@ class API_Helper : Observable {
     }
 
     // Resolves absolute or host-relative media paths against the API host.
-    func resolveMediaURL(_ mediaPathOrURL: String) -> URL? {
-        guard let baseHostURL = URL(string: hostURL) else { return nil }
+    func resolveMediaURL(
+        _ mediaPathOrURL: String,
+        baseURLKind: APIBaseURLKind = .backend
+    ) -> URL? {
+        guard let baseHostURL = URL(string: apiData.hostURLString(for: baseURLKind)) else { return nil }
 
         if let absoluteURL = URL(string: mediaPathOrURL), absoluteURL.scheme != nil {
             return absoluteURL
@@ -268,6 +277,10 @@ class API_Helper : Observable {
 
         var headers = additionalHeaders
         headers["Authorization"] = "Bearer \(accessToken)"
+        if let activeLocalUserId = BackendSessionStore.shared.activeLocalUserId() {
+            headers["X-GymTracker-Device-Id"] = LocalDeviceIdentityStore.shared.deviceId(for: activeLocalUserId)
+        }
+        headers["X-GymTracker-Platform"] = "ios"
         return headers
     }
 

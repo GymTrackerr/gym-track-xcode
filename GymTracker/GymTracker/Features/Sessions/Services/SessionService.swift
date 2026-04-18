@@ -44,20 +44,16 @@ class SessionService : ServiceBase, ObservableObject {
     }
 
     func sessionsInRange(_ interval: DateInterval?) -> [Session] {
-        do {
-            return try repository.fetchSessions(in: interval, for: currentUser?.id)
-        } catch {
-            return sessions
-                .filter { session in
-                    guard let userId = currentUser?.id else { return true }
-                    return session.user_id == userId
-                }
-                .filter { session in
-                    guard let interval else { return true }
-                    return interval.contains(session.timestamp)
-                }
-                .sorted { $0.timestamp > $1.timestamp }
-        }
+        sessions
+            .filter { session in
+                guard let userId = currentUser?.id else { return true }
+                return session.user_id == userId
+            }
+            .filter { session in
+                guard let interval else { return true }
+                return interval.contains(session.timestamp)
+            }
+            .sorted { $0.timestamp > $1.timestamp }
     }
 
     static func sessionVolumeInPounds(_ session: Session) -> Double {

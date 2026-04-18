@@ -23,6 +23,7 @@ final class User {
     var allowHealthAccess: Bool = false
     var remoteAccountId: String? = nil
     var remoteSyncEnabled: Bool = true
+    var exerciseCatalogEnabled: Bool = false
     
     var defaultTimer: Int = 90
     var showNutritionTab: Bool = true

@@ -36,6 +36,13 @@ final class ExerciseSyncRepository: BaseSyncRepository, ExerciseRepositoryProtoc
         try localRepository.applyCatalogExercises(data, for: userId, allowInsert: allowInsert)
     }
 
+    func applyCatalogOverlays(
+        _ data: [GymTrackerCatalogOverlayDTO],
+        for userId: UUID
+    ) throws -> Int {
+        try localRepository.applyCatalogOverlays(data, for: userId)
+    }
+
     func applyRemoteUserExercises(
         _ data: [GymTrackerExerciseDTO],
         for userId: UUID
@@ -68,6 +75,14 @@ final class ExerciseSyncRepository: BaseSyncRepository, ExerciseRepositoryProtoc
         let operation: SyncQueueOperation = exercise.isArchived ? .restore : .create
         try localRepository.reinsertOrRestore(exercise)
         enqueueMutationIfNeeded(for: exercise, operation: operation)
+    }
+
+    func hideCatalogExercises(for userId: UUID) throws -> CatalogDisableResult {
+        try localRepository.hideCatalogExercises(for: userId)
+    }
+
+    func restoreCatalogExercises(withNpIds npIds: [String], for userId: UUID) throws -> Int {
+        try localRepository.restoreCatalogExercises(withNpIds: npIds, for: userId)
     }
 
     func willArchiveOnDelete(_ exercise: Exercise) -> Bool {

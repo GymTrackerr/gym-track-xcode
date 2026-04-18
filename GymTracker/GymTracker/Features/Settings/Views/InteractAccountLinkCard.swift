@@ -9,6 +9,7 @@ import SwiftUI
 
 struct InteractAccountLinkCard: View {
     @EnvironmentObject private var backendAuthService: BackendAuthService
+    @EnvironmentObject private var exerciseService: ExerciseService
     @EnvironmentObject private var userService: UserService
 
     @State private var username = ""
@@ -160,6 +161,7 @@ struct InteractAccountLinkCard: View {
                 _ = try await backendAuthService.loginInteract(username: trimmedUsername, password: password)
                 _ = try? await backendAuthService.refreshCurrentSession()
                 _ = try? await backendAuthService.fetchCurrentUser()
+                exerciseService.sync()
 
                 await MainActor.run {
                     password = ""
@@ -187,6 +189,7 @@ struct InteractAccountLinkCard: View {
             do {
                 _ = try await backendAuthService.refreshCurrentSession()
                 _ = try? await backendAuthService.fetchCurrentUser()
+                exerciseService.sync()
                 await MainActor.run {
                     statusMessage = "Session refreshed."
                 }

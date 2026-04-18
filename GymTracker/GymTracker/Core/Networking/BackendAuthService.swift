@@ -206,7 +206,8 @@ final class BackendAuthService: ObservableObject {
         currentBackendUser = BackendMeResponseDTO(
             id: response.user.id,
             displayName: response.user.displayName,
-            username: response.user.username
+            username: response.user.username,
+            exerciseCatalogEnabled: nil
         )
         linkedProvider = response.linkedProvider
         currentSession = nil
