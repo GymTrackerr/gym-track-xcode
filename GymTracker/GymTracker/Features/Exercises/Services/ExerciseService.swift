@@ -26,6 +26,43 @@ struct ExerciseCatalogSyncState: Codable {
     var etag: String?
     var lastSuccessfulSyncAt: Date?
     var lastAttemptAt: Date?
+    var temporarilyHiddenNpIds: [String]
+
+    init(
+        optedIn: Bool,
+        hasSeenExistingUserPrompt: Bool,
+        etag: String?,
+        lastSuccessfulSyncAt: Date?,
+        lastAttemptAt: Date?,
+        temporarilyHiddenNpIds: [String] = []
+    ) {
+        self.optedIn = optedIn
+        self.hasSeenExistingUserPrompt = hasSeenExistingUserPrompt
+        self.etag = etag
+        self.lastSuccessfulSyncAt = lastSuccessfulSyncAt
+        self.lastAttemptAt = lastAttemptAt
+        self.temporarilyHiddenNpIds = temporarilyHiddenNpIds
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case optedIn
+        case hasSeenExistingUserPrompt
+        case etag
+        case lastSuccessfulSyncAt
+        case lastAttemptAt
+        case temporarilyHiddenNpIds
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        optedIn = try container.decode(Bool.self, forKey: .optedIn)
+        hasSeenExistingUserPrompt = try container.decode(Bool.self, forKey: .hasSeenExistingUserPrompt)
+        etag = try container.decodeIfPresent(String.self, forKey: .etag)
+        lastSuccessfulSyncAt = try container.decodeIfPresent(Date.self, forKey: .lastSuccessfulSyncAt)
+        lastAttemptAt = try container.decodeIfPresent(Date.self, forKey: .lastAttemptAt)
+        temporarilyHiddenNpIds =
+            try container.decodeIfPresent([String].self, forKey: .temporarilyHiddenNpIds) ?? []
+    }
 }
 
 final class ExerciseCatalogSyncStateStore {
@@ -57,7 +94,57 @@ final class ExerciseCatalogSyncStateStore {
     }
 }
 
+struct ExerciseCatalogOverlayState: Codable, Equatable {
+    let npId: String
+    var aliases: [String]
+    var hidden: Bool
+    var updatedAt: Date
+}
+
+final class ExerciseCatalogOverlayStore {
+    static let shared = ExerciseCatalogOverlayStore()
+
+    private let defaults: UserDefaults
+    private let keyPrefix: String
+
+    init(
+        defaults: UserDefaults = .standard,
+        keyPrefix: String = "gymtracker.exercise-catalog-overlay."
+    ) {
+        self.defaults = defaults
+        self.keyPrefix = keyPrefix
+    }
+
+    func loadAll(for userId: UUID) -> [ExerciseCatalogOverlayState] {
+        guard let data = defaults.data(forKey: key(for: userId)) else { return [] }
+        return (try? JSONDecoder().decode([ExerciseCatalogOverlayState].self, from: data)) ?? []
+    }
+
+    func saveAll(_ overlays: [ExerciseCatalogOverlayState], for userId: UUID) {
+        var uniqueOverlays: [String: ExerciseCatalogOverlayState] = [:]
+        for overlay in overlays {
+            uniqueOverlays[overlay.npId.lowercased()] = overlay
+        }
+        let orderedOverlays = uniqueOverlays.values.sorted { lhs, rhs in
+            lhs.npId.localizedCaseInsensitiveCompare(rhs.npId) == .orderedAscending
+        }
+
+        guard let data = try? JSONEncoder().encode(orderedOverlays) else { return }
+        defaults.set(data, forKey: key(for: userId))
+    }
+
+    private func key(for userId: UUID) -> String {
+        "\(keyPrefix)\(userId.uuidString.lowercased())"
+    }
+}
+
 class ExerciseService : ServiceBase, ObservableObject {
+    private struct CatalogOverlaySnapshot {
+        let npId: String
+        let aliases: [String]
+        let isArchived: Bool
+    }
+
     struct NpIdMergeReport {
         let groupsMerged: Int
         let duplicatesRemoved: Int
@@ -78,6 +165,7 @@ class ExerciseService : ServiceBase, ObservableObject {
     @Published private(set) var lastCatalogSyncError: String?
     @Published private(set) var lastCatalogRouteUsed: String?
     @Published private(set) var lastUserRouteUsed: String?
+    @Published private(set) var exerciseListRevision: Int = 0
 
     var isCatalogSyncInFlight: Bool {
         switch catalogSyncPhase {
@@ -90,60 +178,48 @@ class ExerciseService : ServiceBase, ObservableObject {
 
     private let apiHelper: API_Helper
     private let repository: ExerciseRepositoryProtocol
+    private let remoteRepository: RemoteExerciseRepository
     private let routeResolver: ExerciseRouteResolver
     private let catalogSyncStateStore: ExerciseCatalogSyncStateStore
+    private let catalogOverlayStore: ExerciseCatalogOverlayStore
     private let catalogSyncTTL: TimeInterval = 24 * 60 * 60
     private let thumbnailPrefetchConcurrency: Int = 3
     private var catalogSyncTask: Task<Void, Never>?
+    private var catalogPreferenceTask: Task<Void, Never>?
+    private var pendingRemoteCatalogPreference: Bool?
 
     init(
         context: ModelContext,
         repository: ExerciseRepositoryProtocol? = nil,
         apiHelper: API_Helper = API_Helper(),
+        remoteRepository: RemoteExerciseRepository? = nil,
         routeResolver: ExerciseRouteResolver = ExerciseRouteResolver(),
-        catalogSyncStateStore: ExerciseCatalogSyncStateStore = .shared
+        catalogSyncStateStore: ExerciseCatalogSyncStateStore = .shared,
+        catalogOverlayStore: ExerciseCatalogOverlayStore = .shared
     ) {
         self.apiHelper = apiHelper
         self.repository = repository ?? LocalExerciseRepository(modelContext: context)
+        self.remoteRepository = remoteRepository ?? RemoteExerciseRepository(apiHelper: apiHelper)
         self.routeResolver = routeResolver
         self.catalogSyncStateStore = catalogSyncStateStore
+        self.catalogOverlayStore = catalogOverlayStore
         super.init(context: context)
     }
 
     override func loadFeature() {
         refreshExerciseLists()
-        guard let user = currentUser else {
-            catalogSyncTask?.cancel()
-            catalogSyncTask = nil
-            catalogSyncEnabledForCurrentUser = false
-            showExistingUserCatalogPrompt = false
-            catalogSyncPhase = .idle
-            catalogSyncProgressCompleted = 0
-            catalogSyncProgressTotal = 0
-            catalogSyncStatusText = ""
-            lastCatalogSyncError = nil
-            lastCatalogRouteUsed = nil
-            lastUserRouteUsed = nil
+        resetExerciseSyncState()
+
+        guard let user = currentUser, user.isDemo != true else {
             return
         }
 
-        guard user.isDemo != true else {
-            catalogSyncTask?.cancel()
-            catalogSyncTask = nil
-            catalogSyncEnabledForCurrentUser = false
-            showExistingUserCatalogPrompt = false
-            lastCatalogRouteUsed = nil
-            lastUserRouteUsed = nil
-            return
-        }
+        migrateCatalogPreferenceIfNeeded(for: user)
+        scheduleExerciseSync(reason: "userChanged", forceCatalog: false)
+    }
 
-        let state = stateForUser(user.id)
-        catalogSyncEnabledForCurrentUser = state.optedIn
-        showExistingUserCatalogPrompt = !state.hasSeenExistingUserPrompt && !state.optedIn
-
-        if state.optedIn {
-            syncCatalogIfNeeded(reason: "userChanged")
-        }
+    override func sync() {
+        scheduleExerciseSync(reason: "serviceSyncKickoff", forceCatalog: false)
     }
     
     func loadExercises() {
@@ -173,16 +249,35 @@ class ExerciseService : ServiceBase, ObservableObject {
     }
 
     func setCatalogSyncEnabled(_ enabled: Bool) {
-        guard let userId = currentUser?.id else { return }
-        var state = stateForUser(userId)
-        state.optedIn = enabled
-        state.hasSeenExistingUserPrompt = true
-        saveState(state, for: userId)
-        catalogSyncEnabledForCurrentUser = enabled
-        showExistingUserCatalogPrompt = false
+        guard let user = currentUser else { return }
+
+        do {
+            try applyCatalogPreferenceLocally(
+                enabled,
+                markPromptSeen: true,
+                hideExercisesWhenDisabled: true
+            )
+        } catch {
+            print("Failed to save catalog preference locally: \(error)")
+        }
+
+        catalogPreferenceTask?.cancel()
+        pendingRemoteCatalogPreference = shouldPersistCatalogPreferenceRemotely(for: user) ? enabled : nil
 
         if enabled {
-            syncCatalogIfNeeded(reason: "toggleEnabled")
+            catalogPreferenceTask = Task(priority: .utility) { @MainActor [weak self] in
+                guard let self else { return }
+                await self.persistCatalogPreferenceRemotelyIfNeeded(enabled)
+                await self.syncCatalogNow(force: true)
+            }
+        } else {
+            catalogSyncTask?.cancel()
+            catalogSyncTask = nil
+            resetCatalogSyncUI()
+            catalogPreferenceTask = Task(priority: .utility) { @MainActor [weak self] in
+                guard let self else { return }
+                await self.persistCatalogPreferenceRemotelyIfNeeded(enabled)
+            }
         }
     }
 
@@ -195,74 +290,65 @@ class ExerciseService : ServiceBase, ObservableObject {
         }
         let task = Task(priority: .utility) { @MainActor [weak self] in
             guard let self else { return }
-            await self.runCatalogSync(force: force, reason: "manual")
+            await self.runExerciseSync(forceCatalog: force, reason: "manual")
         }
         catalogSyncTask = task
         await task.value
     }
 
     func acceptExistingUserCatalogPromptAndSync() {
-        guard let userId = currentUser?.id else { return }
-        var state = stateForUser(userId)
-        state.optedIn = true
-        state.hasSeenExistingUserPrompt = true
-        saveState(state, for: userId)
-        catalogSyncEnabledForCurrentUser = true
-        showExistingUserCatalogPrompt = false
-        Task(priority: .utility) { @MainActor in
-            await self.syncCatalogNow(force: true)
-        }
+        setCatalogSyncEnabled(true)
     }
 
     func dismissExistingUserCatalogPrompt() {
         guard let userId = currentUser?.id else { return }
         var state = stateForUser(userId)
+        state.optedIn = currentUser?.exerciseCatalogEnabled ?? state.optedIn
         state.hasSeenExistingUserPrompt = true
         saveState(state, for: userId)
         showExistingUserCatalogPrompt = false
     }
 
     func completeOnboardingCatalogChoice(downloadCatalog: Bool) {
-        guard let userId = currentUser?.id else { return }
-        var state = stateForUser(userId)
-        state.optedIn = downloadCatalog
-        state.hasSeenExistingUserPrompt = true
-        saveState(state, for: userId)
-        catalogSyncEnabledForCurrentUser = downloadCatalog
-        showExistingUserCatalogPrompt = false
-
-        if downloadCatalog {
-            Task(priority: .utility) { @MainActor in
-                await self.syncCatalogNow(force: true)
-            }
-        }
+        setCatalogSyncEnabled(downloadCatalog)
     }
 
-    private func syncCatalogIfNeeded(reason: String) {
+    private func scheduleExerciseSync(reason: String, forceCatalog: Bool) {
         guard catalogSyncTask == nil else { return }
         catalogSyncTask = Task(priority: .utility) { @MainActor [weak self] in
             guard let self else { return }
-            await self.runCatalogSync(force: false, reason: reason)
+            await self.runExerciseSync(forceCatalog: forceCatalog, reason: reason)
         }
     }
 
-    private func runCatalogSync(force: Bool, reason: String) async {
+    private func runExerciseSync(forceCatalog: Bool, reason: String) async {
         defer { catalogSyncTask = nil }
-
         guard let user = currentUser else { return }
         guard user.isDemo != true else { return }
         guard !Task.isCancelled else { return }
 
+        await syncRemoteCatalogPreferenceIfNeeded(for: user)
+        guard !Task.isCancelled else { return }
+
+        await reconcileCatalogOverlaysIfNeeded(for: user)
+        guard !Task.isCancelled else { return }
+
+        await syncRemoteUserExercisesIfNeeded(for: user)
+        guard !Task.isCancelled else { return }
+
+        guard user.exerciseCatalogEnabled else { return }
+
+        await runCatalogSync(force: forceCatalog, reason: reason)
+    }
+
+    private func runCatalogSync(force: Bool, reason: String) async {
+        guard let user = currentUser else { return }
+        guard user.isDemo != true else { return }
+        guard user.exerciseCatalogEnabled else { return }
+        guard !Task.isCancelled else { return }
+
         var state = stateForUser(user.id)
-        if !force && !state.optedIn {
-            return
-        }
-        if !force, let lastSuccess = state.lastSuccessfulSyncAt {
-            let age = Date().timeIntervalSince(lastSuccess)
-            if age < catalogSyncTTL {
-                return
-            }
-        }
+        let shouldFetchCatalog = shouldFetchCatalogBase(force: force, state: state)
 
         catalogSyncPhase = .checking
         catalogSyncProgressCompleted = 0
@@ -270,46 +356,55 @@ class ExerciseService : ServiceBase, ObservableObject {
         catalogSyncStatusText = "Checking ExerciseDB..."
         lastCatalogSyncError = nil
 
-        let hasAuth = (BackendSessionStore.shared.accessToken?.isEmpty == false)
+        let hasAuth = hasAuthorizedBackendSession
         let catalogSource = routeResolver.catalogSource(for: hasAuth)
         lastCatalogRouteUsed = catalogSource.routeDescription
-        lastUserRouteUsed = nil
         var shouldPrefetchThumbnails = false
+        var didChangeCatalog = false
 
         do {
-            let catalogResult = try await catalogSource.fetchCatalog(ifNoneMatch: state.etag)
-            state.lastAttemptAt = Date()
+            if shouldFetchCatalog {
+                let requestETag = force ? nil : state.etag
+                let catalogResult = try await catalogSource.fetchCatalog(ifNoneMatch: requestETag)
+                state.lastAttemptAt = Date()
 
-            switch catalogResult {
-            case .notModified(let etag):
-                if let etag, !etag.isEmpty {
-                    state.etag = etag
+                switch catalogResult {
+                case .notModified(let etag):
+                    if let etag, !etag.isEmpty {
+                        state.etag = etag
+                    }
+                    state.lastSuccessfulSyncAt = Date()
+
+                case .catalog(let items, let etag):
+                    catalogSyncPhase = .downloading
+                    catalogSyncStatusText = "Downloading ExerciseDB..."
+                    catalogSyncProgressCompleted = 0
+                    catalogSyncProgressTotal = max(items.count, 1)
+
+                    catalogSyncPhase = .applying
+                    catalogSyncStatusText = "Applying ExerciseDB updates..."
+                    let result = try repository.applyCatalogExercises(items, for: user.id, allowInsert: true)
+                    didChangeCatalog = (result.inserted + result.updated + result.removed) > 0
+                    catalogSyncProgressCompleted = catalogSyncProgressTotal
+                    shouldPrefetchThumbnails = didChangeCatalog
+
+                    if let etag, !etag.isEmpty {
+                        state.etag = etag
+                    }
+                    state.lastSuccessfulSyncAt = Date()
                 }
-                state.lastSuccessfulSyncAt = Date()
-
-            case .catalog(let items, let etag):
-                catalogSyncPhase = .downloading
-                catalogSyncStatusText = "Downloading ExerciseDB..."
-                catalogSyncProgressCompleted = 0
-                catalogSyncProgressTotal = max(items.count, 1)
-
-                catalogSyncPhase = .applying
-                catalogSyncStatusText = "Applying ExerciseDB updates..."
-                _ = try repository.applyCatalogExercises(items, for: user.id, allowInsert: true)
-                refreshExerciseLists()
-                catalogSyncProgressCompleted = catalogSyncProgressTotal
-                shouldPrefetchThumbnails = true
-
-                if let etag, !etag.isEmpty {
-                    state.etag = etag
-                }
-                state.lastSuccessfulSyncAt = Date()
             }
 
-            if let userSource = routeResolver.userSource(for: hasAuth) {
-                lastUserRouteUsed = userSource.routeDescription
-                let remoteUserRecords = try await userSource.fetchUserExercises()
-                _ = try repository.applyRemoteUserExercises(remoteUserRecords, for: user.id)
+            let localOverlays = catalogOverlayStore.loadAll(for: user.id)
+            if localOverlays.isEmpty == false {
+                let overlayUpdates = try repository.applyCatalogOverlays(
+                    localOverlays.map(catalogOverlayDTO(from:)),
+                    for: user.id
+                )
+                didChangeCatalog = didChangeCatalog || overlayUpdates > 0
+            }
+
+            if didChangeCatalog {
                 refreshExerciseLists()
             }
 
@@ -371,6 +466,354 @@ class ExerciseService : ServiceBase, ObservableObject {
         catalogSyncStateStore.save(state, for: userId)
     }
 
+    private func resetCatalogSyncUI() {
+        catalogSyncPhase = .idle
+        catalogSyncProgressCompleted = 0
+        catalogSyncProgressTotal = 0
+        catalogSyncStatusText = ""
+        lastCatalogSyncError = nil
+    }
+
+    private func resetExerciseSyncState() {
+        catalogSyncTask?.cancel()
+        catalogPreferenceTask?.cancel()
+        catalogSyncTask = nil
+        catalogPreferenceTask = nil
+        pendingRemoteCatalogPreference = nil
+        catalogSyncEnabledForCurrentUser = false
+        showExistingUserCatalogPrompt = false
+        resetCatalogSyncUI()
+        lastCatalogRouteUsed = nil
+        lastUserRouteUsed = nil
+    }
+
+    private func migrateCatalogPreferenceIfNeeded(for user: User) {
+        var state = stateForUser(user.id)
+        let resolvedEnabled = user.exerciseCatalogEnabled || state.optedIn
+
+        if user.exerciseCatalogEnabled != resolvedEnabled {
+            user.exerciseCatalogEnabled = resolvedEnabled
+            user.updatedAt = Date()
+            try? modelContext.save()
+        }
+
+        if state.optedIn != resolvedEnabled {
+            state.optedIn = resolvedEnabled
+            saveState(state, for: user.id)
+        }
+
+        catalogSyncEnabledForCurrentUser = resolvedEnabled
+        showExistingUserCatalogPrompt = !state.hasSeenExistingUserPrompt && !resolvedEnabled
+    }
+
+    private func applyCatalogPreferenceLocally(
+        _ enabled: Bool,
+        markPromptSeen: Bool? = nil,
+        hideExercisesWhenDisabled: Bool = false
+    ) throws {
+        guard let user = currentUser else { return }
+
+        var shouldSaveUser = false
+        if user.exerciseCatalogEnabled != enabled {
+            user.exerciseCatalogEnabled = enabled
+            user.updatedAt = Date()
+            shouldSaveUser = true
+        }
+
+        var state = stateForUser(user.id)
+        if state.optedIn != enabled {
+            state.optedIn = enabled
+        }
+        if let markPromptSeen {
+            state.hasSeenExistingUserPrompt = markPromptSeen
+        }
+
+        if shouldSaveUser {
+            try modelContext.save()
+        }
+
+        if hideExercisesWhenDisabled && enabled == false {
+            let result = try repository.hideCatalogExercises(for: user.id)
+            state.temporarilyHiddenNpIds = result.hiddenNpIds
+        } else if enabled, !state.temporarilyHiddenNpIds.isEmpty {
+            _ = try repository.restoreCatalogExercises(
+                withNpIds: state.temporarilyHiddenNpIds,
+                for: user.id
+            )
+            state.temporarilyHiddenNpIds = []
+        }
+
+        saveState(state, for: user.id)
+
+        catalogSyncEnabledForCurrentUser = enabled
+        showExistingUserCatalogPrompt = !state.hasSeenExistingUserPrompt && !enabled
+        if enabled == false {
+            resetCatalogSyncUI()
+        }
+        refreshExerciseLists()
+    }
+
+    private var hasAuthorizedBackendSession: Bool {
+        guard let accessToken = BackendSessionStore.shared.accessToken else {
+            return false
+        }
+        return accessToken.isEmpty == false
+    }
+
+    private func shouldFetchCatalogBase(force: Bool, state: ExerciseCatalogSyncState) -> Bool {
+        if force {
+            return true
+        }
+
+        guard let lastSuccess = state.lastSuccessfulSyncAt else {
+            return true
+        }
+
+        let age = Date().timeIntervalSince(lastSuccess)
+        return age >= catalogSyncTTL
+    }
+
+    private func shouldPersistCatalogPreferenceRemotely(for user: User) -> Bool {
+        user.remoteSyncEnabled && hasAuthorizedBackendSession
+    }
+
+    @MainActor
+    private func reconcileRemoteCatalogPreference(
+        _ remotePreference: Bool,
+        for user: User
+    ) async {
+        if let pendingPreference = pendingRemoteCatalogPreference {
+            if remotePreference == pendingPreference {
+                pendingRemoteCatalogPreference = nil
+            } else {
+                await persistCatalogPreferenceRemotelyIfNeeded(pendingPreference)
+            }
+            return
+        }
+
+        guard user.exerciseCatalogEnabled != remotePreference else { return }
+        await persistCatalogPreferenceRemotelyIfNeeded(user.exerciseCatalogEnabled)
+    }
+
+    @MainActor
+    private func syncRemoteCatalogPreferenceIfNeeded(for user: User) async {
+        guard user.remoteSyncEnabled else { return }
+        guard hasAuthorizedBackendSession else { return }
+
+        do {
+            let response: BackendMeResponseDTO =
+                try await apiHelper.asyncAuthorizedRequestData(route: APIRoute.me)
+
+            var shouldSaveUser = false
+            if user.remoteAccountId != response.id {
+                user.remoteAccountId = response.id
+                user.updatedAt = Date()
+                shouldSaveUser = true
+            }
+
+            if let remotePreference = response.exerciseCatalogEnabled {
+                await reconcileRemoteCatalogPreference(remotePreference, for: user)
+            }
+
+            if shouldSaveUser {
+                try modelContext.save()
+            }
+        } catch {
+            print("Failed to refresh remote exercise catalog preference: \(error)")
+        }
+    }
+
+    @MainActor
+    private func syncRemoteUserExercisesIfNeeded(for user: User) async {
+        guard user.remoteSyncEnabled else {
+            lastUserRouteUsed = nil
+            return
+        }
+        guard hasAuthorizedBackendSession else {
+            lastUserRouteUsed = nil
+            return
+        }
+        guard let userSource = routeResolver.userSource(for: true) else {
+            lastUserRouteUsed = nil
+            return
+        }
+
+        do {
+            lastUserRouteUsed = userSource.routeDescription
+            let remoteExercises = try await userSource.fetchUserExercises()
+            let result = try repository.applyRemoteUserExercises(remoteExercises, for: user.id)
+            if (result.inserted + result.updated + result.removed) > 0 {
+                refreshExerciseLists()
+            }
+        } catch {
+            print("Failed to sync remote user exercises: \(error)")
+        }
+    }
+
+    @MainActor
+    private func persistCatalogPreferenceRemotelyIfNeeded(_ enabled: Bool) async {
+        guard let user = currentUser else { return }
+        guard shouldPersistCatalogPreferenceRemotely(for: user) else {
+            pendingRemoteCatalogPreference = nil
+            return
+        }
+
+        do {
+            let response: BackendMeResponseDTO =
+                try await apiHelper.asyncAuthorizedRequestData(
+                    route: APIRoute.mePreferences,
+                    httpMethod: .PATCH,
+                    body: BackendMePreferencesUpdateRequest(exerciseCatalogEnabled: enabled)
+                )
+
+            var shouldSaveUser = false
+            if user.remoteAccountId != response.id {
+                user.remoteAccountId = response.id
+                user.updatedAt = Date()
+                shouldSaveUser = true
+            }
+
+            if let confirmedPreference = response.exerciseCatalogEnabled {
+                if confirmedPreference == enabled {
+                    pendingRemoteCatalogPreference = nil
+                } else {
+                    print("Remote exercise catalog preference did not match local pending value.")
+                }
+            } else {
+                pendingRemoteCatalogPreference = nil
+            }
+
+            if shouldSaveUser {
+                try modelContext.save()
+            }
+        } catch {
+            print("Failed to push remote exercise catalog preference: \(error)")
+        }
+    }
+
+    private func catalogOverlaySnapshot(for exercise: Exercise) -> CatalogOverlaySnapshot? {
+        guard exercise.isUserCreated == false else { return nil }
+        guard let npId = exercise.npId?.trimmingCharacters(in: .whitespacesAndNewlines), !npId.isEmpty else {
+            return nil
+        }
+
+        return CatalogOverlaySnapshot(
+            npId: npId,
+            aliases: exercise.aliases ?? [],
+            isArchived: exercise.isArchived || exercise.soft_deleted
+        )
+    }
+
+    private func reconcileCatalogOverlaysIfNeeded(for user: User) async {
+        let localOverlays = captureLiveCatalogOverlaysIntoStore(for: user)
+
+        guard user.remoteSyncEnabled else {
+            if user.exerciseCatalogEnabled {
+                applyCatalogOverlaysLocally(localOverlays, for: user.id)
+            }
+            return
+        }
+
+        guard hasAuthorizedBackendSession else {
+            if user.exerciseCatalogEnabled {
+                applyCatalogOverlaysLocally(localOverlays, for: user.id)
+            }
+            return
+        }
+        guard let overlaySource = routeResolver.overlaySource(for: true) else {
+            if user.exerciseCatalogEnabled {
+                applyCatalogOverlaysLocally(localOverlays, for: user.id)
+            }
+            return
+        }
+
+        do {
+            let remoteOverlays = try await overlaySource.fetchCatalogOverlays(updatedAfter: nil)
+            let remoteByNpId = Dictionary(
+                uniqueKeysWithValues: remoteOverlays.map {
+                    (normalizedCatalogNpId($0.npId), catalogOverlayState(from: $0))
+                }
+            )
+
+            let mergedOverlays = mergeCatalogOverlays(
+                localByNpId: localOverlays,
+                remoteByNpId: remoteByNpId
+            )
+            let orderedMergedOverlays = mergedOverlays.values.sorted {
+                $0.npId.localizedCaseInsensitiveCompare($1.npId) == .orderedAscending
+            }
+            catalogOverlayStore.saveAll(orderedMergedOverlays, for: user.id)
+
+            if user.exerciseCatalogEnabled {
+                applyCatalogOverlaysLocally(mergedOverlays, for: user.id)
+            }
+
+            for overlay in overlaysNeedingRemotePush(
+                mergedByNpId: mergedOverlays,
+                remoteByNpId: remoteByNpId
+            ) {
+                do {
+                    _ = try await remoteRepository.updateCatalogOverlay(
+                        npId: overlay.npId,
+                        aliases: overlay.aliases,
+                        isArchived: overlay.hidden
+                    )
+                } catch {
+                    print("Failed to push reconciled catalog overlay \(overlay.npId): \(error)")
+                }
+            }
+        } catch {
+            print("Failed to reconcile catalog overlays: \(error)")
+            if user.exerciseCatalogEnabled {
+                applyCatalogOverlaysLocally(localOverlays, for: user.id)
+            }
+        }
+    }
+
+    private func persistCatalogOverlayLocally(snapshot: CatalogOverlaySnapshot?) {
+        guard let snapshot else { return }
+        guard let userId = currentUser?.id else { return }
+
+        let overlay = ExerciseCatalogOverlayState(
+            npId: normalizedCatalogNpId(snapshot.npId),
+            aliases: canonicalAliases(snapshot.aliases),
+            hidden: snapshot.isArchived,
+            updatedAt: Date()
+        )
+        var storedOverlays: [String: ExerciseCatalogOverlayState] = [:]
+        for storedOverlay in catalogOverlayStore.loadAll(for: userId) {
+            storedOverlays[normalizedCatalogNpId(storedOverlay.npId)] = storedOverlay
+        }
+
+        if shouldPersistCatalogOverlay(overlay) {
+            storedOverlays[overlay.npId] = overlay
+        } else {
+            storedOverlays.removeValue(forKey: overlay.npId)
+        }
+
+        catalogOverlayStore.saveAll(Array(storedOverlays.values), for: userId)
+    }
+
+    private func syncCatalogOverlayIfNeeded(snapshot: CatalogOverlaySnapshot?) {
+        persistCatalogOverlayLocally(snapshot: snapshot)
+        guard let snapshot else { return }
+        guard let user = currentUser, user.remoteSyncEnabled else { return }
+        guard hasAuthorizedBackendSession else { return }
+        let normalizedAliases = canonicalAliases(snapshot.aliases)
+
+        Task(priority: .utility) { [remoteRepository] in
+            do {
+                _ = try await remoteRepository.updateCatalogOverlay(
+                    npId: snapshot.npId,
+                    aliases: normalizedAliases,
+                    isArchived: snapshot.isArchived
+                )
+            } catch {
+                print("Failed to push catalog overlay update: \(error)")
+            }
+        }
+    }
+
     func search(query: String) -> [Exercise] {
         print("searching exercise \(query)")
         guard !query.isEmpty else { return exercises }
@@ -395,7 +838,9 @@ class ExerciseService : ServiceBase, ObservableObject {
     func setAliases(for exercise: Exercise, aliases: [String]) -> Bool {
         do {
             try repository.setAliases(aliases, for: exercise)
+            let overlaySnapshot = catalogOverlaySnapshot(for: exercise)
             refreshExerciseLists()
+            syncCatalogOverlayIfNeeded(snapshot: overlaySnapshot)
             return true
         } catch {
             print("Failed to save exercise aliases: \(error)")
@@ -497,7 +942,9 @@ class ExerciseService : ServiceBase, ObservableObject {
     func addRestoredExercise(_ exercise: Exercise) {
         do {
             try repository.reinsertOrRestore(exercise)
+            let overlaySnapshot = catalogOverlaySnapshot(for: exercise)
             refreshExerciseLists()
+            syncCatalogOverlayIfNeeded(snapshot: overlaySnapshot)
         } catch {
             print("Failed to restore exercise: \(error)")
         }
@@ -505,6 +952,7 @@ class ExerciseService : ServiceBase, ObservableObject {
 
     func delete(_ exercise: Exercise) throws {
         try repository.delete(exercise)
+        syncCatalogOverlayIfNeeded(snapshot: catalogOverlaySnapshot(for: exercise))
     }
 
     func willArchiveOnDelete(_ exercise: Exercise) -> Bool {
@@ -513,7 +961,9 @@ class ExerciseService : ServiceBase, ObservableObject {
 
     func restore(_ exercise: Exercise) throws {
         try repository.restore(exercise)
+        let overlaySnapshot = catalogOverlaySnapshot(for: exercise)
         refreshExerciseLists()
+        syncCatalogOverlayIfNeeded(snapshot: overlaySnapshot)
     }
 
     @MainActor
@@ -530,15 +980,249 @@ class ExerciseService : ServiceBase, ObservableObject {
     private func refreshExerciseLists() {
         loadExercises()
         loadArchivedExercises()
+        exerciseListRevision &+= 1
+    }
+
+    private func captureLiveCatalogOverlaysIntoStore(for user: User) -> [String: ExerciseCatalogOverlayState] {
+        var storedOverlays: [String: ExerciseCatalogOverlayState] = [:]
+        for overlay in catalogOverlayStore.loadAll(for: user.id) {
+            storedOverlays[normalizedCatalogNpId(overlay.npId)] = normalizedCatalogOverlayState(overlay)
+        }
+        let temporarilyHiddenNpIds = Set(
+            stateForUser(user.id).temporarilyHiddenNpIds.map { normalizedCatalogNpId($0) }
+        )
+        let visibleCatalogExercises = exercises + archivedExercises
+
+        for exercise in visibleCatalogExercises {
+            guard let liveOverlay = catalogOverlayState(
+                from: exercise,
+                temporarilyHiddenNpIds: temporarilyHiddenNpIds
+            ) else { continue }
+
+            let key = liveOverlay.npId
+            let merged = mergeCatalogOverlay(local: liveOverlay, remote: storedOverlays[key])
+            if let merged {
+                storedOverlays[key] = merged
+            } else {
+                storedOverlays.removeValue(forKey: key)
+            }
+        }
+
+        catalogOverlayStore.saveAll(Array(storedOverlays.values), for: user.id)
+        return storedOverlays
+    }
+
+    private func applyCatalogOverlaysLocally(
+        _ overlaysByNpId: [String: ExerciseCatalogOverlayState],
+        for userId: UUID
+    ) {
+        guard overlaysByNpId.isEmpty == false else { return }
+
+        do {
+            let updatedCount = try repository.applyCatalogOverlays(
+                overlaysByNpId.values.map(catalogOverlayDTO(from:)),
+                for: userId
+            )
+            if updatedCount > 0 {
+                refreshExerciseLists()
+            }
+        } catch {
+            print("Failed to apply local catalog overlays: \(error)")
+        }
+    }
+
+    private func mergeCatalogOverlays(
+        localByNpId: [String: ExerciseCatalogOverlayState],
+        remoteByNpId: [String: ExerciseCatalogOverlayState]
+    ) -> [String: ExerciseCatalogOverlayState] {
+        let allNpIds = Set(localByNpId.keys).union(remoteByNpId.keys)
+        var merged: [String: ExerciseCatalogOverlayState] = [:]
+
+        for npId in allNpIds {
+            let resolved = mergeCatalogOverlay(
+                local: localByNpId[npId],
+                remote: remoteByNpId[npId]
+            )
+            if let resolved {
+                merged[npId] = resolved
+            }
+        }
+
+        return merged
+    }
+
+    private func mergeCatalogOverlay(
+        local: ExerciseCatalogOverlayState?,
+        remote: ExerciseCatalogOverlayState?
+    ) -> ExerciseCatalogOverlayState? {
+        guard local != nil || remote != nil else { return nil }
+
+        let npId = local?.npId ?? remote?.npId ?? ""
+        let aliases = mergeAliases(
+            local?.aliases ?? [],
+            remote?.aliases ?? []
+        )
+        let hidden = local?.hidden ?? remote?.hidden ?? false
+        let updatedAt = max(
+            local?.updatedAt ?? .distantPast,
+            remote?.updatedAt ?? .distantPast
+        )
+        let merged = ExerciseCatalogOverlayState(
+            npId: npId,
+            aliases: aliases,
+            hidden: hidden,
+            updatedAt: updatedAt
+        )
+
+        return shouldPersistCatalogOverlay(merged) ? merged : nil
+    }
+
+    private func overlaysNeedingRemotePush(
+        mergedByNpId: [String: ExerciseCatalogOverlayState],
+        remoteByNpId: [String: ExerciseCatalogOverlayState]
+    ) -> [ExerciseCatalogOverlayState] {
+        mergedByNpId.values
+            .filter { mergedOverlay in
+                let remoteOverlay = remoteByNpId[mergedOverlay.npId]
+                return overlaysEqual(lhs: mergedOverlay, rhs: remoteOverlay) == false
+            }
+            .sorted {
+                $0.npId.localizedCaseInsensitiveCompare($1.npId) == .orderedAscending
+            }
+    }
+
+    private func catalogOverlayState(from dto: GymTrackerCatalogOverlayDTO) -> ExerciseCatalogOverlayState {
+        ExerciseCatalogOverlayState(
+            npId: normalizedCatalogNpId(dto.npId),
+            aliases: canonicalAliases(dto.aliases),
+            hidden: dto.hidden,
+            updatedAt: parsedCatalogOverlayDate(dto.updatedAt) ?? Date.distantPast
+        )
+    }
+
+    private func catalogOverlayDTO(from overlay: ExerciseCatalogOverlayState) -> GymTrackerCatalogOverlayDTO {
+        GymTrackerCatalogOverlayDTO(
+            npId: overlay.npId,
+            aliases: canonicalAliases(overlay.aliases),
+            hidden: overlay.hidden,
+            updatedAt: formattedCatalogOverlayDate(overlay.updatedAt)
+        )
+    }
+
+    private func catalogOverlayState(
+        from exercise: Exercise,
+        temporarilyHiddenNpIds: Set<String>
+    ) -> ExerciseCatalogOverlayState? {
+        guard exercise.isUserCreated == false else { return nil }
+        guard let rawNpId = exercise.npId else { return nil }
+
+        let npId = normalizedCatalogNpId(rawNpId)
+        let aliases = canonicalAliases(exercise.aliases ?? [])
+        let hiddenByTemporaryToggle = temporarilyHiddenNpIds.contains(npId)
+        let hidden = (exercise.isArchived || exercise.soft_deleted) && !hiddenByTemporaryToggle
+        let overlay = ExerciseCatalogOverlayState(
+            npId: npId,
+            aliases: aliases,
+            hidden: hidden,
+            updatedAt: exercise.updatedAt
+        )
+
+        return shouldPersistCatalogOverlay(overlay) ? overlay : nil
+    }
+
+    private func normalizedCatalogOverlayState(
+        _ overlay: ExerciseCatalogOverlayState
+    ) -> ExerciseCatalogOverlayState {
+        ExerciseCatalogOverlayState(
+            npId: normalizedCatalogNpId(overlay.npId),
+            aliases: canonicalAliases(overlay.aliases),
+            hidden: overlay.hidden,
+            updatedAt: overlay.updatedAt
+        )
+    }
+
+    private func overlaysEqual(
+        lhs: ExerciseCatalogOverlayState,
+        rhs: ExerciseCatalogOverlayState?
+    ) -> Bool {
+        guard let rhs else { return false }
+        return lhs.hidden == rhs.hidden && canonicalAliases(lhs.aliases) == canonicalAliases(rhs.aliases)
+    }
+
+    private func shouldPersistCatalogOverlay(_ overlay: ExerciseCatalogOverlayState) -> Bool {
+        overlay.hidden || canonicalAliases(overlay.aliases).isEmpty == false
+    }
+
+    private func mergeAliases(_ localAliases: [String], _ remoteAliases: [String]) -> [String] {
+        canonicalAliases(localAliases + remoteAliases)
+    }
+
+    private func canonicalAliases(_ aliases: [String]) -> [String] {
+        var seen = Set<String>()
+        var normalizedAliases: [String] = []
+
+        for alias in aliases {
+            let trimmed = alias.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.isEmpty == false else { continue }
+
+            let key = trimmed.lowercased()
+            guard seen.insert(key).inserted else { continue }
+            normalizedAliases.append(trimmed)
+        }
+
+        return normalizedAliases.sorted {
+            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        }
+    }
+
+    private func normalizedCatalogNpId(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private func parsedCatalogOverlayDate(_ value: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let parsed = formatter.date(from: value) {
+            return parsed
+        }
+
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: value)
+    }
+
+    private func formattedCatalogOverlayDate(_ date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.string(from: date)
     }
 }
 
 
 extension ExerciseService {
-    func thumbnailURL(for exercise: Exercise) -> URL? {
+    func thumbnailURL(images: [String], isUserCreated: Bool) -> URL? {
         guard
-            let first = exercise.images?.first,
-            let url = apiHelper.resolveMediaURL(first)
+            let first = images.first,
+            let url = apiHelper.resolveMediaURL(
+                first,
+                baseURLKind: isUserCreated ? .backend : .exerciseDB
+            )
+        else {
+            return nil
+        }
+        return url
+    }
+
+    func thumbnailURL(for exercise: Exercise) -> URL? {
+        thumbnailURL(images: exercise.images ?? [], isUserCreated: exercise.isUserCreated)
+    }
+
+    func gifURL(images: [String], isUserCreated: Bool) -> URL? {
+        guard
+            let last = images.last,
+            let url = apiHelper.resolveMediaURL(
+                last,
+                baseURLKind: isUserCreated ? .backend : .exerciseDB
+            )
         else {
             return nil
         }
@@ -546,13 +1230,7 @@ extension ExerciseService {
     }
 
     func gifURL(for exercise: Exercise) -> URL? {
-        guard
-            let last = exercise.images?.last,
-            let url = apiHelper.resolveMediaURL(last)
-        else {
-            return nil
-        }
-        return url
+        gifURL(images: exercise.images ?? [], isUserCreated: exercise.isUserCreated)
     }
 
     /// Caches the thumbnail (.first image)

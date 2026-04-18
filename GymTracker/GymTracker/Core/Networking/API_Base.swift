@@ -13,7 +13,7 @@ class API_Base {
     
     var apiData = API_Data()
     var baseAPIurl: String {
-        apiData.getURL()
+        apiData.baseURLString(for: .backend)
     }
 
     init(apiHelper: API_Helper) {

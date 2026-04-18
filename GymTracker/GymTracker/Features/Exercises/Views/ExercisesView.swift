@@ -11,37 +11,48 @@ import SwiftUI
 // add aliases to exercises
 // assign split day to exercises
 
+fileprivate struct ExerciseRowSnapshot: Identifiable {
+    let id: UUID
+    let name: String
+    let isUserCreated: Bool
+    let timestamp: Date
+    let thumbnailURL: URL?
+    let willArchiveOnDelete: Bool
+    let aliases: [String]
+    let primaryMuscles: [String]
+}
+
 struct ExercisesView: View {
     @EnvironmentObject var exerciseService: ExerciseService
     @Environment(\.editMode) private var editMode
     @State private var searchText: String = ""
     @State private var selectedMuscle: String = ""
     @State private var showUserExercisesOnly: Bool = false
+    @State private var exerciseRows: [ExerciseRowSnapshot] = []
     @EnvironmentObject var toastManager: ActionToastManager
 
-    private var scopeFilteredExercises: [Exercise] {
+    private var scopeFilteredRows: [ExerciseRowSnapshot] {
         if showUserExercisesOnly {
-            return exerciseService.exercises.filter { $0.isUserCreated }
+            return exerciseRows.filter { $0.isUserCreated }
         }
-        return exerciseService.exercises
+        return exerciseRows
     }
 
-    var filteredExercises: [Exercise] {
-        var result = scopeFilteredExercises
+    private var filteredExerciseRows: [ExerciseRowSnapshot] {
+        var result = scopeFilteredRows
 
         if !selectedMuscle.isEmpty {
-            result = result.filter { exercise in
-                guard let primaryMuscles = exercise.primary_muscles else { return false }
-                return primaryMuscles.contains(where: { $0.lowercased() == selectedMuscle.lowercased() })
+            result = result.filter { row in
+                row.primaryMuscles.contains(where: { $0.lowercased() == selectedMuscle.lowercased() })
             }
         }
 
         if !searchText.isEmpty {
-            result = result.filter { exercise in
-                if exercise.name.localizedCaseInsensitiveContains(searchText) {
+            result = result.filter { row in
+                if row.name.localizedCaseInsensitiveContains(searchText) {
                     return true
                 }
-                return (exercise.aliases ?? []).contains { alias in
+                return row.aliases.contains { alias in
                     alias.localizedCaseInsensitiveContains(searchText)
                 }
             }
@@ -52,21 +63,19 @@ struct ExercisesView: View {
 
     var uniqueMuscles: [String] {
         var muscles = Set<String>()
-        let filteredBySearch = scopeFilteredExercises.filter { exercise in
+        let filteredBySearch = scopeFilteredRows.filter { row in
             guard !searchText.isEmpty else { return true }
-            if exercise.name.localizedCaseInsensitiveContains(searchText) {
+            if row.name.localizedCaseInsensitiveContains(searchText) {
                 return true
             }
-            return (exercise.aliases ?? []).contains { alias in
+            return row.aliases.contains { alias in
                 alias.localizedCaseInsensitiveContains(searchText)
             }
         }
 
-        for exercise in filteredBySearch {
-            if let primaryMuscles = exercise.primary_muscles {
-                for muscle in primaryMuscles {
-                    muscles.insert(muscle)
-                }
+        for row in filteredBySearch {
+            for muscle in row.primaryMuscles {
+                muscles.insert(muscle)
             }
         }
 
@@ -81,7 +90,7 @@ struct ExercisesView: View {
 //                    .font(.title2)
 //                    .fontWeight(.bold)
                 
-                Text("\(filteredExercises.count) exercises")
+                Text("\(filteredExerciseRows.count) exercises")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -127,7 +136,7 @@ struct ExercisesView: View {
             .padding(.vertical, 12)
 
             // Exercises List
-            if exerciseService.exercises.isEmpty {
+            if exerciseRows.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "dumbbell.fill")
                         .font(.system(size: 40))
@@ -142,7 +151,7 @@ struct ExercisesView: View {
                 }
                 .frame(maxHeight: .infinity)
                 .padding()
-            } else if filteredExercises.isEmpty {
+            } else if filteredExerciseRows.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 40))
@@ -159,11 +168,11 @@ struct ExercisesView: View {
                 .padding()
             } else {
                 List {
-                    ForEach(filteredExercises, id: \.id) { exercise in
+                    ForEach(filteredExerciseRows) { row in
                         NavigationLink {
-                            SingleExerciseView(exercise: exercise)
+                            SingleExerciseView(exerciseId: row.id)
                         } label: {
-                            SingleExerciseLabelView(exercise: exercise)
+                            ExerciseListRow(snapshot: row)
                         }
                         .listRowInsets(EdgeInsets(top: 6, leading: 4, bottom: 6, trailing: 16))
                         .listRowSeparator(.hidden)
@@ -175,9 +184,9 @@ struct ExercisesView: View {
                         )
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             Button(role: .destructive) {
-                                deleteExercise(exercise)
+                                deleteExercise(id: row.id)
                             } label: {
-                                let isArchive = exerciseService.willArchiveOnDelete(exercise)
+                                let isArchive = row.willArchiveOnDelete
                                 Label(isArchive ? "Archive" : "Delete", systemImage: isArchive ? "archivebox" : "trash")
                             }
                         }
@@ -186,6 +195,7 @@ struct ExercisesView: View {
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
+                .id(exerciseService.exerciseListRevision)
             }
         }
         .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search exercises")
@@ -193,7 +203,7 @@ struct ExercisesView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
 #if os(iOS)
-            if !exerciseService.exercises.isEmpty {
+            if !exerciseRows.isEmpty {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     EditButton()
                 }
@@ -207,8 +217,17 @@ struct ExercisesView: View {
                 }
             }
         }
-        .onChange(of: exerciseService.exercises.isEmpty) {
-            if exerciseService.exercises.isEmpty {
+        .onAppear {
+            rebuildExerciseRows()
+        }
+        .onChange(of: exerciseService.exerciseListRevision) { _, _ in
+            rebuildExerciseRows()
+            if exerciseRows.isEmpty {
+                editMode?.wrappedValue = .inactive
+            }
+        }
+        .onChange(of: exerciseRows.isEmpty) {
+            if exerciseRows.isEmpty {
                 editMode?.wrappedValue = .inactive
             }
         }
@@ -256,13 +275,13 @@ struct ExercisesView: View {
 
     private func deleteFilteredExercises(offsets: IndexSet) {
         let ids = offsets.compactMap { index in
-            filteredExercises.indices.contains(index) ? filteredExercises[index].id : nil
+            filteredExerciseRows.indices.contains(index) ? filteredExerciseRows[index].id : nil
         }
         deleteExercisesOptimistic(ids: ids)
     }
 
-    private func deleteExercise(_ exercise: Exercise) {
-        deleteExercisesOptimistic(ids: [exercise.id])
+    private func deleteExercise(id: UUID) {
+        deleteExercisesOptimistic(ids: [id])
     }
 
     private func deleteExercisesOptimistic(ids: [UUID]) {
@@ -303,6 +322,62 @@ struct ExercisesView: View {
         )
     }
 
+    private func rebuildExerciseRows() {
+        exerciseRows = exerciseService.exercises.map { exercise in
+            ExerciseRowSnapshot(
+                id: exercise.id,
+                name: exercise.name,
+                isUserCreated: exercise.isUserCreated,
+                timestamp: exercise.timestamp,
+                thumbnailURL: exerciseService.thumbnailURL(for: exercise),
+                willArchiveOnDelete: exerciseService.willArchiveOnDelete(exercise),
+                aliases: exercise.aliases ?? [],
+                primaryMuscles: exercise.primary_muscles ?? []
+            )
+        }
+    }
+
+}
+
+private struct ExerciseListRow: View {
+    let snapshot: ExerciseRowSnapshot
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if snapshot.isUserCreated {
+                VStack(alignment: .leading) {
+                    Text(snapshot.name)
+                    HStack {
+                        Text(snapshot.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                }
+                .padding(.vertical, 4)
+            } else {
+                HStack {
+                    if let thumbnailURL = snapshot.thumbnailURL {
+                        CachedMediaView(url: thumbnailURL)
+                            .scaledToFill()
+                            .frame(width: 45, height: 45)
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                            .clipped()
+                            .padding(.trailing, 8)
+                    }
+
+                    VStack(alignment: .leading) {
+                        HStack {
+                            Text(snapshot.name)
+                            Spacer()
+                        }
+                    }
+                }
+            }
+        }
+        .padding(8)
+        .cornerRadius(12)
+    }
 }
 //
 //// Filter Pill Component

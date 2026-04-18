@@ -7,6 +7,10 @@
 
 import SwiftUI
 
+private struct OpenedSessionEntryTarget: Identifiable, Equatable, Hashable {
+    let id: UUID
+}
+
 // TODO: remove / add exercises from (+) menu
 
 struct SingleSessionView: View {
@@ -24,6 +28,8 @@ struct SingleSessionView: View {
     @State private var isUnlockedForEditing: Bool = false
     @StateObject private var sessionExerciseDraftStore = SessionExerciseDraftStore()
     @State private var trackedSessionEntryIds: Set<UUID> = []
+    @State private var openedSessionEntryTarget: OpenedSessionEntryTarget?
+    @State private var hasAutoOpenedPreferredExercise = false
 
     private let cardCornerRadius: CGFloat = 16
     private let accentGreen = Color.green
@@ -52,64 +58,8 @@ struct SingleSessionView: View {
                     .padding(.horizontal)
 
                 List {
-                    ForEach(session.sessionEntries.sorted { $0.order < $1.order }, id: \.id) { sessionEntry in
-                        NavigationLink {
-                            SessionExerciseView(
-                                sessionEntry: sessionEntry,
-                                navigationContext: SessionNavigationContext.forSession(session)
-                            )
-                            .appBackground()
-                            .environmentObject(sessionExerciseDraftStore)
-                        } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: sessionEntry.isCompleted ? "checkmark.arrow.trianglehead.counterclockwise" : "square.and.pencil")
-                                    .foregroundColor(sessionEntry.isCompleted ? .green : .secondary)
-                                    .padding(.horizontal, 8)
-
-                                VStack(alignment: .leading, spacing: 4) {
-                                    SingleExerciseLabelView(
-                                        exercise: sessionEntry.exercise,
-                                        orderInSplit: sessionEntry.order,
-                                        subtitleText: summaryText(for: sessionEntry)
-                                    )
-                                        .id(sessionEntry.order)
-                                }
-
-                                Spacer()
-                            }
-                            .padding(.vertical, 8)
-                        }
-                        .listRowInsets(EdgeInsets(top: 6, leading: 4, bottom: 6, trailing: 16))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.gray.opacity(0.1))
-                                .padding(.vertical, 4)
-                                .padding(.horizontal, 4)
-                        )
-                        .swipeActions(edge: (editMode?.wrappedValue == .inactive) ? .leading : .trailing, allowsFullSwipe: (editMode?.wrappedValue == .inactive)) {
-                            if canModifySessionExercises {
-                                Button {
-                                    seService.toggleCompletion(sessionEntry: sessionEntry)
-                                } label: {
-                                    Label(
-                                        sessionEntry.isCompleted ? "Uncheck" : "Complete",
-                                        systemImage: sessionEntry.isCompleted ? "pencil.slash" : "checkmark"
-                                    )
-                                }
-                                .tint(sessionEntry.isCompleted ? .orange : .green)
-                            }
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: (editMode?.wrappedValue == .inactive)) {
-                            if canModifySessionExercises {
-                                Button {
-                                    removeExerciseAndCleanupDraft(sessionEntry)
-                                } label: {
-                                    Label("Remove", systemImage: "trash")
-                                }
-                                .tint(.red)
-                            }
-                        }
+                    ForEach(sortedSessionEntries, id: \.id) { sessionEntry in
+                        sessionEntryLink(for: sessionEntry)
                     }
                     .onDelete(perform: removeExercise)
                     .onMove(perform: moveExercise)
@@ -155,8 +105,21 @@ struct SingleSessionView: View {
         .sheet(isPresented: $seService.addingExerciseSession) {
             addingExerciseSessionView(session: session)
         }
+        .navigationDestination(item: $openedSessionEntryTarget) { target in
+            if let sessionEntry = session.sessionEntries.first(where: { $0.id == target.id }) {
+                SessionExerciseView(
+                    sessionEntry: sessionEntry,
+                    navigationContext: navigationContext
+                )
+                .appBackground()
+                .environmentObject(sessionExerciseDraftStore)
+            } else {
+                EmptyView()
+            }
+        }
         .onAppear {
             trackedSessionEntryIds = Set(session.sessionEntries.map(\.id))
+            autoOpenPreferredExerciseIfNeeded()
         }
         .onChange(of: session.sessionEntries.map(\.id)) { _, newIds in
             let newSet = Set(newIds)
@@ -165,6 +128,7 @@ struct SingleSessionView: View {
                 sessionExerciseDraftStore.clearDrafts(for: Array(removed))
             }
             trackedSessionEntryIds = newSet
+            autoOpenPreferredExerciseIfNeeded()
         }
         .onChange(of: session.timestampDone) { oldValue, newValue in
             let justFinished = oldValue == session.timestamp && newValue != session.timestamp
@@ -237,6 +201,92 @@ struct SingleSessionView: View {
 
     private var canModifySessionExercises: Bool {
         navigationContext.isEditableByDefault || isUnlockedForEditing
+    }
+
+    private var sortedSessionEntries: [SessionEntry] {
+        session.sessionEntries.sorted { $0.order < $1.order }
+    }
+
+    @ViewBuilder
+    private func sessionEntryLink(for sessionEntry: SessionEntry) -> some View {
+        let destinationContext = SessionNavigationContext.forSession(session)
+        let completionLabel = sessionEntry.isCompleted ? "Uncheck" : "Complete"
+        let completionSystemImage = sessionEntry.isCompleted ? "pencil.slash" : "checkmark"
+        let completionTint: Color = sessionEntry.isCompleted ? .orange : .green
+        let completionEdge: HorizontalEdge = (editMode?.wrappedValue == .inactive) ? .leading : .trailing
+        let allowsFullSwipe = (editMode?.wrappedValue == .inactive)
+
+        NavigationLink {
+            SessionExerciseView(
+                sessionEntry: sessionEntry,
+                navigationContext: destinationContext
+            )
+            .appBackground()
+            .environmentObject(sessionExerciseDraftStore)
+        } label: {
+            sessionEntryLabel(for: sessionEntry)
+        }
+        .listRowInsets(EdgeInsets(top: 6, leading: 4, bottom: 6, trailing: 16))
+        .listRowSeparator(.hidden)
+        .listRowBackground(sessionEntryRowBackground)
+        .swipeActions(edge: completionEdge, allowsFullSwipe: allowsFullSwipe) {
+            if canModifySessionExercises {
+                Button {
+                    seService.toggleCompletion(sessionEntry: sessionEntry)
+                } label: {
+                    Label(completionLabel, systemImage: completionSystemImage)
+                }
+                .tint(completionTint)
+            }
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: allowsFullSwipe) {
+            if canModifySessionExercises {
+                Button {
+                    removeExerciseAndCleanupDraft(sessionEntry)
+                } label: {
+                    Label("Remove", systemImage: "trash")
+                }
+                .tint(.red)
+            }
+        }
+    }
+
+    private func sessionEntryLabel(for sessionEntry: SessionEntry) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: sessionEntry.isCompleted ? "checkmark.arrow.trianglehead.counterclockwise" : "square.and.pencil")
+                .foregroundColor(sessionEntry.isCompleted ? .green : .secondary)
+                .padding(.horizontal, 8)
+
+            VStack(alignment: .leading, spacing: 4) {
+                SingleExerciseLabelView(
+                    exercise: sessionEntry.exercise,
+                    orderInSplit: sessionEntry.order,
+                    subtitleText: summaryText(for: sessionEntry)
+                )
+                .id(sessionEntry.order)
+            }
+
+            Spacer()
+        }
+        .padding(.vertical, 8)
+    }
+
+    private var sessionEntryRowBackground: some View {
+        RoundedRectangle(cornerRadius: 12)
+            .fill(Color.gray.opacity(0.1))
+            .padding(.vertical, 4)
+            .padding(.horizontal, 4)
+    }
+
+    private func autoOpenPreferredExerciseIfNeeded() {
+        guard hasAutoOpenedPreferredExercise == false else { return }
+        guard let preferredExerciseId = navigationContext.preferredExerciseId else { return }
+        guard let matchedEntry = session.sessionEntries.first(where: { $0.exercise.id == preferredExerciseId }) else {
+            return
+        }
+
+        hasAutoOpenedPreferredExercise = true
+        openedSessionEntryTarget = OpenedSessionEntryTarget(id: matchedEntry.id)
     }
 
     private func summaryText(for sessionEntry: SessionEntry) -> String? {

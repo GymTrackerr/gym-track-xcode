@@ -40,6 +40,8 @@ struct SettingsView: View {
     @State private var selectedHealthHistoryRange: HealthHistorySyncRange = .defaultSelection
     @State private var isEnablingHealthAccess = false
     @State private var showHealthBackfillPrompt = false
+    @State private var backendBaseURLOverride: String = ""
+    @State private var exerciseDBBaseURLOverride: String = ""
 
     var body: some View {
         VStack {
@@ -360,6 +362,28 @@ struct SettingsView: View {
                         }
                     }
                 }
+
+                Section("Developer Networking") {
+                    TextField("Backend base URL override", text: $backendBaseURLOverride)
+                        .autocorrectionDisabled()
+                        .textFieldStyle(.roundedBorder)
+
+                    TextField("ExerciseDB base URL override", text: $exerciseDBBaseURLOverride)
+                        .autocorrectionDisabled()
+                        .textFieldStyle(.roundedBorder)
+
+                    Button("Apply URL Overrides") {
+                        applyNetworkingOverrides()
+                    }
+
+                    Button("Clear URL Overrides") {
+                        clearNetworkingOverrides()
+                    }
+
+                    Text("Leave a field empty to use the normal built-in URL.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             .scrollContentBackground(.hidden)
         }
@@ -386,6 +410,7 @@ struct SettingsView: View {
         }
         .onAppear {
             loadSelectedHealthHistoryRangeFromUser()
+            loadNetworkingOverrides()
             guard userService.currentUser?.isDemo != true else { return }
             Task(priority: .utility) {
                 await hkManager.refreshConnectionState()
@@ -720,6 +745,23 @@ struct SettingsView: View {
                 showExportErrorAlert = true
             }
         }
+    }
+
+    private func loadNetworkingOverrides() {
+        backendBaseURLOverride = API_Data.backendBaseURLOverride() ?? ""
+        exerciseDBBaseURLOverride = API_Data.exerciseDBBaseURLOverride() ?? ""
+    }
+
+    private func applyNetworkingOverrides() {
+        API_Data.setBackendBaseURLOverride(backendBaseURLOverride)
+        API_Data.setExerciseDBBaseURLOverride(exerciseDBBaseURLOverride)
+        loadNetworkingOverrides()
+    }
+
+    private func clearNetworkingOverrides() {
+        API_Data.setBackendBaseURLOverride(nil)
+        API_Data.setExerciseDBBaseURLOverride(nil)
+        loadNetworkingOverrides()
     }
 
     private func mergeExercisesWithSameNpId() {

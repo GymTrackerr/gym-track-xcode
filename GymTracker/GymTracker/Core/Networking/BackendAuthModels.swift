@@ -65,6 +65,11 @@ struct BackendMeResponseDTO: Codable {
     let id: String
     let displayName: String?
     let username: String?
+    let exerciseCatalogEnabled: Bool?
+}
+
+struct BackendMePreferencesUpdateRequest: Encodable {
+    let exerciseCatalogEnabled: Bool
 }
 
 struct BackendLogoutResponseDTO: Codable {

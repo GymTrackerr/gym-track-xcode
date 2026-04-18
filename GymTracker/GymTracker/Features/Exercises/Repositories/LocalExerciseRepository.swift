@@ -75,6 +75,7 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
         var inserted = 0
         var updated = 0
         var removed = 0
+        var remoteAppliedExercises: [Exercise] = []
 
         for apiExercise in data {
             let npIdKey = normalizedNpId(apiExercise.id) ?? apiExercise.id.lowercased()
@@ -83,8 +84,10 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
             if matches.isEmpty {
                 if allowInsert {
                     let newExercise = Exercise(from: apiExercise, userId: userId)
+                    newExercise.isArchived = false
+                    newExercise.soft_deleted = false
                     modelContext.insert(newExercise)
-                    try SyncRootMetadataManager.markCreated(newExercise, in: modelContext)
+                    remoteAppliedExercises.append(newExercise)
                     inserted += 1
                 } else {
                     print("Update-only sync skipped insert for npId=\(npIdKey).")
@@ -97,9 +100,9 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
                 print("Exercise dedupe skipped for npId=\(npIdKey): ambiguous primary exercise selection.")
                 for exercise in matches where exercise.user_id == userId {
                     if applyApiPayload(apiExercise, to: exercise) {
-                        try SyncRootMetadataManager.markUpdated(exercise, in: modelContext)
                         updated += 1
                     }
+                    remoteAppliedExercises.append(exercise)
                 }
                 existingByNpId[npIdKey] = matches
                 continue
@@ -114,9 +117,9 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
             }
 
             if applyApiPayload(apiExercise, to: primary) {
-                try SyncRootMetadataManager.markUpdated(primary, in: modelContext)
                 updated += 1
             }
+            remoteAppliedExercises.append(primary)
 
             var retained: [Exercise] = [primary]
             for duplicate in matches where duplicate.id != primary.id {
@@ -150,7 +153,51 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
         if inserted > 0 || updated > 0 || removed > 0 {
             try modelContext.save()
         }
+        try markRemoteExercisesAsSynced(remoteAppliedExercises)
         return (inserted, updated, removed)
+    }
+
+    func applyCatalogOverlays(
+        _ data: [GymTrackerCatalogOverlayDTO],
+        for userId: UUID
+    ) throws -> Int {
+        let descriptor = FetchDescriptor<Exercise>(
+            predicate: #Predicate<Exercise> { exercise in
+                exercise.user_id == userId
+            }
+        )
+        let existingForUser = try modelContext.fetch(descriptor)
+        if try SyncRootMetadataManager.prepareForRead(existingForUser, in: modelContext) {
+            try modelContext.save()
+        }
+
+        var existingByNpId: [String: [Exercise]] = [:]
+        for exercise in existingForUser {
+            guard exercise.isUserCreated == false else { continue }
+            guard let key = normalizedNpId(exercise.npId) else { continue }
+            existingByNpId[key, default: []].append(exercise)
+        }
+
+        var updated = 0
+        var remoteAppliedExercises: [Exercise] = []
+
+        for overlay in data {
+            let npIdKey = normalizedNpId(overlay.npId) ?? overlay.npId.lowercased()
+            let matches = existingByNpId[npIdKey] ?? []
+
+            for exercise in matches where exercise.user_id == userId {
+                if applyCatalogOverlayPayload(overlay, to: exercise) {
+                    updated += 1
+                }
+                remoteAppliedExercises.append(exercise)
+            }
+        }
+
+        if updated > 0 {
+            try modelContext.save()
+        }
+        try markRemoteExercisesAsSynced(remoteAppliedExercises)
+        return updated
     }
 
     func applyRemoteUserExercises(
@@ -175,21 +222,28 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
         var inserted = 0
         var updated = 0
         var removed = 0
+        var remoteAppliedExercises: [Exercise] = []
 
         for remoteExercise in data {
             guard UUID(uuidString: remoteExercise.id) != nil else { continue }
             let key = remoteExercise.id.lowercased()
             if let existing = existingById[key] {
                 if applyGymTrackerPayload(remoteExercise, to: existing, defaultUserId: userId) {
-                    try SyncRootMetadataManager.markUpdated(existing, in: modelContext)
                     updated += 1
                 }
+                remoteAppliedExercises.append(existing)
             } else {
                 let created = Exercise(from: remoteExercise, userId: userId)
                 created.isUserCreated = true
                 created.npId = nil
+                _ = applyRemoteTimestamps(
+                    createdAt: remoteExercise.createdAt,
+                    updatedAt: remoteExercise.updatedAt,
+                    deletedAt: remoteExercise.deletedAt,
+                    to: created
+                )
                 modelContext.insert(created)
-                try SyncRootMetadataManager.markCreated(created, in: modelContext)
+                remoteAppliedExercises.append(created)
                 inserted += 1
             }
         }
@@ -197,6 +251,7 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
         if inserted > 0 || updated > 0 || removed > 0 {
             try modelContext.save()
         }
+        try markRemoteExercisesAsSynced(remoteAppliedExercises)
         return (inserted, updated, removed)
     }
 
@@ -249,6 +304,89 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
     func willArchiveOnDelete(_ exercise: Exercise) -> Bool {
         let hasPersistedHistory = (try? hasSessionHistory(exerciseID: exercise.id)) ?? false
         return !exercise.sessionEntries.isEmpty || hasPersistedHistory
+    }
+
+    func hideCatalogExercises(for userId: UUID) throws -> CatalogDisableResult {
+        let descriptor = FetchDescriptor<Exercise>(
+            predicate: #Predicate<Exercise> { exercise in
+                exercise.user_id == userId
+            }
+        )
+        let existingForUser = try modelContext.fetch(descriptor)
+
+        var hiddenCount = 0
+        var deletedCount = 0
+        var hiddenNpIds: [String] = []
+        let timestamp = Date()
+
+        for exercise in existingForUser where exercise.isUserCreated == false {
+            let relationshipCounts = try exerciseRelationshipCounts(forExerciseId: exercise.id)
+
+            if relationshipCounts.allZero {
+                modelContext.delete(exercise)
+                deletedCount += 1
+                continue
+            }
+
+            let wasHidden = exercise.isArchived || exercise.soft_deleted
+            if wasHidden {
+                continue
+            }
+
+            exercise.isArchived = true
+            exercise.soft_deleted = true
+            exercise.updatedAt = max(timestamp, exercise.createdAt)
+            if let npId = normalizedNpId(exercise.npId) {
+                hiddenNpIds.append(npId)
+            }
+            hiddenCount += 1
+        }
+
+        if hiddenCount > 0 || deletedCount > 0 {
+            try modelContext.save()
+        }
+
+        return CatalogDisableResult(
+            hiddenNpIds: Array(Set(hiddenNpIds)).sorted(),
+            hiddenCount: hiddenCount,
+            deletedCount: deletedCount
+        )
+    }
+
+    func restoreCatalogExercises(withNpIds npIds: [String], for userId: UUID) throws -> Int {
+        let normalizedNpIds = Set(
+            npIds.compactMap { normalizedNpId($0) }
+        )
+        guard normalizedNpIds.isEmpty == false else { return 0 }
+
+        let descriptor = FetchDescriptor<Exercise>(
+            predicate: #Predicate<Exercise> { exercise in
+                exercise.user_id == userId
+            }
+        )
+        let existingForUser = try modelContext.fetch(descriptor)
+
+        var restoredCount = 0
+        let timestamp = Date()
+
+        for exercise in existingForUser where exercise.isUserCreated == false {
+            guard let npId = normalizedNpId(exercise.npId) else { continue }
+            guard normalizedNpIds.contains(npId) else { continue }
+
+            let wasHidden = exercise.isArchived || exercise.soft_deleted
+            guard wasHidden else { continue }
+
+            exercise.isArchived = false
+            exercise.soft_deleted = false
+            exercise.updatedAt = max(timestamp, exercise.createdAt)
+            restoredCount += 1
+        }
+
+        if restoredCount > 0 {
+            try modelContext.save()
+        }
+
+        return restoredCount
     }
 
     func mergeExercisesWithSameNpId(for userId: UUID) throws -> ExerciseNpIdMergeReport {
@@ -362,6 +500,14 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
             exercise.images = apiExercise.images
             didChange = true
         }
+        if exercise.isArchived {
+            exercise.isArchived = false
+            didChange = true
+        }
+        if exercise.soft_deleted {
+            exercise.soft_deleted = false
+            didChange = true
+        }
 
         return didChange
     }
@@ -436,7 +582,113 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
             didChange = true
         }
 
+        if applyRemoteTimestamps(
+            createdAt: dto.createdAt,
+            updatedAt: dto.updatedAt,
+            deletedAt: dto.deletedAt,
+            to: exercise
+        ) {
+            didChange = true
+        }
+
         return didChange
+    }
+
+    @discardableResult
+    private func applyCatalogOverlayPayload(
+        _ dto: GymTrackerCatalogOverlayDTO,
+        to exercise: Exercise
+    ) -> Bool {
+        var didChange = false
+        let aliases = normalizedAliases(dto.aliases)
+        if exercise.aliases != aliases {
+            exercise.aliases = aliases
+            didChange = true
+        }
+
+        if exercise.isArchived != dto.hidden {
+            exercise.isArchived = dto.hidden
+            didChange = true
+        }
+
+        if exercise.soft_deleted != dto.hidden {
+            exercise.soft_deleted = dto.hidden
+            didChange = true
+        }
+
+        if let updatedAt = parsedRemoteDate(dto.updatedAt) {
+            let resolvedUpdatedAt = max(updatedAt, exercise.createdAt)
+            if exercise.updatedAt != resolvedUpdatedAt {
+                exercise.updatedAt = resolvedUpdatedAt
+                didChange = true
+            }
+        }
+
+        return didChange
+    }
+
+    @discardableResult
+    private func applyRemoteTimestamps(
+        createdAt rawCreatedAt: String?,
+        updatedAt rawUpdatedAt: String?,
+        deletedAt rawDeletedAt: String?,
+        to exercise: Exercise
+    ) -> Bool {
+        var didChange = false
+
+        if let createdAt = parsedRemoteDate(rawCreatedAt) {
+            if exercise.createdAt != createdAt {
+                exercise.createdAt = createdAt
+                didChange = true
+            }
+            if exercise.timestamp != createdAt {
+                exercise.timestamp = createdAt
+                didChange = true
+            }
+        }
+
+        let remoteUpdatedAt =
+            parsedRemoteDate(rawUpdatedAt) ??
+            parsedRemoteDate(rawDeletedAt) ??
+            parsedRemoteDate(rawCreatedAt)
+
+        if let remoteUpdatedAt {
+            let resolvedUpdatedAt = max(remoteUpdatedAt, exercise.createdAt)
+            if exercise.updatedAt != resolvedUpdatedAt {
+                exercise.updatedAt = resolvedUpdatedAt
+                didChange = true
+            }
+        }
+
+        return didChange
+    }
+
+    private func markRemoteExercisesAsSynced(_ exercises: [Exercise]) throws {
+        let uniqueExercises = deduplicatedExercises(exercises)
+        guard uniqueExercises.isEmpty == false else { return }
+
+        _ = try SyncRootMetadataManager.prepareForRead(uniqueExercises, in: modelContext)
+        let modelTypeRaw = SyncModelType.exercise.rawValue
+
+        for exercise in uniqueExercises {
+            let linkedItemId = exercise.syncLinkedItemId
+            let descriptor = FetchDescriptor<SyncMetadataItem>(
+                predicate: #Predicate<SyncMetadataItem> { metadata in
+                    metadata.modelTypeRaw == modelTypeRaw &&
+                    metadata.linkedItemId == linkedItemId
+                }
+            )
+
+            guard let metadata = try modelContext.fetch(descriptor).first else { continue }
+            let syncedAt = max(exercise.updatedAt, exercise.createdAt)
+            metadata.syncState = .synced
+            metadata.lastSyncedAt = syncedAt
+            metadata.updatedAt = syncedAt
+            metadata.lastErrorCode = nil
+            metadata.lastErrorMessage = nil
+        }
+
+        try modelContext.save()
     }
 
     private func mergeExerciseReferences(from duplicate: Exercise, to primary: Exercise, targetUserId: UUID) throws {
@@ -546,6 +798,42 @@ final class LocalExerciseRepository: ExerciseRepositoryProtocol {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         return trimmed.lowercased()
+    }
+
+    private func normalizedAliases(_ aliases: [String]) -> [String] {
+        Array(
+            Set(
+                aliases
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+            )
+        )
+        .sorted()
+    }
+
+    private func deduplicatedExercises(_ exercises: [Exercise]) -> [Exercise] {
+        var seenIds = Set<UUID>()
+        var uniqueExercises: [Exercise] = []
+
+        for exercise in exercises where seenIds.insert(exercise.id).inserted {
+            uniqueExercises.append(exercise)
+        }
+
+        return uniqueExercises
+    }
+
+    private func parsedRemoteDate(_ value: String?) -> Date? {
+        guard let value else { return nil }
+
+        let fractionalFormatter = ISO8601DateFormatter()
+        fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let parsed = fractionalFormatter.date(from: value) {
+            return parsed
+        }
+
+        let fallbackFormatter = ISO8601DateFormatter()
+        fallbackFormatter.formatOptions = [.withInternetDateTime]
+        return fallbackFormatter.date(from: value)
     }
 
     private func imagesHaveChanged(existing: [String]?, incoming: [String]) -> Bool {

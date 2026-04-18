@@ -22,6 +22,11 @@ protocol UserExerciseSource {
     func fetchUserExercises() async throws -> [GymTrackerExerciseDTO]
 }
 
+protocol CatalogOverlaySource {
+    var routeDescription: String { get }
+    func fetchCatalogOverlays(updatedAfter: Date?) async throws -> [GymTrackerCatalogOverlayDTO]
+}
+
 final class PublicExerciseDBSource: ExerciseCatalogSource {
     private let apiHelper: API_Helper
 
@@ -68,13 +73,16 @@ final class PublicExerciseDBSource: ExerciseCatalogSource {
 final class ExerciseRouteResolver {
     private let catalogSourceInstance: any ExerciseCatalogSource
     private let userSourceInstance: any UserExerciseSource
+    private let overlaySourceInstance: any CatalogOverlaySource
 
     init(
         catalogSource: any ExerciseCatalogSource = PublicExerciseDBSource(),
-        userSource: any UserExerciseSource = AuthenticatedUserExerciseSource()
+        userSource: any UserExerciseSource = AuthenticatedUserExerciseSource(),
+        overlaySource: any CatalogOverlaySource = AuthenticatedCatalogOverlaySource()
     ) {
         self.catalogSourceInstance = catalogSource
         self.userSourceInstance = userSource
+        self.overlaySourceInstance = overlaySource
     }
 
     func catalogSource(for authState: Bool) -> any ExerciseCatalogSource {
@@ -85,6 +93,10 @@ final class ExerciseRouteResolver {
 
     func userSource(for authState: Bool) -> (any UserExerciseSource)? {
         authState ? userSourceInstance : nil
+    }
+
+    func overlaySource(for authState: Bool) -> (any CatalogOverlaySource)? {
+        authState ? overlaySourceInstance : nil
     }
 }
 
@@ -107,4 +119,13 @@ struct GymTrackerExerciseDTO: Identifiable, Codable {
     let createdAt: String?
     let updatedAt: String?
     let deletedAt: String?
+}
+
+struct GymTrackerCatalogOverlayDTO: Identifiable, Codable {
+    let npId: String
+    let aliases: [String]
+    let hidden: Bool
+    let updatedAt: String
+
+    var id: String { npId }
 }

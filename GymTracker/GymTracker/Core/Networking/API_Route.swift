@@ -18,10 +18,12 @@ enum APIHTTPMethod: String {
 protocol APIRequestRoute {
     var path: String { get }
     var queryItems: [URLQueryItem] { get }
+    var baseURLKind: APIBaseURLKind { get }
 }
 
 extension APIRequestRoute {
     var queryItems: [URLQueryItem] { [] }
+    var baseURLKind: APIBaseURLKind { .backend }
 }
 
 enum APIRoute: APIRequestRoute {
@@ -30,6 +32,7 @@ enum APIRoute: APIRequestRoute {
     case authSession
     case authLogout
     case me
+    case mePreferences
     case exerciseDB
     case exercises
     case exercise(id: String)
@@ -46,12 +49,23 @@ enum APIRoute: APIRequestRoute {
             return "/auth/logout"
         case .me:
             return "/me"
+        case .mePreferences:
+            return "/me/preferences"
         case .exerciseDB:
             return "/exercisedb"
         case .exercises:
             return "/exercises"
         case .exercise(let id):
             return "/exercises/\(id)"
+        }
+    }
+
+    var baseURLKind: APIBaseURLKind {
+        switch self {
+        case .exerciseDB:
+            return .exerciseDB
+        default:
+            return .backend
         }
     }
 }

@@ -17,6 +17,11 @@ private struct ExerciseRestoreRoute: APIRequestRoute {
     var path: String { "/exercises/\(exerciseId)/restore" }
 }
 
+private struct CatalogOverlayListRoute: APIRequestRoute {
+    let queryItems: [URLQueryItem]
+    var path: String { "/exercises/catalog-overlays" }
+}
+
 private struct RemoteExerciseUpsertBody: Encodable {
     let name: String
     let type: String
@@ -29,6 +34,11 @@ private struct RemoteExerciseUpsertBody: Encodable {
     let images: [String]
     let isArchived: Bool
     let baseUpdatedAt: String?
+}
+
+private struct RemoteCatalogOverlayUpdateBody: Encodable {
+    let aliases: [String]
+    let isArchived: Bool
 }
 
 final class RemoteExerciseRepository {
@@ -75,6 +85,24 @@ final class RemoteExerciseRepository {
         return response.items
     }
 
+    func fetchCatalogOverlays(updatedAfter: Date? = nil) async throws -> [GymTrackerCatalogOverlayDTO] {
+        var queryItems: [URLQueryItem] = []
+        if let updatedAfter {
+            queryItems.append(
+                URLQueryItem(
+                    name: "updatedAfter",
+                    value: iso8601Formatter.string(from: updatedAfter)
+                )
+            )
+        }
+
+        let response: ListResponse<GymTrackerCatalogOverlayDTO> =
+            try await apiHelper.asyncAuthorizedRequestListData(
+                route: CatalogOverlayListRoute(queryItems: queryItems)
+            )
+        return response.items
+    }
+
     func upsertUserExercise(_ exercise: Exercise) async throws -> GymTrackerExerciseDTO {
         let body = RemoteExerciseUpsertBody(
             name: exercise.name,
@@ -108,6 +136,23 @@ final class RemoteExerciseRepository {
         try await apiHelper.asyncAuthorizedRequestData(
             route: ExerciseRestoreRoute(exerciseId: id),
             httpMethod: .POST
+        )
+    }
+
+    func updateCatalogOverlay(
+        npId: String,
+        aliases: [String],
+        isArchived: Bool
+    ) async throws -> GymTrackerExerciseDTO {
+        let body = RemoteCatalogOverlayUpdateBody(
+            aliases: aliases,
+            isArchived: isArchived
+        )
+
+        return try await apiHelper.asyncAuthorizedRequestData(
+            route: APIRoute.exercise(id: npId),
+            httpMethod: .PATCH,
+            body: body
         )
     }
 }
@@ -152,6 +197,22 @@ final class AuthenticatedUserExerciseSource: UserExerciseSource {
             return true
         }
         return dto.isUserCreated
+    }
+}
+
+final class AuthenticatedCatalogOverlaySource: CatalogOverlaySource {
+    private let repository: RemoteExerciseRepository
+
+    init(repository: RemoteExerciseRepository = RemoteExerciseRepository()) {
+        self.repository = repository
+    }
+
+    var routeDescription: String {
+        "/v1/exercises/catalog-overlays"
+    }
+
+    func fetchCatalogOverlays(updatedAfter: Date?) async throws -> [GymTrackerCatalogOverlayDTO] {
+        try await repository.fetchCatalogOverlays(updatedAfter: updatedAfter)
     }
 }
 

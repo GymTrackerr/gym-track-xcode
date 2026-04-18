@@ -292,6 +292,10 @@ private final class StubLocalExerciseRepository: ExerciseRepositoryProtocol {
         (0, 0, 0)
     }
 
+    func applyCatalogOverlays(_ data: [GymTrackerCatalogOverlayDTO], for userId: UUID) throws -> Int {
+        0
+    }
+
     func applyRemoteUserExercises(_ data: [GymTrackerExerciseDTO], for userId: UUID) throws -> (inserted: Int, updated: Int, removed: Int) {
         (0, 0, 0)
     }
@@ -304,6 +308,10 @@ private final class StubLocalExerciseRepository: ExerciseRepositoryProtocol {
     func delete(_ exercise: Exercise) throws {}
     func restore(_ exercise: Exercise) throws {}
     func reinsertOrRestore(_ exercise: Exercise) throws {}
+    func hideCatalogExercises(for userId: UUID) throws -> CatalogDisableResult {
+        CatalogDisableResult(hiddenNpIds: [], hiddenCount: 0, deletedCount: 0)
+    }
+    func restoreCatalogExercises(withNpIds npIds: [String], for userId: UUID) throws -> Int { 0 }
     func willArchiveOnDelete(_ exercise: Exercise) -> Bool { false }
     func mergeExercisesWithSameNpId(for userId: UUID) throws -> ExerciseNpIdMergeReport { .init(groupsMerged: 0, duplicatesRemoved: 0) }
     func saveChanges() throws {}

@@ -65,33 +65,157 @@ enum CardioProgressMetric: String, CaseIterable, Identifiable {
     }
 }
 
-struct SingleExerciseView: View {
-    @Bindable var exercise: Exercise
-    @EnvironmentObject var exerciseService: ExerciseService
-    
-    var body: some View {
-        ExerciseDetailView(exercise: exercise)
-            .navigationTitle(exercise.name)
-            .toolbar {
-                if exercise.isArchived {
-                    Button("Restore") {
-                        do {
-                            try exerciseService.restore(exercise)
-                            exerciseService.loadExercises()
-                        } catch {
-                            print("Failed to restore exercise: \(error)")
-                        }
-                    }
-                }
-            }
+fileprivate struct ExerciseDetailSnapshot {
+    let id: UUID
+    let npId: String?
+    let name: String
+    let aliases: [String]
+    let type: ExerciseType
+    let isUserCreated: Bool
+    let isArchived: Bool
+    let equipment: String?
+    let primaryMuscles: [String]
+    let secondaryMuscles: [String]
+    let instructions: [String]
+    let images: [String]
+    let cardio: Bool
+    let setDisplayKind: SetDisplayExerciseKind
+
+    init(exercise: Exercise) {
+        id = exercise.id
+        npId = exercise.npId
+        name = exercise.name
+        aliases = exercise.aliases ?? []
+        type = exercise.exerciseType
+        isUserCreated = exercise.isUserCreated
+        isArchived = exercise.isArchived
+        equipment = exercise.equipment
+        primaryMuscles = exercise.primary_muscles ?? []
+        secondaryMuscles = exercise.secondary_muscles ?? []
+        instructions = exercise.instructions ?? []
+        images = exercise.images ?? []
+        cardio = exercise.cardio
+        setDisplayKind = exercise.setDisplayKind
     }
 }
 
-struct ExerciseDetailView: View {
-    let exercise: Exercise
+struct SingleExerciseView: View {
+    private let exerciseId: UUID
+    @EnvironmentObject var exerciseService: ExerciseService
+    @State private var detailSnapshot: ExerciseDetailSnapshot?
+
+    init(exercise: Exercise) {
+        self.exerciseId = exercise.id
+        _detailSnapshot = State(initialValue: ExerciseDetailSnapshot(exercise: exercise))
+    }
+
+    init(exerciseId: UUID) {
+        self.exerciseId = exerciseId
+        _detailSnapshot = State(initialValue: nil)
+    }
+
+    private var liveExercise: Exercise? {
+        exerciseService.exercises.first(where: { $0.id == exerciseId }) ??
+        exerciseService.archivedExercises.first(where: { $0.id == exerciseId })
+    }
+    
+    var body: some View {
+        Group {
+            if let detailSnapshot {
+                ExerciseDetailView(
+                    exerciseId: exerciseId,
+                    initialSnapshot: detailSnapshot
+                )
+                    .navigationTitle(detailSnapshot.name)
+                    .toolbar {
+                        if detailSnapshot.isArchived, let liveExercise {
+                            Button("Restore") {
+                                do {
+                                    try exerciseService.restore(liveExercise)
+                                } catch {
+                                    print("Failed to restore exercise: \(error)")
+                                }
+                            }
+                        }
+                    }
+            } else {
+                VStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 40))
+                        .foregroundStyle(.secondary)
+
+                    Text("Exercise Unavailable")
+                        .font(.headline)
+
+                    Text("This exercise changed during sync. Go back and reopen it from the refreshed list.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding()
+            }
+        }
+        .onAppear {
+            refreshSnapshotIfNeeded()
+        }
+        .onChange(of: exerciseService.exerciseListRevision) { _, _ in
+            refreshSnapshotIfNeeded()
+        }
+    }
+
+    private func refreshSnapshotIfNeeded() {
+        guard let liveExercise else { return }
+        detailSnapshot = ExerciseDetailSnapshot(exercise: liveExercise)
+    }
+}
+
+private struct ExerciseDetailView: View {
+    private let exerciseId: UUID
     @EnvironmentObject var exerciseService: ExerciseService
     @EnvironmentObject var sessionService: SessionService
     @EnvironmentObject var seService: SessionExerciseService
+
+    private static let shortDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = .autoupdatingCurrent
+        formatter.setLocalizedDateFormatFromTemplate("MMM d")
+        return formatter
+    }()
+
+    private static let monthFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = .autoupdatingCurrent
+        formatter.setLocalizedDateFormatFromTemplate("MMM")
+        return formatter
+    }()
+
+    private static let yearFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = .autoupdatingCurrent
+        formatter.setLocalizedDateFormatFromTemplate("yyyy")
+        return formatter
+    }()
+
+    private struct RepSample {
+        let date: Date
+        let weight: Double
+        let unit: WeightUnit
+        let reps: Int
+    }
+
+    private struct ProgressPoint: Identifiable {
+        let date: Date
+        let value: Double
+        var id: TimeInterval { date.timeIntervalSinceReferenceDate }
+    }
+
+    private struct PreviousSessionItem: Identifiable {
+        let sessionId: UUID
+        let timestamp: Date
+        let subtitle: String
+
+        var id: UUID { sessionId }
+    }
 
     @State private var showHowToPerform = true
     @State private var showExerciseData = true
@@ -107,19 +231,22 @@ struct ExerciseDetailView: View {
     @State private var exerciseAliasDraft = ""
     @State private var isEditingAliases = false
     @State private var aliasError: String? = nil
+    @State private var exerciseSnapshot: ExerciseDetailSnapshot
+    @State private var matchingEntriesCache: [SessionEntry] = []
+    @State private var cardioSetsCache: [SessionSet] = []
+    @State private var repSamplesCache: [RepSample] = []
+    @State private var previousSessionsCache: [PreviousSessionItem] = []
+    @State private var chartPointsCache: [ProgressPoint] = []
     private let previousLogsSectionID = "previous-logs-section"
-    
-    private struct RepSample {
-        let date: Date
-        let weight: Double
-        let unit: WeightUnit
-        let reps: Int
+
+    init(exerciseId: UUID, initialSnapshot: ExerciseDetailSnapshot) {
+        self.exerciseId = exerciseId
+        _exerciseSnapshot = State(initialValue: initialSnapshot)
     }
 
-    private struct ProgressPoint: Identifiable {
-        let date: Date
-        let value: Double
-        var id: TimeInterval { date.timeIntervalSinceReferenceDate }
+    private var liveExercise: Exercise? {
+        exerciseService.exercises.first(where: { $0.id == exerciseId }) ??
+        exerciseService.archivedExercises.first(where: { $0.id == exerciseId })
     }
 
 
@@ -128,7 +255,10 @@ struct ExerciseDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                 
-                if let gifURL = exerciseService.gifURL(for: exercise) {
+                if let gifURL = exerciseService.gifURL(
+                    images: exerciseSnapshot.images,
+                    isUserCreated: exerciseSnapshot.isUserCreated
+                ) {
                     CachedMediaView(url: gifURL)
                         .frame(height: 240)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -144,13 +274,13 @@ struct ExerciseDetailView: View {
                 if hasExerciseInfo {
                     DisclosureGroup(isExpanded: $showExerciseData) {
                         VStack(alignment: .leading, spacing: 12) {
-                            detailRow("Exercise Type", exercise.exerciseType.name)
+                            detailRow("Exercise Type", exerciseSnapshot.type.name)
 
-                            if let equipment = cleanedString(exercise.equipment) {
+                            if let equipment = cleanedString(exerciseSnapshot.equipment) {
                                 detailRow("Equipment", equipment)
                             }
 
-                            if exercise.cardio {
+                            if exerciseSnapshot.cardio {
                                 detailRow("Cardio", "Yes")
                                 if let totalDistance = cardioTotalDistanceLabel {
                                     detailRow("Total Distance", totalDistance)
@@ -377,8 +507,10 @@ struct ExerciseDetailView: View {
                         .frame(height: 160)
 
                         NavigationLink {
-                            ExerciseHistoryChartView(exercise: exercise)
-                                .appBackground()
+                            if let liveExercise {
+                                ExerciseHistoryChartView(exercise: liveExercise)
+                                    .appBackground()
+                            }
                         } label: {
                             Label("Open Full Chart", systemImage: "chart.bar.xaxis")
                                 .font(.subheadline.weight(.semibold))
@@ -386,6 +518,7 @@ struct ExerciseDetailView: View {
                                 .padding(.vertical, 8)
                         }
                         .buttonStyle(.bordered)
+                        .disabled(liveExercise == nil)
                     }
                     .padding(.top, 6)
                 } label: {
@@ -432,7 +565,7 @@ struct ExerciseDetailView: View {
                 .padding(.bottom, 12)
 
                 NavigationLink {
-                    TrueSightView(initialExerciseId: exercise.id)
+                    TrueSightView(initialExerciseId: exerciseId)
                         .appBackground()
                 } label: {
                     HStack {
@@ -444,7 +577,7 @@ struct ExerciseDetailView: View {
                     .frame(maxWidth: .infinity)
                     .padding()
                     .background(
-                        (exercise.npId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+                        (exerciseSnapshot.npId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
                         ? Color.accentColor
                         : Color.gray.opacity(0.3)
                     )
@@ -452,7 +585,7 @@ struct ExerciseDetailView: View {
                 }
                 .padding(.horizontal)
                 .padding(.bottom, 12)
-                .disabled(exercise.npId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false)
+                .disabled(exerciseSnapshot.npId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false)
 
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Previous Logs")
@@ -473,17 +606,22 @@ struct ExerciseDetailView: View {
                             .padding(.horizontal)
                     } else {
                         VStack(spacing: 8) {
-                            ForEach(previousSessions, id: \.session.id) { item in
+                            ForEach(previousSessions) { item in
                                 NavigationLink {
-                                    SingleSessionView(
-                                        session: item.session,
-                                        navigationContext: SessionNavigationContext.forSession(item.session)
-                                    )
-                                    .appBackground()
+                                    if let session = session(for: item.sessionId) {
+                                        SingleSessionView(
+                                            session: session,
+                                            navigationContext: .fromExerciseHistory(
+                                                sessionId: session.id,
+                                                exerciseId: exerciseId
+                                            )
+                                        )
+                                        .appBackground()
+                                    }
                                 } label: {
                                     HStack(spacing: 12) {
                                         VStack(alignment: .leading, spacing: 4) {
-                                            Text(item.session.timestamp.formatted(date: .abbreviated, time: .omitted))
+                                            Text(item.timestamp.formatted(date: .abbreviated, time: .omitted))
                                                 .font(.subheadline)
                                                 .fontWeight(.semibold)
                                             Text(item.subtitle)
@@ -534,11 +672,14 @@ struct ExerciseDetailView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .topBarLeading) {
                     NavigationLink {
-                        ExerciseHistoryChartView(exercise: exercise)
-                            .appBackground()
+                        if let liveExercise {
+                            ExerciseHistoryChartView(exercise: liveExercise)
+                                .appBackground()
+                        }
                     } label: {
                         Label("Charts", systemImage: "chart.bar.xaxis")
                     }
+                    .disabled(liveExercise == nil)
                 }
                 
                 ToolbarItemGroup(placement: .topBarTrailing) {
@@ -547,6 +688,7 @@ struct ExerciseDetailView: View {
                     } label: {
                         Label(isEditingAliases ? "Done Editing" : "Edit", systemImage: isEditingAliases ? "checkmark.circle" : "pencil")
                     }
+                    .disabled(exerciseSnapshot.isArchived)
 
                     Button {
                         withAnimation(.easeInOut) {
@@ -571,59 +713,80 @@ struct ExerciseDetailView: View {
             .frame(maxHeight: .infinity, alignment: .top)
             .ignoresSafeArea(edges: .top)
         )
-        .navigationTitle(exercise.name)
+        .navigationTitle(exerciseSnapshot.name)
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showingLogExerciseSheet) {
-            LogExerciseSheetView(
-                exercise: exercise,
-                isPresented: $showingLogExerciseSheet
-            )
-            .presentationDetents([.height(360), .medium])
-            .presentationDragIndicator(.visible)
+            if let liveExercise {
+                LogExerciseSheetView(
+                    exercise: liveExercise,
+                    isPresented: $showingLogExerciseSheet
+                )
+                .presentationDetents([.height(360), .medium])
+                .presentationDragIndicator(.visible)
+            }
         }
         .sheet(isPresented: $showingAddRoutineSheet) {
-            AddToRoutineSheetView(
-                exercise: exercise,
-                isPresented: $showingAddRoutineSheet
-            )
-            .presentationDetents([.height(360), .medium])
-            .presentationDragIndicator(.visible)
+            if let liveExercise {
+                AddToRoutineSheetView(
+                    exercise: liveExercise,
+                    isPresented: $showingAddRoutineSheet
+                )
+                .presentationDetents([.height(360), .medium])
+                .presentationDragIndicator(.visible)
+            }
         }
         .sheet(isPresented: $showingTransferExerciseSheet) {
-            ExerciseTransferToolView(initialSourceExerciseId: exercise.id)
+            ExerciseTransferToolView(initialSourceExerciseId: exerciseId)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
         .onAppear {
             sessionService.loadSessions()
+            refreshDerivedData()
             if selectedDisplayUnit == nil {
                 selectedDisplayUnit = dominantUnit
             }
             exerciseAliasDraft = ""
             isEditingAliases = false
         }
+        .onChange(of: exerciseService.exerciseListRevision) { _, _ in
+            refreshSnapshotIfNeeded()
+            refreshDerivedData()
+        }
+        .onReceive(sessionService.$sessions) { _ in
+            refreshDerivedData()
+        }
+        .onChange(of: selectedTab) { _, _ in
+            refreshDerivedData()
+        }
+        .onChange(of: selectedCardioTab) { _, _ in
+            refreshDerivedData()
+        }
+        .onChange(of: selectedRange) { _, _ in
+            refreshDerivedData()
+        }
+        .onChange(of: selectedDisplayUnit) { _, _ in
+            refreshDerivedData()
+        }
+        .onChange(of: selectedDistanceUnit) { _, _ in
+            refreshDerivedData()
+        }
     }
 
     private var matchingEntries: [SessionEntry] {
-        sessionService.sessions
-            .flatMap(\.sessionEntries)
-            .filter { entry in
-                guard entry.exercise.id == exercise.id else { return false }
-                guard let userId = sessionService.currentUser?.id else { return true }
-                return entry.session.user_id == userId
-            }
+        matchingEntriesCache
     }
 
     private var primaryMuscles: [String] {
-        normalizedList(exercise.primary_muscles)
+        normalizedList(exerciseSnapshot.primaryMuscles)
     }
 
     private var secondaryMuscles: [String] {
-        normalizedList(exercise.secondary_muscles)
+        normalizedList(exerciseSnapshot.secondaryMuscles)
     }
 
     private var aliases: [String] {
-        normalizedList(exercise.aliases)
+        normalizedList(exerciseSnapshot.aliases)
     }
     
     private var aliasInputField: some View {
@@ -684,11 +847,11 @@ struct ExerciseDetailView: View {
     }
 
     private var instructions: [String] {
-        normalizedList(exercise.instructions)
+        normalizedList(exerciseSnapshot.instructions)
     }
 
     private var hasExerciseInfo: Bool {
-        cleanedString(exercise.equipment) != nil ||
+        cleanedString(exerciseSnapshot.equipment) != nil ||
         !aliases.isEmpty ||
         !primaryMuscles.isEmpty ||
         !secondaryMuscles.isEmpty ||
@@ -696,15 +859,11 @@ struct ExerciseDetailView: View {
     }
 
     private var cardioSets: [SessionSet] {
-        matchingEntries
-            .flatMap(\.sets)
-            .filter { set in
-                set.durationSeconds != nil || set.distance != nil || set.paceSeconds != nil
-            }
+        cardioSetsCache
     }
 
     private var hasCardioProgress: Bool {
-        exercise.cardio && !cardioSets.isEmpty
+        exerciseSnapshot.cardio && !cardioSets.isEmpty
     }
 
     private var cardioTotalDistanceLabel: String? {
@@ -760,57 +919,15 @@ struct ExerciseDetailView: View {
     }
 
     private var repSamples: [RepSample] {
-        var samples: [RepSample] = []
-        for entry in matchingEntries {
-            for sessionSet in entry.sets {
-                for rep in sessionSet.sessionReps {
-                    samples.append(
-                        RepSample(
-                            date: entry.session.timestamp,
-                            weight: rep.weight,
-                            unit: rep.weightUnit,
-                            reps: rep.count
-                        )
-                    )
-                }
-            }
-        }
-        return samples
+        repSamplesCache
     }
 
     private var dominantUnit: WeightUnit {
-        var counts: [WeightUnit: Int] = [.lb: 0, .kg: 0]
-        for rep in repSamples {
-            counts[rep.unit, default: 0] += 1
-        }
-        if counts[.kg, default: 0] > counts[.lb, default: 0] {
-            return .kg
-        }
-        return .lb
+        dominantUnit(from: repSamples)
     }
 
     private var chartPoints: [ProgressPoint] {
-        let points: [HistoryChartPoint]
-        if hasCardioProgress {
-            points = ExerciseChartCalculator.cardioPoints(
-                sessions: timeframeSessions,
-                interval: chartInterval,
-                timeframe: compactTimeframe,
-                exerciseId: exercise.id,
-                metric: selectedCardioTab,
-                distanceUnit: selectedDistanceUnit
-            )
-        } else {
-            points = ExerciseChartCalculator.strengthPoints(
-                sessions: timeframeSessions,
-                interval: chartInterval,
-                timeframe: compactTimeframe,
-                exerciseId: exercise.id,
-                metric: selectedTab,
-                displayUnit: displayUnit
-            )
-        }
-        return points.map { ProgressPoint(date: $0.date, value: $0.value) }
+        chartPointsCache
     }
 
     private var chartYMax: Double {
@@ -856,19 +973,171 @@ struct ExerciseDetailView: View {
     }
 
     private func chartXAxisLabel(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
         switch selectedRange {
         case .days:
-            formatter.setLocalizedDateFormatFromTemplate("MMM d")
+            return Self.shortDateFormatter.string(from: date)
         case .weeks:
-            formatter.setLocalizedDateFormatFromTemplate("MMM d")
+            return Self.shortDateFormatter.string(from: date)
         case .months:
-            formatter.setLocalizedDateFormatFromTemplate("MMM")
+            return Self.monthFormatter.string(from: date)
         case .years:
-            formatter.setLocalizedDateFormatFromTemplate("yyyy")
+            return Self.yearFormatter.string(from: date)
         }
-        return formatter.string(from: date)
+    }
+
+    private func refreshSnapshotIfNeeded() {
+        guard let liveExercise else { return }
+        exerciseSnapshot = ExerciseDetailSnapshot(exercise: liveExercise)
+    }
+
+    private func refreshDerivedData() {
+        let entries = buildMatchingEntries()
+        let cardioSets = buildCardioSets(from: entries)
+        let repSamples = buildRepSamples(from: entries)
+        let resolvedDisplayUnit = selectedDisplayUnit ?? dominantUnit(from: repSamples)
+
+        matchingEntriesCache = entries
+        cardioSetsCache = cardioSets
+        repSamplesCache = repSamples
+        previousSessionsCache = buildPreviousSessions(
+            from: entries,
+            preferredWeightUnit: resolvedDisplayUnit
+        )
+        chartPointsCache = buildChartPoints(
+            hasCardioProgress: exerciseSnapshot.cardio && !cardioSets.isEmpty,
+            displayUnit: resolvedDisplayUnit
+        )
+    }
+
+    private func buildMatchingEntries() -> [SessionEntry] {
+        sessionService.sessions
+            .flatMap(\.sessionEntries)
+            .filter { entry in
+                guard entry.exercise.id == exerciseId else { return false }
+                guard let userId = sessionService.currentUser?.id else { return true }
+                return entry.session.user_id == userId
+            }
+    }
+
+    private func buildCardioSets(from entries: [SessionEntry]) -> [SessionSet] {
+        entries
+            .flatMap(\.sets)
+            .filter { set in
+                set.durationSeconds != nil || set.distance != nil || set.paceSeconds != nil
+            }
+    }
+
+    private func buildRepSamples(from entries: [SessionEntry]) -> [RepSample] {
+        var samples: [RepSample] = []
+
+        for entry in entries {
+            for sessionSet in entry.sets {
+                for rep in sessionSet.sessionReps {
+                    samples.append(
+                        RepSample(
+                            date: entry.session.timestamp,
+                            weight: rep.weight,
+                            unit: rep.weightUnit,
+                            reps: rep.count
+                        )
+                    )
+                }
+            }
+        }
+
+        return samples
+    }
+
+    private func buildChartPoints(
+        hasCardioProgress: Bool,
+        displayUnit: WeightUnit
+    ) -> [ProgressPoint] {
+        let points: [HistoryChartPoint]
+        if hasCardioProgress {
+            points = ExerciseChartCalculator.cardioPoints(
+                sessions: timeframeSessions,
+                interval: chartInterval,
+                timeframe: compactTimeframe,
+                exerciseId: exerciseId,
+                metric: selectedCardioTab,
+                distanceUnit: selectedDistanceUnit
+            )
+        } else {
+            points = ExerciseChartCalculator.strengthPoints(
+                sessions: timeframeSessions,
+                interval: chartInterval,
+                timeframe: compactTimeframe,
+                exerciseId: exerciseId,
+                metric: selectedTab,
+                displayUnit: displayUnit
+            )
+        }
+
+        return points.map { ProgressPoint(date: $0.date, value: $0.value) }
+    }
+
+    private func buildPreviousSessions(
+        from entries: [SessionEntry],
+        preferredWeightUnit: WeightUnit
+    ) -> [PreviousSessionItem] {
+        let sessions = entries
+            .map(\.session)
+            .sorted { $0.timestamp > $1.timestamp }
+
+        var seen = Set<UUID>()
+        var result: [PreviousSessionItem] = []
+
+        for session in sessions {
+            guard !seen.contains(session.id) else { continue }
+            seen.insert(session.id)
+
+            let matchingSessionEntries = session.sessionEntries
+                .filter { $0.exercise.id == exerciseId }
+                .sorted { $0.order < $1.order }
+            guard !matchingSessionEntries.isEmpty else { continue }
+
+            let unitPrefs = SetDisplayUnitPreferences(
+                preferredWeightUnit: preferredWeightUnit,
+                preferredDistanceUnit: selectedDistanceUnit
+            )
+            let sets = matchingSessionEntries
+                .flatMap(\.sets)
+                .sorted { $0.order < $1.order }
+            let meaningfulSets = sets.filter {
+                SetDisplayFormatter.isMeaningfulSet($0, exerciseKind: exerciseSnapshot.setDisplayKind)
+            }
+
+            let subtitle = compactPreviousSessionSubtitle(
+                for: meaningfulSets,
+                exerciseKind: exerciseSnapshot.setDisplayKind,
+                unitPrefs: unitPrefs
+            )
+
+            result.append(
+                PreviousSessionItem(
+                    sessionId: session.id,
+                    timestamp: session.timestamp,
+                    subtitle: subtitle
+                )
+            )
+        }
+
+        return result
+    }
+
+    private func dominantUnit(from samples: [RepSample]) -> WeightUnit {
+        var counts: [WeightUnit: Int] = [.lb: 0, .kg: 0]
+        for rep in samples {
+            counts[rep.unit, default: 0] += 1
+        }
+        if counts[.kg, default: 0] > counts[.lb, default: 0] {
+            return .kg
+        }
+        return .lb
+    }
+
+    private func session(for sessionId: UUID) -> Session? {
+        sessionService.sessions.first { $0.id == sessionId }
     }
 
     private func normalizedList(_ values: [String]?) -> [String] {
@@ -915,9 +1184,15 @@ struct ExerciseDetailView: View {
         var updatedAliases = aliases
         updatedAliases.append(trimmed)
         
-        if exerciseService.setAliases(for: exercise, aliases: updatedAliases) {
+        guard let liveExercise else {
+            aliasError = "Exercise is no longer available"
+            return
+        }
+
+        if exerciseService.setAliases(for: liveExercise, aliases: updatedAliases) {
             exerciseAliasDraft = ""
             aliasError = nil
+            refreshSnapshotIfNeeded()
         } else {
             aliasError = "Failed to add alias"
         }
@@ -927,9 +1202,15 @@ struct ExerciseDetailView: View {
         guard index >= 0 && index < aliases.count else { return }
         var updatedAliases = aliases
         updatedAliases.remove(at: index)
+
+        guard let liveExercise else {
+            aliasError = "Exercise is no longer available"
+            return
+        }
         
-        if exerciseService.setAliases(for: exercise, aliases: updatedAliases) {
+        if exerciseService.setAliases(for: liveExercise, aliases: updatedAliases) {
             aliasError = nil
+            refreshSnapshotIfNeeded()
         } else {
             aliasError = "Failed to remove alias"
         }
@@ -1066,54 +1347,8 @@ struct ExerciseDetailView: View {
 #endif
      */
 
-    private struct PreviousSessionItem {
-        let session: Session
-        let subtitle: String
-    }
-
     private var previousSessions: [PreviousSessionItem] {
-        let sessions = matchingEntries
-            .map { $0.session }
-            .sorted { $0.timestamp > $1.timestamp }
-
-        var seen = Set<UUID>()
-        var result: [PreviousSessionItem] = []
-
-        for session in sessions {
-            guard !seen.contains(session.id) else { continue }
-            seen.insert(session.id)
-
-            let matchingSessionEntries = session.sessionEntries
-                .filter { $0.exercise.id == exercise.id }
-                .sorted { $0.order < $1.order }
-            guard !matchingSessionEntries.isEmpty else { continue }
-
-            let unitPrefs = SetDisplayUnitPreferences(
-                preferredWeightUnit: displayUnit,
-                preferredDistanceUnit: selectedDistanceUnit
-            )
-            let sets = matchingSessionEntries
-                .flatMap(\.sets)
-                .sorted { $0.order < $1.order }
-            let meaningfulSets = sets.filter {
-                SetDisplayFormatter.isMeaningfulSet($0, exerciseKind: exercise.setDisplayKind)
-            }
-
-            let subtitle = compactPreviousSessionSubtitle(
-                for: meaningfulSets,
-                exerciseKind: exercise.setDisplayKind,
-                unitPrefs: unitPrefs
-            )
-
-            result.append(
-                PreviousSessionItem(
-                    session: session,
-                    subtitle: subtitle
-                )
-            )
-        }
-
-        return result
+        previousSessionsCache
     }
 
 }

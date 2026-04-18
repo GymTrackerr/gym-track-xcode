@@ -12,6 +12,12 @@ struct ExerciseNpIdMergeReport {
     let duplicatesRemoved: Int
 }
 
+struct CatalogDisableResult {
+    let hiddenNpIds: [String]
+    let hiddenCount: Int
+    let deletedCount: Int
+}
+
 protocol ExerciseRepositoryProtocol {
     func fetchActiveExercises(for userId: UUID) throws -> [Exercise]
     func fetchArchivedExercises(for userId: UUID) throws -> [Exercise]
@@ -20,6 +26,10 @@ protocol ExerciseRepositoryProtocol {
         for userId: UUID,
         allowInsert: Bool
     ) throws -> (inserted: Int, updated: Int, removed: Int)
+    func applyCatalogOverlays(
+        _ data: [GymTrackerCatalogOverlayDTO],
+        for userId: UUID
+    ) throws -> Int
     func applyRemoteUserExercises(
         _ data: [GymTrackerExerciseDTO],
         for userId: UUID
@@ -29,6 +39,8 @@ protocol ExerciseRepositoryProtocol {
     func delete(_ exercise: Exercise) throws
     func restore(_ exercise: Exercise) throws
     func reinsertOrRestore(_ exercise: Exercise) throws
+    func hideCatalogExercises(for userId: UUID) throws -> CatalogDisableResult
+    func restoreCatalogExercises(withNpIds npIds: [String], for userId: UUID) throws -> Int
     func willArchiveOnDelete(_ exercise: Exercise) -> Bool
     func mergeExercisesWithSameNpId(for userId: UUID) throws -> ExerciseNpIdMergeReport
     func saveChanges() throws
