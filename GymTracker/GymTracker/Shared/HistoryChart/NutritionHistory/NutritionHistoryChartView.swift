@@ -27,7 +27,7 @@ struct NutritionHistoryChartView: View {
                         return []
                     }
                     let logs = (try? nutritionService.logsInDateInterval(interval)) ?? []
-                    let health = (try? healthKitDailyStore.cachedDailySummaries(in: interval, userId: userId)) ?? []
+                    let health = (try? healthKitDailyStore.cachedExistingDailySummaries(in: interval, userId: userId)) ?? []
                     return NutritionChartCalculator.energyBalancePoints(
                         logs: logs,
                         healthSummaries: health,
@@ -44,6 +44,9 @@ struct NutritionHistoryChartView: View {
                         metric: selectedMetric
                     )
                 }
+            },
+            loadIntervalProvider: { interval, timeframe in
+                HistoryChartLoadSupport.bufferedInterval(for: interval, timeframe: timeframe)
             },
             dataBoundsProvider: {
                 if selectedMetric == .energyBalance {
@@ -72,7 +75,8 @@ struct NutritionHistoryChartView: View {
             },
             emptyStateTextProvider: { _ in
                 "No \(selectedMetric.title.lowercased()) data in this timeframe."
-            }
+            },
+            reloadToken: healthKitDailyStore.chartRefreshToken
         )
     }
 
@@ -105,10 +109,10 @@ struct NutritionHistoryChartView: View {
     }
 
     private func energyBalanceBounds() -> (oldest: Date?, newest: Date?) {
-        let rawNutritionBounds = (try? nutritionService.nutritionBounds(for: .calories)) ?? (nil, nil)
+        let rawNutritionBounds: (Date?, Date?) = (try? nutritionService.nutritionBounds(for: .calories)) ?? (nil, nil)
         let nutritionBounds: (oldest: Date?, newest: Date?) = (rawNutritionBounds.0, rawNutritionBounds.1)
 
-        if selectedEnergyFilter == .surplusDeficit {
+        if selectedEnergyFilter == .surplusDeficit || selectedEnergyFilter == .nutrition {
             return nutritionBounds
         }
 
@@ -116,15 +120,44 @@ struct NutritionHistoryChartView: View {
             return nutritionBounds
         }
 
-        let health = (try? healthKitDailyStore.cachedDailySummaries(userId: userId)) ?? []
-        let energyHealth = health.filter { ($0.activeEnergyKcal + $0.restingEnergyKcal) > 0 }
-        let healthOldest = energyHealth.min(by: { $0.dayStart < $1.dayStart })?.dayStart
-        let healthNewest = energyHealth.max(by: { $0.dayStart < $1.dayStart })?.dayStart
-
-        return (
-            oldest: minDate(nutritionBounds.oldest, healthOldest),
-            newest: maxDate(nutritionBounds.newest, healthNewest)
+        let healthBounds = healthEnergyBounds(
+            userId: userId,
+            filter: selectedEnergyFilter
         )
+
+        if selectedEnergyFilter == .summary {
+            return (
+                oldest: minDate(nutritionBounds.oldest, healthBounds.oldest),
+                newest: maxDate(nutritionBounds.newest, healthBounds.newest)
+            )
+        }
+
+        return healthBounds
+    }
+
+    private func healthEnergyBounds(
+        userId: String,
+        filter: NutritionEnergySecondaryFilter
+    ) -> (oldest: Date?, newest: Date?) {
+        let summaries = (try? healthKitDailyStore.cachedDailySummaries(userId: userId)) ?? []
+        let qualifyingDates = summaries.compactMap { summary -> Date? in
+            switch filter {
+            case .summary:
+                return (summary.activeEnergyKcal + summary.restingEnergyKcal) > 0 ? summary.dayStart : nil
+            case .active:
+                return summary.activeEnergyKcal > 0 ? summary.dayStart : nil
+            case .resting:
+                return summary.restingEnergyKcal > 0 ? summary.dayStart : nil
+            case .surplusDeficit, .nutrition:
+                return nil
+            }
+        }
+
+        guard let oldest = qualifyingDates.min(), let newest = qualifyingDates.max() else {
+            return (nil, nil)
+        }
+
+        return (oldest: oldest, newest: newest)
     }
 
     private func energyBalanceSummary(
@@ -287,7 +320,7 @@ struct NutritionHistoryChartView: View {
 
         let interval = DateInterval(start: point.startDate, end: point.endDate)
         let logs = (try? nutritionService.logsInDateInterval(interval)) ?? []
-        let health = (try? healthKitDailyStore.cachedDailySummaries(in: interval, userId: userId)) ?? []
+        let health = (try? healthKitDailyStore.cachedExistingDailySummaries(in: interval, userId: userId)) ?? []
 
         var eatenByDay: [Date: Double] = [:]
         for log in logs {
@@ -348,7 +381,7 @@ struct NutritionHistoryChartView: View {
 
         let interval = DateInterval(start: point.startDate, end: point.endDate)
         let logs = (try? nutritionService.logsInDateInterval(interval)) ?? []
-        let health = (try? healthKitDailyStore.cachedDailySummaries(in: interval, userId: userId)) ?? []
+        let health = (try? healthKitDailyStore.cachedExistingDailySummaries(in: interval, userId: userId)) ?? []
 
         let logDays = Set(logs.map { Calendar.current.startOfDay(for: $0.timestamp) })
         let healthDays = Set(health.map { Calendar.current.startOfDay(for: $0.dayStart) })

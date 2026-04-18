@@ -34,6 +34,8 @@ struct HistoryChartView<FilterControls: View>: View {
     let summaryProvider: (HistoryChartPoint?, Double, HistoryChartTimeframe) -> HistoryChartSummary
     let summaryDetailsProvider: (HistoryChartPoint?, Double, HistoryChartTimeframe) -> [HistoryChartSummaryDetail]
     let emptyStateTextProvider: (Int) -> String
+    let fallbackLookbackMonths: Int?
+    let reloadToken: Int
 
     @State private var timeframe: HistoryChartTimeframe = .month
     @State private var anchorDate: Date = Date()
@@ -70,7 +72,9 @@ struct HistoryChartView<FilterControls: View>: View {
         dataBoundsProvider: @escaping () -> (oldest: Date?, newest: Date?),
         summaryProvider: @escaping (HistoryChartPoint?, Double, HistoryChartTimeframe) -> HistoryChartSummary,
         summaryDetailsProvider: @escaping (HistoryChartPoint?, Double, HistoryChartTimeframe) -> [HistoryChartSummaryDetail] = { _, _, _ in [] },
-        emptyStateTextProvider: @escaping (Int) -> String
+        emptyStateTextProvider: @escaping (Int) -> String,
+        fallbackLookbackMonths: Int? = nil,
+        reloadToken: Int = 0
     ) {
         self.navigationTitle = navigationTitle
         self.filterStateToken = filterStateToken
@@ -85,6 +89,8 @@ struct HistoryChartView<FilterControls: View>: View {
         self.summaryProvider = summaryProvider
         self.summaryDetailsProvider = summaryDetailsProvider
         self.emptyStateTextProvider = emptyStateTextProvider
+        self.fallbackLookbackMonths = fallbackLookbackMonths
+        self.reloadToken = reloadToken
     }
 
     var body: some View {
@@ -330,6 +336,12 @@ struct HistoryChartView<FilterControls: View>: View {
             let filterWindow = currentWindowInterval(for: timeframe)
             resetToWindow(filterWindow)
             startLoad(for: filterWindow, timeframe: timeframe)
+        }
+        .onChange(of: reloadToken) { _, _ in
+            guard isViewActive else { return }
+            refreshCachedBounds()
+            let interval = loadedCoverageInterval ?? visibleInterval(start: chartScrollPosition, timeframe: timeframe)
+            startLoad(for: interval, timeframe: timeframe, forceReload: true)
         }
     }
 
@@ -594,39 +606,30 @@ struct HistoryChartView<FilterControls: View>: View {
         let snappedInterval = visibleWindowInterval
         let start = snappedInterval.start
         let end = snappedInterval.end.addingTimeInterval(-1)
-        let monthFormatter = DateFormatter()
-        monthFormatter.locale = Locale.current
-        monthFormatter.setLocalizedDateFormatFromTemplate("MMM")
-        let yearFormatter = DateFormatter()
-        yearFormatter.locale = Locale.current
-        yearFormatter.setLocalizedDateFormatFromTemplate("yyyy")
 
         switch timeframe {
         case .week:
-            let startMonth = monthFormatter.string(from: start)
-            let endMonth = monthFormatter.string(from: end)
+            let startMonth = start.formatted(.dateTime.month(.abbreviated))
+            let endMonth = end.formatted(.dateTime.month(.abbreviated))
             let startDay = calendar.component(.day, from: start)
             let endDay = calendar.component(.day, from: end)
-            let endYear = yearFormatter.string(from: end)
+            let endYear = end.formatted(.dateTime.year())
             if calendar.component(.month, from: start) == calendar.component(.month, from: end) {
                 return "\(startMonth) \(startDay)-\(endDay), \(endYear)"
             }
             return "\(startMonth) \(startDay) - \(endMonth) \(endDay), \(endYear)"
         case .month:
-            let monthYearFormatter = DateFormatter()
-            monthYearFormatter.locale = Locale.current
-            monthYearFormatter.setLocalizedDateFormatFromTemplate("MMMM yyyy")
-            return monthYearFormatter.string(from: start)
+            return start.formatted(.dateTime.month(.wide).year())
         case .sixMonths:
-            let startMonth = monthFormatter.string(from: start)
-            let endMonth = monthFormatter.string(from: end)
-            let endYear = yearFormatter.string(from: end)
+            let startMonth = start.formatted(.dateTime.month(.abbreviated))
+            let endMonth = end.formatted(.dateTime.month(.abbreviated))
+            let endYear = end.formatted(.dateTime.year())
             return "\(startMonth) - \(endMonth) \(endYear)"
         case .year:
-            return yearFormatter.string(from: start)
+            return start.formatted(.dateTime.year())
         case .fiveYears:
-            let startYear = yearFormatter.string(from: start)
-            let endYear = yearFormatter.string(from: end)
+            let startYear = start.formatted(.dateTime.year())
+            let endYear = end.formatted(.dateTime.year())
             return "\(startYear) - \(endYear)"
         }
     }
@@ -649,14 +652,51 @@ struct HistoryChartView<FilterControls: View>: View {
 
     private func refreshCachedBounds() {
         let rawBounds = dataBoundsProvider()
-        cachedDataBounds = HistoryChartCalculator.sanitizeBounds(oldest: rawBounds.oldest, newest: rawBounds.newest)
+        let sanitized = HistoryChartCalculator.sanitizeBounds(oldest: rawBounds.oldest, newest: rawBounds.newest)
+        guard let fallbackOldest = fallbackOldestDate() else {
+            cachedDataBounds = sanitized
+            return
+        }
+
+        if sanitized.oldest != nil, sanitized.newest != nil {
+            cachedDataBounds = sanitized
+        } else {
+            cachedDataBounds = (oldest: fallbackOldest, newest: Date())
+        }
     }
 
     private func earliestAllowedWindowStart(for timeframe: HistoryChartTimeframe) -> Date {
-        guard let oldestDataDate = cachedDataBounds.oldest else {
+        let oldestDataDate = cachedDataBounds.oldest
+        let fallbackOldest = fallbackOldestDate()
+
+        let effectiveOldest: Date?
+        switch (oldestDataDate, fallbackOldest) {
+        case let (data?, _):
+            // Prefer real cached bounds whenever available.
+            effectiveOldest = data
+        case let (nil, fallback?):
+            effectiveOldest = fallback
+        default:
+            effectiveOldest = nil
+        }
+
+        guard let effectiveOldest else {
             return HistoryChartCalculator.currentWindow(for: timeframe, now: Date()).start
         }
-        return HistoryChartCalculator.currentWindow(for: timeframe, now: oldestDataDate).start
+
+        // Align the floor to the same anchor system used for scroll snapping.
+        // This avoids allowing extra pre-data room in 6M/5Y where currentWindow
+        // uses centered ranges.
+        return snappedRangeStart(for: effectiveOldest, timeframe: timeframe)
+    }
+
+    private func fallbackOldestDate(now: Date = Date()) -> Date? {
+        guard let fallbackLookbackMonths, fallbackLookbackMonths > 0 else {
+            return nil
+        }
+        let calendar = Calendar.current
+        let fallbackDate = calendar.date(byAdding: .month, value: -fallbackLookbackMonths, to: now) ?? now
+        return calendar.startOfDay(for: fallbackDate)
     }
 
     private func shiftWindow(direction: Int) {
@@ -680,7 +720,8 @@ struct HistoryChartView<FilterControls: View>: View {
 
     private func startLoad(
         for interval: DateInterval,
-        timeframe: HistoryChartTimeframe
+        timeframe: HistoryChartTimeframe,
+        forceReload: Bool = false
     ) {
         // Clamp interval to valid bounds immediately
         let earliest = earliestAllowedWindowStart(for: timeframe)
@@ -694,7 +735,7 @@ struct HistoryChartView<FilterControls: View>: View {
         }
 
         let signature = loadSignature(for: clamped, timeframe: timeframe)
-        if signature == lastRequestedLoadSignature {
+        if signature == lastRequestedLoadSignature, !forceReload {
             return
         }
         lastRequestedLoadSignature = signature
@@ -772,6 +813,10 @@ struct HistoryChartView<FilterControls: View>: View {
     }
 
     private func snappedRangeStart(for date: Date) -> Date {
+        snappedRangeStart(for: date, timeframe: timeframe)
+    }
+
+    private func snappedRangeStart(for date: Date, timeframe: HistoryChartTimeframe) -> Date {
         Calendar.current.dateInterval(of: timeframe.windowCalendarComponent, for: date)?.start ?? date
     }
 

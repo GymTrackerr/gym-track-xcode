@@ -12,18 +12,12 @@ import AppIntents
 
 struct LockScreenLiveActivityView: View {
     let context: ActivityViewContext<TimerActivityAttributes>
-    
-    private let helper: WidgetTimerHelper
-    
-    init(context: ActivityViewContext<TimerActivityAttributes>) {
-        self.context = context
-        self.helper = WidgetTimerHelper(context: context)
-    }
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { timeline in
-            let snapshot = helper.snapshot(at: timeline.date)
-            let remainingSeconds = snapshot.remainingSeconds
+            let model = LiveActivityTimerModel(context: context, date: timeline.date)
+            let snapshot = model.snapshot
+            let remainingSeconds = model.remainingSeconds
             let progress = progressValue(remainingSeconds: remainingSeconds)
 
             VStack(spacing: 10) {
@@ -38,7 +32,7 @@ struct LockScreenLiveActivityView: View {
                             .rotationEffect(.degrees(-90))
 
                         if remainingSeconds > 0 {
-                            countdownText(snapshot: snapshot)
+                            countdownText(model: model)
                         } else {
                             Text("DONE")
                                 .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -48,7 +42,7 @@ struct LockScreenLiveActivityView: View {
                     .frame(width: 72, height: 72)
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(context.attributes.title)
+                        Text(model.title)
                             .font(.headline)
                             .lineLimit(1)
                         Text(remainingSeconds > 0 ? (snapshot.isPaused ? "Paused" : "Running") : "Completed")
@@ -90,15 +84,22 @@ struct LockScreenLiveActivityView: View {
     }
 
     @ViewBuilder
-    private func countdownText(snapshot: WidgetTimerSnapshot) -> some View {
+    private func countdownText(model: LiveActivityTimerModel) -> some View {
+        let snapshot = model.snapshot
         if snapshot.isPaused {
-            Text(timeString(snapshot.remainingSeconds))
+            Text(model.displayText)
                 .font(.system(size: 20, weight: .bold, design: .rounded))
                 .monospacedDigit()
         } else {
-            Text(timerInterval: Date()...snapshot.endDate, countsDown: true)
-                .font(.system(size: 20, weight: .bold, design: .rounded))
-                .monospacedDigit()
+            if let endDate = model.endDate {
+                Text(timerInterval: Date()...endDate, countsDown: true)
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+            } else {
+                Text(model.displayText)
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+            }
         }
     }
 

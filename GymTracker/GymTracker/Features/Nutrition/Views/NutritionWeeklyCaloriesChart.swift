@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftData
 import Charts
 
 struct NutritionWeeklyCaloriesChart: View {
@@ -75,10 +74,10 @@ struct NutritionWeeklyCaloriesModule: View {
 
     @EnvironmentObject private var nutritionService: NutritionService
     @Environment(\.scenePhase) private var scenePhase
-    @Query(sort: [SortDescriptor(\NutritionLogEntry.timestamp, order: .reverse)]) private var logs: [NutritionLogEntry]
 
     @State private var selectedMetric: NutritionService.NutritionSeriesMetric = .calories
     @State private var points: [NutritionService.DailyNutritionPoint] = []
+    @State private var hasLogsInRange = false
 
     private var effectiveMetric: NutritionService.NutritionSeriesMetric {
         module.size == .large ? selectedMetric : .calories
@@ -95,27 +94,6 @@ struct NutritionWeeklyCaloriesModule: View {
 
     private var todayValue: Double {
         points.last?.value ?? 0
-    }
-
-    private var logsSignature: Int {
-        logs.reduce(into: 0) { result, log in
-            result ^= log.id.hashValue
-            result ^= Int(log.timestamp.timeIntervalSince1970)
-            result ^= Int((log.amount * 10).rounded())
-            result ^= Int((log.caloriesSnapshot * 10).rounded())
-        }
-    }
-
-    private var hasLogsInRange: Bool {
-        guard let userId = nutritionService.currentUser?.id else { return false }
-        let calendar = Calendar.current
-        let endDayStart = calendar.startOfDay(for: Date())
-        let startDay = calendar.date(byAdding: .day, value: -6, to: endDayStart) ?? endDayStart
-        let rangeEnd = calendar.date(byAdding: .day, value: 1, to: endDayStart) ?? endDayStart
-
-        return logs.contains {
-            $0.userId == userId && $0.timestamp >= startDay && $0.timestamp < rangeEnd
-        }
     }
 
     var body: some View {
@@ -169,13 +147,16 @@ struct NutritionWeeklyCaloriesModule: View {
                 refreshSeries()
             }
         }
-        .onChange(of: logsSignature) {
-            refreshSeries()
-        }
         .onChange(of: selectedMetric) {
             if module.size == .large {
                 refreshSeries()
             }
+        }
+        .onReceive(nutritionService.$dayLogs) { _ in
+            refreshSeries()
+        }
+        .onReceive(nutritionService.$dayMealEntries) { _ in
+            refreshSeries()
         }
     }
 
@@ -187,13 +168,24 @@ struct NutritionWeeklyCaloriesModule: View {
     }
 
     private func refreshSeries() {
+        let calendar = Calendar.current
+        let endDayStart = calendar.startOfDay(for: Date())
+        let startDay = calendar.date(byAdding: .day, value: -6, to: endDayStart) ?? endDayStart
+        let rangeEnd = calendar.date(byAdding: .day, value: 1, to: endDayStart) ?? endDayStart
+        let interval = DateInterval(start: startDay, end: rangeEnd)
+
         do {
-            points = try nutritionService.dailyNutritionSeries(
-                endingOn: Date(),
+            let logs = try nutritionService.logsInDateInterval(interval)
+            hasLogsInRange = !logs.isEmpty
+            points = buildSeriesFromLogs(
+                logs,
+                startDay: startDay,
                 days: 7,
-                metric: effectiveMetric
+                metric: effectiveMetric,
+                calendar: calendar
             )
         } catch {
+            hasLogsInRange = false
             points = fallbackSeries()
         }
     }
@@ -205,6 +197,40 @@ struct NutritionWeeklyCaloriesModule: View {
         return (0..<7).map { offset in
             let date = calendar.date(byAdding: .day, value: offset, to: startDay) ?? startDay
             return NutritionService.DailyNutritionPoint(date: date, value: 0)
+        }
+    }
+
+    private func buildSeriesFromLogs(
+        _ logs: [NutritionLogEntry],
+        startDay: Date,
+        days: Int,
+        metric: NutritionService.NutritionSeriesMetric,
+        calendar: Calendar
+    ) -> [NutritionService.DailyNutritionPoint] {
+        let groupedByDay = Dictionary(grouping: logs) { log in
+            calendar.startOfDay(for: log.timestamp)
+        }
+
+        return (0..<max(days, 1)).map { offset in
+            let date = calendar.date(byAdding: .day, value: offset, to: startDay) ?? startDay
+            let dayLogs = groupedByDay[date] ?? []
+            let total = dayLogs.reduce(0.0) { partial, log in
+                partial + metricValue(for: log, metric: metric)
+            }
+            return NutritionService.DailyNutritionPoint(date: date, value: total)
+        }
+    }
+
+    private func metricValue(for log: NutritionLogEntry, metric: NutritionService.NutritionSeriesMetric) -> Double {
+        switch metric {
+        case .calories:
+            return log.caloriesSnapshot
+        case .protein:
+            return log.proteinSnapshot
+        case .carbs:
+            return log.carbsSnapshot
+        case .fat:
+            return log.fatSnapshot
         }
     }
 

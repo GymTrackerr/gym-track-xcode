@@ -14,12 +14,19 @@ final class User {
     var name: String
     var timestamp: Date
     var lastLogin: Date
+    var soft_deleted: Bool = false
+    var syncMetaId: UUID? = nil
+    var createdAt: Date = Date()
+    var updatedAt: Date = Date()
     var active: Bool = true
     var isDemo: Bool = false
     var allowHealthAccess: Bool = false
+    var remoteAccountId: String? = nil
+    var remoteSyncEnabled: Bool = true
     
     var defaultTimer: Int = 90
     var showNutritionTab: Bool = true
+    var preferredHealthHistorySyncRangeRaw: String?
 
     // Phase 9 optional timer feedback settings (non-destructive)
     var timerNotificationsEnabled: Bool?
@@ -32,9 +39,13 @@ final class User {
     var hapticAt5: Bool?
     
     init(name: String, isDemo: Bool = false) {
+        let timestamp = Date()
         self.name = name
         self.isDemo = isDemo
-        self.timestamp = Date()
-        self.lastLogin = Date()
+        self.remoteSyncEnabled = !isDemo
+        self.timestamp = timestamp
+        self.lastLogin = timestamp
+        self.createdAt = timestamp
+        self.updatedAt = timestamp
     }
 }

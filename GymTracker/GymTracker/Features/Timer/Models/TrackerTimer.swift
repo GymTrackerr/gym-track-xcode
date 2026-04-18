@@ -43,6 +43,18 @@ final class TrackerTimer {
             updatedAt: updatedAt
         )
     }
+
+    func toWatchSnapshot() -> WatchTimerSnapshot {
+        WatchTimerSnapshot(
+            id: id.uuidString,
+            startTime: startTime,
+            elapsedTime: elapsedTime,
+            timerLength: timerLength,
+            isPaused: isPaused,
+            createdAt: createdAt,
+            updatedAt: updatedAt
+        )
+    }
 }
 
 struct TrackerTimerDTO: Identifiable, Codable {

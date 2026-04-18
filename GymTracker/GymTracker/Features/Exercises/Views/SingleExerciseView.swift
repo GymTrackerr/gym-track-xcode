@@ -107,7 +107,6 @@ struct ExerciseDetailView: View {
     @State private var exerciseAliasDraft = ""
     @State private var isEditingAliases = false
     @State private var aliasError: String? = nil
-    @StateObject private var sessionExerciseDraftStore = SessionExerciseDraftStore()
     private let previousLogsSectionID = "previous-logs-section"
     
     private struct RepSample {
@@ -476,15 +475,11 @@ struct ExerciseDetailView: View {
                         VStack(spacing: 8) {
                             ForEach(previousSessions, id: \.session.id) { item in
                                 NavigationLink {
-                                    SessionExerciseView(
-                                        sessionEntry: item.sessionEntry,
-                                        navigationContext: .fromExerciseHistory(
-                                            sessionId: item.session.id,
-                                            exerciseId: exercise.id
-                                        )
+                                    SingleSessionView(
+                                        session: item.session,
+                                        navigationContext: SessionNavigationContext.forSession(item.session)
                                     )
                                     .appBackground()
-                                    .environmentObject(sessionExerciseDraftStore)
                                 } label: {
                                     HStack(spacing: 12) {
                                         VStack(alignment: .leading, spacing: 4) {
@@ -1073,7 +1068,6 @@ struct ExerciseDetailView: View {
 
     private struct PreviousSessionItem {
         let session: Session
-        let sessionEntry: SessionEntry
         let subtitle: String
     }
 
@@ -1092,7 +1086,7 @@ struct ExerciseDetailView: View {
             let matchingSessionEntries = session.sessionEntries
                 .filter { $0.exercise.id == exercise.id }
                 .sorted { $0.order < $1.order }
-            guard let focusedEntry = matchingSessionEntries.first else { continue }
+            guard !matchingSessionEntries.isEmpty else { continue }
 
             let unitPrefs = SetDisplayUnitPreferences(
                 preferredWeightUnit: displayUnit,
@@ -1114,7 +1108,6 @@ struct ExerciseDetailView: View {
             result.append(
                 PreviousSessionItem(
                     session: session,
-                    sessionEntry: focusedEntry,
                     subtitle: subtitle
                 )
             )

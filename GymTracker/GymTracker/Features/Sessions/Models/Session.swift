@@ -16,6 +16,10 @@ final class Session {
     var timestampDone: Date = Date() // temporary just saving as 
     var notes: String = ""
     var importHash: String? = nil
+    var soft_deleted: Bool = false
+    var syncMetaId: UUID? = nil
+    var createdAt: Date = Date()
+    var updatedAt: Date = Date()
     
     var routine: Routine?
     var routine_id: UUID? { routine?.id }
@@ -29,8 +33,17 @@ final class Session {
         self.notes = notes
         self.routine = routine
         self.timestampDone = timestamp
+        self.createdAt = timestamp
+        self.updatedAt = timestamp
         self.sessionEntries = []
     }
+}
+
+extension Session: SyncTrackedRoot {
+    static var syncModelType: SyncModelType { .session }
+    var syncLinkedItemId: String { id.uuidString.lowercased() }
+
+    var syncSeedDate: Date { timestamp }
 }
 
 enum SessionNavigationContext: Equatable {

@@ -23,8 +23,9 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
     }
 
     private let staleInterval: TimeInterval = 15 * 60
-    private let batchingThreshold = 3
-    private var isRunningSchemaUpgrade = false
+    private let batchingThreshold = 2
+    private let smartPullUnsyncedPastDayLimit = 30
+    private let defaultHistoryRefreshChunkDays = 120
 
     private struct DailyAggregateSnapshot: Sendable {
         let userId: String
@@ -80,28 +81,33 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
     }
 
     @Published private(set) var refreshToken: Int = 0
+    @Published private(set) var chartRefreshToken: Int = 0
     @Published private(set) var isBackfillingHistory: Bool = false
     @Published private(set) var backfillStatusText: String = ""
+    @Published private(set) var backfillProgressCompleted: Int = 0
+    @Published private(set) var backfillProgressTotal: Int = 0
 
+    private let repository: HealthKitDailyRepositoryProtocol
     private let healthKitManager: HealthKitManager
     private let dateNormalizer: HealthKitDateNormalizer
     private var inFlightTasks: [String: Task<DailyAggregateSnapshot, Error>] = [:]
+    private var smartPullTasks: [String: Task<Bool, Never>] = [:]
 
     init(
         context: ModelContext,
+        repository: HealthKitDailyRepositoryProtocol,
         healthKitManager: HealthKitManager,
         dateNormalizer: HealthKitDateNormalizer
     ) {
+        self.repository = repository
         self.healthKitManager = healthKitManager
         self.dateNormalizer = dateNormalizer
         super.init(context: context)
     }
 
     override func loadFeature() {
-        guard let userId = currentUser?.id.uuidString else { return }
-        Task { [weak self] in
-            await self?.upgradeCachedSummariesIfNeeded(userId: userId)
-        }
+        // Intentionally no launch-time fetches here.
+        // Home/Settings initiate smart pull or full refresh explicitly.
     }
 
     func dailySummary(
@@ -226,28 +232,115 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
             policy: .forceRefresh
         )
         refreshToken &+= 1
+        chartRefreshToken &+= 1
+    }
+
+    @discardableResult
+    func smartPullHealthData(userId: String) async -> Bool {
+        await smartPullHealthData(userId: userId, includeUnsyncedPastDays: true)
+    }
+
+    @discardableResult
+    func smartPullTodayOnly(userId: String) async -> Bool {
+        await smartPullHealthData(userId: userId, includeUnsyncedPastDays: false)
+    }
+
+    @discardableResult
+    private func smartPullHealthData(
+        userId: String,
+        includeUnsyncedPastDays: Bool
+    ) async -> Bool {
+        let taskKey = "\(userId)|\(includeUnsyncedPastDays ? "full" : "today")"
+        if let existingTask = smartPullTasks[taskKey] {
+            return await existingTask.value
+        }
+
+        let task = Task(priority: .utility) { @MainActor [weak self] in
+            guard let self else { return false }
+            defer { self.smartPullTasks[taskKey] = nil }
+            return await self.runSmartPullHealthData(
+                userId: userId,
+                includeUnsyncedPastDays: includeUnsyncedPastDays
+            )
+        }
+        smartPullTasks[taskKey] = task
+        return await task.value
+    }
+
+    @discardableResult
+    func fullRefreshHealthHistory(
+        userId: String,
+        range: HealthHistorySyncRange = .defaultSelection,
+        chunkDays: Int? = nil
+    ) async -> Bool {
+        if isBackfillingHistory {
+            return true
+        }
+
+        let calendar = Calendar.current
+        let todayStart = dateNormalizer.startOfDay(Date())
+        let rangeStart = dateNormalizer.startOfDay(range.startDay(endingOn: todayStart, calendar: calendar))
+        let historyChunkDays = max(chunkDays ?? defaultHistoryRefreshChunkDays, 1)
+        let totalDays = max((calendar.dateComponents([.day], from: rangeStart, to: todayStart).day ?? 0) + 1, 1)
+
+        isBackfillingHistory = true
+        backfillProgressCompleted = 0
+        backfillProgressTotal = totalDays
+        backfillStatusText = "Syncing Apple Health history..."
+        defer {
+            isBackfillingHistory = false
+            backfillStatusText = ""
+        }
+
+        var processedDays = 0
+        var cursorEnd = todayStart
+
+        while cursorEnd >= rangeStart {
+            if Task.isCancelled {
+                return false
+            }
+            await Task.yield()
+
+            let daysRemaining = max((calendar.dateComponents([.day], from: rangeStart, to: cursorEnd).day ?? 0) + 1, 1)
+            let requestDays = min(historyChunkDays, daysRemaining)
+            let progress = min(Int((Double(processedDays) / Double(totalDays)) * 100.0), 99)
+            backfillStatusText = "Syncing Apple Health history... \(progress)%"
+            backfillProgressCompleted = min(processedDays, totalDays)
+
+            do {
+                _ = try await dailySummaries(
+                    endingOn: cursorEnd,
+                    days: requestDays,
+                    userId: userId,
+                    policy: .forceRefresh
+                )
+            } catch {
+                backfillStatusText = "Health sync failed: \(error.localizedDescription)"
+                return false
+            }
+
+            processedDays += requestDays
+            backfillProgressCompleted = min(processedDays, totalDays)
+
+            guard let nextEnd = calendar.date(byAdding: .day, value: -requestDays, to: cursorEnd) else {
+                break
+            }
+            cursorEnd = nextEnd
+        }
+
+        backfillStatusText = "Syncing Apple Health history... 100%"
+        backfillProgressCompleted = totalDays
+        refreshToken &+= 1
+        chartRefreshToken &+= 1
+        return true
     }
 
     func cachedDataBounds(userId: String) throws -> (oldest: Date?, newest: Date?) {
-        let descriptor = FetchDescriptor<HealthKitDailyAggregateData>(
-            predicate: #Predicate<HealthKitDailyAggregateData> { item in
-                item.userId == userId
-            },
-            sortBy: [SortDescriptor(\.dayStart)]
-        )
-        let items = try modelContext.fetch(descriptor)
-        return (items.first?.dayStart, items.last?.dayStart)
+        try repository.fetchCachedBounds(userId: userId)
     }
 
     func cachedDailySummaries(userId: String) throws -> [HealthKitDailyAggregateData] {
-        let descriptor = FetchDescriptor<HealthKitDailyAggregateData>(
-            predicate: #Predicate<HealthKitDailyAggregateData> { item in
-                item.userId == userId
-            },
-            sortBy: [SortDescriptor(\.dayStart)]
-        )
-        let items = try modelContext.fetch(descriptor)
-        return items
+        try repository.fetchCachedSummaries(userId: userId)
     }
 
     func cachedDailySummaries(
@@ -286,85 +379,16 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         }
     }
 
-    func backfillHistoryIfNeeded(
-        userId: String,
-        maxYearsBack: Int = 25,
-        chunkDays: Int = 180,
-        emptyChunkStop: Int = 4
-    ) async -> Bool {
-        let calendar = Calendar.current
-        let now = Date()
-        let absoluteStart = calendar.date(byAdding: .year, value: -maxYearsBack, to: now) ?? now
-        let bounds = try? cachedDataBounds(userId: userId)
-        let initialEnd = (bounds?.oldest ?? now).addingTimeInterval(-24 * 60 * 60)
-
-        if initialEnd <= absoluteStart {
-            return true
-        }
-
-        isBackfillingHistory = true
-        backfillStatusText = "Loading HealthKit history..."
-        defer {
-            isBackfillingHistory = false
-            backfillStatusText = ""
-        }
-
-        let requestedTotalDays = max((calendar.dateComponents([.day], from: absoluteStart, to: initialEnd).day ?? 0) + 1, 1)
-        var cursorEnd = initialEnd
-        var processedDays = 0
-        var wroteAnyData = false
-        var foundAnyData = false
-        var emptyChunkStreak = 0
-
-        while cursorEnd > absoluteStart {
-            if Task.isCancelled { return false }
-            await Task.yield()
-
-            let daysCovered = max((calendar.dateComponents([.day], from: absoluteStart, to: cursorEnd).day ?? 0) + 1, 1)
-            let requestDays = min(chunkDays, daysCovered)
-
-            let progress = min(Int((Double(processedDays) / Double(requestedTotalDays)) * 100.0), 99)
-            backfillStatusText = "Loading HealthKit history... \(progress)%"
-
-            if let summaries = try? await dailySummaries(
-                endingOn: cursorEnd,
-                days: requestDays,
-                userId: userId,
-                policy: .refreshIfStale
-            ) {
-                wroteAnyData = true
-                let chunkHasData = summaries.contains { summary in
-                    summary.steps > 0 ||
-                    summary.activeEnergyKcal > 0 ||
-                    summary.restingEnergyKcal > 0 ||
-                    (summary.exerciseMinutes ?? 0) > 0 ||
-                    (summary.standHours ?? 0) > 0 ||
-                    summary.sleepSeconds > 0
-                }
-
-                if chunkHasData {
-                    foundAnyData = true
-                    emptyChunkStreak = 0
-                } else if foundAnyData {
-                    emptyChunkStreak += 1
-                    if emptyChunkStreak >= emptyChunkStop {
-                        break
-                    }
-                }
-            }
-
-            processedDays += requestDays
-            guard let nextEnd = calendar.date(byAdding: .day, value: -requestDays, to: cursorEnd) else {
-                break
-            }
-            cursorEnd = nextEnd
-        }
-
-        backfillStatusText = "Loading HealthKit history... 100%"
-        if wroteAnyData {
-            refreshToken &+= 1
-        }
-        return true
+    func cachedExistingDailySummaries(
+        in interval: DateInterval,
+        userId: String
+    ) throws -> [HealthKitDailyAggregateData] {
+        guard interval.end > interval.start else { return [] }
+        let startDay = dateNormalizer.startOfDay(interval.start)
+        let clampedEnd = interval.end.addingTimeInterval(-1)
+        let endDay = dateNormalizer.startOfDay(max(clampedEnd, interval.start))
+        let cachedByDayKey = try fetchCachedSummaries(userId: userId, from: startDay, to: endDay)
+        return cachedByDayKey.values.sorted { $0.dayStart < $1.dayStart }
     }
 
     func invalidateDay(for day: Date, userId: String) throws {
@@ -372,26 +396,28 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         guard let cached = try fetchCachedSummary(userId: userId, dayKey: dayKey) else { return }
         cached.lastRefreshedAt = .distantPast
         cached.isToday = dateNormalizer.sameDay(cached.dayStart, Date())
-        try modelContext.save()
+        cached.isFullySynced = false
+        cached.updatedAt = Date()
+        try repository.saveChanges()
         refreshToken &+= 1
+        chartRefreshToken &+= 1
     }
 
     func invalidateAll(userId: String) throws {
-        let descriptor = FetchDescriptor<HealthKitDailyAggregateData>(
-            predicate: #Predicate<HealthKitDailyAggregateData> { item in
-                item.userId == userId
-            }
-        )
-        let cachedItems = try modelContext.fetch(descriptor)
+        let cachedItems = try repository.fetchCachedSummaries(userId: userId)
         for item in cachedItems {
             item.lastRefreshedAt = .distantPast
             item.isToday = dateNormalizer.sameDay(item.dayStart, Date())
+            item.isFullySynced = false
+            item.updatedAt = Date()
         }
-        try modelContext.save()
+        try repository.saveChanges()
+        chartRefreshToken &+= 1
     }
 
     func notifyExternalSummaryImport() {
         refreshToken &+= 1
+        chartRefreshToken &+= 1
     }
 
     private func refreshDay(dayStart: Date, userId: String) async throws -> HealthKitDailyAggregateData {
@@ -514,11 +540,44 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
                 resolved[snapshot.dayKey] = dto
             }
             if !snapshots.isEmpty {
-                try modelContext.save()
+                try repository.saveChanges()
             }
         }
 
         return resolved
+    }
+
+    private func runSmartPullHealthData(
+        userId: String,
+        includeUnsyncedPastDays: Bool
+    ) async -> Bool {
+        let todayStart = dateNormalizer.startOfDay(Date())
+        var refreshTargets = Set<Date>([todayStart])
+        var loadedUnsyncedTargets = true
+
+        if includeUnsyncedPastDays {
+            do {
+                let unsynced = try repository.fetchUnsyncedPastSummaries(
+                    userId: userId,
+                    before: todayStart,
+                    limit: smartPullUnsyncedPastDayLimit
+                )
+                for summary in unsynced {
+                    refreshTargets.insert(dateNormalizer.startOfDay(summary.dayStart))
+                }
+            } catch {
+                loadedUnsyncedTargets = false
+            }
+        }
+
+        do {
+            _ = try await refreshDays(Array(refreshTargets).sorted(), userId: userId)
+            refreshToken &+= 1
+            chartRefreshToken &+= 1
+            return loadedUnsyncedTargets
+        } catch {
+            return false
+        }
     }
 
     private func shouldRefresh(cached: HealthKitDailyAggregateData, dayStart: Date) -> Bool {
@@ -526,17 +585,11 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
             let age = Date().timeIntervalSince(cached.lastRefreshedAt)
             return age > staleInterval
         }
-        return cached.lastRefreshedAt == .distantPast
+        return cached.isFullySynced == false || cached.lastRefreshedAt == .distantPast
     }
 
     private func fetchCachedSummary(userId: String, dayKey: String) throws -> HealthKitDailyAggregateData? {
-        let cacheKey = makeCacheKey(userId: userId, dayKey: dayKey)
-        let descriptor = FetchDescriptor<HealthKitDailyAggregateData>(
-            predicate: #Predicate<HealthKitDailyAggregateData> { item in
-                item.cacheKey == cacheKey
-            }
-        )
-        return try modelContext.fetch(descriptor).first
+        try repository.fetchCachedSummary(userId: userId, dayKey: dayKey)
     }
 
     private func fetchCachedSummaries(
@@ -544,43 +597,20 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         from startDay: Date,
         to endDay: Date
     ) throws -> [String: HealthKitDailyAggregateData] {
-        let descriptor = FetchDescriptor<HealthKitDailyAggregateData>(
-            predicate: #Predicate<HealthKitDailyAggregateData> { item in
-                item.userId == userId && item.dayStart >= startDay && item.dayStart <= endDay
-            }
-        )
-        let items = try modelContext.fetch(descriptor)
-        return Dictionary(uniqueKeysWithValues: items.map { ($0.dayKey, $0) })
+        try repository.fetchCachedSummaries(userId: userId, from: startDay, to: endDay)
     }
 
     private func upsertCache(with dto: HealthKitDailyAggregateData, saveImmediately: Bool = true) throws {
         let refreshedAt = Date()
         let isToday = dateNormalizer.sameDay(dto.dayStart, Date())
-
-        if let existing = try fetchCachedSummary(userId: dto.userId, dayKey: dto.dayKey) {
-            existing.dayStart = dto.dayStart
-            existing.steps = dto.steps
-            existing.activeEnergyKcal = dto.activeEnergyKcal
-            existing.restingEnergyKcal = dto.restingEnergyKcal
-            existing.exerciseMinutes = dto.exerciseMinutes
-            existing.standHours = dto.standHours
-            existing.moveGoalKcal = dto.moveGoalKcal
-            existing.exerciseGoalMinutes = dto.exerciseGoalMinutes
-            existing.standGoalHours = dto.standGoalHours
-            existing.sleepSeconds = dto.sleepSeconds
-            existing.bodyWeightKg = dto.bodyWeightKg
-            existing.schemaVersion = dto.schemaVersion
-            existing.lastRefreshedAt = refreshedAt
-            existing.isToday = isToday
-        } else {
-            dto.lastRefreshedAt = refreshedAt
-            dto.isToday = isToday
-            modelContext.insert(dto)
-        }
-
-        if saveImmediately {
-            try modelContext.save()
-        }
+        let isFullySynced = !isToday
+        try repository.upsertCache(
+            with: dto,
+            refreshedAt: refreshedAt,
+            isToday: isToday,
+            isFullySynced: isFullySynced,
+            saveImmediately: saveImmediately
+        )
     }
 
     private func mapToDTO(_ cache: HealthKitDailyAggregateData) -> HealthKitDailyAggregateData {
@@ -639,55 +669,4 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
         return blocks
     }
 
-    private func upgradeCachedSummariesIfNeeded(userId: String) async {
-        guard !isRunningSchemaUpgrade else { return }
-
-        let descriptor = FetchDescriptor<HealthKitDailyAggregateData>(
-            predicate: #Predicate<HealthKitDailyAggregateData> { item in
-                item.userId == userId
-            },
-            sortBy: [SortDescriptor(\.dayStart)]
-        )
-
-        guard let cached = try? modelContext.fetch(descriptor), !cached.isEmpty else { return }
-
-        let needsUpgrade = cached.contains { $0.schemaVersion < HealthKitDailyAggregateData.currentSchemaVersion }
-        guard needsUpgrade else { return }
-
-        isRunningSchemaUpgrade = true
-        defer { isRunningSchemaUpgrade = false }
-
-        let firstDay = cached.first?.dayStart ?? Date()
-        let lastDay = cached.last?.dayStart ?? firstDay
-
-        guard let fetched = try? await healthKitManager.fetchDailyAggregates(
-            from: firstDay,
-            to: lastDay,
-            userId: userId,
-            calendar: .current
-        ) else {
-            return
-        }
-
-        let fetchedByKey = Dictionary(uniqueKeysWithValues: fetched.map { ($0.dayKey, $0) })
-        var changedAny = false
-
-        for item in cached where item.schemaVersion < HealthKitDailyAggregateData.currentSchemaVersion {
-            if let upgraded = fetchedByKey[item.dayKey] {
-                item.exerciseMinutes = upgraded.exerciseMinutes
-                item.standHours = upgraded.standHours
-                item.moveGoalKcal = upgraded.moveGoalKcal
-                item.exerciseGoalMinutes = upgraded.exerciseGoalMinutes
-                item.standGoalHours = upgraded.standGoalHours
-                item.bodyWeightKg = upgraded.bodyWeightKg
-                item.schemaVersion = HealthKitDailyAggregateData.currentSchemaVersion
-                changedAny = true
-            }
-        }
-
-        if changedAny {
-            try? modelContext.save()
-            refreshToken &+= 1
-        }
-    }
 }

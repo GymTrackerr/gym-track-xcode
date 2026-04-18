@@ -98,33 +98,27 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		6536C6E22F70023B002C2A97 /* Exceptions for "GymTrackerWatch Watch App" folder in "GymTrackerWatch Watch App" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Views/HomeView.swift,
-			);
-			target = 65B6FEB92EE5EF8500DB4EED /* GymTrackerWatch Watch App */;
-		};
 		65B6FECA2EE5F00500DB4EED /* Exceptions for "GymTracker" folder in "GymTrackerWatch Watch App" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Core/Networking/API_Base.swift,
 				Core/Networking/API_Data.swift,
-				Core/Networking/API_Helper.swift,
-				Core/Persistence/ServiceBase.swift,
 				Features/Timer/Models/TrackerTimer.swift,
-				Features/Timer/Services/TimerService.swift,
-				Features/Timer/Services/TimerServiceLiveActivity.swift,
+				Features/Timer/Shared/ExtensionTimerService.swift,
+				Features/Timer/Shared/SharedTimerController.swift,
+				Features/Timer/Shared/SharedTimerModels.swift,
+				Features/Timer/Shared/SharedTimerStateStore.swift,
+				Features/Timer/Shared/WatchTimerControlling.swift,
 				Features/User/Models/User.swift,
-				Features/User/Services/UserService.swift,
 				GymTracker.icon,
 				Integrations/Media/MediaCache.swift,
+				Integrations/Watch/WatchSessionManager.swift,
 			);
 			target = 65B6FEB92EE5EF8500DB4EED /* GymTrackerWatch Watch App */;
 		};
 		65F66C152EE4FCF50089B62E /* Exceptions for "GymTracker" folder in "GymTracker" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Features/Timer/Shared/ExtensionTimerService.swift,
 				Info.plist,
 			);
 			target = 651FCBAC2E8D3B9B00AC42F6 /* GymTracker */;
@@ -139,11 +133,8 @@
 		65F66C3A2EE4FF130089B62E /* Exceptions for "TrackerWidget" folder in "GymTracker" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				TrackerTimer/IslandExpandedView.swift,
 				TrackerTimer/TimerActivityAttributes.swift,
 				TrackerTimer/TimerAppIntents.swift,
-				TrackerTimer/TimerDataController.swift,
-				WidgetTimerHelper.swift,
 				WidgetUtils.swift,
 			);
 			target = 651FCBAC2E8D3B9B00AC42F6 /* GymTracker */;
@@ -151,13 +142,14 @@
 		65F66C422EE500F10089B62E /* Exceptions for "GymTracker" folder in "TrackerWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Core/Networking/API_Base.swift,
 				Core/Networking/API_Data.swift,
-				Core/Networking/API_Helper.swift,
-				Core/Persistence/ServiceBase.swift,
 				Features/Timer/Models/TrackerTimer.swift,
+				Features/Timer/Shared/ExtensionTimerService.swift,
+				Features/Timer/Shared/SharedTimerController.swift,
+				Features/Timer/Shared/SharedTimerModels.swift,
+				Features/Timer/Shared/SharedTimerStateStore.swift,
+				Features/Timer/Shared/WatchTimerControlling.swift,
 				Features/User/Models/User.swift,
-				Features/User/Services/UserService.swift,
 			);
 			target = 65F66C192EE4FD780089B62E /* TrackerWidgetExtension */;
 		};
@@ -174,11 +166,13 @@
 			path = GymTracker;
 			sourceTree = "<group>";
 		};
+		659CA0772F8616BF00FDFB40 /* Repo */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Repo;
+			sourceTree = "<group>";
+		};
 		65B6FEBB2EE5EF8500DB4EED /* GymTrackerWatch Watch App */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				6536C6E22F70023B002C2A97 /* Exceptions for "GymTrackerWatch Watch App" folder in "GymTrackerWatch Watch App" target */,
-			);
 			path = "GymTrackerWatch Watch App";
 			sourceTree = "<group>";
 		};
@@ -244,6 +238,7 @@
 		6500F51D2F4E1CFD00472D60 /* Docs */ = {
 			isa = PBXGroup;
 			children = (
+				659CA0772F8616BF00FDFB40 /* Repo */,
 				6536C6D42F6FFE8B002C2A97 /* healthkit */,
 				65A98B3C2F6B0B38001B9111 /* program */,
 				651ACB6E2F4E8120003BD3D6 /* design */,
@@ -337,6 +332,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				651FCBAF2E8D3B9C00AC42F6 /* GymTracker */,
+				659CA0772F8616BF00FDFB40 /* Repo */,
 			);
 			name = GymTracker;
 			packageProductDependencies = (
@@ -639,7 +635,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = GymTracker/GymTracker.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 16;
 				DEVELOPMENT_TEAM = VHCWBN8GY3;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -701,7 +697,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = GymTracker/GymTracker.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 16;
 				DEVELOPMENT_TEAM = VHCWBN8GY3;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -763,7 +759,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "GymTrackerWatch Watch App/GymTrackerWatch Watch App.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 16;
 				DEVELOPMENT_TEAM = VHCWBN8GY3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -801,7 +797,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "GymTrackerWatch Watch App/GymTrackerWatch Watch App.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 16;
 				DEVELOPMENT_TEAM = VHCWBN8GY3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -840,7 +836,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = TrackerWidget/TrackerWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 16;
 				DEVELOPMENT_TEAM = VHCWBN8GY3;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = TrackerWidget/Info.plist;
@@ -873,7 +869,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = TrackerWidget/TrackerWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 16;
 				DEVELOPMENT_TEAM = VHCWBN8GY3;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = TrackerWidget/Info.plist;

@@ -7,16 +7,37 @@
 
 import Foundation
 
-class API_Data {
-    private let prodMode:Bool = true;
-    
+final class API_Data {
+    enum Environment {
+        case development
+        case production
+    }
+
+    private let environment: Environment
+
+    init(environment: Environment = .production) {
+        self.environment = environment
+    }
+
+    var hostURLString: String {
+        switch environment {
+        case .development:
+            return "http://127.0.0.1:5002"
+        case .production:
+            return "https://api.trackerr.ca"
+        }
+    }
+
+    var baseURLString: String {
+        hostURLString + "/v1"
+    }
+
     func getURL() -> String {
-        if (prodMode != true) {
-            return "http://192.168.3.21:5002/v1"
-        }
-        else {
-            return "https://api.trackerr.ca/v1"
-        }
+        baseURLString
+    }
+
+    func getHostURL() -> String {
+        hostURLString
     }
 }
 

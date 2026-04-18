@@ -11,17 +11,12 @@ import Foundation
 #if os(iOS)
 import WatchConnectivity
 
-#endif
-
 final class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
-    
-    private let timerService: TimerService
-//    private let exerciseService: ExerciseService
+    private let timerController: any WatchTimerControlling
     private var cancellables = Set<AnyCancellable>()
-    
-    init(timerService: TimerService) {
-        self.timerService = timerService
-//        self.exerciseService = exerciseService
+
+    init(timerController: any WatchTimerControlling) {
+        self.timerController = timerController
         super.init()
         activate()
         observeServices()
@@ -34,9 +29,11 @@ final class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
     }
     
     private func observeServices() {
-        timerService.$timer
+        timerController.timerPublisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] timer in
+                defer { self?.pushApplicationContext() }
+
                 // Only send if watch is reachable
                 guard WCSession.default.isReachable else { 
                     print("Watch not reachable, skipping timer update")
@@ -44,7 +41,7 @@ final class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
                 }
                 if let timer = timer {
                     // Timer exists - send update
-                    guard let encoded = try? JSONEncoder().encode(timer.toDTO()) else { return }
+                    guard let encoded = try? JSONEncoder().encode(timer) else { return }
                     self?.send(data: encoded, type: "timerUpdate")
                 } else {
                     // Timer was deleted/cleared - notify watch
@@ -52,16 +49,18 @@ final class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
                 }
             }
             .store(in: &cancellables)
-        
-        timerService.$pendingLength
+
+        timerController.pendingLengthPublisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] (_ : Int) in
                 // Send update to watch when pending length changes
                 guard WCSession.default.isReachable else { 
                     print("Watch not reachable, skipping pending length update")
-                    return 
+                    self?.pushApplicationContext()
+                    return
                 }
-                self?.send(["action": "updatePendingLength", "length": self?.timerService.pendingLength ?? 0])
+                self?.send(["action": "updatePendingLength", "length": self?.timerController.pendingLength ?? 0])
+                self?.pushApplicationContext()
             }
             .store(in: &cancellables)
     }
@@ -77,12 +76,41 @@ final class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
         })
     }
 
+    private func pushApplicationContext() {
+        let session = WCSession.default
+        guard session.activationState == .activated else { return }
+
+        do {
+            try session.updateApplicationContext(currentApplicationContext())
+        } catch {
+            print("Failed to update watch application context:", error)
+        }
+    }
+
+    private func currentApplicationContext() -> [String: Any] {
+        var context: [String: Any] = [
+            "pendingLength": timerController.pendingLength,
+            "sentAt": Date().timeIntervalSince1970,
+        ]
+
+        if let timer = timerController.timerSnapshot,
+           let encoded = try? JSONEncoder().encode(timer) {
+            context["timer"] = encoded
+        } else {
+            context["timer"] = NSNull()
+        }
+
+        return context
+    }
+
     func session(
         _ session: WCSession,
         activationDidCompleteWith activationState: WCSessionActivationState,
         error: Error?
     ) {
         print("iPhone session activated: \(activationState.rawValue), error: \(String(describing: error))")
+        guard activationState == .activated else { return }
+        pushApplicationContext()
     }
 
     func session(
@@ -94,19 +122,19 @@ final class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
         switch action {
 
         case "requestInitialState":
-            if let timer = timerService.timer {
-                if let encoded = try? JSONEncoder().encode(timer.toDTO()) {
-                    replyHandler(["timer": encoded, "pendingLength": timerService.pendingLength])
+            if let timer = timerController.timerSnapshot {
+                if let encoded = try? JSONEncoder().encode(timer) {
+                    replyHandler(["timer": encoded, "pendingLength": timerController.pendingLength])
                 } else {
-                    replyHandler(["timer": NSNull(), "pendingLength": timerService.pendingLength])
+                    replyHandler(["timer": NSNull(), "pendingLength": timerController.pendingLength])
                 }
             } else {
-                replyHandler(["timer": NSNull(), "pendingLength": timerService.pendingLength])
+                replyHandler(["timer": NSNull(), "pendingLength": timerController.pendingLength])
             }
 
         case "requestTimer":
-            if let timer = timerService.timer {
-                if let encoded = try? JSONEncoder().encode(timer.toDTO()) {
+            if let timer = timerController.timerSnapshot {
+                if let encoded = try? JSONEncoder().encode(timer) {
                     replyHandler(["timer": encoded])
                 } else {
                     replyHandler(["timer": NSNull()])
@@ -114,23 +142,20 @@ final class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
             }
 
         case "startTimer":
-            if let length = message["length"] as? Int {
-                timerService.pendingLength = length
-            }
-            timerService.start()
+            timerController.start(length: message["length"] as? Int)
 
         case "pauseTimer":
-            timerService.pause()
+            timerController.pause()
 
         case "resumeTimer":
-            timerService.resume()
+            timerController.resume()
 
         case "stopTimer":
-            timerService.stop(delete: message["delete"] as? Bool ?? false)
+            timerController.stop(delete: message["delete"] as? Bool ?? false)
 
         case "updatePendingLength":
             if let length = message["length"] as? Int {
-                timerService.pendingLength = length
+                timerController.pendingLength = length
             }
 
         default:
@@ -150,3 +175,4 @@ final class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
         WCSession.default.activate()
     }
 }
+#endif

@@ -8,8 +8,7 @@
 import SwiftUI
 
 struct WatchTimerView: View {
-    @EnvironmentObject var watchSession: WatchSessionListener
-//    @EnvironmentObject var timerService: TimerService
+    @EnvironmentObject var timerModel: WatchTimerExtensionModel
 
     var body: some View {
         ZStack {
@@ -23,7 +22,7 @@ struct WatchTimerView: View {
                             .stroke(Color.green.opacity(0.25), lineWidth: 18)
                             .padding(10)
                         
-                        if watchSession.timer != nil {
+                        if timerModel.hasActiveTimer {
                             Circle()
                                 .trim(from: 0, to: progress)
                                 .stroke(Color.green, style: .init(lineWidth: 18, lineCap: .round))
@@ -40,8 +39,8 @@ struct WatchTimerView: View {
                     .frame(height: 180)
                     
                     // Top Add When Setting
-                    if watchSession.timer == nil {
-                        Button(action: { watchSession.addToTimer(seconds: 15) }) {
+                    if !timerModel.hasActiveTimer {
+                        Button(action: { timerModel.addToTimer(seconds: 15) }) {
                             Image(systemName: "plus")
                                 .font(.system(size: 22, weight: .bold))
                                 .foregroundColor(.black)
@@ -54,8 +53,8 @@ struct WatchTimerView: View {
                     // Bottom Controls
                     HStack(spacing: 14) {
                         
-                        if watchSession.timer == nil {
-                            Button(action: { watchSession.addToTimer(seconds: -15) }) {
+                        if !timerModel.hasActiveTimer {
+                            Button(action: { timerModel.addToTimer(seconds: -15) }) {
                                 Image(systemName: "minus")
                                     .font(.headline)
                                     .foregroundColor(.white)
@@ -66,8 +65,8 @@ struct WatchTimerView: View {
                         }
                         
                         // Play / Pause
-                        if watchSession.timer == nil {
-                            Button(action: { watchSession.startTimer() }) {
+                        if !timerModel.hasActiveTimer {
+                            Button(action: { timerModel.startTimer() }) {
                                 Image(systemName: "play.fill")
                                     .font(.headline)
                                     .foregroundColor(.black)
@@ -75,8 +74,8 @@ struct WatchTimerView: View {
                                     .background(Color.green)
                                     .clipShape(Capsule())
                             }
-                        } else if watchSession.timer?.isPaused == true {
-                            Button(action: { watchSession.resumeTimer() }) {
+                        } else if timerModel.isPaused {
+                            Button(action: { timerModel.resumeTimer() }) {
                                 Image(systemName: "play.fill")
                                     .font(.headline)
                                     .foregroundColor(.black)
@@ -85,7 +84,7 @@ struct WatchTimerView: View {
                                     .clipShape(Capsule())
                             }
                         } else {
-                            Button(action: { watchSession.pauseTimer() }) {
+                            Button(action: { timerModel.pauseTimer() }) {
                                 Image(systemName: "pause.fill")
                                     .font(.headline)
                                     .foregroundColor(.black)
@@ -95,8 +94,8 @@ struct WatchTimerView: View {
                             }
                         }
                         
-                        if watchSession.timer == nil {
-                            Button(action: { watchSession.addToTimer(seconds: 15) }) {
+                        if !timerModel.hasActiveTimer {
+                            Button(action: { timerModel.addToTimer(seconds: 15) }) {
                                 Image(systemName: "plus")
                                     .font(.headline)
                                     .foregroundColor(.white)
@@ -108,8 +107,8 @@ struct WatchTimerView: View {
                     }
                     
                     // Cancel only when running
-                    if watchSession.timer != nil {
-                        Button("Cancel") { watchSession.stopTimer(delete: true) }
+                    if timerModel.hasActiveTimer {
+                        Button("Cancel") { timerModel.stopTimer(delete: true) }
                             .foregroundColor(.red)
                             .padding(.top, 2)
                     }
@@ -121,12 +120,10 @@ struct WatchTimerView: View {
 
     // Computed
     private var timerDisplay: String {
-        watchSession.timer == nil ? watchSession.formattedPending : watchSession.formatted
+        timerModel.timerDisplayText
     }
 
     private var progress: CGFloat {
-        guard let remaining = watchSession.remainingTime else { return 1 }
-        let total = CGFloat(watchSession.timer?.timerLength ?? 1)
-        return max(CGFloat(remaining) / total, 0)
+        CGFloat(max(timerModel.progress, 0))
     }
 }

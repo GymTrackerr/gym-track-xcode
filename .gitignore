@@ -2,5 +2,6 @@
 .DS_Store
 Thumbs.db
 .deriveddata
-
-/GymTracker/Docs
+GymTracker/Docs/*
+*UserInterfaceState.xcuserstate
+/GymTracker/build

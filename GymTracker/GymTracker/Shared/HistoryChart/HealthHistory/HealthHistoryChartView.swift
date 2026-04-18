@@ -50,7 +50,8 @@ struct HealthHistoryChartView: View {
             },
             emptyStateTextProvider: { _ in
                 "No \(selectedMetric.title.lowercased()) data in this timeframe."
-            }
+            },
+            reloadToken: healthKitDailyStore.chartRefreshToken
         )
         .safeAreaInset(edge: .bottom) {
             if healthKitDailyStore.isBackfillingHistory {
@@ -69,20 +70,30 @@ struct HealthHistoryChartView: View {
 
     private func getDataBounds() -> (oldest: Date?, newest: Date?) {
         guard let userId = userService.currentUser?.id.uuidString else { return (nil, nil) }
-        
-        do {
-            let all = try healthKitDailyStore.cachedDailySummaries(userId: userId)
-            let filtered = all.filter {
-                HealthHistoryChartSupport.metricValue(for: $0, metric: selectedMetric) > 0
+        let summaries = (try? healthKitDailyStore.cachedDailySummaries(userId: userId)) ?? []
+        let metricDates = summaries.compactMap { summary -> Date? in
+            switch selectedMetric {
+            case .steps:
+                return summary.steps > 0 ? summary.dayStart : nil
+            case .sleepHours:
+                return summary.sleepSeconds > 0 ? summary.dayStart : nil
+            case .activeEnergy:
+                return summary.activeEnergyKcal > 0 ? summary.dayStart : nil
+            case .restingEnergy:
+                return summary.restingEnergyKcal > 0 ? summary.dayStart : nil
+            case .totalUsedCalories:
+                return (summary.activeEnergyKcal + summary.restingEnergyKcal) > 0 ? summary.dayStart : nil
+            case .weight:
+                guard summary.bodyWeightKg > 0 else { return nil }
+                return summary.dayStart
             }
-            guard !filtered.isEmpty else { return (nil, nil) }
+        }
 
-            let oldest = filtered.min(by: { $0.dayStart < $1.dayStart })?.dayStart
-            let newest = filtered.max(by: { $0.dayStart < $1.dayStart })?.dayStart
-            return (oldest, newest)
-        } catch {
+        guard let oldest = metricDates.min(), let newest = metricDates.max() else {
             return (nil, nil)
         }
+
+        return (oldest: oldest, newest: newest)
     }
 
     private var metricPicker: some View {

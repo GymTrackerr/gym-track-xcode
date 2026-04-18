@@ -110,6 +110,11 @@ class HealthKitManager: ObservableObject {
     
     @AppStorage("hkRequested") var hkRequested: Bool = false
     @Published var hkConnected: Bool = false
+    private var lastWorkoutsFetchAt: Date?
+    private let workoutFetchStaleInterval: TimeInterval = 20 * 60
+    private var cachedActivityGoals: (dayKey: String, move: Double, exercise: Double, stand: Int)?
+    private var activityGoalsFetchedAt: Date?
+    private let activityGoalsStaleInterval: TimeInterval = 60 * 60
 
     func requestAuthorization() async {
 //        func requestAuthorization() async {
@@ -141,6 +146,9 @@ class HealthKitManager: ObservableObject {
         }
 
         hkConnected = ok
+        if ok {
+            hkRequested = true
+        }
     }
     
     func fetchWeeklySteps() async {
@@ -291,9 +299,7 @@ class HealthKitManager: ObservableObject {
             calendar: calendar,
             normalizer: normalizer
         )
-        async let moveGoal = fetchActivityGoal(for: activeEnergyType)
-        async let exerciseGoal = fetchActivityGoal(for: exerciseTimeType)
-        async let standGoal = fetchActivityGoal(for: standTimeType)
+        let goals = await fetchActivityGoals(for: endDay, normalizer: normalizer)
 
         let stepsByDay = await stepsSeries
         let activeByDay = await activeSeries
@@ -302,9 +308,9 @@ class HealthKitManager: ObservableObject {
         let standByDay = await standSeries
         let sleepByDay = await sleepSeries
         let weightByDay = await weightSeries
-        let resolvedMoveGoal = (await moveGoal) ?? 520
-        let resolvedExerciseGoal = (await exerciseGoal) ?? 30
-        let resolvedStandGoal = Int((await standGoal) ?? 12)
+        let resolvedMoveGoal = goals.move
+        let resolvedExerciseGoal = goals.exercise
+        let resolvedStandGoal = goals.stand
 
         return days.map { dayStart in
             let dayKey = normalizer.dayKey(dayStart)
@@ -475,7 +481,18 @@ class HealthKitManager: ObservableObject {
         }
     }
     
-    nonisolated func fetchWorkouts(days: Int = 30, workoutType: HKWorkoutActivityType? = nil) async {
+    func fetchWorkoutsIfNeeded(days: Int = 30, maxAge: TimeInterval? = nil) async {
+        let staleInterval = maxAge ?? workoutFetchStaleInterval
+        if let lastWorkoutsFetchAt {
+            let age = Date().timeIntervalSince(lastWorkoutsFetchAt)
+            if age < staleInterval {
+                return
+            }
+        }
+        await fetchWorkouts(days: days)
+    }
+
+    func fetchWorkouts(days: Int = 30, workoutType: HKWorkoutActivityType? = nil) async {
         let calendar = Calendar.current
         let now = Date()
         
@@ -489,42 +506,97 @@ class HealthKitManager: ObservableObject {
         
         let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
         
-        let query = HKSampleQuery(
-            sampleType: HKObjectType.workoutType(),
-            predicate: predicate,
-            limit: HKObjectQueryNoLimit,
-            sortDescriptors: [sort]
-        ) { _, samples, _ in
-            guard let workouts = samples as? [HKWorkout] else { return }
-            
-            let healthKitWorkouts = workouts
-                .filter { workoutType == nil || $0.workoutActivityType == workoutType }
-                .map { workout -> HealthKitWorkout in
-                    // Get active energy burned using statisticsForType
-                    let activeEnergyType = HKQuantityType(.activeEnergyBurned)
-                    let calorieStats = workout.statistics(for: activeEnergyType)
-                    let calories = calorieStats?.sumQuantity()?.doubleValue(for: .kilocalorie()) ?? 0
-                    let distance = workout.totalDistance?.doubleValue(for: .meter())
-                    
-//                    print("DEBUG: Workout - Type: \(workout.workoutActivityType), Duration: \(workout.duration)s, Calories: \(calories), Distance: \(distance ?? 0)m")
-                    
-                    return HealthKitWorkout(
-                        name: "Workout",
-                        type: workout.workoutActivityType,
-                        duration: workout.duration,
-                        calories: calories,
-                        startDate: workout.startDate,
-                        endDate: workout.endDate,
-                        distance: distance
-                    )
+        await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: HKObjectType.workoutType(),
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sort]
+            ) { _, samples, _ in
+                let workouts = (samples as? [HKWorkout]) ?? []
+
+                let healthKitWorkouts = workouts
+                    .filter { workoutType == nil || $0.workoutActivityType == workoutType }
+                    .map { workout -> HealthKitWorkout in
+                        let activeEnergyType = HKQuantityType(.activeEnergyBurned)
+                        let calorieStats = workout.statistics(for: activeEnergyType)
+                        let calories = calorieStats?.sumQuantity()?.doubleValue(for: .kilocalorie()) ?? 0
+                        let distance = workout.totalDistance?.doubleValue(for: .meter())
+
+                        return HealthKitWorkout(
+                            name: "Workout",
+                            type: workout.workoutActivityType,
+                            duration: workout.duration,
+                            calories: calories,
+                            startDate: workout.startDate,
+                            endDate: workout.endDate,
+                            distance: distance
+                        )
+                    }
+
+                Task { @MainActor in
+                    self.workouts = healthKitWorkouts
+                    self.lastWorkoutsFetchAt = Date()
+                    continuation.resume()
                 }
-            
-            Task { @MainActor in
-                self.workouts = healthKitWorkouts
             }
+
+            self.healthStore.execute(query)
         }
-        
-        self.healthStore.execute(query)
+    }
+
+    func latestBodyWeightKg() async -> Double? {
+        await withCheckedContinuation { continuation in
+            let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
+            let query = HKSampleQuery(
+                sampleType: weightType,
+                predicate: nil,
+                limit: 1,
+                sortDescriptors: [sort]
+            ) { _, samples, _ in
+                guard let sample = samples?.first as? HKQuantitySample else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                let weightKg = sample.quantity.doubleValue(for: .gramUnit(with: .kilo))
+                continuation.resume(returning: weightKg > 0 ? weightKg : nil)
+            }
+
+            self.healthStore.execute(query)
+        }
+    }
+
+    func latestSleepDurationWithin(hours: Int = 30) async -> TimeInterval? {
+        let calendar = Calendar.current
+        let now = Date()
+        let windowStart = calendar.date(byAdding: .hour, value: -max(hours, 1), to: now) ?? now
+
+        return await withCheckedContinuation { continuation in
+            let predicate = HKQuery.predicateForSamples(withStart: windowStart, end: now, options: [])
+            let sort = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
+            let query = HKSampleQuery(
+                sampleType: sleepType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sort]
+            ) { _, samples, _ in
+                let nonAwake = ((samples as? [HKCategorySample]) ?? []).filter {
+                    $0.value != HKCategoryValueSleepAnalysis.awake.rawValue
+                }
+                guard let latest = nonAwake.first else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+
+                let targetDay = calendar.startOfDay(for: latest.endDate)
+                let total = nonAwake.reduce(0.0) { partial, sample in
+                    guard calendar.startOfDay(for: sample.endDate) == targetDay else { return partial }
+                    return partial + sample.endDate.timeIntervalSince(sample.startDate)
+                }
+                continuation.resume(returning: total > 0 ? total : nil)
+            }
+            self.healthStore.execute(query)
+        }
     }
     
     func fetchSleepData(days: Int = 7) async {
@@ -592,117 +664,143 @@ class HealthKitManager: ObservableObject {
      await hkManager.fetchActivityRingStatus(for: specificDate)
      */
     func fetchActivityRingStatus(for date: Date? = nil) async {
-        let calendar = Calendar.current
         let targetDate = date ?? Date()
+        let status = await queryActivityRingStatus(for: targetDate)
+        activityRingStatus = status
+    }
+
+    func fetchActivityRingStatusSnapshot(for date: Date = Date()) async -> ActivityRingStatus? {
+        await queryActivityRingStatus(for: date)
+    }
+
+    private func queryActivityRingStatus(for targetDate: Date) async -> ActivityRingStatus {
+        let calendar = Calendar.current
         let startOfDay = calendar.startOfDay(for: targetDate)
         let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) ?? Date()
         let predicate = HKQuery.predicateForSamples(withStart: startOfDay, end: endOfDay)
         
         // Fetch goals from HealthKit
-        let moveGoal = await fetchActivityGoal(for: activeEnergyType) ?? 520
-        let exerciseGoal = await fetchActivityGoal(for: exerciseTimeType) ?? 30
-        let standGoal = Int(await fetchActivityGoal(for: standTimeType) ?? 12)
+        let normalizer = HealthKitDateNormalizer(calendar: calendar)
+        let goals = await fetchActivityGoals(for: startOfDay, normalizer: normalizer)
         
-        var ringStatus = ActivityRingStatus(
-            moveRingValue: 0,
-            moveRingGoal: moveGoal,
-            exerciseRingValue: 0,
-            exerciseRingGoal: exerciseGoal,
-            standRingValue: 0,
-            standRingGoal: standGoal
-        )
-        
-        // Use a dispatch group to wait for all queries
-        let group = DispatchGroup()
-        
-        // Fetch Move ring (Active Energy)
-        group.enter()
-        let moveQuery = HKStatisticsQuery(
-            quantityType: activeEnergyType,
-            quantitySamplePredicate: predicate,
-            options: .cumulativeSum
-        ) { _, result, _ in
-            if let result = result {
-                ringStatus.moveRingValue = result.sumQuantity()?.doubleValue(for: .kilocalorie()) ?? 0
-            }
-            group.leave()
-        }
-        
-        // Fetch Exercise ring (Apple Exercise Time)
-        group.enter()
-        let exerciseQuery = HKStatisticsQuery(
-            quantityType: exerciseTimeType,
-            quantitySamplePredicate: predicate,
-            options: .cumulativeSum
-        ) { _, result, _ in
-            if let result = result {
-                ringStatus.exerciseRingValue = result.sumQuantity()?.doubleValue(for: .minute()) ?? 0
-            }
-            group.leave()
-        }
-        
-        // Fetch Stand ring (Stand Time)
-        group.enter()
-        let standQuery = HKSampleQuery(
-            sampleType: standTimeType,
-            predicate: predicate,
-            limit: HKObjectQueryNoLimit,
-            sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]
-        ) { _, samples, _ in
-            if let samples = samples as? [HKQuantitySample] {
-                // Count unique hours where user stood
-                var uniqueHours = Set<Int>()
-                
-                for sample in samples {
-                    let hour = calendar.component(.hour, from: sample.startDate)
-                    uniqueHours.insert(hour)
+        return await withCheckedContinuation { continuation in
+            var ringStatus = ActivityRingStatus(
+                moveRingValue: 0,
+                moveRingGoal: goals.move,
+                exerciseRingValue: 0,
+                exerciseRingGoal: goals.exercise,
+                standRingValue: 0,
+                standRingGoal: goals.stand
+            )
+            let lock = NSLock()
+            let group = DispatchGroup()
+
+            group.enter()
+            let moveQuery = HKStatisticsQuery(
+                quantityType: activeEnergyType,
+                quantitySamplePredicate: predicate,
+                options: .cumulativeSum
+            ) { _, result, _ in
+                if let result = result {
+                    lock.lock()
+                    ringStatus.moveRingValue = result.sumQuantity()?.doubleValue(for: .kilocalorie()) ?? 0
+                    lock.unlock()
                 }
-                
-                ringStatus.standRingValue = uniqueHours.count
+                group.leave()
             }
-            group.leave()
-        }
-        
-        // Execute all queries
-        healthStore.execute(moveQuery)
-        healthStore.execute(exerciseQuery)
-        healthStore.execute(standQuery)
-        
-        // Wait for all queries to complete then update UI
-        group.notify(queue: .main) { [weak self] in
-            self?.activityRingStatus = ringStatus
+
+            group.enter()
+            let exerciseQuery = HKStatisticsQuery(
+                quantityType: exerciseTimeType,
+                quantitySamplePredicate: predicate,
+                options: .cumulativeSum
+            ) { _, result, _ in
+                if let result = result {
+                    lock.lock()
+                    ringStatus.exerciseRingValue = result.sumQuantity()?.doubleValue(for: .minute()) ?? 0
+                    lock.unlock()
+                }
+                group.leave()
+            }
+
+            group.enter()
+            let standQuery = HKSampleQuery(
+                sampleType: standTimeType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]
+            ) { _, samples, _ in
+                if let samples = samples as? [HKQuantitySample] {
+                    var uniqueHours = Set<Int>()
+                    for sample in samples {
+                        uniqueHours.insert(calendar.component(.hour, from: sample.startDate))
+                    }
+                    lock.lock()
+                    ringStatus.standRingValue = uniqueHours.count
+                    lock.unlock()
+                }
+                group.leave()
+            }
+
+            healthStore.execute(moveQuery)
+            healthStore.execute(exerciseQuery)
+            healthStore.execute(standQuery)
+
+            group.notify(queue: .main) {
+                continuation.resume(returning: ringStatus)
+            }
         }
     }
     
-    nonisolated private func fetchActivityGoal(for quantityType: HKQuantityType) async -> Double? {
+    private func fetchActivityGoals(
+        for day: Date,
+        normalizer: HealthKitDateNormalizer
+    ) async -> (move: Double, exercise: Double, stand: Int) {
+        let dayStart = normalizer.startOfDay(day)
+        let dayKey = normalizer.dayKey(dayStart)
+
+        if let cachedActivityGoals, cachedActivityGoals.dayKey == dayKey {
+            if let activityGoalsFetchedAt {
+                let age = Date().timeIntervalSince(activityGoalsFetchedAt)
+                if age < activityGoalsStaleInterval {
+                    return (
+                        move: cachedActivityGoals.move,
+                        exercise: cachedActivityGoals.exercise,
+                        stand: cachedActivityGoals.stand
+                    )
+                }
+            }
+        }
+
+        let fetched = await fetchActivityGoalsFromHealthKit(for: dayStart) ?? (move: 520, exercise: 30, stand: 12)
+        cachedActivityGoals = (
+            dayKey: dayKey,
+            move: fetched.move,
+            exercise: fetched.exercise,
+            stand: fetched.stand
+        )
+        activityGoalsFetchedAt = Date()
+        return fetched
+    }
+
+    private func fetchActivityGoalsFromHealthKit(for day: Date) async -> (move: Double, exercise: Double, stand: Int)? {
         return await withCheckedContinuation { continuation in
-            // Use HKActivitySummaryQuery to get goals from today
             let calendar = Calendar.current
-            let today = calendar.startOfDay(for: Date())
+            let targetDay = calendar.startOfDay(for: day)
             
-            // Create date components for today with calendar
-            var todayComponents = calendar.dateComponents([.year, .month, .day], from: today)
-            todayComponents.calendar = calendar
+            var components = calendar.dateComponents([.year, .month, .day], from: targetDay)
+            components.calendar = calendar
             
-            let summaryQuery = HKActivitySummaryQuery(predicate: HKQuery.predicateForActivitySummary(with: todayComponents)) { _, summaries, _ in
+            let summaryQuery = HKActivitySummaryQuery(predicate: HKQuery.predicateForActivitySummary(with: components)) { _, summaries, _ in
                 guard let summary = summaries?.first else {
                     continuation.resume(returning: nil)
                     return
                 }
-                
-                // Return appropriate goal based on quantity type
-                if quantityType.identifier == HKQuantityTypeIdentifier.activeEnergyBurned.rawValue {
-                    let goal = summary.activeEnergyBurnedGoal.doubleValue(for: .kilocalorie())
-                    continuation.resume(returning: goal)
-                } else if quantityType.identifier == HKQuantityTypeIdentifier.appleExerciseTime.rawValue {
-                    let goal = summary.appleExerciseTimeGoal.doubleValue(for: .minute())
-                    continuation.resume(returning: goal)
-                } else if quantityType.identifier == HKQuantityTypeIdentifier.appleStandTime.rawValue {
-                    let goal = summary.standHoursGoal?.doubleValue(for: .count()) ?? 12
-                    continuation.resume(returning: goal)
-                } else {
-                    continuation.resume(returning: nil)
-                }
+
+                let move = summary.activeEnergyBurnedGoal.doubleValue(for: .kilocalorie())
+                let exercise = summary.appleExerciseTimeGoal.doubleValue(for: .minute())
+                let stand = Int(summary.standHoursGoal?.doubleValue(for: .count()) ?? 12)
+                continuation.resume(returning: (move: move, exercise: exercise, stand: stand))
             }
             
             self.healthStore.execute(summaryQuery)

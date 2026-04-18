@@ -11,7 +11,6 @@ import SwiftData
 struct ContentView: View {
     @EnvironmentObject var timerService: TimerService
     @EnvironmentObject var userService: UserService
-    @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
     
     @State var query: String = ""
     @State var localSelected:Int = 0
@@ -82,18 +81,6 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             timerService.appDidBecomeActive()
-            guard userService.currentUser?.isDemo != true else { return }
-            guard let userId = userService.currentUser?.id.uuidString else { return }
-            Task {
-                await healthKitDailyStore.refreshTodayIfNeeded(userId: userId)
-            }
-        }
-        .task(id: userService.currentUser?.id.uuidString) {
-            guard userService.currentUser?.isDemo != true else { return }
-            guard let userId = userService.currentUser?.id.uuidString else { return }
-            Task(priority: .background) {
-                _ = await healthKitDailyStore.backfillHistoryIfNeeded(userId: userId)
-            }
         }
         .onChange(of: userService.currentUser?.showNutritionTab ?? true) {
             if !(userService.currentUser?.showNutritionTab ?? true), localSelected == 3 {
@@ -110,7 +97,9 @@ struct ContentView: View {
         }
         .onAppear {
 #if DEBUG
-            DebugHarness.runAll()
+            Task.detached(priority: .background) {
+                DebugHarness.runAll()
+            }
 #endif
         }
 #if false
@@ -173,6 +162,10 @@ struct OnBoardView: View {
             case 1:
                 OnBoardScreenPermissions()
             case 2:
+                OnBoardScreenAccountLink()
+            case 3:
+                OnBoardScreenExerciseCatalog()
+            case 4:
                 OnBoardScreenFinal()
             default:
                 EmptyView()
@@ -302,7 +295,7 @@ struct OnBoardScreenFinal: View {
 
             
             Button("Done") {
-                userService.onBoardingScreen = 3
+                userService.onBoardingScreen = 5
                 userService.onBoarding = false
             }
             .frame(maxWidth: .infinity)
@@ -314,6 +307,140 @@ struct OnBoardScreenFinal: View {
         .padding(24)
 
 //        .appBackground()
+    }
+}
+
+struct OnBoardScreenAccountLink: View {
+    @EnvironmentObject var userService: UserService
+    @EnvironmentObject var backendAuthService: BackendAuthService
+
+    private var isLinked: Bool {
+        guard let accessToken = backendAuthService.sessionSnapshot?.accessToken else {
+            return false
+        }
+        return accessToken.isEmpty == false
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Text("Optional: Link Your Interact Account")
+                .font(.largeTitle)
+                .bold()
+
+            Text("Linking enables cloud sync for supported data. You can skip this now and link later in Settings.")
+                .foregroundStyle(.secondary)
+
+            InteractAccountLinkCard()
+
+            Spacer()
+
+            Button(isLinked ? "Continue" : "Skip for Now") {
+                userService.onBoardingScreen = 3
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color.accentColor)
+            .foregroundStyle(.white)
+            .clipShape(Capsule())
+        }
+        .padding(24)
+    }
+}
+
+struct OnBoardScreenExerciseCatalog: View {
+    @EnvironmentObject var userService: UserService
+    @EnvironmentObject var exerciseService: ExerciseService
+    @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
+    @State private var shouldDownloadExerciseDB = true
+    @State private var selectedHealthRange: HealthHistorySyncRange = .defaultSelection
+
+    private var canSyncHealthHistory: Bool {
+        userService.currentUser?.allowHealthAccess == true
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Text("Exercise Library Download")
+                .font(.largeTitle)
+                .bold()
+
+            Text("Download ExerciseDB now for faster browsing and offline thumbnails. This is optional and you can change it later in Settings.")
+                .foregroundStyle(.secondary)
+
+            Toggle("Download ExerciseDB in the background", isOn: $shouldDownloadExerciseDB)
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Optional: Download Apple Health history now")
+                    .font(.headline)
+
+                Picker("History range", selection: $selectedHealthRange) {
+                    ForEach(HealthHistorySyncRange.allCases) { range in
+                        Text(range.title).tag(range)
+                    }
+                }
+                .pickerStyle(.menu)
+
+                Button {
+                    guard let userId = userService.currentUser?.id.uuidString else { return }
+                    Task(priority: .utility) {
+                        _ = await healthKitDailyStore.fullRefreshHealthHistory(
+                            userId: userId,
+                            range: selectedHealthRange
+                        )
+                    }
+                } label: {
+                    Text(healthKitDailyStore.isBackfillingHistory ? "Downloading Health History..." : "Download Health History Now")
+                }
+                .buttonStyle(.bordered)
+                .disabled(!canSyncHealthHistory || healthKitDailyStore.isBackfillingHistory)
+
+                if healthKitDailyStore.isBackfillingHistory {
+                    ProgressView(value: progressValue)
+                    Text(healthKitDailyStore.backfillStatusText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if !canSyncHealthHistory {
+                    Text("Enable Apple Health access first if you want to download history now.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer()
+
+            Button("Continue") {
+                exerciseService.completeOnboardingCatalogChoice(downloadCatalog: shouldDownloadExerciseDB)
+                userService.onBoardingScreen = 4
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color.accentColor)
+            .foregroundStyle(.white)
+            .clipShape(Capsule())
+        }
+        .padding(24)
+        .onAppear {
+            selectedHealthRange = userService.currentHealthHistorySyncRange()
+        }
+        .onChange(of: userService.currentUser?.id) { _, _ in
+            selectedHealthRange = userService.currentHealthHistorySyncRange()
+        }
+        .onChange(of: selectedHealthRange) { _, newValue in
+            guard userService.currentUser?.isDemo != true else { return }
+            userService.setCurrentHealthHistorySyncRange(newValue)
+        }
+    }
+
+    private var progressValue: Double {
+        guard healthKitDailyStore.backfillProgressTotal > 0 else { return 0 }
+        return min(
+            max(
+                Double(healthKitDailyStore.backfillProgressCompleted) /
+                Double(healthKitDailyStore.backfillProgressTotal),
+                0
+            ),
+            1
+        )
     }
 }
 

@@ -26,6 +26,7 @@ private enum TimerActivitySync {
         let action: String
         let remainingSeconds: Int?
         let requestedAt: TimeInterval
+        let timerId: String
     }
 
     private static func defaults() -> UserDefaults? {
@@ -54,11 +55,12 @@ private enum TimerActivitySync {
         )
     }
 
-    private static func savePendingCommand(action: String, remainingSeconds: Int?) {
+    private static func savePendingCommand(action: String, remainingSeconds: Int?, timerId: String) {
         let command = PendingTimerControlCommand(
             action: action,
             remainingSeconds: remainingSeconds,
-            requestedAt: Date().timeIntervalSince1970
+            requestedAt: Date().timeIntervalSince1970,
+            timerId: timerId
         )
         guard let data = try? JSONEncoder().encode(command) else { return }
         defaults()?.set(data, forKey: pendingCommandKey)
@@ -87,7 +89,7 @@ private enum TimerActivitySync {
         guard !state.isPaused else { return }
 
         state.isPaused = true
-        savePendingCommand(action: "pause", remainingSeconds: state.remainingSeconds)
+        savePendingCommand(action: "pause", remainingSeconds: state.remainingSeconds, timerId: state.timerId)
         await updateActivities(from: state)
     }
 
@@ -96,12 +98,13 @@ private enum TimerActivitySync {
         guard state.isPaused else { return }
 
         state.isPaused = false
-        savePendingCommand(action: "resume", remainingSeconds: state.remainingSeconds)
+        savePendingCommand(action: "resume", remainingSeconds: state.remainingSeconds, timerId: state.timerId)
         await updateActivities(from: state)
     }
 
     static func cancel() async {
-        savePendingCommand(action: "cancel", remainingSeconds: nil)
+        let timerId = currentState()?.timerId ?? ""
+        savePendingCommand(action: "cancel", remainingSeconds: nil, timerId: timerId)
 
         for activity in Activity<TimerActivityAttributes>.activities {
             await activity.end(nil, dismissalPolicy: .immediate)

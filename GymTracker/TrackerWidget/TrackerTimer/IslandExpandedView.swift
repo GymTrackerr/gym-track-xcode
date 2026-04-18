@@ -13,21 +13,15 @@ import AppIntents
 struct IslandExpandedView: View {
     let context: ActivityViewContext<TimerActivityAttributes>
     
-    private let helper: WidgetTimerHelper
-    
-    init(context: ActivityViewContext<TimerActivityAttributes>) {
-        self.context = context
-        self.helper = WidgetTimerHelper(context: context)
-    }
-    
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { timeline in
-            let snapshot = helper.snapshot(at: timeline.date)
-            let remainingSeconds = snapshot.remainingSeconds
+            let model = LiveActivityTimerModel(context: context, date: timeline.date)
+            let snapshot = model.snapshot
+            let remainingSeconds = model.remainingSeconds
 
             VStack(spacing: 10) {
                 if remainingSeconds > 0 {
-                    countdownText(snapshot: snapshot)
+                    countdownText(model: model)
                         .foregroundColor(snapshot.isPaused ? .orange : (remainingSeconds <= 10 ? .red : .primary))
                 } else {
                     Text("DONE")
@@ -66,15 +60,22 @@ struct IslandExpandedView: View {
     }
 
     @ViewBuilder
-    private func countdownText(snapshot: WidgetTimerSnapshot) -> some View {
+    private func countdownText(model: LiveActivityTimerModel) -> some View {
+        let snapshot = model.snapshot
         if snapshot.isPaused {
-            Text(timeString(snapshot.remainingSeconds))
+            Text(model.displayText)
                 .font(.system(size: 26, weight: .bold, design: .rounded))
                 .monospacedDigit()
         } else {
-            Text(timerInterval: Date()...snapshot.endDate, countsDown: true)
-                .font(.system(size: 26, weight: .bold, design: .rounded))
-                .monospacedDigit()
+            if let endDate = model.endDate {
+                Text(timerInterval: Date()...endDate, countsDown: true)
+                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+            } else {
+                Text(model.displayText)
+                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+            }
         }
     }
 }

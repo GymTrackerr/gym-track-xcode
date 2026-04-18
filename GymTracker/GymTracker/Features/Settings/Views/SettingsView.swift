@@ -27,6 +27,7 @@ struct SettingsView: View {
     @EnvironmentObject var exerciseSplitDayService: ExerciseSplitDayService
     @EnvironmentObject var sessionExerciseService: SessionExerciseService
     @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
+    @EnvironmentObject var hkManager: HealthKitManager
     @State private var shareItem: BackupShareItem?
     @State private var showImportPicker = false
     @State private var importTarget: BackupImportTarget = .nutrition
@@ -36,6 +37,9 @@ struct SettingsView: View {
     @State private var exportErrorMessage = ""
     @State private var showExerciseTransferTool = false
     @State private var newUserName: String = ""
+    @State private var selectedHealthHistoryRange: HealthHistorySyncRange = .defaultSelection
+    @State private var isEnablingHealthAccess = false
+    @State private var showHealthBackfillPrompt = false
 
     var body: some View {
         VStack {
@@ -99,6 +103,19 @@ struct SettingsView: View {
                             }
                         }
                     }
+                }
+
+                Section("Account Sync (Optional)") {
+                    InteractAccountLinkCard()
+
+                    Toggle(
+                        "Enable Remote Sync For This Account",
+                        isOn: Binding(
+                            get: { userService.currentUser?.remoteSyncEnabled ?? false },
+                            set: { userService.setRemoteSyncEnabled($0) }
+                        )
+                    )
+                    .disabled(userService.currentUser?.isDemo == true)
                 }
 
                 NavigationLink {
@@ -171,14 +188,22 @@ struct SettingsView: View {
                 }
 
                 Section("Exercises") {
+                    Toggle(
+                        "Enable ExerciseDB Catalog Sync",
+                        isOn: Binding(
+                            get: { exerciseService.catalogSyncEnabledForCurrentUser },
+                            set: { exerciseService.setCatalogSyncEnabled($0) }
+                        )
+                    )
+
                     Button {
                         Task {
-                            await exerciseService.refreshApiExercisesWithoutInsert()
+                            await exerciseService.syncCatalogNow(force: true)
                         }
                     } label: {
                         HStack {
                             Image(systemName: "arrow.clockwise")
-                            Text("Refresh API Exercises (No Inserts)")
+                            Text("Sync ExerciseDB Now")
                         }
                     }
 
@@ -233,7 +258,89 @@ struct SettingsView: View {
 
                 }
 
+                Section("Apple Health Access") {
+                    Text(healthAccessStatusText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if userService.currentUser?.isDemo == true {
+                        Text("Apple Health access is disabled for demo accounts.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if userService.currentUser?.allowHealthAccess == true {
+                        Button {
+                            disableHealthAccessForCurrentUser()
+                        } label: {
+                            HStack {
+                                Image(systemName: "xmark.circle")
+                                Text("Disable For This Account")
+                            }
+                        }
+                    } else {
+                        Button {
+                            Task(priority: .utility) {
+                                await enableHealthAccessFromSettings()
+                            }
+                        } label: {
+                            HStack {
+                                Image(systemName: "heart.circle")
+                                Text(isEnablingHealthAccess ? "Enabling Apple Health..." : "Enable Apple Health Access")
+                            }
+                        }
+                        .disabled(isEnablingHealthAccess)
+                    }
+                }
+
                 Section("Apple Health Summary") {
+                    Picker("History Range", selection: $selectedHealthHistoryRange) {
+                        ForEach(HealthHistorySyncRange.allCases) { range in
+                            Text(range.title).tag(range)
+                        }
+                    }
+
+                    Button {
+                        triggerSmartPullNow()
+                    } label: {
+                        HStack {
+                            Image(systemName: "bolt.fill")
+                            Text("Smart Pull Now")
+                        }
+                    }
+                    .disabled(
+                        healthKitDailyStore.isBackfillingHistory ||
+                        userService.currentUser?.allowHealthAccess != true ||
+                        userService.currentUser?.isDemo == true
+                    )
+
+                    Button {
+                        triggerFullHealthRefresh()
+                    } label: {
+                        HStack {
+                            Image(systemName: "arrow.clockwise.circle")
+                            Text("Full Refresh (\(selectedHealthHistoryRange.title))")
+                        }
+                    }
+                    .disabled(
+                        healthKitDailyStore.isBackfillingHistory ||
+                        userService.currentUser?.allowHealthAccess != true ||
+                        userService.currentUser?.isDemo == true
+                    )
+
+                    if userService.currentUser?.allowHealthAccess != true {
+                        Text("Enable Apple Health access first to use Smart Pull or Full Refresh.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if healthKitDailyStore.isBackfillingHistory {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ProgressView(value: healthProgressValue)
+                            Text(healthKitDailyStore.backfillStatusText)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
                     Button {
                         exportAppleHealthSummaryBackup()
                     } label: {
@@ -261,6 +368,35 @@ struct SettingsView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(exportErrorMessage)
+        }
+        .confirmationDialog(
+            "Pull Apple Health Data Now?",
+            isPresented: $showHealthBackfillPrompt,
+            titleVisibility: .visible
+        ) {
+            Button("Smart Pull Now") {
+                triggerSmartPullNow()
+            }
+            Button("Full Refresh (\(selectedHealthHistoryRange.title))") {
+                triggerFullHealthRefresh()
+            }
+            Button("Not Now", role: .cancel) { }
+        } message: {
+            Text("Health access is enabled for this account. You can start syncing now or do it later from Settings.")
+        }
+        .onAppear {
+            loadSelectedHealthHistoryRangeFromUser()
+            guard userService.currentUser?.isDemo != true else { return }
+            Task(priority: .utility) {
+                await hkManager.refreshConnectionState()
+            }
+        }
+        .onChange(of: userService.currentUser?.id) { _, _ in
+            loadSelectedHealthHistoryRangeFromUser()
+        }
+        .onChange(of: selectedHealthHistoryRange) { _, newValue in
+            guard userService.currentUser?.isDemo != true else { return }
+            userService.setCurrentHealthHistorySyncRange(newValue)
         }
 #if os(iOS)
         .sheet(item: $shareItem) { item in
@@ -319,6 +455,100 @@ struct SettingsView: View {
         }
     }
 
+    private var healthProgressValue: Double {
+        guard healthKitDailyStore.backfillProgressTotal > 0 else { return 0 }
+        return min(
+            max(
+                Double(healthKitDailyStore.backfillProgressCompleted) /
+                Double(healthKitDailyStore.backfillProgressTotal),
+                0
+            ),
+            1
+        )
+    }
+
+    private func triggerSmartPullNow() {
+        guard let currentUser = userService.currentUser else { return }
+        guard currentUser.isDemo != true else { return }
+        guard currentUser.allowHealthAccess else { return }
+
+        let userId = currentUser.id.uuidString
+        Task(priority: .utility) {
+            _ = await healthKitDailyStore.smartPullHealthData(userId: userId)
+        }
+    }
+
+    private func triggerFullHealthRefresh() {
+        guard let currentUser = userService.currentUser else { return }
+        guard currentUser.isDemo != true else { return }
+        guard currentUser.allowHealthAccess else { return }
+
+        let userId = currentUser.id.uuidString
+        let selectedRange = selectedHealthHistoryRange
+        Task(priority: .utility) {
+            _ = await healthKitDailyStore.fullRefreshHealthHistory(
+                userId: userId,
+                range: selectedRange
+            )
+        }
+    }
+
+    private var healthAccessStatusText: String {
+        if userService.currentUser?.isDemo == true {
+            return "Apple Health is unavailable in demo mode."
+        }
+        if userService.currentUser?.allowHealthAccess == true {
+            return hkManager.hkConnected
+                ? "Apple Health is enabled for this account."
+                : "Enabled for this account, but Apple Health permission appears unavailable right now."
+        }
+        if hkManager.hkConnected {
+            return "Apple Health permission is available on this device, but disabled for this account."
+        }
+        return "Apple Health is currently disabled for this account."
+    }
+
+    @MainActor
+    private func enableHealthAccessFromSettings() async {
+        guard let targetUserId = userService.currentUser?.id else { return }
+        guard userService.currentUser?.isDemo != true else { return }
+
+        isEnablingHealthAccess = true
+        defer { isEnablingHealthAccess = false }
+
+        await hkManager.refreshConnectionState()
+
+        if hkManager.hkConnected {
+            guard userService.currentUser?.id == targetUserId else { return }
+            userService.hkUserAllow(connected: true, requested: true)
+            showHealthBackfillPrompt = true
+            return
+        }
+
+        await hkManager.requestAuthorization()
+        guard userService.currentUser?.id == targetUserId else { return }
+
+        userService.hkUserAllow(connected: hkManager.hkConnected, requested: hkManager.hkRequested)
+
+        if userService.currentUser?.allowHealthAccess == true {
+            showHealthBackfillPrompt = true
+            return
+        }
+
+        backupAlertTitle = "Apple Health Access"
+        exportErrorMessage = "Permission was not granted. You can enable it in the Health app and try again."
+        showExportErrorAlert = true
+    }
+
+    private func disableHealthAccessForCurrentUser() {
+        guard userService.currentUser?.isDemo != true else { return }
+        userService.hkUserAllow(connected: false, requested: false)
+    }
+
+    private func loadSelectedHealthHistoryRangeFromUser() {
+        selectedHealthHistoryRange = userService.currentHealthHistorySyncRange()
+    }
+
     private func exportExerciseBackup() {
         let backupService = ExerciseBackupService(
             context: context,
@@ -366,13 +596,24 @@ struct SettingsView: View {
                 nutritionService.loadFeature()
                 backupAlertTitle = "Import Complete"
                 exportErrorMessage = """
-                Imported legacy: \(imported.foods) foods, \(imported.meals) meals, \(imported.foodLogs) logs.
-                Imported v2: \(imported.foodItems) food items, \(imported.mealRecipes) meal recipes, \(imported.nutritionLogEntries) nutrition logs.
+                Imported \(imported.foodItems) food items, \(imported.mealRecipes) meal recipes, \(imported.mealRecipeItems) recipe items, and \(imported.nutritionLogEntries) nutrition logs.
+                Updated \(imported.targets) nutrition targets.
                 """
                 showExportErrorAlert = true
             } catch {
                 backupAlertTitle = "Couldn’t Import"
-                exportErrorMessage = error.localizedDescription
+
+                if let backupError = error as? NutritionBackupService.BackupError {
+                    switch backupError {
+                    case .invalidSchemaVersion:
+                        exportErrorMessage = "This backup uses an unsupported nutrition format. Only schemaVersion 2 backups can be imported."
+                    default:
+                        exportErrorMessage = backupError.localizedDescription
+                    }
+                } else {
+                    exportErrorMessage = error.localizedDescription
+                }
+
                 showExportErrorAlert = true
             }
         }
@@ -622,11 +863,10 @@ struct TestDataShow : View {
     @State var sessionSets: [SessionSet] = []
     @State var sessionReps: [SessionRep] = []
     @State var sessionEntries: [SessionEntry] = []
-    @State var foods: [Food] = []
-    @State var foodLogs: [FoodLog] = []
-    @State var meals: [Meal] = []
-    @State var mealEntries: [MealEntry] = []
-    @State var mealItems: [MealItem] = []
+    @State var foodItems: [FoodItem] = []
+    @State var mealRecipes: [MealRecipe] = []
+    @State var mealRecipeItems: [MealRecipeItem] = []
+    @State var nutritionLogs: [NutritionLogEntry] = []
     @State var nutritionTargets: [NutritionTarget] = []
     @State var users: [User] = []
 
@@ -655,11 +895,10 @@ struct TestDataShow : View {
                 countRow("Session Entries", total: sessionEntries.count, current: sessionEntriesForCurrentUser.count)
                 countRow("Session Sets", total: sessionSets.count, current: sessionSetsForCurrentUser.count)
                 countRow("Session Reps", total: sessionReps.count, current: sessionRepsForCurrentUser.count)
-                countRow("Foods", total: foods.count, current: foodsForCurrentUser.count)
-                countRow("Food Logs", total: foodLogs.count, current: foodLogsForCurrentUser.count)
-                countRow("Meals", total: meals.count, current: mealsForCurrentUser.count)
-                countRow("Meal Entries", total: mealEntries.count, current: mealEntriesForCurrentUser.count)
-                countRow("Meal Items", total: mealItems.count, current: mealItemsForCurrentUser.count)
+                countRow("Food Items", total: foodItems.count, current: foodItemsForCurrentUser.count)
+                countRow("Meal Recipes", total: mealRecipes.count, current: mealRecipesForCurrentUser.count)
+                countRow("Meal Recipe Items", total: mealRecipeItems.count, current: mealRecipeItemsForCurrentUser.count)
+                countRow("Nutrition Logs", total: nutritionLogs.count, current: nutritionLogsForCurrentUser.count)
                 countRow("Nutrition Targets", total: nutritionTargets.count, current: nil)
             }
             Section("Split Days") {
@@ -828,25 +1067,21 @@ struct TestDataShow : View {
         return sessionReps.filter { $0.sessionSet.sessionEntry.session.user_id == currentUserId }
     }
 
-    private var foodsForCurrentUser: [Food] {
-        filterForCurrentUser(foods, by: \.userId)
+    private var foodItemsForCurrentUser: [FoodItem] {
+        filterForCurrentUser(foodItems, by: \.userId)
     }
 
-    private var foodLogsForCurrentUser: [FoodLog] {
-        filterForCurrentUser(foodLogs, by: \.userId)
+    private var mealRecipesForCurrentUser: [MealRecipe] {
+        filterForCurrentUser(mealRecipes, by: \.userId)
     }
 
-    private var mealsForCurrentUser: [Meal] {
-        filterForCurrentUser(meals, by: \.userId)
-    }
-
-    private var mealEntriesForCurrentUser: [MealEntry] {
-        filterForCurrentUser(mealEntries, by: \.userId)
-    }
-
-    private var mealItemsForCurrentUser: [MealItem] {
+    private var mealRecipeItemsForCurrentUser: [MealRecipeItem] {
         guard let currentUserId else { return [] }
-        return mealItems.filter { $0.meal?.userId == currentUserId }
+        return mealRecipeItems.filter { $0.mealRecipe?.userId == currentUserId }
+    }
+
+    private var nutritionLogsForCurrentUser: [NutritionLogEntry] {
+        filterForCurrentUser(nutritionLogs, by: \.userId)
     }
 
     @ViewBuilder
@@ -876,11 +1111,10 @@ struct TestDataShow : View {
         sessionReps = try! context.fetch(FetchDescriptor<SessionRep>(sortBy: [SortDescriptor(\.id)]))
         sessionEntries = try! context.fetch(FetchDescriptor<SessionEntry>(sortBy: [SortDescriptor(\.id)]))
 
-        foods = try! context.fetch(FetchDescriptor<Food>(sortBy: [SortDescriptor(\.createdAt)]))
-        foodLogs = try! context.fetch(FetchDescriptor<FoodLog>(sortBy: [SortDescriptor(\.timestamp)]))
-        meals = try! context.fetch(FetchDescriptor<Meal>(sortBy: [SortDescriptor(\.createdAt)]))
-        mealEntries = try! context.fetch(FetchDescriptor<MealEntry>(sortBy: [SortDescriptor(\.timestamp)]))
-        mealItems = try! context.fetch(FetchDescriptor<MealItem>(sortBy: [SortDescriptor(\.id)]))
+        foodItems = try! context.fetch(FetchDescriptor<FoodItem>(sortBy: [SortDescriptor(\.createdAt)]))
+        mealRecipes = try! context.fetch(FetchDescriptor<MealRecipe>(sortBy: [SortDescriptor(\.createdAt)]))
+        mealRecipeItems = try! context.fetch(FetchDescriptor<MealRecipeItem>(sortBy: [SortDescriptor(\.id)]))
+        nutritionLogs = try! context.fetch(FetchDescriptor<NutritionLogEntry>(sortBy: [SortDescriptor(\.timestamp)]))
         nutritionTargets = try! context.fetch(FetchDescriptor<NutritionTarget>(sortBy: [SortDescriptor(\.createdAt)]))
 
         users = try! context.fetch(FetchDescriptor<User>(sortBy: [SortDescriptor(\.lastLogin, order: .reverse)]))

@@ -24,100 +24,28 @@ class SessionService : ServiceBase, ObservableObject {
         formatter.minimumFractionDigits = 0
         return formatter
     }()
+    private let repository: SessionRepositoryProtocol
+
+    init(context: ModelContext, repository: SessionRepositoryProtocol? = nil) {
+        self.repository = repository ?? LocalSessionRepository(modelContext: context)
+        super.init(context: context)
+    }
     
     override func loadFeature() {
         self.loadSessions()
     }
     
     func loadSessions() {
-        let descriptor: FetchDescriptor<Session>
-        if let userId = currentUser?.id {
-            descriptor = FetchDescriptor<Session>(
-                predicate: #Predicate<Session> { session in
-                    session.user_id == userId
-                },
-                sortBy: [SortDescriptor(\.timestamp)]
-            )
-        } else {
-            descriptor = FetchDescriptor<Session>(sortBy: [SortDescriptor(\.timestamp)])
-        }
-
         do {
-//            sessions = try modelContext.fetch(descriptor)
-            
-            // migration for timestampDone
-            for session in try modelContext.fetch(FetchDescriptor<Session>()) {
-                if session.timestampDone == .distantPast || session.timestampDone == Date(timeIntervalSince1970: 0) {
-                    session.timestampDone = session.timestamp
-                }
-            }
-            try? modelContext.save()
-            
-            sessions = try modelContext.fetch(descriptor)
-
-
-//            let descript2 = FetchDescriptor<Routine>(sortBy: [SortDescriptor(\.order)])
-//            var routines:[Routine] = []
-//            do {
-//                routines = try modelContext.fetch(descript2)
-//            } catch {
-//                routines = []
-//            }
-//
-//            for session in sessions {
-//                print(session.routine)
-//                if let routine = session.routine {
-            
-//
-//                } else {
-//                    var sesiosnEdit = session
-////                    sesiosnEdit.routine_id = nil
-//                    try? modelContext.save()
-//                }
-//                if (session.routine) {
-////                    if (session.routine.id)
-//                }
-//                if (session.routine == null) {
-//                    print("null")
-//                }
-//            }
-//            loadSessions()
+            sessions = try repository.fetchSessions(for: currentUser?.id)
         } catch {
             sessions = []
         }
     }
 
     func sessionsInRange(_ interval: DateInterval?) -> [Session] {
-        let sortBy = [SortDescriptor(\Session.timestamp, order: .reverse)]
-
         do {
-            let descriptor: FetchDescriptor<Session>
-
-            if let interval {
-                let start = interval.start
-                let end = interval.end
-
-                if let userId = currentUser?.id {
-                    let predicate = #Predicate<Session> {
-                        $0.user_id == userId && $0.timestamp >= start && $0.timestamp < end
-                    }
-                    descriptor = FetchDescriptor(predicate: predicate, sortBy: sortBy)
-                } else {
-                    let predicate = #Predicate<Session> {
-                        $0.timestamp >= start && $0.timestamp < end
-                    }
-                    descriptor = FetchDescriptor(predicate: predicate, sortBy: sortBy)
-                }
-            } else if let userId = currentUser?.id {
-                let predicate = #Predicate<Session> {
-                    $0.user_id == userId
-                }
-                descriptor = FetchDescriptor(predicate: predicate, sortBy: sortBy)
-            } else {
-                descriptor = FetchDescriptor(sortBy: sortBy)
-            }
-
-            return try modelContext.fetch(descriptor)
+            return try repository.fetchSessions(in: interval, for: currentUser?.id)
         } catch {
             return sessions
                 .filter { session in
@@ -174,19 +102,12 @@ class SessionService : ServiceBase, ObservableObject {
         let trimmedNotes = create_notes.trimmingCharacters(in: .whitespaces)
         guard let userId = currentUser?.id else { return nil }
         
-        let newItem = Session(timestamp: Date(), user_id: userId, routine: selected_splitDay, notes: trimmedNotes)
+        var newItem: Session?
         var failed = false
         
         withAnimation {
-            modelContext.insert(newItem)
-            try? modelContext.save()
-
-            if let routine = selected_splitDay {
-                createSessionExercise(session: newItem, routine: routine)
-            }
-        
             do {
-                try modelContext.save()
+                newItem = try repository.createSession(userId: userId, routine: selected_splitDay, notes: trimmedNotes)
                 creating_session = false
                 create_notes = ""
                 selected_splitDay = nil
@@ -205,44 +126,23 @@ class SessionService : ServiceBase, ObservableObject {
     }
     
     func updateSessionToSplitDay(session: Session) -> Session? {
-//        withAnimation {
-            session.routine = selected_splitDay
-            try? modelContext.save()
+            try? repository.updateRoutine(for: session, routine: selected_splitDay)
             loadSessions()
             return session
-//        }
     }
     
     func updateSessionToSplitDay(session: Session, routine: Routine) {
         withAnimation {
             print("updaiting session")
-            session.routine = routine
-            try? modelContext.save()
-            
-            createSessionExercise(session: session, routine: routine)
+            try? repository.updateRoutine(for: session, routine: routine)
             loadSessions()
-        }
-    }
-    
-    // create new session from split day
-    func createSessionExercise(session: Session, routine: Routine) {
-        // for each exercise in routine
-        for (_, exerciseSplit) in routine.exerciseSplits.enumerated() {
-            let newSessionEntry = SessionEntry(
-                session: session,
-                exerciseSplitDay: exerciseSplit
-            )
-            
-            modelContext.insert(newSessionEntry)
-            session.sessionEntries.append(newSessionEntry)
         }
     }
     
     func removeSession(session: Session) {
         withAnimation {
             do {
-                modelContext.delete(session)
-                try modelContext.save()
+                try repository.deleteSession(session)
                 loadSessions()
             } catch {
                 print("Failed to save after deletion")
@@ -253,12 +153,9 @@ class SessionService : ServiceBase, ObservableObject {
     func removeSession(offsets: IndexSet) {
         // TODO: OFFSETS IS WRONG?
         withAnimation {
-            for index in offsets {
-                modelContext.delete(sessions[index])
-            }
-            
             do {
-                try modelContext.save()
+                let sessionsToDelete = offsets.compactMap { sessions.indices.contains($0) ? sessions[$0] : nil }
+                try repository.deleteSessions(sessionsToDelete)
                 loadSessions()
             } catch {
                 print("Failed to save after deletion")

@@ -13,6 +13,10 @@ struct GymTrackerApp: App {
     var sharedModelContainer: ModelContainer = SharedModelConfig.createSharedModelContainer()
 
     @StateObject var userService: UserService
+    @StateObject var backendAuthService: BackendAuthService
+    @StateObject var syncEligibilityState: SyncEligibilityState
+    @StateObject var syncEligibilityService: SyncEligibilityService
+    @StateObject var syncCoordinator: SyncCoordinator
     @StateObject var dashboardService: DashboardService
     @StateObject var timerService: TimerService
     @StateObject var exerciseService: ExerciseService
@@ -26,7 +30,6 @@ struct GymTrackerApp: App {
     @StateObject var watchSessionManager: WatchSessionManager
     @StateObject var healthKitManager: HealthKitManager
     @StateObject var healthKitDailyStore: HealthKitDailyStore
-    @StateObject var healthMetricsService: HealthMetricsService
     @StateObject var toastManager = ActionToastManager()
 
     init() {
@@ -39,36 +42,114 @@ struct GymTrackerApp: App {
         }
         
         let context = sharedModelContainer.mainContext
+        
         LegacyStoreRecoveryService.recoverIfNeeded(destinationContext: context)
+        
+        let syncEligibilityState = SyncEligibilityState()
+        let syncEligibilityService = SyncEligibilityService(eligibilityState: syncEligibilityState)
+        let syncQueueStore = SyncQueueStore(modelContext: context)
+        let syncMetadataStore = SyncMetadataStore(modelContext: context)
+        
+        let remoteExerciseRepository = RemoteExerciseRepository()
+        let syncHandlers = SyncFeatureRegistry.makeHandlers(
+            remoteExerciseRepository: remoteExerciseRepository
+        )
+        let syncWorker = SyncWorker(
+            queueStore: syncQueueStore,
+            metadataStore: syncMetadataStore,
+            eligibilityService: syncEligibilityService,
+            handlers: syncHandlers
+        )
+        let syncCoordinator = SyncCoordinator(
+            queueStore: syncQueueStore,
+            eligibilityService: syncEligibilityService,
+            worker: syncWorker
+        )
+        let localExerciseRepository = LocalExerciseRepository(modelContext: context)
+        let exerciseRepository = ExerciseSyncRepository(
+            localRepository: localExerciseRepository,
+            queueStore: syncQueueStore,
+            eligibilityService: syncEligibilityService
+        )
+        let localRoutineRepository = LocalRoutineRepository(modelContext: context)
+        let routineRepository = RoutineSyncRepository(
+            localRepository: localRoutineRepository,
+            queueStore: syncQueueStore,
+            eligibilityService: syncEligibilityService
+        )
+        let localSessionRepository = LocalSessionRepository(modelContext: context)
+        let sessionRepository = SessionSyncRepository(
+            localRepository: localSessionRepository,
+            queueStore: syncQueueStore,
+            eligibilityService: syncEligibilityService
+        )
+        let localUserRepository = LocalUserRepository(modelContext: context)
+        let userRepository = UserSyncRepository(
+            localRepository: localUserRepository,
+            queueStore: syncQueueStore,
+            eligibilityService: syncEligibilityService
+        )
+        let localNutritionRepository = LocalNutritionRepository(modelContext: context)
+        let nutritionCatalogRepository = NutritionCatalogSyncRepository(
+            localRepository: localNutritionRepository,
+            queueStore: syncQueueStore,
+            eligibilityService: syncEligibilityService
+        )
+        let nutritionLogRepository = NutritionLogSyncRepository(
+            localRepository: localNutritionRepository,
+            queueStore: syncQueueStore,
+            eligibilityService: syncEligibilityService
+        )
+        let nutritionTargetRepository = NutritionTargetSyncRepository(
+            localRepository: localNutritionRepository,
+            queueStore: syncQueueStore,
+            eligibilityService: syncEligibilityService
+        )
+        let nutritionRepository = ComposedNutritionRepository(
+            catalogRepository: nutritionCatalogRepository,
+            logRepository: nutritionLogRepository,
+            targetRepository: nutritionTargetRepository
+        )
+        let localHealthKitDailyRepository = LocalHealthKitDailyRepository(modelContext: context)
+        let healthKitDailyRepository = HealthKitDailySyncRepository(
+            localRepository: localHealthKitDailyRepository,
+            queueStore: syncQueueStore,
+            eligibilityService: syncEligibilityService
+        )
+
+        let exerciseBootstrapCoordinator = ExerciseBootstrapCoordinator(
+            localRepository: localExerciseRepository,
+            remoteRepository: remoteExerciseRepository
+        )
 
         // Create — no currentUser passed
-        let userService = UserService(context: context)
+        let userService = UserService(context: context, repository: userRepository)
         userService.loadFeature()
+        let backendAuthService = BackendAuthService(
+            eligibilityState: syncEligibilityState,
+            bootstrapCoordinator: exerciseBootstrapCoordinator
+        )
         
         let dashboardService = DashboardService(context: context)
         let timerService = TimerService(context: context)
-        let exerciseService = ExerciseService(context: context)
-        let splitDayService = RoutineService(context: context)
-        let sessionService = SessionService(context: context)
-        let setService = SetService(context: context)
-        let exerciseSplitDayService = ExerciseSplitDayService(context: context)
-        let sessionExerciseService = SessionExerciseService(context: context)
-        let nutritionService = NutritionService(context: context)
+        let exerciseService = ExerciseService(context: context, repository: exerciseRepository)
+        let splitDayService = RoutineService(context: context, repository: routineRepository)
+        let sessionService = SessionService(context: context, repository: sessionRepository)
+        let setService = SetService(context: context, repository: sessionRepository)
+        let exerciseSplitDayService = ExerciseSplitDayService(context: context, repository: routineRepository)
+        let sessionExerciseService = SessionExerciseService(context: context, repository: sessionRepository)
+        let nutritionService = NutritionService(context: context, repository: nutritionRepository)
         let healthKitManager = HealthKitManager()
         let healthKitDateNormalizer = HealthKitDateNormalizer()
         let healthKitDailyStore = HealthKitDailyStore(
             context: context,
+            repository: healthKitDailyRepository,
             healthKitManager: healthKitManager,
-            dateNormalizer: healthKitDateNormalizer
-        )
-        let healthMetricsService = HealthMetricsService(
-            context: context,
-            dailyStore: healthKitDailyStore,
-            nutritionService: nutritionService,
             dateNormalizer: healthKitDateNormalizer
         )
 
         // Bind AFTER creation
+        backendAuthService.bind(to: userService)
         dashboardService.bind(to: userService)
         timerService.bind(to: userService)
         exerciseService.bind(to: userService)
@@ -79,10 +160,26 @@ struct GymTrackerApp: App {
         sessionExerciseService.bind(to: userService)
         nutritionService.bind(to: userService)
         healthKitDailyStore.bind(to: userService)
-        healthMetricsService.bind(to: userService)
+
+        // Service-level sync kickoff hooks run after user binding.
+        exerciseService.sync()
+        splitDayService.sync()
+        sessionService.sync()
+        setService.sync()
+        exerciseSplitDayService.sync()
+        sessionExerciseService.sync()
+        nutritionService.sync()
+        healthKitDailyStore.sync()
+
+        syncCoordinator.start()
+        syncCoordinator.triggerSync(reason: "serviceSyncKickoff")
 
         self._dashboardService = StateObject(wrappedValue: dashboardService)
         self._userService = StateObject(wrappedValue: userService)
+        self._backendAuthService = StateObject(wrappedValue: backendAuthService)
+        self._syncEligibilityState = StateObject(wrappedValue: syncEligibilityState)
+        self._syncEligibilityService = StateObject(wrappedValue: syncEligibilityService)
+        self._syncCoordinator = StateObject(wrappedValue: syncCoordinator)
         self._timerService = StateObject(wrappedValue: timerService)
         self._exerciseService = StateObject(wrappedValue: exerciseService)
         self._splitDayService = StateObject(wrappedValue: splitDayService)
@@ -93,12 +190,10 @@ struct GymTrackerApp: App {
         self._nutritionService = StateObject(wrappedValue: nutritionService)
         self._healthKitManager = StateObject(wrappedValue: healthKitManager)
         self._healthKitDailyStore = StateObject(wrappedValue: healthKitDailyStore)
-        self._healthMetricsService = StateObject(wrappedValue: healthMetricsService)
 
         self._watchSessionManager = StateObject(
             wrappedValue: WatchSessionManager(
-                timerService: timerService,
-//                exerciseService: exerciseSvc
+                timerController: WatchTimerBridge(timerService: timerService)
             )
         )
 
@@ -113,9 +208,12 @@ struct GymTrackerApp: App {
                 .environmentObject(toastManager)
                 .environmentObject(healthKitManager)
                 .environmentObject(healthKitDailyStore)
-                .environmentObject(healthMetricsService)
                 .environmentObject(watchSessionManager)
                 .environmentObject(userService)
+                .environmentObject(backendAuthService)
+                .environmentObject(syncEligibilityState)
+                .environmentObject(syncEligibilityService)
+                .environmentObject(syncCoordinator)
                 .environmentObject(dashboardService)
                 .environmentObject(splitDayService)
                 .environmentObject(exerciseService)

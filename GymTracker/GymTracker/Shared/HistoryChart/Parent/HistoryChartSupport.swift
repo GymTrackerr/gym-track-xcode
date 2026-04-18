@@ -205,16 +205,13 @@ enum HistoryChartCalculator {
         let minAllowed = calendar.date(from: DateComponents(year: minimumYear, month: 1, day: 1)) ?? oldest
         let maxAllowed = calendar.date(byAdding: .day, value: 1, to: now) ?? now
 
-        guard oldest >= minAllowed else {
-            return (nil, nil)
-        }
-
+        let clampedOldest = max(oldest, minAllowed)
         let clampedNewest = min(newest, maxAllowed)
-        guard clampedNewest >= oldest else {
+        guard clampedNewest >= clampedOldest else {
             return (nil, nil)
         }
 
-        return (oldest, clampedNewest)
+        return (clampedOldest, clampedNewest)
     }
 
     static func currentWindow(
@@ -270,24 +267,17 @@ enum HistoryChartCalculator {
         timeframe: HistoryChartTimeframe,
         calendar: Calendar = .current
     ) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
-
         switch timeframe {
         case .week:
-            formatter.setLocalizedDateFormatFromTemplate("EEE")
-            return formatter.string(from: date)
+            return date.formatted(.dateTime.weekday(.abbreviated))
         case .month:
             return String(calendar.component(.day, from: date))
         case .sixMonths:
-            formatter.setLocalizedDateFormatFromTemplate("MMM")
-            return String(formatter.string(from: date).prefix(3))
+            return date.formatted(.dateTime.month(.abbreviated))
         case .year:
-            formatter.setLocalizedDateFormatFromTemplate("MMM")
-            return String(formatter.string(from: date).prefix(1))
+            return String(date.formatted(.dateTime.month(.abbreviated)).prefix(1))
         case .fiveYears:
-            formatter.setLocalizedDateFormatFromTemplate("yyyy")
-            return formatter.string(from: date)
+            return date.formatted(.dateTime.year())
         }
     }
 
@@ -296,42 +286,28 @@ enum HistoryChartCalculator {
         timeframe: HistoryChartTimeframe,
         calendar: Calendar = .current
     ) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
-
         switch timeframe {
         case .week, .month:
-            formatter.setLocalizedDateFormatFromTemplate("MMM d, yyyy")
-            return formatter.string(from: point.startDate)
+            return point.startDate.formatted(.dateTime.month(.abbreviated).day().year())
         case .sixMonths:
             let start = point.startDate
             let end = calendar.date(byAdding: .day, value: -1, to: point.endDate) ?? point.endDate
             let startMonth = calendar.component(.month, from: start)
             let endMonth = calendar.component(.month, from: end)
-
-            let monthFormatter = DateFormatter()
-            monthFormatter.locale = Locale.current
-            monthFormatter.setLocalizedDateFormatFromTemplate("MMM")
-            let startMonthText = monthFormatter.string(from: start)
-            let endMonthText = monthFormatter.string(from: end)
+            let startMonthText = start.formatted(.dateTime.month(.abbreviated))
+            let endMonthText = end.formatted(.dateTime.month(.abbreviated))
             let startDay = calendar.component(.day, from: start)
             let endDay = calendar.component(.day, from: end)
-
-            let yearFormatter = DateFormatter()
-            yearFormatter.locale = Locale.current
-            yearFormatter.setLocalizedDateFormatFromTemplate("yyyy")
-            let yearText = yearFormatter.string(from: end)
+            let yearText = end.formatted(.dateTime.year())
 
             if startMonth == endMonth {
                 return "\(startMonthText) \(startDay)-\(endDay), \(yearText)"
             }
             return "\(startMonthText) \(startDay) - \(endMonthText) \(endDay), \(yearText)"
         case .year:
-            formatter.setLocalizedDateFormatFromTemplate("MMMM yyyy")
-            return formatter.string(from: point.startDate)
+            return point.startDate.formatted(.dateTime.month(.wide).year())
         case .fiveYears:
-            formatter.setLocalizedDateFormatFromTemplate("yyyy")
-            return formatter.string(from: point.startDate)
+            return point.startDate.formatted(.dateTime.year())
         }
     }
 

@@ -23,7 +23,9 @@ class TimerService: ServiceBase, ObservableObject {
     private var isApplyingPendingTimerCommand = false
     private var lastLiveActivitySyncAt = Date.distantPast
     private var lastTimerStateSyncAt = Date.distantPast
+    private var lastExternalReloadAt = Date.distantPast
     private let liveActivityResyncInterval: TimeInterval = 2
+    private let externalReloadInterval: TimeInterval = 5
     private let appGroupIdentifier = "group.net.novapro.GymTracker"
     private let pendingTimerControlCommandKey = "pendingTimerControlCommand"
     private let timerFinishedNotificationId = "timer.finished.active"
@@ -65,9 +67,17 @@ class TimerService: ServiceBase, ObservableObject {
             .sink { [weak self] _ in
                 guard let self else { return }
                 guard !self.isApplyingPendingTimerCommand else { return }
-                
-                if !self.timerWasLocallyUpdated {
-                    self.loadTimer()   // Only reload if widget changed it
+
+                let now = Date()
+                if self.timer == nil
+                    && !self.timerWasLocallyUpdated
+                    && now.timeIntervalSince(self.lastExternalReloadAt) >= self.externalReloadInterval {
+                    self.loadTimer()
+                    self.lastExternalReloadAt = now
+                }
+
+                if self.applyPendingTimerControlCommandIfNeeded() {
+                    return
                 }
                 self.timerWasLocallyUpdated = false
                 
@@ -124,6 +134,7 @@ class TimerService: ServiceBase, ObservableObject {
     
     func start() {
         self.hapticPress()
+        clearPendingTimerControlCommand()
         
         let finalLength = pendingLength
 
@@ -283,11 +294,12 @@ class TimerService: ServiceBase, ObservableObject {
         lastLiveActivitySyncAt = Date()
     }
 
-    private func applyPendingTimerControlCommandIfNeeded() {
+    private func applyPendingTimerControlCommandIfNeeded() -> Bool {
         struct PendingTimerControlCommand: Codable {
             let action: String
             let remainingSeconds: Int?
             let requestedAt: TimeInterval
+            let timerId: String
         }
 
         guard
@@ -295,14 +307,23 @@ class TimerService: ServiceBase, ObservableObject {
             let data = defaults.data(forKey: pendingTimerControlCommandKey),
             let command = try? JSONDecoder().decode(PendingTimerControlCommand.self, from: data)
         else {
-            return
+            return false
+        }
+
+        if let timer = timer,
+           command.timerId.isEmpty == false,
+           timer.id.uuidString.lowercased() != command.timerId.lowercased() {
+            defaults.removeObject(forKey: pendingTimerControlCommandKey)
+            return false
         }
 
         defaults.removeObject(forKey: pendingTimerControlCommandKey)
+        isApplyingPendingTimerCommand = true
+        defer { isApplyingPendingTimerCommand = false }
 
         switch command.action {
         case "pause":
-            guard let timer else { return }
+            guard let timer else { return false }
             let remaining = command.remainingSeconds ?? max(timer.timerLength - displayedTime, 0)
             timer.elapsedTime = max(timer.timerLength - remaining, 0)
             timer.startTime = nil
@@ -312,7 +333,7 @@ class TimerService: ServiceBase, ObservableObject {
             emitLifecycleEvent(.paused)
 
         case "resume":
-            guard let timer else { return }
+            guard let timer else { return false }
             let remaining = command.remainingSeconds ?? max(timer.timerLength - displayedTime, 0)
             timer.elapsedTime = max(timer.timerLength - remaining, 0)
             timer.startTime = Date()
@@ -327,8 +348,14 @@ class TimerService: ServiceBase, ObservableObject {
             }
 
         default:
-            return
+            return false
         }
+
+        return true
+    }
+
+    private func clearPendingTimerControlCommand() {
+        UserDefaults(suiteName: appGroupIdentifier)?.removeObject(forKey: pendingTimerControlCommandKey)
     }
 
     private func emitLifecycleEvent(

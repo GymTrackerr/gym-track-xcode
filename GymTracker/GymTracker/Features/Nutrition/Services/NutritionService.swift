@@ -65,6 +65,12 @@ class NutritionService: ServiceBase, ObservableObject {
     @Published var dayLogs: [NutritionLogEntry] = []
     @Published var dayMealEntries: [NutritionLogEntry] = []
     @Published var nutritionTarget: NutritionTarget?
+    private let repository: NutritionRepositoryProtocol
+
+    init(context: ModelContext, repository: NutritionRepositoryProtocol) {
+        self.repository = repository
+        super.init(context: context)
+    }
 
     override func loadFeature() {
         loadFoods()
@@ -90,15 +96,8 @@ class NutritionService: ServiceBase, ObservableObject {
             return
         }
 
-        let descriptor = FetchDescriptor<FoodItem>(
-            predicate: #Predicate<FoodItem> { item in
-                item.userId == userId
-            },
-            sortBy: [SortDescriptor(\.name)]
-        )
-
         do {
-            foods = try modelContext.fetch(descriptor)
+            foods = try repository.fetchFoodItems(for: userId)
         } catch {
             foods = []
             print("Failed to fetch foods: \(error)")
@@ -111,15 +110,8 @@ class NutritionService: ServiceBase, ObservableObject {
             return
         }
 
-        let descriptor = FetchDescriptor<MealRecipe>(
-            predicate: #Predicate<MealRecipe> { meal in
-                meal.userId == userId
-            },
-            sortBy: [SortDescriptor(\.name)]
-        )
-
         do {
-            meals = try modelContext.fetch(descriptor)
+            meals = try repository.fetchMealRecipes(for: userId)
         } catch {
             meals = []
             print("Failed to fetch meals: \(error)")
@@ -154,15 +146,14 @@ class NutritionService: ServiceBase, ObservableObject {
         let start = Calendar.current.date(byAdding: .day, value: -max(days, 1), to: now) ?? now
         let foodLogTypeRaw = NutritionLogType.food.rawValue
 
-        let descriptor = FetchDescriptor<NutritionLogEntry>(
-            predicate: #Predicate<NutritionLogEntry> { log in
-                log.userId == userId && log.timestamp >= start && log.logTypeRaw == foodLogTypeRaw
-            },
-            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
-        )
-
         do {
-            let logs = try modelContext.fetch(descriptor)
+            let logs = try repository.fetchNutritionLogs(
+                for: userId,
+                between: start,
+                and: now.addingTimeInterval(1)
+            )
+            .filter { $0.logTypeRaw == foodLogTypeRaw }
+            .sorted { $0.timestamp > $1.timestamp }
             var seen: Set<UUID> = []
             var ordered: [FoodItem] = []
 
@@ -220,10 +211,8 @@ class NutritionService: ServiceBase, ObservableObject {
             unit: unit
         )
 
-        modelContext.insert(food)
-
         do {
-            try modelContext.save()
+            try repository.insertFoodItem(food)
             loadFoods()
             return food
         } catch {
@@ -268,7 +257,7 @@ class NutritionService: ServiceBase, ObservableObject {
         food.updatedAt = Date()
 
         do {
-            try modelContext.save()
+            try repository.saveFoodItem(food)
             loadFoods()
             return true
         } catch {
@@ -282,7 +271,7 @@ class NutritionService: ServiceBase, ObservableObject {
         food.updatedAt = Date()
 
         do {
-            try modelContext.save()
+            try repository.saveFoodItem(food)
             loadFoods()
         } catch {
             print("Failed to toggle favorite: \(error)")
@@ -294,7 +283,7 @@ class NutritionService: ServiceBase, ObservableObject {
         food.updatedAt = Date()
 
         do {
-            try modelContext.save()
+            try repository.saveFoodItem(food)
             loadFoods()
         } catch {
             throw NutritionError.persistence("Could not archive this food. Please try again.")
@@ -306,7 +295,7 @@ class NutritionService: ServiceBase, ObservableObject {
         food.updatedAt = Date()
 
         do {
-            try modelContext.save()
+            try repository.saveFoodItem(food)
             loadFoods()
         } catch {
             throw NutritionError.persistence("Could not unarchive this food. Please try again.")
@@ -354,21 +343,12 @@ class NutritionService: ServiceBase, ObservableObject {
             isArchived: false
         )
 
-        for (index, item) in validItems.enumerated() {
-            let recipeItem = MealRecipeItem(
-                amount: item.grams,
-                amountUnit: item.food.unit,
-                order: index,
-                mealRecipe: meal,
-                foodItem: item.food
-            )
-            meal.items.append(recipeItem)
-        }
-
-        modelContext.insert(meal)
-
         do {
-            try modelContext.save()
+            try repository.insertMealRecipe(meal)
+            try repository.replaceMealRecipeItems(
+                on: meal,
+                with: validItems.map { (foodItem: $0.food, amount: $0.grams, amountUnit: $0.food.unit) }
+            )
             loadMeals()
             return meal
         } catch {
@@ -405,24 +385,11 @@ class NutritionService: ServiceBase, ObservableObject {
         meal.servingUnitLabel = normalizedOptionalText(servingUnitLabel) ?? "serving"
         meal.updatedAt = Date()
 
-        for existingItem in meal.items {
-            modelContext.delete(existingItem)
-        }
-        meal.items.removeAll()
-
-        for (index, item) in validItems.enumerated() {
-            let recipeItem = MealRecipeItem(
-                amount: item.grams,
-                amountUnit: item.food.unit,
-                order: index,
-                mealRecipe: meal,
-                foodItem: item.food
-            )
-            meal.items.append(recipeItem)
-        }
-
         do {
-            try modelContext.save()
+            try repository.replaceMealRecipeItems(
+                on: meal,
+                with: validItems.map { (foodItem: $0.food, amount: $0.grams, amountUnit: $0.food.unit) }
+            )
             loadMeals()
             return true
         } catch {
@@ -433,10 +400,9 @@ class NutritionService: ServiceBase, ObservableObject {
 
     func deleteMeal(_ meal: MealRecipe) {
         guard let userId = try? requireUserId(), meal.userId == userId else { return }
-        modelContext.delete(meal)
 
         do {
-            try modelContext.save()
+            try repository.softDeleteMealRecipe(meal)
             loadMeals()
         } catch {
             print("Failed to delete meal: \(error)")
@@ -533,7 +499,7 @@ class NutritionService: ServiceBase, ObservableObject {
         log.updatedAt = Date()
 
         do {
-            try modelContext.save()
+            try repository.saveNutritionLogEntry(log)
             loadDayData(for: timestamp)
             return true
         } catch {
@@ -543,10 +509,8 @@ class NutritionService: ServiceBase, ObservableObject {
     }
 
     func deleteFoodLog(_ log: NutritionLogEntry, selectedDate: Date) {
-        modelContext.delete(log)
-
         do {
-            try modelContext.save()
+            try repository.softDeleteNutritionLogEntry(log)
             loadDayData(for: selectedDate)
             loadFoods()
         } catch {
@@ -555,10 +519,8 @@ class NutritionService: ServiceBase, ObservableObject {
     }
 
     func deleteMealEntry(_ entry: NutritionLogEntry, selectedDate: Date) {
-        modelContext.delete(entry)
-
         do {
-            try modelContext.save()
+            try repository.softDeleteNutritionLogEntry(entry)
             loadDayData(for: selectedDate)
             loadFoods()
         } catch {
@@ -574,15 +536,9 @@ class NutritionService: ServiceBase, ObservableObject {
         }
 
         let (dayStart, dayEnd) = dayRange(for: selectedDate)
-        let descriptor = FetchDescriptor<NutritionLogEntry>(
-            predicate: #Predicate<NutritionLogEntry> { log in
-                log.userId == userId && log.timestamp >= dayStart && log.timestamp < dayEnd
-            },
-            sortBy: [SortDescriptor(\.timestamp)]
-        )
 
         do {
-            let logs = try modelContext.fetch(descriptor)
+            let logs = try repository.fetchNutritionLogs(for: userId, between: dayStart, and: dayEnd)
             dayLogs = logs.sorted { $0.timestamp < $1.timestamp }
             dayMealEntries = dayLogs.filter { $0.logType == .meal }
         } catch {
@@ -597,18 +553,9 @@ class NutritionService: ServiceBase, ObservableObject {
         let mealLogTypeRaw = NutritionLogType.meal.rawValue
 
         let (sourceStart, sourceEnd) = dayRange(for: sourceDate)
-        let descriptor = FetchDescriptor<NutritionLogEntry>(
-            predicate: #Predicate<NutritionLogEntry> { log in
-                log.userId == userId
-                    && log.timestamp >= sourceStart
-                    && log.timestamp < sourceEnd
-                    && log.logTypeRaw != mealLogTypeRaw
-            },
-            sortBy: [SortDescriptor(\.timestamp)]
-        )
-
         do {
-            let sourceLogs = try modelContext.fetch(descriptor)
+            let sourceLogs = try repository.fetchNutritionLogs(for: userId, between: sourceStart, and: sourceEnd)
+                .filter { $0.logTypeRaw != mealLogTypeRaw }
             guard !sourceLogs.isEmpty else { return 0 }
 
             for sourceLog in sourceLogs {
@@ -634,10 +581,8 @@ class NutritionService: ServiceBase, ObservableObject {
                     note: sourceLog.note
                 )
                 let newLog = createNutritionLogEntry(from: draft, userId: userId)
-                modelContext.insert(newLog)
+                try repository.insertNutritionLogEntry(newLog)
             }
-
-            try modelContext.save()
             loadDayData(for: targetDate)
             loadFoods()
             return sourceLogs.count
@@ -722,16 +667,9 @@ class NutritionService: ServiceBase, ObservableObject {
         let startDay = calendar.date(byAdding: .day, value: -(clampedDays - 1), to: endDayStart) ?? endDayStart
         let rangeEnd = calendar.date(byAdding: .day, value: 1, to: endDayStart) ?? endDayStart
 
-        let descriptor = FetchDescriptor<NutritionLogEntry>(
-            predicate: #Predicate<NutritionLogEntry> { log in
-                log.userId == userId && log.timestamp >= startDay && log.timestamp < rangeEnd
-            },
-            sortBy: [SortDescriptor(\.timestamp)]
-        )
-
         let fetchedLogs: [NutritionLogEntry]
         do {
-            fetchedLogs = try modelContext.fetch(descriptor)
+            fetchedLogs = try repository.fetchNutritionLogs(for: userId, between: startDay, and: rangeEnd)
         } catch {
             throw NutritionError.persistence("Could not load nutrition series data.")
         }
@@ -752,15 +690,9 @@ class NutritionService: ServiceBase, ObservableObject {
 
     func logsInDateInterval(_ interval: DateInterval) throws -> [NutritionLogEntry] {
         let userId = try requireUserId()
-        let descriptor = FetchDescriptor<NutritionLogEntry>(
-            predicate: #Predicate<NutritionLogEntry> { log in
-                log.userId == userId && log.timestamp >= interval.start && log.timestamp < interval.end
-            },
-            sortBy: [SortDescriptor(\.timestamp)]
-        )
 
         do {
-            return try modelContext.fetch(descriptor)
+            return try repository.fetchNutritionLogs(for: userId, in: interval)
         } catch {
             throw NutritionError.persistence("Could not load nutrition logs for this timeframe.")
         }
@@ -768,20 +700,9 @@ class NutritionService: ServiceBase, ObservableObject {
 
     func nutritionBounds(for metric: NutritionSeriesMetric) throws -> (oldest: Date?, newest: Date?) {
         let userId = try requireUserId()
-
-        func boundDate(ascending: Bool) throws -> Date? {
-            var descriptor = FetchDescriptor<NutritionLogEntry>(
-                predicate: #Predicate<NutritionLogEntry> { log in log.userId == userId },
-                sortBy: [SortDescriptor(\.timestamp, order: ascending ? .forward : .reverse)]
-            )
-            descriptor.fetchLimit = 1
-            return try modelContext.fetch(descriptor).first?.timestamp
-        }
-
+        _ = metric
         do {
-            let oldest = try boundDate(ascending: true)
-            let newest = try boundDate(ascending: false)
-            return (oldest, newest)
+            return try repository.fetchNutritionLogBounds(for: userId)
         } catch {
             throw NutritionError.persistence("Could not load nutrition bounds.")
         }
@@ -819,24 +740,12 @@ class NutritionService: ServiceBase, ObservableObject {
 
     func getOrCreateTarget() throws -> NutritionTarget {
         let currentUserId = currentUser?.id
-        let descriptor = FetchDescriptor<NutritionTarget>(
-            sortBy: [SortDescriptor(\.createdAt)]
-        )
-
         do {
-            let targets = try modelContext.fetch(descriptor)
+            let targets = try repository.fetchTargets()
             if let currentUserId {
                 if let scoped = targets.first(where: { $0.userId == currentUserId }) {
                     nutritionTarget = scoped
                     return scoped
-                }
-
-                if let legacy = targets.first(where: { $0.userId == nil }) {
-                    legacy.userId = currentUserId
-                    legacy.updatedAt = Date()
-                    try modelContext.save()
-                    nutritionTarget = legacy
-                    return legacy
                 }
             } else if let first = targets.first {
                 nutritionTarget = first
@@ -844,8 +753,7 @@ class NutritionService: ServiceBase, ObservableObject {
             }
 
             let target = NutritionTarget(userId: currentUserId)
-            modelContext.insert(target)
-            try modelContext.save()
+            try repository.insertNutritionTarget(target)
             nutritionTarget = target
             return target
         } catch {
@@ -867,7 +775,7 @@ class NutritionService: ServiceBase, ObservableObject {
         target.updatedAt = Date()
 
         do {
-            try modelContext.save()
+            try repository.saveNutritionTarget(target)
             nutritionTarget = target
         } catch {
             throw NutritionError.persistence("Could not save nutrition targets. Please try again.")
@@ -1032,10 +940,9 @@ class NutritionService: ServiceBase, ObservableObject {
         try validateDraft(draft)
 
         let entry = createNutritionLogEntry(from: draft, userId: userId)
-        modelContext.insert(entry)
 
         do {
-            try modelContext.save()
+            try repository.insertNutritionLogEntry(entry)
             loadDayData(for: draft.timestamp)
             loadFoods()
             loadMeals()
