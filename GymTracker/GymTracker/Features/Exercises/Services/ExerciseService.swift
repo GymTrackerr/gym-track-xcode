@@ -94,6 +94,50 @@ final class ExerciseCatalogSyncStateStore {
     }
 }
 
+struct ExerciseCatalogOverlayState: Codable, Equatable {
+    let npId: String
+    var aliases: [String]
+    var hidden: Bool
+    var updatedAt: Date
+}
+
+final class ExerciseCatalogOverlayStore {
+    static let shared = ExerciseCatalogOverlayStore()
+
+    private let defaults: UserDefaults
+    private let keyPrefix: String
+
+    init(
+        defaults: UserDefaults = .standard,
+        keyPrefix: String = "gymtracker.exercise-catalog-overlay."
+    ) {
+        self.defaults = defaults
+        self.keyPrefix = keyPrefix
+    }
+
+    func loadAll(for userId: UUID) -> [ExerciseCatalogOverlayState] {
+        guard let data = defaults.data(forKey: key(for: userId)) else { return [] }
+        return (try? JSONDecoder().decode([ExerciseCatalogOverlayState].self, from: data)) ?? []
+    }
+
+    func saveAll(_ overlays: [ExerciseCatalogOverlayState], for userId: UUID) {
+        var uniqueOverlays: [String: ExerciseCatalogOverlayState] = [:]
+        for overlay in overlays {
+            uniqueOverlays[overlay.npId.lowercased()] = overlay
+        }
+        let orderedOverlays = uniqueOverlays.values.sorted { lhs, rhs in
+            lhs.npId.localizedCaseInsensitiveCompare(rhs.npId) == .orderedAscending
+        }
+
+        guard let data = try? JSONEncoder().encode(orderedOverlays) else { return }
+        defaults.set(data, forKey: key(for: userId))
+    }
+
+    private func key(for userId: UUID) -> String {
+        "\(keyPrefix)\(userId.uuidString.lowercased())"
+    }
+}
+
 class ExerciseService : ServiceBase, ObservableObject {
     private struct CatalogOverlaySnapshot {
         let npId: String
@@ -137,6 +181,7 @@ class ExerciseService : ServiceBase, ObservableObject {
     private let remoteRepository: RemoteExerciseRepository
     private let routeResolver: ExerciseRouteResolver
     private let catalogSyncStateStore: ExerciseCatalogSyncStateStore
+    private let catalogOverlayStore: ExerciseCatalogOverlayStore
     private let catalogSyncTTL: TimeInterval = 24 * 60 * 60
     private let thumbnailPrefetchConcurrency: Int = 3
     private var catalogSyncTask: Task<Void, Never>?
@@ -149,13 +194,15 @@ class ExerciseService : ServiceBase, ObservableObject {
         apiHelper: API_Helper = API_Helper(),
         remoteRepository: RemoteExerciseRepository? = nil,
         routeResolver: ExerciseRouteResolver = ExerciseRouteResolver(),
-        catalogSyncStateStore: ExerciseCatalogSyncStateStore = .shared
+        catalogSyncStateStore: ExerciseCatalogSyncStateStore = .shared,
+        catalogOverlayStore: ExerciseCatalogOverlayStore = .shared
     ) {
         self.apiHelper = apiHelper
         self.repository = repository ?? LocalExerciseRepository(modelContext: context)
         self.remoteRepository = remoteRepository ?? RemoteExerciseRepository(apiHelper: apiHelper)
         self.routeResolver = routeResolver
         self.catalogSyncStateStore = catalogSyncStateStore
+        self.catalogOverlayStore = catalogOverlayStore
         super.init(context: context)
     }
 
@@ -283,6 +330,9 @@ class ExerciseService : ServiceBase, ObservableObject {
         await syncRemoteCatalogPreferenceIfNeeded(for: user)
         guard !Task.isCancelled else { return }
 
+        await reconcileCatalogOverlaysIfNeeded(for: user)
+        guard !Task.isCancelled else { return }
+
         await syncRemoteUserExercisesIfNeeded(for: user)
         guard !Task.isCancelled else { return }
 
@@ -345,9 +395,12 @@ class ExerciseService : ServiceBase, ObservableObject {
                 }
             }
 
-            if let overlaySource = routeResolver.overlaySource(for: hasAuth) {
-                let overlays = try await overlaySource.fetchCatalogOverlays(updatedAfter: nil)
-                let overlayUpdates = try repository.applyCatalogOverlays(overlays, for: user.id)
+            let localOverlays = catalogOverlayStore.loadAll(for: user.id)
+            if localOverlays.isEmpty == false {
+                let overlayUpdates = try repository.applyCatalogOverlays(
+                    localOverlays.map(catalogOverlayDTO(from:)),
+                    for: user.id
+                )
                 didChangeCatalog = didChangeCatalog || overlayUpdates > 0
             }
 
@@ -524,23 +577,6 @@ class ExerciseService : ServiceBase, ObservableObject {
         user.remoteSyncEnabled && hasAuthorizedBackendSession
     }
 
-    private func shouldAdoptRemoteCatalogPreference(
-        _ remotePreference: Bool,
-        for user: User
-    ) -> Bool {
-        let state = stateForUser(user.id)
-        if state.hasSeenExistingUserPrompt {
-            return false
-        }
-        if state.optedIn {
-            return false
-        }
-        if user.exerciseCatalogEnabled {
-            return false
-        }
-        return remotePreference
-    }
-
     @MainActor
     private func reconcileRemoteCatalogPreference(
         _ remotePreference: Bool,
@@ -551,19 +587,6 @@ class ExerciseService : ServiceBase, ObservableObject {
                 pendingRemoteCatalogPreference = nil
             } else {
                 await persistCatalogPreferenceRemotelyIfNeeded(pendingPreference)
-            }
-            return
-        }
-
-        if shouldAdoptRemoteCatalogPreference(remotePreference, for: user) {
-            do {
-                try applyCatalogPreferenceLocally(
-                    remotePreference,
-                    markPromptSeen: true,
-                    hideExercisesWhenDisabled: true
-                )
-            } catch {
-                print("Failed to adopt remote exercise catalog preference locally: \(error)")
             }
             return
         }
@@ -681,16 +704,108 @@ class ExerciseService : ServiceBase, ObservableObject {
         )
     }
 
+    private func reconcileCatalogOverlaysIfNeeded(for user: User) async {
+        let localOverlays = captureLiveCatalogOverlaysIntoStore(for: user)
+
+        guard user.remoteSyncEnabled else {
+            if user.exerciseCatalogEnabled {
+                applyCatalogOverlaysLocally(localOverlays, for: user.id)
+            }
+            return
+        }
+
+        guard hasAuthorizedBackendSession else {
+            if user.exerciseCatalogEnabled {
+                applyCatalogOverlaysLocally(localOverlays, for: user.id)
+            }
+            return
+        }
+        guard let overlaySource = routeResolver.overlaySource(for: true) else {
+            if user.exerciseCatalogEnabled {
+                applyCatalogOverlaysLocally(localOverlays, for: user.id)
+            }
+            return
+        }
+
+        do {
+            let remoteOverlays = try await overlaySource.fetchCatalogOverlays(updatedAfter: nil)
+            let remoteByNpId = Dictionary(
+                uniqueKeysWithValues: remoteOverlays.map {
+                    (normalizedCatalogNpId($0.npId), catalogOverlayState(from: $0))
+                }
+            )
+
+            let mergedOverlays = mergeCatalogOverlays(
+                localByNpId: localOverlays,
+                remoteByNpId: remoteByNpId
+            )
+            let orderedMergedOverlays = mergedOverlays.values.sorted {
+                $0.npId.localizedCaseInsensitiveCompare($1.npId) == .orderedAscending
+            }
+            catalogOverlayStore.saveAll(orderedMergedOverlays, for: user.id)
+
+            if user.exerciseCatalogEnabled {
+                applyCatalogOverlaysLocally(mergedOverlays, for: user.id)
+            }
+
+            for overlay in overlaysNeedingRemotePush(
+                mergedByNpId: mergedOverlays,
+                remoteByNpId: remoteByNpId
+            ) {
+                do {
+                    _ = try await remoteRepository.updateCatalogOverlay(
+                        npId: overlay.npId,
+                        aliases: overlay.aliases,
+                        isArchived: overlay.hidden
+                    )
+                } catch {
+                    print("Failed to push reconciled catalog overlay \(overlay.npId): \(error)")
+                }
+            }
+        } catch {
+            print("Failed to reconcile catalog overlays: \(error)")
+            if user.exerciseCatalogEnabled {
+                applyCatalogOverlaysLocally(localOverlays, for: user.id)
+            }
+        }
+    }
+
+    private func persistCatalogOverlayLocally(snapshot: CatalogOverlaySnapshot?) {
+        guard let snapshot else { return }
+        guard let userId = currentUser?.id else { return }
+
+        let overlay = ExerciseCatalogOverlayState(
+            npId: normalizedCatalogNpId(snapshot.npId),
+            aliases: canonicalAliases(snapshot.aliases),
+            hidden: snapshot.isArchived,
+            updatedAt: Date()
+        )
+        var storedOverlays: [String: ExerciseCatalogOverlayState] = [:]
+        for storedOverlay in catalogOverlayStore.loadAll(for: userId) {
+            storedOverlays[normalizedCatalogNpId(storedOverlay.npId)] = storedOverlay
+        }
+
+        if shouldPersistCatalogOverlay(overlay) {
+            storedOverlays[overlay.npId] = overlay
+        } else {
+            storedOverlays.removeValue(forKey: overlay.npId)
+        }
+
+        catalogOverlayStore.saveAll(Array(storedOverlays.values), for: userId)
+    }
+
     private func syncCatalogOverlayIfNeeded(snapshot: CatalogOverlaySnapshot?) {
+        persistCatalogOverlayLocally(snapshot: snapshot)
         guard let snapshot else { return }
         guard let user = currentUser, user.remoteSyncEnabled else { return }
         guard hasAuthorizedBackendSession else { return }
+        let normalizedAliases = canonicalAliases(snapshot.aliases)
 
         Task(priority: .utility) { [remoteRepository] in
             do {
                 _ = try await remoteRepository.updateCatalogOverlay(
                     npId: snapshot.npId,
-                    aliases: snapshot.aliases,
+                    aliases: normalizedAliases,
                     isArchived: snapshot.isArchived
                 )
             } catch {
@@ -866,6 +981,219 @@ class ExerciseService : ServiceBase, ObservableObject {
         loadExercises()
         loadArchivedExercises()
         exerciseListRevision &+= 1
+    }
+
+    private func captureLiveCatalogOverlaysIntoStore(for user: User) -> [String: ExerciseCatalogOverlayState] {
+        var storedOverlays: [String: ExerciseCatalogOverlayState] = [:]
+        for overlay in catalogOverlayStore.loadAll(for: user.id) {
+            storedOverlays[normalizedCatalogNpId(overlay.npId)] = normalizedCatalogOverlayState(overlay)
+        }
+        let temporarilyHiddenNpIds = Set(
+            stateForUser(user.id).temporarilyHiddenNpIds.map { normalizedCatalogNpId($0) }
+        )
+        let visibleCatalogExercises = exercises + archivedExercises
+
+        for exercise in visibleCatalogExercises {
+            guard let liveOverlay = catalogOverlayState(
+                from: exercise,
+                temporarilyHiddenNpIds: temporarilyHiddenNpIds
+            ) else { continue }
+
+            let key = liveOverlay.npId
+            let merged = mergeCatalogOverlay(local: liveOverlay, remote: storedOverlays[key])
+            if let merged {
+                storedOverlays[key] = merged
+            } else {
+                storedOverlays.removeValue(forKey: key)
+            }
+        }
+
+        catalogOverlayStore.saveAll(Array(storedOverlays.values), for: user.id)
+        return storedOverlays
+    }
+
+    private func applyCatalogOverlaysLocally(
+        _ overlaysByNpId: [String: ExerciseCatalogOverlayState],
+        for userId: UUID
+    ) {
+        guard overlaysByNpId.isEmpty == false else { return }
+
+        do {
+            let updatedCount = try repository.applyCatalogOverlays(
+                overlaysByNpId.values.map(catalogOverlayDTO(from:)),
+                for: userId
+            )
+            if updatedCount > 0 {
+                refreshExerciseLists()
+            }
+        } catch {
+            print("Failed to apply local catalog overlays: \(error)")
+        }
+    }
+
+    private func mergeCatalogOverlays(
+        localByNpId: [String: ExerciseCatalogOverlayState],
+        remoteByNpId: [String: ExerciseCatalogOverlayState]
+    ) -> [String: ExerciseCatalogOverlayState] {
+        let allNpIds = Set(localByNpId.keys).union(remoteByNpId.keys)
+        var merged: [String: ExerciseCatalogOverlayState] = [:]
+
+        for npId in allNpIds {
+            let resolved = mergeCatalogOverlay(
+                local: localByNpId[npId],
+                remote: remoteByNpId[npId]
+            )
+            if let resolved {
+                merged[npId] = resolved
+            }
+        }
+
+        return merged
+    }
+
+    private func mergeCatalogOverlay(
+        local: ExerciseCatalogOverlayState?,
+        remote: ExerciseCatalogOverlayState?
+    ) -> ExerciseCatalogOverlayState? {
+        guard local != nil || remote != nil else { return nil }
+
+        let npId = local?.npId ?? remote?.npId ?? ""
+        let aliases = mergeAliases(
+            local?.aliases ?? [],
+            remote?.aliases ?? []
+        )
+        let hidden = local?.hidden ?? remote?.hidden ?? false
+        let updatedAt = max(
+            local?.updatedAt ?? .distantPast,
+            remote?.updatedAt ?? .distantPast
+        )
+        let merged = ExerciseCatalogOverlayState(
+            npId: npId,
+            aliases: aliases,
+            hidden: hidden,
+            updatedAt: updatedAt
+        )
+
+        return shouldPersistCatalogOverlay(merged) ? merged : nil
+    }
+
+    private func overlaysNeedingRemotePush(
+        mergedByNpId: [String: ExerciseCatalogOverlayState],
+        remoteByNpId: [String: ExerciseCatalogOverlayState]
+    ) -> [ExerciseCatalogOverlayState] {
+        mergedByNpId.values
+            .filter { mergedOverlay in
+                let remoteOverlay = remoteByNpId[mergedOverlay.npId]
+                return overlaysEqual(lhs: mergedOverlay, rhs: remoteOverlay) == false
+            }
+            .sorted {
+                $0.npId.localizedCaseInsensitiveCompare($1.npId) == .orderedAscending
+            }
+    }
+
+    private func catalogOverlayState(from dto: GymTrackerCatalogOverlayDTO) -> ExerciseCatalogOverlayState {
+        ExerciseCatalogOverlayState(
+            npId: normalizedCatalogNpId(dto.npId),
+            aliases: canonicalAliases(dto.aliases),
+            hidden: dto.hidden,
+            updatedAt: parsedCatalogOverlayDate(dto.updatedAt) ?? Date.distantPast
+        )
+    }
+
+    private func catalogOverlayDTO(from overlay: ExerciseCatalogOverlayState) -> GymTrackerCatalogOverlayDTO {
+        GymTrackerCatalogOverlayDTO(
+            npId: overlay.npId,
+            aliases: canonicalAliases(overlay.aliases),
+            hidden: overlay.hidden,
+            updatedAt: formattedCatalogOverlayDate(overlay.updatedAt)
+        )
+    }
+
+    private func catalogOverlayState(
+        from exercise: Exercise,
+        temporarilyHiddenNpIds: Set<String>
+    ) -> ExerciseCatalogOverlayState? {
+        guard exercise.isUserCreated == false else { return nil }
+        guard let rawNpId = exercise.npId else { return nil }
+
+        let npId = normalizedCatalogNpId(rawNpId)
+        let aliases = canonicalAliases(exercise.aliases ?? [])
+        let hiddenByTemporaryToggle = temporarilyHiddenNpIds.contains(npId)
+        let hidden = (exercise.isArchived || exercise.soft_deleted) && !hiddenByTemporaryToggle
+        let overlay = ExerciseCatalogOverlayState(
+            npId: npId,
+            aliases: aliases,
+            hidden: hidden,
+            updatedAt: exercise.updatedAt
+        )
+
+        return shouldPersistCatalogOverlay(overlay) ? overlay : nil
+    }
+
+    private func normalizedCatalogOverlayState(
+        _ overlay: ExerciseCatalogOverlayState
+    ) -> ExerciseCatalogOverlayState {
+        ExerciseCatalogOverlayState(
+            npId: normalizedCatalogNpId(overlay.npId),
+            aliases: canonicalAliases(overlay.aliases),
+            hidden: overlay.hidden,
+            updatedAt: overlay.updatedAt
+        )
+    }
+
+    private func overlaysEqual(
+        lhs: ExerciseCatalogOverlayState,
+        rhs: ExerciseCatalogOverlayState?
+    ) -> Bool {
+        guard let rhs else { return false }
+        return lhs.hidden == rhs.hidden && canonicalAliases(lhs.aliases) == canonicalAliases(rhs.aliases)
+    }
+
+    private func shouldPersistCatalogOverlay(_ overlay: ExerciseCatalogOverlayState) -> Bool {
+        overlay.hidden || canonicalAliases(overlay.aliases).isEmpty == false
+    }
+
+    private func mergeAliases(_ localAliases: [String], _ remoteAliases: [String]) -> [String] {
+        canonicalAliases(localAliases + remoteAliases)
+    }
+
+    private func canonicalAliases(_ aliases: [String]) -> [String] {
+        var seen = Set<String>()
+        var normalizedAliases: [String] = []
+
+        for alias in aliases {
+            let trimmed = alias.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.isEmpty == false else { continue }
+
+            let key = trimmed.lowercased()
+            guard seen.insert(key).inserted else { continue }
+            normalizedAliases.append(trimmed)
+        }
+
+        return normalizedAliases.sorted {
+            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        }
+    }
+
+    private func normalizedCatalogNpId(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private func parsedCatalogOverlayDate(_ value: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let parsed = formatter.date(from: value) {
+            return parsed
+        }
+
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: value)
+    }
+
+    private func formattedCatalogOverlayDate(_ date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.string(from: date)
     }
 }
 

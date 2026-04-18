@@ -611,7 +611,10 @@ private struct ExerciseDetailView: View {
                                     if let session = session(for: item.sessionId) {
                                         SingleSessionView(
                                             session: session,
-                                            navigationContext: SessionNavigationContext.forSession(session)
+                                            navigationContext: .fromExerciseHistory(
+                                                sessionId: session.id,
+                                                exerciseId: exerciseId
+                                            )
                                         )
                                         .appBackground()
                                     }

@@ -87,6 +87,15 @@ enum SessionNavigationContext: Equatable {
         return false
     }
 
+    var preferredExerciseId: UUID? {
+        switch self {
+        case .fromExerciseHistory(_, let exerciseId):
+            return exerciseId
+        case .active, .past:
+            return nil
+        }
+    }
+
     var statusBadgeText: String {
         switch self {
         case .active:
