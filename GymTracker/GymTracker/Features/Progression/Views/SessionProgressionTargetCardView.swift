@@ -18,31 +18,20 @@ struct SessionProgressionTargetCardView: View {
         let repsTarget: Int?
         let repsLow: Int?
         let repsHigh: Int?
-
-        var autofillReps: Int? {
-            repsTarget ?? repsHigh ?? repsLow
-        }
     }
 
     let sessionEntry: SessionEntry
     let onAutofill: () -> Void
-    let onApplyRep: (Int) -> Void
-    let onApplyWeight: (Double, WeightUnit) -> Void
+    let showsUseGoalButton: Bool
 
-    private var repOptions: [Int] {
-        ProgressionDisplayFormatter.repOptions(
-            targetReps: sessionEntry.appliedTargetReps,
-            targetRepsLow: sessionEntry.appliedTargetRepsLow,
-            targetRepsHigh: sessionEntry.appliedTargetRepsHigh
-        )
-    }
-
-    private var weightOptions: [Double] {
-        ProgressionDisplayFormatter.weightOptions(
-            weight: sessionEntry.appliedTargetWeight,
-            low: sessionEntry.appliedTargetWeightLow,
-            high: sessionEntry.appliedTargetWeightHigh
-        )
+    init(
+        sessionEntry: SessionEntry,
+        onAutofill: @escaping () -> Void,
+        showsUseGoalButton: Bool = true
+    ) {
+        self.sessionEntry = sessionEntry
+        self.onAutofill = onAutofill
+        self.showsUseGoalButton = showsUseGoalButton
     }
 
     private var targetUnit: WeightUnit? {
@@ -116,26 +105,19 @@ struct SessionProgressionTargetCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(sessionEntry.appliedProgressionNameSnapshot ?? "Progression Target")
-                        .font(.headline)
-
-                    if let miniDescription = sessionEntry.appliedProgressionMiniDescriptionSnapshot,
-                       !miniDescription.isEmpty {
-                        Text(miniDescription)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                Text("Targets")
+                    .font(.headline)
 
                 Spacer()
 
-                Button {
-                    onAutofill()
-                } label: {
-                    Label("Use Goal", systemImage: "arrow.down.doc")
+                if showsUseGoalButton {
+                    Button {
+                        onAutofill()
+                    } label: {
+                        Label("Use Goal", systemImage: "arrow.down.doc")
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
-                .buttonStyle(.borderedProminent)
             }
 
             detailRow(title: "Next Target", value: targetRangeText)
@@ -158,41 +140,6 @@ struct SessionProgressionTargetCardView: View {
                     }
                 }
             }
-
-            if !repOptions.isEmpty {
-                optionGroup(title: "Tap Reps") {
-                    ForEach(repOptions, id: \.self) { reps in
-                        Button {
-                            onApplyRep(reps)
-                        } label: {
-                            Text("\(reps)")
-                                .font(.caption)
-                                .fontWeight(sessionEntry.appliedTargetReps == reps ? .bold : .semibold)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .frame(minWidth: 44)
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                }
-            }
-
-            if let targetUnit, !weightOptions.isEmpty {
-                optionGroup(title: "Tap Weight") {
-                    ForEach(weightOptions, id: \.self) { weight in
-                        Button {
-                            onApplyWeight(weight, targetUnit)
-                        } label: {
-                            Text("\(weight.clean) \(targetUnit.name)")
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                }
-            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -203,66 +150,47 @@ struct SessionProgressionTargetCardView: View {
         let isMissed = isAttempted && !isCompleted
         let isSuggested = nextSuggestedTargetIndex == row.order
 
-        return Button {
-            applyTargetDraftAutofill(row)
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: isCompleted ? "checkmark.square.fill" : "square")
-                    .foregroundStyle(isCompleted ? Color.green : (isMissed ? Color.orange : Color.secondary))
+        return HStack(spacing: 12) {
+            Image(systemName: isCompleted ? "checkmark.square.fill" : "square")
+                .foregroundStyle(isCompleted ? Color.green : (isMissed ? Color.orange : Color.secondary))
 
-                setBadge(text: "\(row.order + 1)")
+            setBadge(text: "\(row.order + 1)")
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(targetDescription(for: row))
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.primary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(targetDescription(for: row))
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.primary)
 
-                    if isMissed {
-                        Text("Tap to reuse this target")
-                            .font(.caption2)
-                            .foregroundStyle(.orange)
-                    } else if isSuggested && !isCompleted {
-                        Text("Next target")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    } else if isCompleted {
-                        Text("Completed")
-                            .font(.caption2)
-                            .foregroundStyle(.green)
-                    }
+                if isMissed {
+                    Text("Missed target on this set")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                } else if isSuggested && !isCompleted {
+                    Text("Next target")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                } else if isCompleted {
+                    Text("Completed")
+                        .font(.caption2)
+                        .foregroundStyle(.green)
                 }
-
-                Spacer()
             }
-            .padding(12)
-            .background(Color.gray.opacity(0.1))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(
-                        isMissed
-                            ? Color.orange.opacity(0.45)
-                            : (isSuggested && !isCompleted ? Color.green.opacity(0.35) : Color.clear),
-                        lineWidth: 1
-                    )
-            )
-        }
-        .buttonStyle(.plain)
-    }
 
-    private func applyTargetDraftAutofill(_ target: TargetChecklistRow) {
-        if let reps = target.autofillReps {
-            onApplyRep(reps)
+            Spacer()
         }
-
-        if let targetUnit {
-            if let weight = target.weight {
-                onApplyWeight(weight, targetUnit)
-            } else {
-                onAutofill()
-            }
-        }
+        .padding(12)
+        .background(Color.gray.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(
+                    isMissed
+                        ? Color.orange.opacity(0.45)
+                        : (isSuggested && !isCompleted ? Color.green.opacity(0.35) : Color.clear),
+                    lineWidth: 1
+                )
+        )
     }
 
     private func set(_ sessionSet: SessionSet, matches target: TargetChecklistRow) -> Bool {
@@ -346,21 +274,6 @@ struct SessionProgressionTargetCardView: View {
     }
 
     @ViewBuilder
-    private func optionGroup<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    content()
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
     private func setBadge(text: String) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 8)
@@ -370,14 +283,5 @@ struct SessionProgressionTargetCardView: View {
                 .fontWeight(.semibold)
         }
         .frame(width: 36, height: 28)
-    }
-}
-
-private extension Double {
-    var clean: String {
-        if self == floor(self) {
-            return String(format: "%.0f", self)
-        }
-        return String(format: "%.1f", self)
     }
 }

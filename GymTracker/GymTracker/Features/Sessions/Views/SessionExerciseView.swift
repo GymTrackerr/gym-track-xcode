@@ -30,7 +30,6 @@ struct SessionExerciseView: View {
     @State private var setToMove: SessionSet? = nil
     @State private var showMoveSetPicker: Bool = false
     @State private var moveSetErrorMessage: String? = nil
-    @State private var showingProgressionSheet = false
     @FocusState private var focusedDropSetField: DropSetField?
 
     init(sessionEntry: SessionEntry, navigationContext: SessionNavigationContext? = nil) {
@@ -169,13 +168,6 @@ struct SessionExerciseView: View {
                 )
             }
         }
-        .sheet(isPresented: $showingProgressionSheet) {
-            NavigationStack {
-                ExerciseProgressionSheetView(exercise: sessionEntry.exercise)
-            }
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-        }
         .alert("Unable to move set", isPresented: Binding(
             get: { moveSetErrorMessage != nil },
             set: { if !$0 { moveSetErrorMessage = nil } }
@@ -291,8 +283,9 @@ struct SessionExerciseView: View {
     }
 
     private var progressionQuickCard: some View {
-        Button {
-            showingProgressionSheet = true
+        NavigationLink {
+            SessionProgressionDetailsView(sessionEntry: sessionEntry)
+                .appBackground()
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: "chart.line.uptrend.xyaxis")
@@ -301,6 +294,9 @@ struct SessionExerciseView: View {
                     Text("Progression")
                         .font(.subheadline)
                         .fontWeight(.semibold)
+                    Text(progressionQuickTitle)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                     Text(progressionQuickSubtitle)
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -317,9 +313,7 @@ struct SessionExerciseView: View {
     private var progressionTargetCard: some View {
         SessionProgressionTargetCardView(
             sessionEntry: sessionEntry,
-            onAutofill: applyProgressionTargetToDraft,
-            onApplyRep: applyRepTargetToDraft,
-            onApplyWeight: applyWeightTargetToDraft
+            onAutofill: applyProgressionTargetToDraft
         )
     }
 
@@ -1174,14 +1168,22 @@ struct SessionExerciseView: View {
         }
     }
 
-    private var progressionQuickSubtitle: String {
+    private var progressionQuickTitle: String {
         if let progressionExercise = progressionService.progressionExercise(for: sessionEntry.exercise.id) {
-            return progressionExercise.progressionNameSnapshot ?? "Edit saved target"
+            return progressionExercise.progressionNameSnapshot ?? "Saved progression"
         }
         if let snapshot = sessionEntry.appliedProgressionNameSnapshot {
             return snapshot
         }
-        return "Edit saved target"
+        return "No saved progression"
+    }
+
+    private var progressionQuickSubtitle: String {
+        if let cycleSummary = sessionEntry.appliedProgressionCycleSummary,
+           !cycleSummary.isEmpty {
+            return cycleSummary
+        }
+        return "Open details or edit the saved target."
     }
 
     private var weightAdjustmentStep: Double {
@@ -1368,33 +1370,6 @@ struct SessionExerciseView: View {
 
         draftUnit = targetUnit
         draftReps = [RepDraft(weight: targetWeight, reps: targetReps, unit: targetUnit)]
-        persistRepSnapshotsToDraftState()
-        dismissKeyboard()
-    }
-
-    private func applyRepTargetToDraft(_ reps: Int) {
-        guard !sessionEntry.exercise.cardio else { return }
-
-        resetDropSetIfNeeded()
-        let currentWeight = draftReps.first?.weight ?? sessionEntry.appliedTargetWeight ?? sessionEntry.appliedTargetWeightLow ?? 0
-        let currentUnit = draftReps.first?.unit ?? sessionEntry.appliedTargetWeightUnit ?? draftUnit
-        draftReps = [RepDraft(weight: currentWeight, reps: reps, unit: currentUnit)]
-        persistRepSnapshotsToDraftState()
-        dismissKeyboard()
-    }
-
-    private func applyWeightTargetToDraft(_ weight: Double, unit: WeightUnit) {
-        guard !sessionEntry.exercise.cardio else { return }
-
-        resetDropSetIfNeeded()
-        let currentReps = draftReps.first?.reps ??
-            sessionEntry.appliedTargetReps ??
-            sessionEntry.appliedTargetRepsLow ??
-            sessionEntry.appliedTargetRepsHigh ??
-            0
-
-        draftUnit = unit
-        draftReps = [RepDraft(weight: weight, reps: currentReps, unit: unit)]
         persistRepSnapshotsToDraftState()
         dismissKeyboard()
     }

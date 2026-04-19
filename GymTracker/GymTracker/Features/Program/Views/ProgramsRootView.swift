@@ -8,12 +8,20 @@
 import SwiftUI
 
 struct ProgramsRootView: View {
+    private struct OpenedProgramTarget: Identifiable, Hashable {
+        let programId: UUID
+        let opensAddWorkoutOnAppear: Bool
+
+        var id: UUID { programId }
+    }
+
     @EnvironmentObject private var programService: ProgramService
     @EnvironmentObject private var routineService: RoutineService
     @EnvironmentObject private var sessionService: SessionService
 
     @State private var showingCreateProgram = false
     @State private var openedSession: Session?
+    @State private var openedProgramTarget: OpenedProgramTarget?
 
     var body: some View {
         ScrollView {
@@ -27,6 +35,18 @@ struct ProgramsRootView: View {
         .navigationDestination(item: $openedSession) { session in
             SingleSessionView(session: session)
                 .appBackground()
+        }
+        .navigationDestination(item: $openedProgramTarget) { target in
+            if let program = programService.programs.first(where: { $0.id == target.programId }) ??
+                programService.archivedPrograms.first(where: { $0.id == target.programId }) {
+                ProgramDetailView(
+                    program: program,
+                    opensAddWorkoutOnAppear: target.opensAddWorkoutOnAppear
+                )
+                .appBackground()
+            } else {
+                EmptyView()
+            }
         }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -48,7 +68,14 @@ struct ProgramsRootView: View {
         }
         .sheet(isPresented: $showingCreateProgram) {
             NavigationStack {
-                ProgramEditorSheet(program: nil)
+                ProgramEditorSheet(program: nil) { program in
+                    DispatchQueue.main.async {
+                        openedProgramTarget = OpenedProgramTarget(
+                            programId: program.id,
+                            opensAddWorkoutOnAppear: true
+                        )
+                    }
+                }
             }
         }
         .sheet(isPresented: $routineService.editingSplit) {
@@ -92,28 +119,14 @@ struct ProgramsRootView: View {
                             }
                             .buttonStyle(.plain)
 
-                            HStack(spacing: 10) {
-                                Button {
-                                    if program.isActive {
-                                        programService.setActive(nil)
-                                    } else {
-                                        programService.setActive(program)
-                                    }
-                                } label: {
-                                    Label(program.isActive ? "Deactivate" : "Set Active", systemImage: program.isActive ? "pause.circle" : "checkmark.circle")
-                                        .frame(maxWidth: .infinity)
-                                }
-                                .buttonStyle(.bordered)
-
-                                Button {
-                                    openSession(for: program, state: state)
-                                } label: {
-                                    Label(state.actionTitle, systemImage: state.activeSession == nil ? "play.fill" : "arrow.clockwise")
-                                        .frame(maxWidth: .infinity)
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .disabled(!canLaunchWorkout(from: state))
+                            Button {
+                                openSession(for: program, state: state)
+                            } label: {
+                                Label(state.actionTitle, systemImage: state.activeSession == nil ? "play.fill" : "arrow.clockwise")
+                                    .frame(maxWidth: .infinity)
                             }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(!canLaunchWorkout(from: state))
                         }
                         .padding(14)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -224,6 +237,10 @@ struct ProgramsRootView: View {
     }
 
     private func openSession(for program: Program, state: ProgramResolvedState) {
+        if !program.isActive {
+            programService.setActive(program)
+        }
+
         if let activeSession = state.activeSession {
             openedSession = activeSession
             return

@@ -259,6 +259,22 @@ final class ProgramService: ServiceBase, ObservableObject {
         saveChanges(for: program)
     }
 
+    func canConvertToDirectWorkoutMode(_ program: Program) -> Bool {
+        let blocks = sortedBlocks(for: program)
+        return blocks.count == 1 && !isDirectWorkoutMode(program)
+    }
+
+    func convertToDirectWorkoutMode(_ program: Program) {
+        guard canConvertToDirectWorkoutMode(program),
+              let block = sortedBlocks(for: program).first else {
+            return
+        }
+
+        block.name = ProgramBlock.hiddenRepeatingBlockSentinel
+        block.durationCount = 0
+        saveChanges(for: program)
+    }
+
     func copyWorkouts(from sourceBlock: ProgramBlock, to destinationBlock: ProgramBlock) {
         let workouts = sortedWorkouts(for: sourceBlock)
         guard !workouts.isEmpty else { return }

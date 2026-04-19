@@ -11,13 +11,21 @@ struct ProgramDetailView: View {
     @EnvironmentObject private var programService: ProgramService
     @EnvironmentObject private var sessionService: SessionService
     @EnvironmentObject private var progressionService: ProgressionService
+    @Environment(\.dismiss) private var dismiss
 
     let program: Program
+    let opensAddWorkoutOnAppear: Bool
 
-    @State private var showingEditProgram = false
+    @State private var showingManageProgram = false
     @State private var showingAddBlock = false
     @State private var blockForNewWorkout: ProgramBlock?
     @State private var openedSession: Session?
+    @State private var didHandleInitialAddWorkout = false
+
+    init(program: Program, opensAddWorkoutOnAppear: Bool = false) {
+        self.program = program
+        self.opensAddWorkoutOnAppear = opensAddWorkoutOnAppear
+    }
 
     private var resolvedState: ProgramResolvedState {
         programService.resolvedState(for: program, sessions: sessionService.sessions)
@@ -80,9 +88,11 @@ struct ProgramDetailView: View {
                 }
             }
         }
-        .sheet(isPresented: $showingEditProgram) {
+        .sheet(isPresented: $showingManageProgram) {
             NavigationStack {
-                ProgramEditorSheet(program: program)
+                ProgramManagementSheet(program: program) {
+                    dismiss()
+                }
             }
         }
         .sheet(isPresented: $showingAddBlock) {
@@ -98,6 +108,9 @@ struct ProgramDetailView: View {
                 ProgramWorkoutEditorSheet(block: block)
             }
         }
+        .onAppear {
+            handleInitialAddWorkoutIfNeeded()
+        }
     }
 
     private var summaryCard: some View {
@@ -111,24 +124,20 @@ struct ProgramDetailView: View {
                     Text(program.mode.title)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                    if program.isActive {
+                        Text("ACTIVE")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.green)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.green.opacity(0.14))
+                            .clipShape(Capsule())
+                    }
                 }
 
                 Spacer()
-
-                Toggle(
-                    "Active",
-                    isOn: Binding(
-                        get: { program.isActive },
-                        set: { newValue in
-                            if newValue {
-                                programService.setActive(program)
-                            } else if program.isActive {
-                                programService.setActive(nil)
-                            }
-                        }
-                    )
-                )
-                .labelsHidden()
             }
 
             if !program.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -147,9 +156,9 @@ struct ProgramDetailView: View {
 
             HStack(spacing: 10) {
                 Button {
-                    showingEditProgram = true
+                    showingManageProgram = true
                 } label: {
-                    Label("Edit Program", systemImage: "pencil")
+                    Label("Edit", systemImage: "slider.horizontal.3")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
@@ -162,16 +171,6 @@ struct ProgramDetailView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!canLaunchPrimaryWorkout)
-            }
-
-            if isDirectWorkoutMode {
-                Button {
-                    programService.convertToBlocksMode(program)
-                } label: {
-                    Label("Switch To Blocks", systemImage: "square.split.2x1")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
             }
         }
         .padding(16)
@@ -187,7 +186,7 @@ struct ProgramDetailView: View {
                     Text("Workouts")
                         .font(.title3)
                         .fontWeight(.semibold)
-                    Text("This program repeats the workout list forever. Add workouts directly and reorder them as needed.")
+                    Text("This program repeats the workout list forever. Use Edit to reorder workouts or switch the structure later.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -207,21 +206,14 @@ struct ProgramDetailView: View {
                     title: "No workouts yet",
                     subtitle: "Add a routine and the program will keep rotating through the workouts forever."
                 )
-            } else if let directWorkoutBlock {
+            } else {
                 VStack(spacing: 12) {
                     ForEach(directWorkouts, id: \.id) { workout in
                         ProgramWorkoutRowCard(
-                            program: program,
-                            block: directWorkoutBlock,
                             workout: workout,
                             resolvedState: resolvedState,
                             showScheduleLabel: program.mode == .weekly,
-                            onStart: { openSession(for: workout) },
-                            onDelete: { programService.deleteWorkout(workout) },
-                            onMoveUp: { programService.moveWorkout(workout, in: directWorkoutBlock, direction: .up) },
-                            onMoveDown: { programService.moveWorkout(workout, in: directWorkoutBlock, direction: .down) },
-                            canMoveUp: programService.canMoveWorkout(workout, in: directWorkoutBlock, direction: .up),
-                            canMoveDown: programService.canMoveWorkout(workout, in: directWorkoutBlock, direction: .down)
+                            onStart: { openSession(for: workout) }
                         )
                     }
                 }
@@ -313,6 +305,10 @@ struct ProgramDetailView: View {
     }
 
     private func openPrimaryWorkout() {
+        if !program.isActive {
+            programService.setActive(program)
+        }
+
         if let activeSession = resolvedState.activeSession {
             openedSession = activeSession
             return
@@ -323,6 +319,10 @@ struct ProgramDetailView: View {
     }
 
     private func openSession(for workout: ProgramWorkout) {
+        if !program.isActive {
+            programService.setActive(program)
+        }
+
         if let activeSession = resolvedState.activeSession,
            activeSession.programWorkoutId == workout.id {
             openedSession = activeSession
@@ -344,6 +344,14 @@ struct ProgramDetailView: View {
         case .continuous:
             return "\(duration) full split\(duration == 1 ? "" : "s")"
         }
+    }
+
+    private func handleInitialAddWorkoutIfNeeded() {
+        guard opensAddWorkoutOnAppear, !didHandleInitialAddWorkout else { return }
+        didHandleInitialAddWorkout = true
+
+        guard isDirectWorkoutMode, let directWorkoutBlock else { return }
+        blockForNewWorkout = directWorkoutBlock
     }
 }
 
@@ -396,17 +404,10 @@ private struct ProgramBlockSummaryCard: View {
 }
 
 private struct ProgramWorkoutRowCard: View {
-    let program: Program
-    let block: ProgramBlock
     let workout: ProgramWorkout
     let resolvedState: ProgramResolvedState
     let showScheduleLabel: Bool
     let onStart: () -> Void
-    let onDelete: () -> Void
-    let onMoveUp: () -> Void
-    let onMoveDown: () -> Void
-    let canMoveUp: Bool
-    let canMoveDown: Bool
 
     private var activeSession: Session? {
         resolvedState.activeSession
@@ -458,42 +459,16 @@ private struct ProgramWorkoutRowCard: View {
 
             Spacer()
 
-            HStack(spacing: 6) {
-                Button {
-                    onMoveUp()
-                } label: {
-                    Image(systemName: "arrow.up")
-                }
-                .buttonStyle(.bordered)
-                .disabled(!canMoveUp)
-
-                Button {
-                    onMoveDown()
-                } label: {
-                    Image(systemName: "arrow.down")
-                }
-                .buttonStyle(.bordered)
-                .disabled(!canMoveDown)
-
-                Button {
-                    onStart()
-                } label: {
-                    Text(isResumableWorkout ? "Resume" : "Start")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .frame(minWidth: 64)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isLockedByAnotherActiveSession || workout.routine == nil)
-
-                Button(role: .destructive) {
-                    onDelete()
-                } label: {
-                    Image(systemName: "trash")
-                }
-                .buttonStyle(.bordered)
-                .disabled(isResumableWorkout)
+            Button {
+                onStart()
+            } label: {
+                Text(isResumableWorkout ? "Resume" : "Start")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .frame(minWidth: 64)
             }
+            .buttonStyle(.borderedProminent)
+            .disabled(isLockedByAnotherActiveSession || workout.routine == nil)
         }
         .padding(12)
         .background(Color.gray.opacity(0.06))
@@ -511,6 +486,7 @@ private struct ProgramBlockDetailView: View {
 
     @State private var blockForNewWorkout: ProgramBlock?
     @State private var openedSession: Session?
+    @State private var showingManageWorkouts = false
 
     private var resolvedState: ProgramResolvedState {
         programService.resolvedState(for: program, sessions: sessionService.sessions)
@@ -563,11 +539,10 @@ private struct ProgramBlockDetailView: View {
                         }
                         .buttonStyle(.bordered)
 
-                        Button(role: .destructive) {
-                            programService.deleteBlock(block)
-                            dismiss()
+                        Button {
+                            showingManageWorkouts = true
                         } label: {
-                            Label("Delete Block", systemImage: "trash")
+                            Label("Edit", systemImage: "slider.horizontal.3")
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
@@ -594,17 +569,10 @@ private struct ProgramBlockDetailView: View {
                     VStack(spacing: 12) {
                         ForEach(sortedWorkouts, id: \.id) { workout in
                             ProgramWorkoutRowCard(
-                                program: program,
-                                block: block,
                                 workout: workout,
                                 resolvedState: resolvedState,
                                 showScheduleLabel: program.mode == .weekly,
-                                onStart: { openSession(for: workout) },
-                                onDelete: { programService.deleteWorkout(workout) },
-                                onMoveUp: { programService.moveWorkout(workout, in: block, direction: .up) },
-                                onMoveDown: { programService.moveWorkout(workout, in: block, direction: .down) },
-                                canMoveUp: programService.canMoveWorkout(workout, in: block, direction: .up),
-                                canMoveDown: programService.canMoveWorkout(workout, in: block, direction: .down)
+                                onStart: { openSession(for: workout) }
                             )
                         }
                     }
@@ -621,6 +589,13 @@ private struct ProgramBlockDetailView: View {
         .sheet(item: $blockForNewWorkout) { block in
             NavigationStack {
                 ProgramWorkoutEditorSheet(block: block)
+            }
+        }
+        .sheet(isPresented: $showingManageWorkouts) {
+            NavigationStack {
+                ProgramBlockManagementSheet(program: program, block: block) {
+                    dismiss()
+                }
             }
         }
     }
@@ -640,6 +615,10 @@ private struct ProgramBlockDetailView: View {
     }
 
     private func openSession(for workout: ProgramWorkout) {
+        if !program.isActive {
+            programService.setActive(program)
+        }
+
         if let activeSession = resolvedState.activeSession,
            activeSession.programWorkoutId == workout.id {
             openedSession = activeSession
@@ -650,12 +629,358 @@ private struct ProgramBlockDetailView: View {
     }
 }
 
+private struct ProgramManagementSheet: View {
+    @EnvironmentObject private var programService: ProgramService
+    @Environment(\.dismiss) private var dismiss
+
+    @Bindable var program: Program
+    let onDelete: () -> Void
+
+    @State private var editMode: EditMode = .active
+    @State private var showingProgramEditor = false
+    @State private var blockForNewWorkout: ProgramBlock?
+    @State private var showingDeleteConfirmation = false
+
+    private var directWorkoutBlock: ProgramBlock? {
+        programService.directWorkoutBlock(for: program)
+    }
+
+    private var visibleBlocks: [ProgramBlock] {
+        programService.visibleBlocks(for: program)
+    }
+
+    private var managedBlock: ProgramBlock? {
+        if programService.isDirectWorkoutMode(program) {
+            return directWorkoutBlock
+        }
+        if visibleBlocks.count == 1 {
+            return visibleBlocks.first
+        }
+        return nil
+    }
+
+    private var managedWorkouts: [ProgramWorkout] {
+        guard let managedBlock else { return [] }
+        return managedBlock.workouts.sorted { lhs, rhs in
+            if lhs.order == rhs.order {
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+            return lhs.order < rhs.order
+        }
+    }
+
+    var body: some View {
+        List {
+            actionsSection
+
+            if let managedBlock {
+                workoutsSection(for: managedBlock)
+            } else {
+                blocksSection
+            }
+        }
+        .environment(\.editMode, $editMode)
+        .navigationTitle("Edit Program")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Done") { dismiss() }
+            }
+
+            if let managedBlock {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        blockForNewWorkout = managedBlock
+                    } label: {
+                        Label("Add Workout", systemImage: "plus")
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showingProgramEditor) {
+            NavigationStack {
+                ProgramEditorSheet(program: program)
+            }
+        }
+        .sheet(item: $blockForNewWorkout) { block in
+            NavigationStack {
+                ProgramWorkoutEditorSheet(block: block)
+            }
+        }
+        .confirmationDialog("Delete Program?", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
+            Button("Delete Program", role: .destructive) {
+                programService.delete(program)
+                dismiss()
+                DispatchQueue.main.async {
+                    onDelete()
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will remove the program and its blocks from the active list.")
+        }
+    }
+
+    private var actionsSection: some View {
+        Section("Actions") {
+            Button {
+                showingProgramEditor = true
+            } label: {
+                Label("Edit Program Details", systemImage: "pencil")
+            }
+
+            if programService.isDirectWorkoutMode(program) {
+                Button {
+                    programService.convertToBlocksMode(program)
+                } label: {
+                    Label("Switch To Blocks", systemImage: "square.split.2x1")
+                }
+            } else if programService.canConvertToDirectWorkoutMode(program) {
+                Button {
+                    programService.convertToDirectWorkoutMode(program)
+                } label: {
+                    Label("Use Workout Rotation", systemImage: "repeat")
+                }
+            }
+
+            Button(role: .destructive) {
+                showingDeleteConfirmation = true
+            } label: {
+                Label("Delete Program", systemImage: "trash")
+            }
+        }
+    }
+
+    private func workoutsSection(for block: ProgramBlock) -> some View {
+        Section {
+            if managedWorkouts.isEmpty {
+                Text("Add workouts to get this program moving.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(managedWorkouts, id: \.id) { workout in
+                    ProgramWorkoutManageRow(workout: workout, showScheduleLabel: program.mode == .weekly)
+                }
+                .onMove { source, destination in
+                    programService.moveWorkouts(in: block, from: source, to: destination)
+                }
+                .onDelete { offsets in
+                    deleteWorkouts(at: offsets, from: block)
+                }
+            }
+        } header: {
+            Text(programService.isDirectWorkoutMode(program) ? "Workout Order" : block.displayName)
+        } footer: {
+            Text("Drag workouts to reorder them. Swipe to delete if you need to remove one.")
+        }
+    }
+
+    private var blocksSection: some View {
+        Section {
+            ForEach(visibleBlocks, id: \.id) { block in
+                NavigationLink {
+                    ProgramBlockManagementSheet(program: program, block: block)
+                } label: {
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(block.displayName)
+                                .font(.body.weight(.semibold))
+                            Text(blockSummary(for: block))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+                    }
+                }
+            }
+        } header: {
+            Text("Blocks")
+        } footer: {
+            Text("Open a block to reorder its workouts with drag and drop.")
+        }
+    }
+
+    private func deleteWorkouts(at offsets: IndexSet, from block: ProgramBlock) {
+        let workouts = managedWorkouts
+        let items = offsets.compactMap { index in
+            workouts.indices.contains(index) ? workouts[index] : nil
+        }
+        for workout in items {
+            programService.deleteWorkout(workout)
+        }
+    }
+
+    private func blockSummary(for block: ProgramBlock) -> String {
+        let workoutCount = block.workouts.count
+        let durationText: String
+        if block.repeatsForever {
+            durationText = "Repeats forever"
+        } else if program.mode == .weekly {
+            durationText = "\(block.durationCount) week\(block.durationCount == 1 ? "" : "s")"
+        } else {
+            durationText = "\(block.durationCount) full split\(block.durationCount == 1 ? "" : "s")"
+        }
+
+        return "\(workoutCount) workout\(workoutCount == 1 ? "" : "s") • \(durationText)"
+    }
+}
+
+private struct ProgramBlockManagementSheet: View {
+    @EnvironmentObject private var programService: ProgramService
+    @Environment(\.dismiss) private var dismiss
+
+    @Bindable var program: Program
+    @Bindable var block: ProgramBlock
+    let onDelete: (() -> Void)?
+
+    @State private var editMode: EditMode = .active
+    @State private var blockForNewWorkout: ProgramBlock?
+    @State private var showingDeleteConfirmation = false
+
+    init(program: Program, block: ProgramBlock, onDelete: (() -> Void)? = nil) {
+        self.program = program
+        self.block = block
+        self.onDelete = onDelete
+    }
+
+    private var sortedWorkouts: [ProgramWorkout] {
+        block.workouts.sorted { lhs, rhs in
+            if lhs.order == rhs.order {
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+            return lhs.order < rhs.order
+        }
+    }
+
+    var body: some View {
+        List {
+            Section {
+                Text(block.displayName)
+                    .font(.body.weight(.semibold))
+                Text(blockDurationSummary)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text("Block")
+            }
+
+            Section {
+                if sortedWorkouts.isEmpty {
+                    Text("Add workouts to start this block.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(sortedWorkouts, id: \.id) { workout in
+                        ProgramWorkoutManageRow(workout: workout, showScheduleLabel: program.mode == .weekly)
+                    }
+                    .onMove { source, destination in
+                        programService.moveWorkouts(in: block, from: source, to: destination)
+                    }
+                    .onDelete { offsets in
+                        deleteWorkouts(at: offsets)
+                    }
+                }
+            } header: {
+                Text("Workout Order")
+            } footer: {
+                Text("Drag workouts to reorder them. Swipe to delete if you need to remove one.")
+            }
+
+            Section {
+                Button(role: .destructive) {
+                    showingDeleteConfirmation = true
+                } label: {
+                    Label("Delete Block", systemImage: "trash")
+                }
+            }
+        }
+        .environment(\.editMode, $editMode)
+        .navigationTitle("Edit Block")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Done") { dismiss() }
+            }
+
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    blockForNewWorkout = block
+                } label: {
+                    Label("Add Workout", systemImage: "plus")
+                }
+            }
+        }
+        .sheet(item: $blockForNewWorkout) { block in
+            NavigationStack {
+                ProgramWorkoutEditorSheet(block: block)
+            }
+        }
+        .confirmationDialog("Delete Block?", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
+            Button("Delete Block", role: .destructive) {
+                programService.deleteBlock(block)
+                dismiss()
+                DispatchQueue.main.async {
+                    onDelete?()
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes the block and all of its workout slots.")
+        }
+    }
+
+    private var blockDurationSummary: String {
+        if block.repeatsForever {
+            return "Repeats forever"
+        }
+
+        if program.mode == .weekly {
+            return "\(block.durationCount) week\(block.durationCount == 1 ? "" : "s")"
+        }
+        return "\(block.durationCount) full split\(block.durationCount == 1 ? "" : "s")"
+    }
+
+    private func deleteWorkouts(at offsets: IndexSet) {
+        let items = offsets.compactMap { index in
+            sortedWorkouts.indices.contains(index) ? sortedWorkouts[index] : nil
+        }
+        for workout in items {
+            programService.deleteWorkout(workout)
+        }
+    }
+}
+
+private struct ProgramWorkoutManageRow: View {
+    let workout: ProgramWorkout
+    let showScheduleLabel: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(workout.displayName)
+                .font(.body.weight(.semibold))
+
+            if showScheduleLabel, let weekday = workout.resolvedWeekday {
+                Text(weekday.title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Workout \(workout.order + 1)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
 struct ProgramEditorSheet: View {
     @EnvironmentObject private var programService: ProgramService
     @EnvironmentObject private var progressionService: ProgressionService
     @Environment(\.dismiss) private var dismiss
 
     let program: Program?
+    let onSave: ((Program) -> Void)?
 
     @State private var name: String
     @State private var notes: String
@@ -666,8 +991,9 @@ struct ProgramEditorSheet: View {
     @State private var isActive: Bool
     @State private var selectedProgressionProfileId: UUID?
 
-    init(program: Program?) {
+    init(program: Program?, onSave: ((Program) -> Void)? = nil) {
         self.program = program
+        self.onSave = onSave
         _name = State(initialValue: program?.name ?? "")
         _notes = State(initialValue: program?.notes ?? "")
         _mode = State(initialValue: program?.mode ?? .continuous)
@@ -761,6 +1087,8 @@ struct ProgramEditorSheet: View {
             } else if wasActive {
                 programService.setActive(nil)
             }
+
+            onSave?(program)
         } else if let program = programService.createProgram(
             name: trimmedName,
             notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -777,6 +1105,8 @@ struct ProgramEditorSheet: View {
             if isActive {
                 programService.setActive(program)
             }
+
+            onSave?(program)
         }
 
         dismiss()
