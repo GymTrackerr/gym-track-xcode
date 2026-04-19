@@ -23,8 +23,20 @@ struct ProgramDetailView: View {
         programService.resolvedState(for: program, sessions: sessionService.sessions)
     }
 
-    private var sortedBlocks: [ProgramBlock] {
-        program.blocks.sorted { $0.order < $1.order }
+    private var visibleBlocks: [ProgramBlock] {
+        programService.visibleBlocks(for: program)
+    }
+
+    private var directWorkoutBlock: ProgramBlock? {
+        programService.directWorkoutBlock(for: program)
+    }
+
+    private var directWorkouts: [ProgramWorkout] {
+        programService.directWorkouts(for: program)
+    }
+
+    private var isDirectWorkoutMode: Bool {
+        programService.isDirectWorkoutMode(program)
     }
 
     private var defaultProgressionName: String {
@@ -37,7 +49,11 @@ struct ProgramDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 summaryCard
-                blocksSection
+                if isDirectWorkoutMode {
+                    directWorkoutsSection
+                } else {
+                    blocksSection
+                }
             }
             .screenContentPadding()
         }
@@ -49,10 +65,18 @@ struct ProgramDetailView: View {
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showingAddBlock = true
-                } label: {
-                    Label("Add Block", systemImage: "plus")
+                if isDirectWorkoutMode {
+                    Button {
+                        blockForNewWorkout = directWorkoutBlock
+                    } label: {
+                        Label("Add Workout", systemImage: "plus")
+                    }
+                } else {
+                    Button {
+                        showingAddBlock = true
+                    } label: {
+                        Label("Add Block", systemImage: "plus")
+                    }
                 }
             }
         }
@@ -63,7 +87,10 @@ struct ProgramDetailView: View {
         }
         .sheet(isPresented: $showingAddBlock) {
             NavigationStack {
-                ProgramBlockEditorSheet(program: program)
+                ProgramBlockEditorSheet(
+                    program: program,
+                    previousBlock: visibleBlocks.last
+                )
             }
         }
         .sheet(item: $blockForNewWorkout) { block in
@@ -110,6 +137,7 @@ struct ProgramDetailView: View {
                     .foregroundStyle(.secondary)
             }
 
+            detailRow(title: "Structure", value: isDirectWorkoutMode ? "Continuous Workout Rotation" : "Blocks")
             detailRow(title: "Start Date", value: program.startDate.formatted(date: .abbreviated, time: .omitted))
             detailRow(title: "Schedule", value: resolvedState.scheduleLabel)
             detailRow(title: "Current Block", value: resolvedState.blockLabel)
@@ -135,6 +163,16 @@ struct ProgramDetailView: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(!canLaunchPrimaryWorkout)
             }
+
+            if isDirectWorkoutMode {
+                Button {
+                    programService.convertToBlocksMode(program)
+                } label: {
+                    Label("Switch To Blocks", systemImage: "square.split.2x1")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -142,13 +180,69 @@ struct ProgramDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
+    private var directWorkoutsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Workouts")
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                    Text("This program repeats the workout list forever. Add workouts directly and reorder them as needed.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Button {
+                    blockForNewWorkout = directWorkoutBlock
+                } label: {
+                    Label("Add", systemImage: "plus")
+                }
+                .buttonStyle(.bordered)
+            }
+
+            if directWorkouts.isEmpty {
+                emptyCard(
+                    title: "No workouts yet",
+                    subtitle: "Add a routine and the program will keep rotating through the workouts forever."
+                )
+            } else if let directWorkoutBlock {
+                VStack(spacing: 12) {
+                    ForEach(directWorkouts, id: \.id) { workout in
+                        ProgramWorkoutRowCard(
+                            program: program,
+                            block: directWorkoutBlock,
+                            workout: workout,
+                            resolvedState: resolvedState,
+                            showScheduleLabel: program.mode == .weekly,
+                            onStart: { openSession(for: workout) },
+                            onDelete: { programService.deleteWorkout(workout) },
+                            onMoveUp: { programService.moveWorkout(workout, in: directWorkoutBlock, direction: .up) },
+                            onMoveDown: { programService.moveWorkout(workout, in: directWorkoutBlock, direction: .down) },
+                            canMoveUp: programService.canMoveWorkout(workout, in: directWorkoutBlock, direction: .up),
+                            canMoveDown: programService.canMoveWorkout(workout, in: directWorkoutBlock, direction: .down)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     private var blocksSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Blocks")
-                    .font(.title3)
-                    .fontWeight(.semibold)
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Blocks")
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                    Text("Open a block to manage its workouts. Add the next block when you are ready to phase the program forward.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 Spacer()
+
                 Button {
                     showingAddBlock = true
                 } label: {
@@ -157,139 +251,32 @@ struct ProgramDetailView: View {
                 .buttonStyle(.bordered)
             }
 
-            if sortedBlocks.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("No blocks yet")
-                        .font(.headline)
-                    Text("Blocks keep the program simple. Set how many weeks or full split passes each block should last, then add workouts underneath.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.gray.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 16))
+            if visibleBlocks.isEmpty {
+                emptyCard(
+                    title: "No blocks yet",
+                    subtitle: "Add a block if you want phased weeks or phased split passes instead of a single continuous workout rotation."
+                )
             } else {
                 VStack(spacing: 12) {
-                    ForEach(sortedBlocks, id: \.id) { block in
-                        blockCard(block)
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func blockCard(_ block: ProgramBlock) -> some View {
-        let workouts = block.workouts.sorted { lhs, rhs in
-            if lhs.order == rhs.order {
-                return lhs.displayName < rhs.displayName
-            }
-            return lhs.order < rhs.order
-        }
-
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
-                        Text(block.displayName)
-                            .font(.headline)
-
-                        if resolvedState.currentBlock?.id == block.id {
-                            Text("CURRENT")
-                                .font(.caption2)
-                                .fontWeight(.bold)
-                                .foregroundStyle(.blue)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.blue.opacity(0.14))
-                                .clipShape(Capsule())
+                    ForEach(visibleBlocks, id: \.id) { block in
+                        NavigationLink {
+                            ProgramBlockDetailView(program: program, block: block)
+                        } label: {
+                            ProgramBlockSummaryCard(
+                                block: block,
+                                isCurrent: resolvedState.currentBlock?.id == block.id,
+                                workoutCount: block.workouts.count,
+                                durationSummary: durationSummary(for: block)
+                            )
                         }
-                    }
-
-                    Text(durationSummary(for: block))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                Button {
-                    blockForNewWorkout = block
-                } label: {
-                    Label("Workout", systemImage: "plus")
-                }
-                .buttonStyle(.bordered)
-
-                Button(role: .destructive) {
-                    programService.deleteBlock(block)
-                } label: {
-                    Image(systemName: "trash")
-                }
-                .buttonStyle(.bordered)
-            }
-
-            if workouts.isEmpty {
-                Text("No workouts in this block yet.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                VStack(spacing: 10) {
-                    ForEach(workouts, id: \.id) { workout in
-                        workoutRow(workout)
+                        .buttonStyle(.plain)
                     }
                 }
             }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.gray.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     @ViewBuilder
-    private func workoutRow(_ workout: ProgramWorkout) -> some View {
-        let activeSession = resolvedState.activeSession
-        let isResumableWorkout = activeSession?.programWorkoutId == workout.id
-        let isLockedByAnotherActiveSession = activeSession != nil && !isResumableWorkout
-
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(workout.displayName)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-
-                Text(workoutLabel(for: workout))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            Button {
-                openSession(for: workout)
-            } label: {
-                Text(isResumableWorkout ? "Resume" : "Start")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .frame(minWidth: 64)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(isLockedByAnotherActiveSession || workout.routine == nil)
-
-            Button(role: .destructive) {
-                programService.deleteWorkout(workout)
-            } label: {
-                Image(systemName: "trash")
-            }
-            .buttonStyle(.bordered)
-            .disabled(isResumableWorkout)
-        }
-        .padding(12)
-        .background(Color.gray.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-    }
-
     private func detailRow(title: String, value: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(title)
@@ -301,6 +288,21 @@ struct ProgramDetailView: View {
                 .fontWeight(.semibold)
                 .multilineTextAlignment(.trailing)
         }
+    }
+
+    @ViewBuilder
+    private func emptyCard(title: String, subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.headline)
+            Text(subtitle)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.gray.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     private var canLaunchPrimaryWorkout: Bool {
@@ -331,6 +333,303 @@ struct ProgramDetailView: View {
     }
 
     private func durationSummary(for block: ProgramBlock) -> String {
+        if block.repeatsForever {
+            return "Repeats forever"
+        }
+
+        let duration = max(block.durationCount, 1)
+        switch program.mode {
+        case .weekly:
+            return "\(duration) week\(duration == 1 ? "" : "s")"
+        case .continuous:
+            return "\(duration) full split\(duration == 1 ? "" : "s")"
+        }
+    }
+}
+
+private struct ProgramBlockSummaryCard: View {
+    let block: ProgramBlock
+    let isCurrent: Bool
+    let workoutCount: Int
+    let durationSummary: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Text(block.displayName)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+
+                    if isCurrent {
+                        Text("CURRENT")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.blue)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.blue.opacity(0.14))
+                            .clipShape(Capsule())
+                    }
+                }
+
+                Text(durationSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Text("\(workoutCount) workout\(workoutCount == 1 ? "" : "s")")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.gray.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+private struct ProgramWorkoutRowCard: View {
+    let program: Program
+    let block: ProgramBlock
+    let workout: ProgramWorkout
+    let resolvedState: ProgramResolvedState
+    let showScheduleLabel: Bool
+    let onStart: () -> Void
+    let onDelete: () -> Void
+    let onMoveUp: () -> Void
+    let onMoveDown: () -> Void
+    let canMoveUp: Bool
+    let canMoveDown: Bool
+
+    private var activeSession: Session? {
+        resolvedState.activeSession
+    }
+
+    private var isResumableWorkout: Bool {
+        activeSession?.programWorkoutId == workout.id
+    }
+
+    private var isNextWorkout: Bool {
+        activeSession == nil && resolvedState.nextWorkout?.id == workout.id
+    }
+
+    private var isLockedByAnotherActiveSession: Bool {
+        activeSession != nil && !isResumableWorkout
+    }
+
+    private var labelText: String {
+        if showScheduleLabel, let weekday = workout.resolvedWeekday {
+            return weekday.title
+        }
+        return "Workout \(workout.order + 1)"
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Text(workout.displayName)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+
+                    if isNextWorkout {
+                        Text("NEXT")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.green)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.green.opacity(0.14))
+                            .clipShape(Capsule())
+                    }
+                }
+
+                Text(labelText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            HStack(spacing: 6) {
+                Button {
+                    onMoveUp()
+                } label: {
+                    Image(systemName: "arrow.up")
+                }
+                .buttonStyle(.bordered)
+                .disabled(!canMoveUp)
+
+                Button {
+                    onMoveDown()
+                } label: {
+                    Image(systemName: "arrow.down")
+                }
+                .buttonStyle(.bordered)
+                .disabled(!canMoveDown)
+
+                Button {
+                    onStart()
+                } label: {
+                    Text(isResumableWorkout ? "Resume" : "Start")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .frame(minWidth: 64)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isLockedByAnotherActiveSession || workout.routine == nil)
+
+                Button(role: .destructive) {
+                    onDelete()
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.bordered)
+                .disabled(isResumableWorkout)
+            }
+        }
+        .padding(12)
+        .background(Color.gray.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+}
+
+private struct ProgramBlockDetailView: View {
+    @EnvironmentObject private var programService: ProgramService
+    @EnvironmentObject private var sessionService: SessionService
+    @Environment(\.dismiss) private var dismiss
+
+    let program: Program
+    let block: ProgramBlock
+
+    @State private var blockForNewWorkout: ProgramBlock?
+    @State private var openedSession: Session?
+
+    private var resolvedState: ProgramResolvedState {
+        programService.resolvedState(for: program, sessions: sessionService.sessions)
+    }
+
+    private var sortedWorkouts: [ProgramWorkout] {
+        block.workouts.sorted { lhs, rhs in
+            if lhs.order == rhs.order {
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+            return lhs.order < rhs.order
+        }
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .top, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(block.displayName)
+                                .font(.title3)
+                                .fontWeight(.semibold)
+
+                            Text(durationSummary)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        if resolvedState.currentBlock?.id == block.id {
+                            Text("CURRENT")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                                .foregroundStyle(.blue)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.blue.opacity(0.14))
+                                .clipShape(Capsule())
+                        }
+                    }
+
+                    HStack(spacing: 10) {
+                        Button {
+                            blockForNewWorkout = block
+                        } label: {
+                            Label("Add Workout", systemImage: "plus")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button(role: .destructive) {
+                            programService.deleteBlock(block)
+                            dismiss()
+                        } label: {
+                            Label("Delete Block", systemImage: "trash")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.gray.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+
+                if sortedWorkouts.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("No workouts yet")
+                            .font(.headline)
+                        Text("Add workouts to this block. You can keep the same routines as the previous block or change them when the phase changes.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.gray.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                } else {
+                    VStack(spacing: 12) {
+                        ForEach(sortedWorkouts, id: \.id) { workout in
+                            ProgramWorkoutRowCard(
+                                program: program,
+                                block: block,
+                                workout: workout,
+                                resolvedState: resolvedState,
+                                showScheduleLabel: program.mode == .weekly,
+                                onStart: { openSession(for: workout) },
+                                onDelete: { programService.deleteWorkout(workout) },
+                                onMoveUp: { programService.moveWorkout(workout, in: block, direction: .up) },
+                                onMoveDown: { programService.moveWorkout(workout, in: block, direction: .down) },
+                                canMoveUp: programService.canMoveWorkout(workout, in: block, direction: .up),
+                                canMoveDown: programService.canMoveWorkout(workout, in: block, direction: .down)
+                            )
+                        }
+                    }
+                }
+            }
+            .screenContentPadding()
+        }
+        .navigationTitle(block.displayName)
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(item: $openedSession) { session in
+            SingleSessionView(session: session)
+                .appBackground()
+        }
+        .sheet(item: $blockForNewWorkout) { block in
+            NavigationStack {
+                ProgramWorkoutEditorSheet(block: block)
+            }
+        }
+    }
+
+    private var durationSummary: String {
+        if block.repeatsForever {
+            return "Repeats forever"
+        }
+
         let duration = max(block.durationCount, 1)
         switch program.mode {
         case .weekly:
@@ -340,11 +639,14 @@ struct ProgramDetailView: View {
         }
     }
 
-    private func workoutLabel(for workout: ProgramWorkout) -> String {
-        if program.mode == .weekly, let weekday = workout.resolvedWeekday {
-            return weekday.title
+    private func openSession(for workout: ProgramWorkout) {
+        if let activeSession = resolvedState.activeSession,
+           activeSession.programWorkoutId == workout.id {
+            openedSession = activeSession
+            return
         }
-        return "Workout \(workout.order + 1)"
+
+        openedSession = sessionService.startProgramWorkout(program: program, workout: workout)
     }
 }
 
@@ -368,7 +670,7 @@ struct ProgramEditorSheet: View {
         self.program = program
         _name = State(initialValue: program?.name ?? "")
         _notes = State(initialValue: program?.notes ?? "")
-        _mode = State(initialValue: program?.mode ?? .weekly)
+        _mode = State(initialValue: program?.mode ?? .continuous)
         _startDate = State(initialValue: program?.startDate ?? Date())
         _trainDaysBeforeRest = State(initialValue: program?.trainDaysBeforeRest ?? 3)
         _restDays = State(initialValue: program?.restDays ?? 1)
@@ -382,13 +684,19 @@ struct ProgramEditorSheet: View {
                 TextField("Name", text: $name)
                 TextField("Notes", text: $notes, axis: .vertical)
                     .lineLimit(3, reservesSpace: true)
-                Picker("Mode", selection: $mode) {
+                Picker("Schedule", selection: $mode) {
                     ForEach(ProgramMode.allCases) { mode in
                         Text(mode.title).tag(mode)
                     }
                 }
                 DatePicker("Start Date", selection: $startDate, displayedComponents: .date)
                 Toggle("Set Active", isOn: $isActive)
+            }
+
+            Section("Structure") {
+                Text("New programs start as a continuous workout rotation. Add workouts directly after saving, or switch the program into blocks later when you want phases.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Progression") {
@@ -480,15 +788,31 @@ private struct ProgramBlockEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     let program: Program
+    let previousBlock: ProgramBlock?
 
     @State private var name: String = ""
     @State private var durationCount: Int = 4
+    @State private var repeatsForever = false
+    @State private var copyPreviousBlock = false
 
     var body: some View {
         Form {
             Section("Block") {
                 TextField("Name (optional)", text: $name)
-                Stepper(durationLabel, value: $durationCount, in: 1...24)
+                Toggle("Repeat Forever", isOn: $repeatsForever)
+
+                if !repeatsForever {
+                    Stepper(durationLabel, value: $durationCount, in: 1...24)
+                }
+            }
+
+            if let previousBlock, !previousBlock.workouts.isEmpty {
+                Section("Copy Previous Block") {
+                    Toggle("Copy workouts from \(previousBlock.displayName)", isOn: $copyPreviousBlock)
+                    Text("This copies the routines and workout order so you can tweak the next phase instead of rebuilding it from scratch.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .navigationTitle("New Block")
@@ -501,11 +825,18 @@ private struct ProgramBlockEditorSheet: View {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
                     let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-                    _ = programService.addBlock(
+                    guard let block = programService.addBlock(
                         to: program,
                         name: trimmedName.isEmpty ? nil : trimmedName,
-                        durationCount: durationCount
-                    )
+                        durationCount: repeatsForever ? 0 : durationCount
+                    ) else {
+                        return
+                    }
+
+                    if copyPreviousBlock, let previousBlock {
+                        programService.copyWorkouts(from: previousBlock, to: block)
+                    }
+
                     dismiss()
                 }
             }
@@ -541,7 +872,7 @@ private struct ProgramWorkoutEditorSheet: View {
         Form {
             Section("Workout") {
                 if routineService.routines.isEmpty {
-                    Text("Create a routine first, then come back and attach it to this block.")
+                    Text("Create a routine first, then come back and attach it to this workout slot.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {

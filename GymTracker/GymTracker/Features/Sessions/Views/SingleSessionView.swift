@@ -432,7 +432,7 @@ struct SingleSessionView: View {
             if isSessionIncomplete {
                 Button {
                     sessionExerciseDraftStore.clearDrafts(for: session.sessionEntries.map(\.id))
-                    session.timestampDone = Date()
+                    sessionService.finishSession(session)
                 } label: {
                     Text("Finish Session")
                         .frame(maxWidth: .infinity)

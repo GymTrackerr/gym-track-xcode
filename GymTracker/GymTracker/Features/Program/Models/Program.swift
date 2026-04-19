@@ -157,6 +157,8 @@ extension Program: SyncTrackedRoot {
 
 @Model
 final class ProgramBlock {
+    static let hiddenRepeatingBlockSentinel = "__continuous_repeat__"
+
     var id: UUID = UUID()
     var order: Int
     var name: String?
@@ -170,16 +172,27 @@ final class ProgramBlock {
         self.order = order
         self.program = program
         self.name = name
-        self.durationCount = max(durationCount, 1)
+        self.durationCount = max(durationCount, 0)
         self.workouts = []
     }
 
     var displayName: String {
+        if isHiddenRepeatingBlock {
+            return "Workout Rotation"
+        }
         let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if !trimmed.isEmpty {
             return trimmed
         }
         return "Block \(order + 1)"
+    }
+
+    var isHiddenRepeatingBlock: Bool {
+        durationCount == 0 && name == Self.hiddenRepeatingBlockSentinel
+    }
+
+    var repeatsForever: Bool {
+        durationCount == 0
     }
 }
 

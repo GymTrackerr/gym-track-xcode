@@ -11,6 +11,7 @@ struct SessionExerciseView: View {
     @EnvironmentObject var setService: SetService
     @EnvironmentObject var timerService: TimerService
     @EnvironmentObject var exerciseService: ExerciseService
+    @EnvironmentObject var progressionService: ProgressionService
     @EnvironmentObject var draftStore: SessionExerciseDraftStore
 
     @Bindable var sessionEntry: SessionEntry
@@ -29,6 +30,7 @@ struct SessionExerciseView: View {
     @State private var setToMove: SessionSet? = nil
     @State private var showMoveSetPicker: Bool = false
     @State private var moveSetErrorMessage: String? = nil
+    @State private var showingProgressionSheet = false
     @FocusState private var focusedDropSetField: DropSetField?
 
     init(sessionEntry: SessionEntry, navigationContext: SessionNavigationContext? = nil) {
@@ -79,6 +81,12 @@ struct SessionExerciseView: View {
                 if !navigationContext.isFromExerciseHistory {
                     sectionCard {
                         detailsQuickCard
+                    }
+                }
+
+                if !navigationContext.isFromExerciseHistory && !sessionEntry.exercise.cardio {
+                    sectionCard {
+                        progressionQuickCard
                     }
                 }
 
@@ -161,6 +169,13 @@ struct SessionExerciseView: View {
                 )
             }
         }
+        .sheet(isPresented: $showingProgressionSheet) {
+            NavigationStack {
+                ExerciseProgressionSheetView(exercise: sessionEntry.exercise)
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
         .alert("Unable to move set", isPresented: Binding(
             get: { moveSetErrorMessage != nil },
             set: { if !$0 { moveSetErrorMessage = nil } }
@@ -185,6 +200,26 @@ struct SessionExerciseView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.gray.opacity(0.08))
             .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func adjustmentControls(
+        decrementTitle: String,
+        incrementTitle: String,
+        decrementAction: @escaping () -> Void,
+        incrementAction: @escaping () -> Void
+    ) -> some View {
+        HStack(spacing: 8) {
+            Button(decrementTitle) {
+                decrementAction()
+            }
+            .buttonStyle(.bordered)
+
+            Button(incrementTitle) {
+                incrementAction()
+            }
+            .buttonStyle(.bordered)
+        }
+        .font(.caption)
     }
 
     private var timerQuickCard: some View {
@@ -243,6 +278,30 @@ struct SessionExerciseView: View {
                         .font(.subheadline)
                         .fontWeight(.semibold)
                     Text("View exercise info")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var progressionQuickCard: some View {
+        Button {
+            showingProgressionSheet = true
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "chart.line.uptrend.xyaxis")
+                    .font(.headline)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Progression")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    Text(progressionQuickSubtitle)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -341,6 +400,13 @@ struct SessionExerciseView: View {
                                 TextField("", value: $draftReps[0].weight, formatter: weightFormatter)
                                     .keyboardType(.decimalPad)
                                     .textFieldStyle(.roundedBorder)
+
+                                adjustmentControls(
+                                    decrementTitle: "-\(weightAdjustmentStep.clean)",
+                                    incrementTitle: "+\(weightAdjustmentStep.clean)",
+                                    decrementAction: { adjustCurrentWeight(by: -weightAdjustmentStep) },
+                                    incrementAction: { adjustCurrentWeight(by: weightAdjustmentStep) }
+                                )
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -351,6 +417,13 @@ struct SessionExerciseView: View {
                                 TextField("", value: $draftReps[0].reps, formatter: repsFormatter)
                                     .keyboardType(.numberPad)
                                     .textFieldStyle(.roundedBorder)
+
+                                adjustmentControls(
+                                    decrementTitle: "-1",
+                                    incrementTitle: "+1",
+                                    decrementAction: { adjustCurrentReps(by: -1) },
+                                    incrementAction: { adjustCurrentReps(by: 1) }
+                                )
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
@@ -1101,6 +1174,45 @@ struct SessionExerciseView: View {
         }
     }
 
+    private var progressionQuickSubtitle: String {
+        if let progressionExercise = progressionService.progressionExercise(for: sessionEntry.exercise.id) {
+            return progressionExercise.progressionNameSnapshot ?? "Edit saved target"
+        }
+        if let snapshot = sessionEntry.appliedProgressionNameSnapshot {
+            return snapshot
+        }
+        return "Edit saved target"
+    }
+
+    private var weightAdjustmentStep: Double {
+        if let low = sessionEntry.appliedTargetWeightLow,
+           let high = sessionEntry.appliedTargetWeightHigh,
+           high > low {
+            return max((high - low).rounded(toPlaces: 2), 0.5)
+        }
+
+        switch draftUnit {
+        case .lb:
+            return 5
+        case .kg:
+            return 2.5
+        }
+    }
+
+    private func adjustCurrentWeight(by delta: Double) {
+        guard !draftReps.isEmpty else { return }
+        resetDropSetIfNeeded()
+        draftReps[0].weight = max((draftReps[0].weight + delta).rounded(toPlaces: 2), 0)
+        persistRepSnapshotsToDraftState()
+    }
+
+    private func adjustCurrentReps(by delta: Int) {
+        guard !draftReps.isEmpty else { return }
+        resetDropSetIfNeeded()
+        draftReps[0].reps = max(draftReps[0].reps + delta, 0)
+        persistRepSnapshotsToDraftState()
+    }
+
     private func trimToSingleRep() {
         if let first = draftReps.first {
             draftReps = [first]
@@ -1523,6 +1635,12 @@ private extension Double {
             return String(format: "%.0f", self)
         }
         return String(format: "%.1f", self)
+    }
+
+    func rounded(toPlaces places: Int) -> Double {
+        guard places >= 0 else { return self }
+        let divisor = pow(10.0, Double(places))
+        return (self * divisor).rounded() / divisor
     }
 }
 

@@ -12,7 +12,8 @@ final class ProgramFeatureDebug {
         print("=== ProgramFeatureDebug start ===")
         let results = [
             test1ContinuousProgramAdvancesAfterFullSplits(),
-            test2WeeklyProgramUsesCalendarWeeksAndSessionSnapshots()
+            test2WeeklyProgramUsesCalendarWeeksAndSessionSnapshots(),
+            test3DirectWorkoutRotationAdvancesAfterFinish()
         ]
         let passCount = results.filter { $0 }.count
         print("=== ProgramFeatureDebug done: \(passCount)/\(results.count) passed ===")
@@ -159,6 +160,57 @@ final class ProgramFeatureDebug {
             return ok
         } catch {
             return fail("program-test2", "Unexpected error: \(error)")
+        }
+    }
+
+    @discardableResult
+    private static func test3DirectWorkoutRotationAdvancesAfterFinish() -> Bool {
+        do {
+            let harness = try makeHarness()
+            let user = User(name: "Direct Rotation User")
+            harness.context.insert(user)
+
+            let routineA = Routine(order: 0, name: "Push", user_id: user.id)
+            let routineB = Routine(order: 1, name: "Pull", user_id: user.id)
+            harness.context.insert(routineA)
+            harness.context.insert(routineB)
+            try harness.context.save()
+
+            let programService = ProgramService(context: harness.context)
+            programService.currentUser = user
+
+            let sessionService = SessionService(
+                context: harness.context,
+                repository: LocalSessionRepository(modelContext: harness.context)
+            )
+            sessionService.currentUser = user
+
+            guard let program = programService.createProgram(
+                name: "Direct Rotation",
+                mode: .continuous,
+                startDate: date(2026, 4, 6)
+            ) else {
+                return fail("program-test3", "Expected direct program creation to succeed")
+            }
+
+            guard let hiddenBlock = programService.directWorkoutBlock(for: program),
+                  let workoutA = programService.addWorkout(to: hiddenBlock, routine: routineA, name: nil, weekdayIndex: nil),
+                  let workoutB = programService.addWorkout(to: hiddenBlock, routine: routineB, name: nil, weekdayIndex: nil),
+                  let session = sessionService.startProgramWorkout(program: program, workout: workoutA) else {
+                return fail("program-test3", "Expected direct rotation workouts and session creation")
+            }
+
+            sessionService.finishSession(session)
+            let state = programService.resolvedState(for: program, sessions: sessionService.sessions)
+
+            var ok = true
+            ok = ok && check("program-test3", hiddenBlock.isHiddenRepeatingBlock, "Expected new programs to start with a hidden repeating workout block")
+            ok = ok && check("program-test3", state.nextWorkout?.id == workoutB.id, "Expected the direct workout rotation to advance to the next workout after finishing")
+            ok = ok && check("program-test3", state.progressLabel == "Split 1", "Expected repeating direct workouts to keep a live split counter")
+            print("[program-test3] \(ok ? "PASS" : "FAIL")")
+            return ok
+        } catch {
+            return fail("program-test3", "Unexpected error: \(error)")
         }
     }
 

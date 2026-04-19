@@ -5,7 +5,6 @@
 //  Created by Codex on 2026-04-19.
 //
 
-import Combine
 import Foundation
 import SwiftData
 import Combine
@@ -56,6 +55,35 @@ final class ProgramService: ServiceBase, ObservableObject {
         programs.first(where: { $0.isActive })
     }
 
+    func isDirectWorkoutMode(_ program: Program) -> Bool {
+        let blocks = sortedBlocks(for: program)
+        guard let firstBlock = blocks.first else { return true }
+        return blocks.count == 1 && firstBlock.isHiddenRepeatingBlock
+    }
+
+    func visibleBlocks(for program: Program) -> [ProgramBlock] {
+        if isDirectWorkoutMode(program) {
+            return []
+        }
+        return sortedBlocks(for: program)
+    }
+
+    func directWorkoutBlock(for program: Program) -> ProgramBlock? {
+        let blocks = sortedBlocks(for: program)
+        if let hiddenBlock = blocks.first(where: \.isHiddenRepeatingBlock) {
+            return hiddenBlock
+        }
+        if blocks.count == 1 {
+            return blocks.first
+        }
+        return nil
+    }
+
+    func directWorkouts(for program: Program) -> [ProgramWorkout] {
+        guard let block = directWorkoutBlock(for: program) else { return [] }
+        return sortedWorkouts(for: block)
+    }
+
     @discardableResult
     func createProgram(
         name: String,
@@ -77,6 +105,7 @@ final class ProgramService: ServiceBase, ObservableObject {
                 trainDaysBeforeRest: trainDaysBeforeRest,
                 restDays: restDays
             )
+            _ = try ensureDirectWorkoutBlockExists(for: program)
             loadPrograms()
             return program
         } catch {
@@ -124,6 +153,14 @@ final class ProgramService: ServiceBase, ObservableObject {
     @discardableResult
     func addBlock(to program: Program, name: String?, durationCount: Int) -> ProgramBlock? {
         do {
+            if let hiddenBlock = hiddenRepeatingBlock(in: program) {
+                hiddenBlock.name = sanitizedBlockName(name)
+                hiddenBlock.durationCount = max(durationCount, 1)
+                try repository.saveChanges(for: program)
+                loadPrograms()
+                return hiddenBlock
+            }
+
             let block = try repository.addBlock(to: program, name: name, durationCount: durationCount)
             loadPrograms()
             return block
@@ -135,7 +172,11 @@ final class ProgramService: ServiceBase, ObservableObject {
 
     func deleteBlock(_ block: ProgramBlock) {
         do {
+            let program = block.program
             try repository.deleteBlock(block)
+            if hiddenRepeatingBlock(in: program) == nil, program.blocks.isEmpty {
+                _ = try? ensureDirectWorkoutBlockExists(for: program)
+            }
             loadPrograms()
         } catch {
             print("Failed to delete block: \(error)")
@@ -182,20 +223,70 @@ final class ProgramService: ServiceBase, ObservableObject {
         }
     }
 
+    func moveWorkout(_ workout: ProgramWorkout, in block: ProgramBlock, direction: ProgramWorkoutMoveDirection) {
+        let workouts = sortedWorkouts(for: block)
+        guard let currentIndex = workouts.firstIndex(where: { $0.id == workout.id }) else { return }
+
+        let source = IndexSet(integer: currentIndex)
+        let destination: Int
+        switch direction {
+        case .up:
+            guard currentIndex > 0 else { return }
+            destination = currentIndex - 1
+        case .down:
+            guard currentIndex < workouts.count - 1 else { return }
+            destination = currentIndex + 2
+        }
+
+        moveWorkouts(in: block, from: source, to: destination)
+    }
+
+    func canMoveWorkout(_ workout: ProgramWorkout, in block: ProgramBlock, direction: ProgramWorkoutMoveDirection) -> Bool {
+        let workouts = sortedWorkouts(for: block)
+        guard let currentIndex = workouts.firstIndex(where: { $0.id == workout.id }) else { return false }
+        switch direction {
+        case .up:
+            return currentIndex > 0
+        case .down:
+            return currentIndex < workouts.count - 1
+        }
+    }
+
+    func convertToBlocksMode(_ program: Program, initialBlockDurationCount: Int = 4) {
+        guard let hiddenBlock = hiddenRepeatingBlock(in: program) else { return }
+        hiddenBlock.name = nil
+        hiddenBlock.durationCount = max(initialBlockDurationCount, 1)
+        saveChanges(for: program)
+    }
+
+    func copyWorkouts(from sourceBlock: ProgramBlock, to destinationBlock: ProgramBlock) {
+        let workouts = sortedWorkouts(for: sourceBlock)
+        guard !workouts.isEmpty else { return }
+
+        for workout in workouts {
+            _ = addWorkout(
+                to: destinationBlock,
+                routine: workout.routine,
+                name: workout.name,
+                weekdayIndex: workout.weekdayIndex
+            )
+        }
+    }
+
     func resolvedState(
         for program: Program,
         sessions: [Session],
         referenceDate: Date = Date(),
         calendar: Calendar = .current
     ) -> ProgramResolvedState {
-        let sortedBlocks = program.blocks.sorted { $0.order < $1.order }
+        let sortedBlocks = sortedBlocks(for: program)
         guard !sortedBlocks.isEmpty else {
             return ProgramResolvedState(
                 currentBlock: nil,
                 nextWorkout: nil,
                 activeSession: nil,
-                blockLabel: "No blocks yet",
-                progressLabel: "Add a block to begin",
+                blockLabel: "Workout Rotation",
+                progressLabel: "Add workouts to begin",
                 scheduleLabel: program.scheduleSummary,
                 nextWorkoutLabel: "Add a workout",
                 actionTitle: "Add Workout"
@@ -246,7 +337,7 @@ final class ProgramService: ServiceBase, ObservableObject {
             currentBlock: block,
             nextWorkout: nextWorkout,
             activeSession: activeSession,
-            blockLabel: block?.displayName ?? "No block",
+            blockLabel: blockLabel(for: block),
             progressLabel: weekLabel,
             scheduleLabel: nextWorkout?.scheduleLabel ?? program.scheduleSummary,
             nextWorkoutLabel: nextWorkout?.displayName ?? "No workout",
@@ -269,7 +360,7 @@ final class ProgramService: ServiceBase, ObservableObject {
                 currentBlock: block,
                 nextWorkout: workout,
                 activeSession: activeSession,
-                blockLabel: block.displayName,
+                blockLabel: blockLabel(for: block),
                 progressLabel: continuousProgressLabel(for: block, completedSessions: completedSessions),
                 scheduleLabel: program.scheduleSummary,
                 nextWorkoutLabel: workout.displayName,
@@ -284,7 +375,7 @@ final class ProgramService: ServiceBase, ObservableObject {
                     currentBlock: block,
                     nextWorkout: nil,
                     activeSession: nil,
-                    blockLabel: block.displayName,
+                    blockLabel: blockLabel(for: block),
                     progressLabel: "No workouts yet",
                     scheduleLabel: program.scheduleSummary,
                     nextWorkoutLabel: "Add a workout",
@@ -295,14 +386,14 @@ final class ProgramService: ServiceBase, ObservableObject {
             let completedCount = completedSessions.filter { $0.programBlockId == block.id }.count
             let completedPasses = completedCount / workouts.count
 
-            if completedPasses < block.durationCount {
+            if block.repeatsForever || completedPasses < block.durationCount {
                 let nextWorkout = workouts[completedCount % workouts.count]
                 return ProgramResolvedState(
                     currentBlock: block,
                     nextWorkout: nextWorkout,
                     activeSession: nil,
-                    blockLabel: block.displayName,
-                    progressLabel: "Split \(min(completedPasses + 1, block.durationCount)) of \(block.durationCount)",
+                    blockLabel: blockLabel(for: block),
+                    progressLabel: continuousProgressLabel(for: block, completedSessions: completedSessions),
                     scheduleLabel: program.scheduleSummary,
                     nextWorkoutLabel: nextWorkout.displayName,
                     actionTitle: "Start Next Workout"
@@ -317,7 +408,7 @@ final class ProgramService: ServiceBase, ObservableObject {
             currentBlock: fallbackBlock,
             nextWorkout: fallbackWorkout,
             activeSession: nil,
-            blockLabel: fallbackBlock?.displayName ?? "No block",
+            blockLabel: blockLabel(for: fallbackBlock),
             progressLabel: "Completed",
             scheduleLabel: program.scheduleSummary,
             nextWorkoutLabel: fallbackWorkout?.displayName ?? "No workout",
@@ -338,6 +429,9 @@ final class ProgramService: ServiceBase, ObservableObject {
 
         var consumedWeeks = 0
         for block in blocks {
+            if block.repeatsForever {
+                return block
+            }
             let blockDuration = max(block.durationCount, 1)
             if elapsedWeeks < consumedWeeks + blockDuration {
                 return block
@@ -355,8 +449,11 @@ final class ProgramService: ServiceBase, ObservableObject {
         calendar: Calendar
     ) -> String {
         guard let block else { return "No block" }
+        if block.repeatsForever {
+            return "Repeats weekly"
+        }
 
-        let blocks = program.blocks.sorted { $0.order < $1.order }
+        let blocks = sortedBlocks(for: program)
         let startDate = calendar.startOfDay(for: program.startDate)
         let today = calendar.startOfDay(for: referenceDate)
         let dayOffset = max(calendar.dateComponents([.day], from: startDate, to: today).day ?? 0, 0)
@@ -395,6 +492,9 @@ final class ProgramService: ServiceBase, ObservableObject {
         let workoutsCount = max(block.workouts.count, 1)
         let completedCount = completedSessions.filter { $0.programBlockId == block.id }.count
         let completedPasses = completedCount / workoutsCount
+        if block.repeatsForever {
+            return "Split \(completedPasses + 1)"
+        }
         return "Split \(min(completedPasses + 1, block.durationCount)) of \(block.durationCount)"
     }
 
@@ -403,6 +503,62 @@ final class ProgramService: ServiceBase, ObservableObject {
         if let workoutId = session.programWorkoutId {
             return block.workouts.first(where: { $0.id == workoutId })
         }
-        return block.workouts.sorted { $0.order < $1.order }.first
+        return sortedWorkouts(for: block).first
     }
+
+    private func sortedBlocks(for program: Program) -> [ProgramBlock] {
+        program.blocks.sorted { lhs, rhs in
+            if lhs.order == rhs.order {
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+            return lhs.order < rhs.order
+        }
+    }
+
+    private func sortedWorkouts(for block: ProgramBlock) -> [ProgramWorkout] {
+        block.workouts.sorted { lhs, rhs in
+            if lhs.order == rhs.order {
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+            return lhs.order < rhs.order
+        }
+    }
+
+    private func hiddenRepeatingBlock(in program: Program) -> ProgramBlock? {
+        sortedBlocks(for: program).first(where: \.isHiddenRepeatingBlock)
+    }
+
+    private func ensureDirectWorkoutBlockExists(for program: Program) throws -> ProgramBlock {
+        if let existing = hiddenRepeatingBlock(in: program) {
+            return existing
+        }
+
+        if let singleBlock = sortedBlocks(for: program).first, program.blocks.count == 1 {
+            return singleBlock
+        }
+
+        return try repository.addBlock(
+            to: program,
+            name: ProgramBlock.hiddenRepeatingBlockSentinel,
+            durationCount: 0
+        )
+    }
+
+    private func sanitizedBlockName(_ name: String?) -> String? {
+        let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func blockLabel(for block: ProgramBlock?) -> String {
+        guard let block else { return "No block" }
+        if block.isHiddenRepeatingBlock {
+            return "Workout Rotation"
+        }
+        return block.displayName
+    }
+}
+
+enum ProgramWorkoutMoveDirection {
+    case up
+    case down
 }
