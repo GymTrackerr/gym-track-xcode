@@ -12,7 +12,8 @@ final class ProgressionFeatureDebug {
         print("=== ProgressionFeatureDebug start ===")
         let results = [
             test1BuiltInSeedAndBackfillUsesRecentHistory(),
-            test2EvaluationAdvancesOnlyOncePerSession()
+            test2EvaluationAdvancesOnlyOncePerSession(),
+            test3DoubleProgressionCreatesSuggestedWeightRange()
         ]
         let passCount = results.filter { $0 }.count
         print("=== ProgressionFeatureDebug done: \(passCount)/\(results.count) passed ===")
@@ -119,6 +120,79 @@ final class ProgressionFeatureDebug {
             return ok
         } catch {
             return fail("progression-test2", "Unexpected error: \(error)")
+        }
+    }
+
+    @discardableResult
+    private static func test3DoubleProgressionCreatesSuggestedWeightRange() -> Bool {
+        do {
+            let harness = try makeHarness()
+            let user = User(name: "Double Progression User")
+            harness.context.insert(user)
+
+            let exercise = Exercise(name: "Hack Squat", type: .weight, user_id: user.id)
+            harness.context.insert(exercise)
+
+            let historicalSession = Session(timestamp: Date().addingTimeInterval(-86400), user_id: user.id, routine: nil, notes: "")
+            historicalSession.timestampDone = historicalSession.timestamp.addingTimeInterval(300)
+            harness.context.insert(historicalSession)
+
+            let historicalEntry = SessionEntry(order: 0, session: historicalSession, exercise: exercise)
+            harness.context.insert(historicalEntry)
+            let historicalSet = SessionSet(order: 0, sessionEntry: historicalEntry)
+            harness.context.insert(historicalSet)
+            harness.context.insert(SessionRep(sessionSet: historicalSet, weight: 235, weight_unit: .lb, count: 10))
+            try harness.context.save()
+
+            let service = ProgressionService(context: harness.context)
+            service.currentUser = user
+            service.loadFeature()
+
+            guard let doubleProfile = service.profiles.first(where: { $0.name == "Double Progression" }) else {
+                return fail("progression-test3", "Expected built-in Double Progression profile to exist")
+            }
+
+            doubleProfile.percentageIncrease = 2.5
+
+            guard let progressionExercise = service.assignProgression(
+                to: exercise,
+                profile: doubleProfile,
+                targetSets: 1,
+                targetReps: 12,
+                targetRepsLow: 8,
+                targetRepsHigh: 12
+            ) else {
+                return fail("progression-test3", "Expected double progression assignment to succeed")
+            }
+
+            progressionExercise.workingWeight = 240
+            progressionExercise.workingWeightUnit = .lb
+
+            let session = Session(timestamp: Date(), user_id: user.id, routine: nil, notes: "")
+            session.timestampDone = session.timestamp.addingTimeInterval(240)
+            harness.context.insert(session)
+
+            let entry = SessionEntry(order: 0, session: session, exercise: exercise)
+            harness.context.insert(entry)
+            let set = SessionSet(order: 0, sessionEntry: entry)
+            harness.context.insert(set)
+            harness.context.insert(SessionRep(sessionSet: set, weight: 240, weight_unit: .lb, count: 12))
+            try harness.context.save()
+
+            _ = service.applySnapshot(to: entry)
+            service.evaluateIfNeeded(for: session)
+
+            var ok = true
+            ok = ok && check("progression-test3", progressionExercise.workingWeight == nil, "Expected the working weight to clear after finishing the top of the range")
+            ok = ok && check("progression-test3", progressionExercise.targetReps == 8, "Expected the next cycle to restart at the bottom of the rep range")
+            ok = ok && check("progression-test3", progressionExercise.suggestedWeightLow == 245, "Expected the least observed 5 lb jump to become the low suggestion")
+            ok = ok && check("progression-test3", progressionExercise.suggestedWeightHigh == 246, "Expected the percentage-based increase to become the high suggestion")
+            ok = ok && check("progression-test3", progressionExercise.lastCompletedCycleWeight == 240, "Expected the completed top-range weight to be remembered")
+            ok = ok && check("progression-test3", progressionExercise.lastCompletedCycleReps == 12, "Expected the completed top-range reps to be remembered")
+            print("[progression-test3] \(ok ? "PASS" : "FAIL")")
+            return ok
+        } catch {
+            return fail("progression-test3", "Unexpected error: \(error)")
         }
     }
 

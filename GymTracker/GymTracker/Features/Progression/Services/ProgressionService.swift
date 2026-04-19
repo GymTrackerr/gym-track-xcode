@@ -5,15 +5,16 @@
 //  Created by Codex on 2026-04-19.
 //
 
+import Combine
 import Foundation
 import SwiftData
-import Combine
 
 private struct BundledProgressionProfileDefinition: Decodable {
     let name: String
     let miniDescription: String
     let type: String
     let incrementValue: Double
+    let percentageIncrease: Double?
     let incrementUnitRaw: Int
     let setIncrement: Int
     let successThreshold: Int
@@ -21,6 +22,20 @@ private struct BundledProgressionProfileDefinition: Decodable {
     let defaultRepsTarget: Int?
     let defaultRepsLow: Int?
     let defaultRepsHigh: Int?
+}
+
+private struct ProgressionWeightRecommendation {
+    let exactWeight: Double?
+    let lowerWeight: Double?
+    let upperWeight: Double?
+    let unit: WeightUnit?
+
+    static let empty = ProgressionWeightRecommendation(
+        exactWeight: nil,
+        lowerWeight: nil,
+        upperWeight: nil,
+        unit: nil
+    )
 }
 
 final class ProgressionService: ServiceBase, ObservableObject {
@@ -86,6 +101,7 @@ final class ProgressionService: ServiceBase, ObservableObject {
                     miniDescription: definition.miniDescription,
                     type: type,
                     incrementValue: definition.incrementValue,
+                    percentageIncrease: max(definition.percentageIncrease ?? 0, 0),
                     incrementUnit: incrementUnit,
                     setIncrement: definition.setIncrement,
                     successThreshold: definition.successThreshold,
@@ -106,6 +122,7 @@ final class ProgressionService: ServiceBase, ObservableObject {
         miniDescription: String,
         type: ProgressionType,
         incrementValue: Double,
+        percentageIncrease: Double,
         incrementUnit: WeightUnit,
         setIncrement: Int,
         successThreshold: Int,
@@ -123,6 +140,7 @@ final class ProgressionService: ServiceBase, ObservableObject {
                 miniDescription: miniDescription,
                 type: type,
                 incrementValue: incrementValue,
+                percentageIncrease: percentageIncrease,
                 incrementUnit: incrementUnit,
                 setIncrement: setIncrement,
                 successThreshold: successThreshold,
@@ -157,15 +175,19 @@ final class ProgressionService: ServiceBase, ObservableObject {
         }
     }
 
+    func profile(id: UUID?) -> ProgressionProfile? {
+        guard let id else { return nil }
+        return profiles.first(where: { $0.id == id }) ??
+            archivedProfiles.first(where: { $0.id == id }) ??
+            (try? repository.fetchProfile(id: id))
+    }
+
     func progressionExercise(for exerciseId: UUID) -> ProgressionExercise? {
         progressionExercises.first(where: { $0.exerciseId == exerciseId })
     }
 
     func profile(for progressionExercise: ProgressionExercise) -> ProgressionProfile? {
-        guard let progressionProfileId = progressionExercise.progressionProfileId else { return nil }
-        return profiles.first(where: { $0.id == progressionProfileId }) ??
-            archivedProfiles.first(where: { $0.id == progressionProfileId }) ??
-            (try? repository.fetchProfile(id: progressionProfileId))
+        profile(id: progressionExercise.progressionProfileId)
     }
 
     @discardableResult
@@ -253,7 +275,7 @@ final class ProgressionService: ServiceBase, ObservableObject {
 
     @discardableResult
     func applySnapshot(to sessionEntry: SessionEntry) -> Bool {
-        guard let progressionExercise = progressionExercise(for: sessionEntry.exercise.id) else {
+        guard let progressionExercise = ensuredProgressionExercise(for: sessionEntry) else {
             if sessionEntry.hasProgressionSnapshot {
                 sessionEntry.clearProgressionSnapshot()
                 return true
@@ -261,12 +283,16 @@ final class ProgressionService: ServiceBase, ObservableObject {
             return false
         }
 
-        let suggestion = suggestedWeight(for: progressionExercise, exercise: sessionEntry.exercise)
+        let profile = profile(for: progressionExercise)
+        let recommendation = recommendedWeight(for: progressionExercise, exercise: sessionEntry.exercise)
         let didChange = sessionEntry.applyProgressionSnapshot(
             progressionExercise: progressionExercise,
-            profile: profile(for: progressionExercise),
-            suggestedWeight: suggestion.weight,
-            suggestedWeightUnit: suggestion.unit
+            profile: profile,
+            suggestedWeight: recommendation.exactWeight,
+            suggestedWeightLow: recommendation.lowerWeight,
+            suggestedWeightHigh: recommendation.upperWeight,
+            suggestedWeightUnit: recommendation.unit,
+            cycleSummary: cycleSummary(for: progressionExercise, profile: profile, recommendation: recommendation)
         )
         return didChange
     }
@@ -280,25 +306,22 @@ final class ProgressionService: ServiceBase, ObservableObject {
             guard let progressionExercise = progressionExercise(for: sessionEntry.exercise.id) else { continue }
             guard progressionExercise.lastEvaluatedSessionId != session.id else { continue }
 
-            let success = entrySucceeded(sessionEntry)
             let profile = profile(for: progressionExercise)
             let actualWeight = bestActualWeight(for: sessionEntry)
+            let success = entrySucceeded(sessionEntry)
 
-            if progressionExercise.workingWeight == nil,
-               let actualWeight {
-                progressionExercise.workingWeight = actualWeight.weight
-                progressionExercise.workingWeightUnit = actualWeight.unit
-                didChange = true
-            }
+            didChange = syncWorkingWeightIfNeeded(
+                progressionExercise: progressionExercise,
+                profile: profile,
+                actualWeight: actualWeight
+            ) || didChange
 
             if success {
                 advance(progressionExercise: progressionExercise, profile: profile, actualWeight: actualWeight)
                 didChange = true
-            } else {
-                if progressionExercise.successCount != 0 {
-                    progressionExercise.successCount = 0
-                    didChange = true
-                }
+            } else if progressionExercise.successCount != 0 {
+                progressionExercise.successCount = 0
+                didChange = true
             }
 
             progressionExercise.lastEvaluatedSessionId = session.id
@@ -314,12 +337,37 @@ final class ProgressionService: ServiceBase, ObservableObject {
         }
     }
 
+    private func ensuredProgressionExercise(for sessionEntry: SessionEntry) -> ProgressionExercise? {
+        if let existing = progressionExercise(for: sessionEntry.exercise.id) {
+            return existing
+        }
+
+        guard let defaultProfile = defaultProfile(for: sessionEntry) else { return nil }
+        return assignProgression(
+            to: sessionEntry.exercise,
+            profile: defaultProfile,
+            targetSets: nil,
+            targetReps: nil,
+            targetRepsLow: nil,
+            targetRepsHigh: nil
+        )
+    }
+
+    private func defaultProfile(for sessionEntry: SessionEntry) -> ProgressionProfile? {
+        if let programProfile = profile(id: sessionEntry.session.program?.defaultProgressionProfileId) {
+            return programProfile
+        }
+        return profile(id: sessionEntry.session.routine?.defaultProgressionProfileId)
+    }
+
     private func backfillIfNeeded(for progressionExercise: ProgressionExercise, exercise: Exercise) {
         guard !progressionExercise.hasBackfilled else { return }
 
         if let rep = historyRepository.mostRecentRep(for: exercise) {
             progressionExercise.workingWeight = rep.weight
             progressionExercise.workingWeightUnit = rep.weightUnit
+            progressionExercise.suggestedWeightLow = nil
+            progressionExercise.suggestedWeightHigh = nil
         }
         progressionExercise.successCount = 0
         progressionExercise.hasBackfilled = true
@@ -332,16 +380,101 @@ final class ProgressionService: ServiceBase, ObservableObject {
         }
     }
 
-    private func suggestedWeight(for progressionExercise: ProgressionExercise, exercise: Exercise) -> (weight: Double?, unit: WeightUnit?) {
+    private func recommendedWeight(
+        for progressionExercise: ProgressionExercise,
+        exercise: Exercise
+    ) -> ProgressionWeightRecommendation {
         if let workingWeight = progressionExercise.workingWeight {
-            return (workingWeight, progressionExercise.workingWeightUnit)
+            return ProgressionWeightRecommendation(
+                exactWeight: workingWeight,
+                lowerWeight: nil,
+                upperWeight: nil,
+                unit: progressionExercise.workingWeightUnit
+            )
+        }
+
+        if let suggestedWeightLow = progressionExercise.suggestedWeightLow ?? progressionExercise.suggestedWeightHigh {
+            let suggestedWeightHigh = progressionExercise.suggestedWeightHigh ?? suggestedWeightLow
+            if suggestedWeightLow == suggestedWeightHigh {
+                return ProgressionWeightRecommendation(
+                    exactWeight: suggestedWeightLow,
+                    lowerWeight: nil,
+                    upperWeight: nil,
+                    unit: progressionExercise.workingWeightUnit
+                )
+            }
+
+            return ProgressionWeightRecommendation(
+                exactWeight: nil,
+                lowerWeight: min(suggestedWeightLow, suggestedWeightHigh),
+                upperWeight: max(suggestedWeightLow, suggestedWeightHigh),
+                unit: progressionExercise.workingWeightUnit
+            )
         }
 
         if let rep = historyRepository.mostRecentRep(for: exercise) {
-            return (rep.weight, rep.weightUnit)
+            return ProgressionWeightRecommendation(
+                exactWeight: rep.weight,
+                lowerWeight: nil,
+                upperWeight: nil,
+                unit: rep.weightUnit
+            )
         }
 
-        return (nil, nil)
+        return .empty
+    }
+
+    private func cycleSummary(
+        for progressionExercise: ProgressionExercise,
+        profile: ProgressionProfile?,
+        recommendation: ProgressionWeightRecommendation
+    ) -> String? {
+        let resolvedType = profile?.type ?? progressionExercise.progressionType ?? .linear
+        let targetSets = max(progressionExercise.targetSetCount, 1)
+        let repsRangeText = ProgressionDisplayFormatter.repsSummary(
+            targetReps: nil,
+            targetRepsLow: progressionExercise.targetRepsLow,
+            targetRepsHigh: progressionExercise.targetRepsHigh
+        )
+        let goalRepText = "\(progressionExercise.targetReps ?? progressionExercise.targetRepsLow ?? progressionExercise.targetRepsHigh ?? 0)"
+        let weightText = ProgressionDisplayFormatter.weightSummary(
+            weight: recommendation.exactWeight,
+            low: recommendation.lowerWeight,
+            high: recommendation.upperWeight,
+            unit: recommendation.unit
+        )
+
+        switch resolvedType {
+        case .linear:
+            if let weightText {
+                return "Hit \(targetSets) set\(targetSets == 1 ? "" : "s") at \(goalRepText) reps, then add load. Current target: \(weightText)."
+            }
+            return "Hit \(targetSets) set\(targetSets == 1 ? "" : "s") at \(goalRepText) reps, then add load."
+
+        case .doubleProgression:
+            if progressionExercise.workingWeight == nil,
+               let weightText {
+                if let lastCompletedText = ProgressionDisplayFormatter.weightSummary(
+                    weight: progressionExercise.lastCompletedCycleWeight,
+                    unit: progressionExercise.lastCompletedCycleUnit
+                ) {
+                    let topReps = progressionExercise.lastCompletedCycleReps ?? progressionExercise.targetRepsHigh ?? progressionExercise.targetReps ?? 0
+                    return "Last cycle topped out at \(lastCompletedText) x \(topReps). Choose \(weightText) and restart at \(goalRepText) reps."
+                }
+                return "Choose \(weightText) and restart at \(goalRepText) reps."
+            }
+
+            if let weightText {
+                return "Current cycle: \(weightText) for \(targetSets) x \(repsRangeText). Goal this time: \(goalRepText) reps on every set."
+            }
+            return "Build each set through the \(repsRangeText) range. Goal this time: \(goalRepText) reps."
+
+        case .volume:
+            if let weightText {
+                return "Keep \(weightText) steady and build up to \(targetSets) total sets."
+            }
+            return "Keep the load steady and build up to \(targetSets) total sets."
+        }
     }
 
     private func loadBundledProfileDefinitions() -> [BundledProgressionProfileDefinition] {
@@ -422,6 +555,32 @@ final class ProgressionService: ServiceBase, ObservableObject {
         return (bestRep.weight, bestRep.weightUnit)
     }
 
+    private func syncWorkingWeightIfNeeded(
+        progressionExercise: ProgressionExercise,
+        profile: ProgressionProfile?,
+        actualWeight: (weight: Double, unit: WeightUnit)?
+    ) -> Bool {
+        guard let actualWeight else { return false }
+
+        let currentLb = progressionExercise.workingWeight.map {
+            $0 * progressionExercise.workingWeightUnit.conversion(to: .lb)
+        }
+        let actualLb = actualWeight.weight * actualWeight.unit.conversion(to: .lb)
+
+        if currentLb == nil || abs((currentLb ?? 0) - actualLb) > 0.05 {
+            progressionExercise.workingWeight = actualWeight.weight
+            progressionExercise.workingWeightUnit = actualWeight.unit
+            progressionExercise.suggestedWeightLow = nil
+            progressionExercise.suggestedWeightHigh = nil
+            if profile?.type == .doubleProgression || progressionExercise.progressionType == .doubleProgression {
+                return true
+            }
+            return currentLb == nil
+        }
+
+        return false
+    }
+
     private func advance(
         progressionExercise: ProgressionExercise,
         profile: ProgressionProfile?,
@@ -443,21 +602,11 @@ final class ProgressionService: ServiceBase, ObservableObject {
             }
 
         case .doubleProgression:
-            let low = progressionExercise.targetRepsLow ?? progressionExercise.targetReps ?? 8
-            let high = progressionExercise.targetRepsHigh ?? progressionExercise.targetReps ?? max(low, 10)
-            let current = progressionExercise.targetReps ?? low
-
-            if current < high {
-                progressionExercise.targetReps = current + 1
-            } else {
-                applyWeightIncrement(
-                    progressionExercise: progressionExercise,
-                    profile: profile,
-                    actualWeight: actualWeight
-                )
-                progressionExercise.targetReps = low
-            }
-            progressionExercise.successCount = 0
+            advanceDoubleProgression(
+                progressionExercise: progressionExercise,
+                profile: profile,
+                actualWeight: actualWeight
+            )
 
         case .volume:
             progressionExercise.successCount += 1
@@ -468,6 +617,135 @@ final class ProgressionService: ServiceBase, ObservableObject {
         }
     }
 
+    private func advanceDoubleProgression(
+        progressionExercise: ProgressionExercise,
+        profile: ProgressionProfile?,
+        actualWeight: (weight: Double, unit: WeightUnit)?
+    ) {
+        let low = progressionExercise.targetRepsLow ?? progressionExercise.targetReps ?? 8
+        let high = progressionExercise.targetRepsHigh ?? progressionExercise.targetReps ?? max(low, 10)
+        let current = progressionExercise.targetReps ?? low
+
+        if current < high {
+            progressionExercise.targetReps = current + 1
+            progressionExercise.successCount = 0
+            return
+        }
+
+        let completedWeight = actualWeight?.weight ?? progressionExercise.workingWeight
+        let completedUnit = actualWeight?.unit ?? progressionExercise.workingWeightUnit
+        if let completedWeight {
+            progressionExercise.lastCompletedCycleWeight = completedWeight
+            progressionExercise.lastCompletedCycleUnit = completedUnit
+            progressionExercise.lastCompletedCycleReps = high
+        }
+
+        let recommendation = nextDoubleProgressionWeightRecommendation(
+            progressionExercise: progressionExercise,
+            profile: profile,
+            actualWeight: actualWeight
+        )
+
+        progressionExercise.workingWeight = nil
+        if let unit = recommendation.unit {
+            progressionExercise.workingWeightUnit = unit
+        }
+        progressionExercise.suggestedWeightLow = recommendation.lowerWeight ?? recommendation.exactWeight
+        progressionExercise.suggestedWeightHigh = recommendation.upperWeight ?? recommendation.exactWeight
+        progressionExercise.targetReps = low
+        progressionExercise.successCount = 0
+    }
+
+    private func nextDoubleProgressionWeightRecommendation(
+        progressionExercise: ProgressionExercise,
+        profile: ProgressionProfile?,
+        actualWeight: (weight: Double, unit: WeightUnit)?
+    ) -> ProgressionWeightRecommendation {
+        let baseWeight = actualWeight?.weight ?? progressionExercise.workingWeight
+        let unit = actualWeight?.unit ?? progressionExercise.workingWeightUnit
+        guard let baseWeight else { return .empty }
+
+        let leastIncrease = leastObservedWeightIncrease(
+            for: progressionExercise.exerciseId,
+            targetUnit: unit
+        ) ?? fallbackAbsoluteIncrement(profile: profile, targetUnit: unit)
+        let percentageIncrease = percentageIncrement(profile: profile, baseWeight: baseWeight)
+
+        let candidates = [leastIncrease, percentageIncrease]
+            .compactMap { $0 }
+            .map { normalizeWeight(baseWeight + $0) }
+            .filter { $0 > baseWeight }
+            .sorted()
+
+        guard let first = candidates.first else {
+            return .empty
+        }
+
+        let last = candidates.last ?? first
+        if first == last {
+            return ProgressionWeightRecommendation(
+                exactWeight: first,
+                lowerWeight: nil,
+                upperWeight: nil,
+                unit: unit
+            )
+        }
+
+        return ProgressionWeightRecommendation(
+            exactWeight: nil,
+            lowerWeight: first,
+            upperWeight: last,
+            unit: unit
+        )
+    }
+
+    private func fallbackAbsoluteIncrement(profile: ProgressionProfile?, targetUnit: WeightUnit) -> Double? {
+        let incrementValue = profile?.incrementValue ?? 0
+        guard incrementValue > 0 else { return nil }
+        let sourceUnit = profile?.incrementUnit ?? targetUnit
+        return incrementValue * sourceUnit.conversion(to: targetUnit)
+    }
+
+    private func percentageIncrement(profile: ProgressionProfile?, baseWeight: Double) -> Double? {
+        let percentage = profile?.percentageIncrease ?? 0
+        guard percentage > 0, baseWeight > 0 else { return nil }
+        return baseWeight * (percentage / 100)
+    }
+
+    private func leastObservedWeightIncrease(for exerciseId: UUID, targetUnit: WeightUnit) -> Double? {
+        let reps = relevantStrengthReps(for: exerciseId)
+        let weights = reps
+            .map { normalizeWeight($0.weight * $0.weightUnit.conversion(to: targetUnit)) }
+            .filter { $0 > 0 }
+
+        let uniqueWeights = Array(Set(weights)).sorted()
+        guard uniqueWeights.count > 1 else { return nil }
+
+        let increments = zip(uniqueWeights.dropFirst(), uniqueWeights)
+            .map { normalizeWeight($0.0 - $0.1) }
+            .filter { $0 > 0 }
+
+        return increments.min()
+    }
+
+    private func relevantStrengthReps(for exerciseId: UUID) -> [SessionRep] {
+        let descriptor = FetchDescriptor<SessionEntry>()
+        let entries = (try? modelContext.fetch(descriptor)) ?? []
+
+        return entries
+            .filter { entry in
+                entry.exercise.id == exerciseId &&
+                entry.session.soft_deleted == false &&
+                entry.exercise.cardio == false
+            }
+            .flatMap { entry in
+                entry.sets
+                    .filter { SetDisplayFormatter.isMeaningfulSet($0, exerciseKind: entry.exercise.setDisplayKind) }
+                    .flatMap(\.sessionReps)
+            }
+            .filter { $0.weight > 0 && $0.count > 0 }
+    }
+
     private func applyWeightIncrement(
         progressionExercise: ProgressionExercise,
         profile: ProgressionProfile?,
@@ -475,12 +753,16 @@ final class ProgressionService: ServiceBase, ObservableObject {
     ) {
         let unit = actualWeight?.unit ?? progressionExercise.workingWeightUnit
         let baseWeight = progressionExercise.workingWeight ?? actualWeight?.weight
-        let incrementSourceUnit = profile?.incrementUnit ?? unit
-        let incrementValue = (profile?.incrementValue ?? 0) * incrementSourceUnit.conversion(to: unit)
+        guard let baseWeight else { return }
 
+        let incrementValue = fallbackAbsoluteIncrement(profile: profile, targetUnit: unit) ?? 0
         progressionExercise.workingWeightUnit = unit
-        if let baseWeight {
-            progressionExercise.workingWeight = max(baseWeight + incrementValue, 0)
-        }
+        progressionExercise.workingWeight = normalizeWeight(max(baseWeight + incrementValue, 0))
+        progressionExercise.suggestedWeightLow = nil
+        progressionExercise.suggestedWeightHigh = nil
+    }
+
+    private func normalizeWeight(_ value: Double) -> Double {
+        (value * 100).rounded() / 100
     }
 }

@@ -35,6 +35,7 @@ final class ProgressionProfile {
     var miniDescription: String
     var typeRaw: String
     var incrementValue: Double
+    var percentageIncreaseStored: Double?
     var incrementUnitRaw: Int
     var setIncrement: Int
     var successThreshold: Int
@@ -56,6 +57,7 @@ final class ProgressionProfile {
         miniDescription: String,
         type: ProgressionType,
         incrementValue: Double = 5,
+        percentageIncrease: Double = 0,
         incrementUnit: WeightUnit = .lb,
         setIncrement: Int = 1,
         successThreshold: Int = 1,
@@ -71,6 +73,7 @@ final class ProgressionProfile {
         self.miniDescription = miniDescription
         self.typeRaw = type.rawValue
         self.incrementValue = incrementValue
+        self.percentageIncreaseStored = max(percentageIncrease, 0)
         self.incrementUnitRaw = incrementUnit.rawValue
         self.setIncrement = max(setIncrement, 1)
         self.successThreshold = max(successThreshold, 1)
@@ -92,6 +95,11 @@ final class ProgressionProfile {
     var incrementUnit: WeightUnit {
         get { WeightUnit(rawValue: incrementUnitRaw) ?? .lb }
         set { incrementUnitRaw = newValue.rawValue }
+    }
+
+    var percentageIncrease: Double {
+        get { max(percentageIncreaseStored ?? 0, 0) }
+        set { percentageIncreaseStored = max(newValue, 0) }
     }
 }
 
@@ -121,7 +129,12 @@ final class ProgressionExercise {
     var targetRepsLow: Int?
     var targetRepsHigh: Int?
     var workingWeight: Double?
+    var suggestedWeightLow: Double?
+    var suggestedWeightHigh: Double?
     var workingWeightUnitRaw: Int
+    var lastCompletedCycleWeight: Double?
+    var lastCompletedCycleReps: Int?
+    var lastCompletedCycleUnitRaw: Int?
     var successCount: Int = 0
     var hasBackfilled: Bool = false
     var backfilledAt: Date?
@@ -171,6 +184,14 @@ final class ProgressionExercise {
             return ProgressionType(rawValue: progressionTypeRaw)
         }
         set { progressionTypeRaw = newValue?.rawValue }
+    }
+
+    var lastCompletedCycleUnit: WeightUnit? {
+        get {
+            guard let lastCompletedCycleUnitRaw else { return nil }
+            return WeightUnit(rawValue: lastCompletedCycleUnitRaw)
+        }
+        set { lastCompletedCycleUnitRaw = newValue?.rawValue }
     }
 }
 

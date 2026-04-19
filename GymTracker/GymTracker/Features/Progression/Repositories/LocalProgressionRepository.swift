@@ -85,6 +85,7 @@ final class LocalProgressionRepository: ProgressionRepositoryProtocol {
         miniDescription: String,
         type: ProgressionType,
         incrementValue: Double,
+        percentageIncrease: Double,
         incrementUnit: WeightUnit,
         setIncrement: Int,
         successThreshold: Int,
@@ -100,6 +101,15 @@ final class LocalProgressionRepository: ProgressionRepositoryProtocol {
         )
 
         if let existing = try modelContext.fetch(descriptor).first {
+            var didChange = false
+            if existing.percentageIncrease == 0, percentageIncrease > 0 {
+                existing.percentageIncrease = percentageIncrease
+                didChange = true
+            }
+            if didChange {
+                try SyncRootMetadataManager.markUpdated(existing, in: modelContext)
+                try modelContext.save()
+            }
             return existing
         }
 
@@ -108,6 +118,7 @@ final class LocalProgressionRepository: ProgressionRepositoryProtocol {
             miniDescription: miniDescription,
             type: type,
             incrementValue: incrementValue,
+            percentageIncrease: percentageIncrease,
             incrementUnit: incrementUnit,
             setIncrement: setIncrement,
             successThreshold: successThreshold,
@@ -129,6 +140,7 @@ final class LocalProgressionRepository: ProgressionRepositoryProtocol {
         miniDescription: String,
         type: ProgressionType,
         incrementValue: Double,
+        percentageIncrease: Double,
         incrementUnit: WeightUnit,
         setIncrement: Int,
         successThreshold: Int,
@@ -143,6 +155,7 @@ final class LocalProgressionRepository: ProgressionRepositoryProtocol {
             miniDescription: miniDescription,
             type: type,
             incrementValue: incrementValue,
+            percentageIncrease: percentageIncrease,
             incrementUnit: incrementUnit,
             setIncrement: setIncrement,
             successThreshold: successThreshold,

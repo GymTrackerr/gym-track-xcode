@@ -10,6 +10,7 @@ import SwiftUI
 struct ProgramDetailView: View {
     @EnvironmentObject private var programService: ProgramService
     @EnvironmentObject private var sessionService: SessionService
+    @EnvironmentObject private var progressionService: ProgressionService
 
     let program: Program
 
@@ -24,6 +25,12 @@ struct ProgramDetailView: View {
 
     private var sortedBlocks: [ProgramBlock] {
         program.blocks.sorted { $0.order < $1.order }
+    }
+
+    private var defaultProgressionName: String {
+        progressionService.profile(id: program.defaultProgressionProfileId)?.name ??
+        program.defaultProgressionProfileNameSnapshot ??
+        "None"
     }
 
     var body: some View {
@@ -107,6 +114,7 @@ struct ProgramDetailView: View {
             detailRow(title: "Schedule", value: resolvedState.scheduleLabel)
             detailRow(title: "Current Block", value: resolvedState.blockLabel)
             detailRow(title: "Progress", value: resolvedState.progressLabel)
+            detailRow(title: "Progression", value: defaultProgressionName)
             detailRow(title: "Next Workout", value: resolvedState.nextWorkoutLabel)
 
             HStack(spacing: 10) {
@@ -342,6 +350,7 @@ struct ProgramDetailView: View {
 
 struct ProgramEditorSheet: View {
     @EnvironmentObject private var programService: ProgramService
+    @EnvironmentObject private var progressionService: ProgressionService
     @Environment(\.dismiss) private var dismiss
 
     let program: Program?
@@ -353,6 +362,7 @@ struct ProgramEditorSheet: View {
     @State private var trainDaysBeforeRest: Int
     @State private var restDays: Int
     @State private var isActive: Bool
+    @State private var selectedProgressionProfileId: UUID?
 
     init(program: Program?) {
         self.program = program
@@ -363,6 +373,7 @@ struct ProgramEditorSheet: View {
         _trainDaysBeforeRest = State(initialValue: program?.trainDaysBeforeRest ?? 3)
         _restDays = State(initialValue: program?.restDays ?? 1)
         _isActive = State(initialValue: program?.isActive ?? false)
+        _selectedProgressionProfileId = State(initialValue: program?.defaultProgressionProfileId)
     }
 
     var body: some View {
@@ -378,6 +389,19 @@ struct ProgramEditorSheet: View {
                 }
                 DatePicker("Start Date", selection: $startDate, displayedComponents: .date)
                 Toggle("Set Active", isOn: $isActive)
+            }
+
+            Section("Progression") {
+                Picker("Default Profile", selection: $selectedProgressionProfileId) {
+                    Text("None").tag(Optional<UUID>.none)
+                    ForEach(progressionService.profiles, id: \.id) { profile in
+                        Text(profile.name).tag(Optional(profile.id))
+                    }
+                }
+
+                Text("Program-started sessions will use this profile for exercises that do not already have their own saved override.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             if mode == .continuous {
@@ -401,6 +425,10 @@ struct ProgramEditorSheet: View {
                 .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
+        .onAppear {
+            progressionService.ensureBuiltInProfiles()
+            progressionService.loadProfiles()
+        }
     }
 
     private func saveProgram() {
@@ -409,12 +437,15 @@ struct ProgramEditorSheet: View {
 
         if let program {
             let wasActive = program.isActive
+            let selectedProfile = progressionService.profile(id: selectedProgressionProfileId)
             program.name = trimmedName
             program.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
             program.mode = mode
             program.startDate = startDate
             program.trainDaysBeforeRest = max(trainDaysBeforeRest, 1)
             program.restDays = max(restDays, 0)
+            program.defaultProgressionProfileId = selectedProfile?.id
+            program.defaultProgressionProfileNameSnapshot = selectedProfile?.name
             programService.saveChanges(for: program)
 
             if isActive {
@@ -429,8 +460,15 @@ struct ProgramEditorSheet: View {
             startDate: startDate,
             trainDaysBeforeRest: trainDaysBeforeRest,
             restDays: restDays
-        ), isActive {
-            programService.setActive(program)
+        ) {
+            let selectedProfile = progressionService.profile(id: selectedProgressionProfileId)
+            program.defaultProgressionProfileId = selectedProfile?.id
+            program.defaultProgressionProfileNameSnapshot = selectedProfile?.name
+            programService.saveChanges(for: program)
+
+            if isActive {
+                programService.setActive(program)
+            }
         }
 
         dismiss()

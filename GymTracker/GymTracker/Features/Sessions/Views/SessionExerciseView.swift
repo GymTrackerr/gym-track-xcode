@@ -258,8 +258,9 @@ struct SessionExerciseView: View {
     private var progressionTargetCard: some View {
         SessionProgressionTargetCardView(
             sessionEntry: sessionEntry,
-            previousResultText: previousProgressionResultText,
-            onAutofill: applyProgressionTargetToDraft
+            onAutofill: applyProgressionTargetToDraft,
+            onApplyRep: applyRepTargetToDraft,
+            onApplyWeight: applyWeightTargetToDraft
         )
     }
 
@@ -493,14 +494,6 @@ struct SessionExerciseView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 10))
             }
         }
-    }
-
-    private var previousProgressionResultText: String? {
-        guard let rep = setService.mostRecentRep(for: sessionEntry.exercise) else { return nil }
-        if let weightText = ProgressionDisplayFormatter.weightSummary(weight: rep.weight, unit: rep.weightUnit) {
-            return "\(weightText) x \(rep.count)"
-        }
-        return "\(rep.count) reps"
     }
 
     private var lockedEditingNotice: some View {
@@ -1232,6 +1225,11 @@ struct SessionExerciseView: View {
             return
         }
 
+        if sessionEntry.hasProgressionSnapshot {
+            applyProgressionTargetToDraft()
+            return
+        }
+
         if let rep = setService.mostRecentRep(for: sessionEntry.exercise) {
             let unit = rep.weightUnit
             draftUnit = unit
@@ -1243,24 +1241,59 @@ struct SessionExerciseView: View {
         guard !sessionEntry.exercise.cardio else { return }
 
         let targetUnit = sessionEntry.appliedTargetWeightUnit ?? draftUnit
-        let targetWeight = sessionEntry.appliedTargetWeight ?? draftReps.first?.weight ?? 0
+        let targetWeight = sessionEntry.appliedTargetWeight ??
+            sessionEntry.appliedTargetWeightLow ??
+            sessionEntry.appliedTargetWeightHigh ??
+            draftReps.first?.weight ??
+            0
         let targetReps = sessionEntry.appliedTargetReps ??
             sessionEntry.appliedTargetRepsLow ??
             sessionEntry.appliedTargetRepsHigh ??
             draftReps.first?.reps ??
             0
 
+        resetDropSetIfNeeded()
+
+        draftUnit = targetUnit
+        draftReps = [RepDraft(weight: targetWeight, reps: targetReps, unit: targetUnit)]
+        persistRepSnapshotsToDraftState()
+        dismissKeyboard()
+    }
+
+    private func applyRepTargetToDraft(_ reps: Int) {
+        guard !sessionEntry.exercise.cardio else { return }
+
+        resetDropSetIfNeeded()
+        let currentWeight = draftReps.first?.weight ?? sessionEntry.appliedTargetWeight ?? sessionEntry.appliedTargetWeightLow ?? 0
+        let currentUnit = draftReps.first?.unit ?? sessionEntry.appliedTargetWeightUnit ?? draftUnit
+        draftReps = [RepDraft(weight: currentWeight, reps: reps, unit: currentUnit)]
+        persistRepSnapshotsToDraftState()
+        dismissKeyboard()
+    }
+
+    private func applyWeightTargetToDraft(_ weight: Double, unit: WeightUnit) {
+        guard !sessionEntry.exercise.cardio else { return }
+
+        resetDropSetIfNeeded()
+        let currentReps = draftReps.first?.reps ??
+            sessionEntry.appliedTargetReps ??
+            sessionEntry.appliedTargetRepsLow ??
+            sessionEntry.appliedTargetRepsHigh ??
+            0
+
+        draftUnit = unit
+        draftReps = [RepDraft(weight: weight, reps: currentReps, unit: unit)]
+        persistRepSnapshotsToDraftState()
+        dismissKeyboard()
+    }
+
+    private func resetDropSetIfNeeded() {
         if isDropSetEnabled {
             draftStore.updateDraft(for: sessionExerciseId) { draft in
                 draft.isDropSetEnabled = false
                 draft.dropSetInlineHint = nil
             }
         }
-
-        draftUnit = targetUnit
-        draftReps = [RepDraft(weight: targetWeight, reps: targetReps, unit: targetUnit)]
-        persistRepSnapshotsToDraftState()
-        dismissKeyboard()
     }
 
     private func intTextBinding(

@@ -85,6 +85,8 @@ final class Program {
     var user_id: UUID
     var name: String
     var notes: String
+    var defaultProgressionProfileId: UUID? = nil
+    var defaultProgressionProfileNameSnapshot: String? = nil
     var modeRaw: String
     var startDate: Date
     var trainDaysBeforeRest: Int

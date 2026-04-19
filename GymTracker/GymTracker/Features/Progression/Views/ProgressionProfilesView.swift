@@ -109,7 +109,7 @@ struct ProgressionProfilesView: View {
 
             detailRow(title: "Type", value: profile.type.title)
             detailRow(title: "Default Target", value: defaultTargetSummary(for: profile))
-            detailRow(title: "Increment", value: "\(profile.incrementValue.clean) \(profile.incrementUnit.name)")
+            detailRow(title: "Advancement", value: advancementSummary(for: profile))
 
             HStack(spacing: 10) {
                 Button {
@@ -184,6 +184,13 @@ struct ProgressionProfilesView: View {
             unit: nil
         )
     }
+
+    private func advancementSummary(for profile: ProgressionProfile) -> String {
+        let absoluteText = profile.incrementValue > 0 ? "\(profile.incrementValue.clean) \(profile.incrementUnit.name)" : nil
+        let percentageText = profile.percentageIncrease > 0 ? "\(profile.percentageIncrease.clean)%" : nil
+        let parts = [absoluteText, percentageText].compactMap { $0 }
+        return parts.isEmpty ? "Manual" : parts.joined(separator: " + ")
+    }
 }
 
 private struct ProgressionProfileEditorSheet: View {
@@ -196,6 +203,7 @@ private struct ProgressionProfileEditorSheet: View {
     @State private var miniDescription: String
     @State private var type: ProgressionType
     @State private var incrementValue: Double
+    @State private var percentageIncrease: Double
     @State private var incrementUnit: WeightUnit
     @State private var setIncrement: Int
     @State private var successThreshold: Int
@@ -210,6 +218,7 @@ private struct ProgressionProfileEditorSheet: View {
         _miniDescription = State(initialValue: profile?.miniDescription ?? "")
         _type = State(initialValue: profile?.type ?? .linear)
         _incrementValue = State(initialValue: profile?.incrementValue ?? 5)
+        _percentageIncrease = State(initialValue: profile?.percentageIncrease ?? 0)
         _incrementUnit = State(initialValue: profile?.incrementUnit ?? .lb)
         _setIncrement = State(initialValue: profile?.setIncrement ?? 1)
         _successThreshold = State(initialValue: profile?.successThreshold ?? 1)
@@ -248,6 +257,9 @@ private struct ProgressionProfileEditorSheet: View {
 
             Section("Advancement") {
                 TextField("Weight Increment", value: $incrementValue, format: .number)
+                    .keyboardType(.decimalPad)
+
+                TextField("Percentage Increase", value: $percentageIncrease, format: .number)
                     .keyboardType(.decimalPad)
 
                 Picker("Increment Unit", selection: $incrementUnit) {
@@ -303,6 +315,7 @@ private struct ProgressionProfileEditorSheet: View {
             profile.miniDescription = trimmedDescription
             profile.type = type
             profile.incrementValue = max(incrementValue, 0)
+            profile.percentageIncrease = max(percentageIncrease, 0)
             profile.incrementUnit = incrementUnit
             profile.setIncrement = max(setIncrement, 1)
             profile.successThreshold = max(successThreshold, 1)
@@ -322,6 +335,7 @@ private struct ProgressionProfileEditorSheet: View {
                 miniDescription: trimmedDescription,
                 type: type,
                 incrementValue: max(incrementValue, 0),
+                percentageIncrease: max(percentageIncrease, 0),
                 incrementUnit: incrementUnit,
                 setIncrement: max(setIncrement, 1),
                 successThreshold: max(successThreshold, 1),

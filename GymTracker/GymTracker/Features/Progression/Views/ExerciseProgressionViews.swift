@@ -53,18 +53,35 @@ struct ExerciseProgressionCardView: View {
                         targetRepsLow: progressionExercise.targetRepsLow,
                         targetRepsHigh: progressionExercise.targetRepsHigh,
                         weight: progressionExercise.workingWeight,
+                        weightLow: progressionExercise.suggestedWeightLow,
+                        weightHigh: progressionExercise.suggestedWeightHigh,
                         unit: progressionExercise.workingWeightUnit
                     )
                 )
 
-                if let workingWeightText = ProgressionDisplayFormatter.weightSummary(
+                let cycleSummary = ProgressionDisplayFormatter.targetSummary(
+                    setCount: progressionExercise.targetSetCount,
+                    targetReps: nil,
+                    targetRepsLow: progressionExercise.targetRepsLow,
+                    targetRepsHigh: progressionExercise.targetRepsHigh,
                     weight: progressionExercise.workingWeight,
+                    weightLow: progressionExercise.suggestedWeightLow,
+                    weightHigh: progressionExercise.suggestedWeightHigh,
                     unit: progressionExercise.workingWeightUnit
+                )
+                detailRow(title: "Cycle", value: cycleSummary)
+
+                if let completedWeightText = ProgressionDisplayFormatter.weightSummary(
+                    weight: progressionExercise.lastCompletedCycleWeight,
+                    unit: progressionExercise.lastCompletedCycleUnit
                 ) {
-                    detailRow(title: "Working Weight", value: workingWeightText)
+                    detailRow(
+                        title: "Last Top Set",
+                        value: "\(completedWeightText) x \(progressionExercise.lastCompletedCycleReps ?? progressionExercise.targetRepsHigh ?? progressionExercise.targetReps ?? 0)"
+                    )
                 }
             } else {
-                Text("No progression assigned yet.")
+                Text("No exercise override yet. Routine or program defaults can still apply this automatically when you start logging.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

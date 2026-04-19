@@ -32,7 +32,10 @@ final class SessionEntry {
     var appliedTargetRepsLow: Int? = nil
     var appliedTargetRepsHigh: Int? = nil
     var appliedTargetWeight: Double? = nil
+    var appliedTargetWeightLow: Double? = nil
+    var appliedTargetWeightHigh: Double? = nil
     var appliedTargetWeightUnitRaw: Int? = nil
+    var appliedProgressionCycleSummary: String? = nil
     
     var exercise_id: UUID { exercise.id }
     var session_id: UUID { session.id }
@@ -67,7 +70,10 @@ final class SessionEntry {
         appliedTargetReps != nil ||
         appliedTargetRepsLow != nil ||
         appliedTargetRepsHigh != nil ||
-        appliedTargetWeight != nil
+        appliedTargetWeight != nil ||
+        appliedTargetWeightLow != nil ||
+        appliedTargetWeightHigh != nil ||
+        appliedProgressionCycleSummary != nil
     }
 
     @discardableResult
@@ -75,7 +81,10 @@ final class SessionEntry {
         progressionExercise: ProgressionExercise,
         profile: ProgressionProfile?,
         suggestedWeight: Double?,
-        suggestedWeightUnit: WeightUnit?
+        suggestedWeightLow: Double?,
+        suggestedWeightHigh: Double?,
+        suggestedWeightUnit: WeightUnit?,
+        cycleSummary: String?
     ) -> Bool {
         let previousState = (
             appliedProgressionProfileId,
@@ -87,7 +96,10 @@ final class SessionEntry {
             appliedTargetRepsLow,
             appliedTargetRepsHigh,
             appliedTargetWeight,
-            appliedTargetWeightUnitRaw
+            appliedTargetWeightLow,
+            appliedTargetWeightHigh,
+            appliedTargetWeightUnitRaw,
+            appliedProgressionCycleSummary
         )
 
         appliedProgressionProfileId = progressionExercise.progressionProfileId
@@ -99,7 +111,10 @@ final class SessionEntry {
         appliedTargetRepsLow = progressionExercise.targetRepsLow
         appliedTargetRepsHigh = progressionExercise.targetRepsHigh
         appliedTargetWeight = suggestedWeight
+        appliedTargetWeightLow = suggestedWeightLow
+        appliedTargetWeightHigh = suggestedWeightHigh
         appliedTargetWeightUnit = suggestedWeightUnit
+        appliedProgressionCycleSummary = cycleSummary
 
         let currentState = (
             appliedProgressionProfileId,
@@ -111,7 +126,10 @@ final class SessionEntry {
             appliedTargetRepsLow,
             appliedTargetRepsHigh,
             appliedTargetWeight,
-            appliedTargetWeightUnitRaw
+            appliedTargetWeightLow,
+            appliedTargetWeightHigh,
+            appliedTargetWeightUnitRaw,
+            appliedProgressionCycleSummary
         )
 
         return previousState.0 != currentState.0 ||
@@ -123,7 +141,10 @@ final class SessionEntry {
             previousState.6 != currentState.6 ||
             previousState.7 != currentState.7 ||
             previousState.8 != currentState.8 ||
-            previousState.9 != currentState.9
+            previousState.9 != currentState.9 ||
+            previousState.10 != currentState.10 ||
+            previousState.11 != currentState.11 ||
+            previousState.12 != currentState.12
     }
 
     func clearProgressionSnapshot() {
@@ -136,6 +157,9 @@ final class SessionEntry {
         appliedTargetRepsLow = nil
         appliedTargetRepsHigh = nil
         appliedTargetWeight = nil
+        appliedTargetWeightLow = nil
+        appliedTargetWeightHigh = nil
         appliedTargetWeightUnit = nil
+        appliedProgressionCycleSummary = nil
     }
 }

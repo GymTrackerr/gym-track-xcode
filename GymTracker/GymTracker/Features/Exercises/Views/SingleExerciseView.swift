@@ -170,6 +170,22 @@ struct SingleExerciseView: View {
 }
 
 private struct ExerciseDetailView: View {
+    fileprivate struct LoggedExerciseSessionTarget: Identifiable, Hashable {
+        let session: Session
+        let navigationContext: SessionNavigationContext
+
+        var id: UUID { session.id }
+
+        static func == (lhs: LoggedExerciseSessionTarget, rhs: LoggedExerciseSessionTarget) -> Bool {
+            lhs.session.id == rhs.session.id && lhs.navigationContext == rhs.navigationContext
+        }
+
+        func hash(into hasher: inout Hasher) {
+            hasher.combine(session.id)
+            hasher.combine(navigationContext)
+        }
+    }
+
     private let exerciseId: UUID
     @EnvironmentObject var exerciseService: ExerciseService
     @EnvironmentObject var sessionService: SessionService
@@ -239,6 +255,7 @@ private struct ExerciseDetailView: View {
     @State private var repSamplesCache: [RepSample] = []
     @State private var previousSessionsCache: [PreviousSessionItem] = []
     @State private var chartPointsCache: [ProgressPoint] = []
+    @State private var openedSessionTarget: LoggedExerciseSessionTarget?
     private let previousLogsSectionID = "previous-logs-section"
 
     init(exerciseId: UUID, initialSnapshot: ExerciseDetailSnapshot) {
@@ -263,512 +280,18 @@ private struct ExerciseDetailView: View {
 
     var body: some View {
         ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                
-                if let gifURL = exerciseService.gifURL(
-                    images: exerciseSnapshot.images,
-                    isUserCreated: exerciseSnapshot.isUserCreated
-                ) {
-                    CachedMediaView(url: gifURL)
-                        .frame(height: 240)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .padding(.horizontal)
-                }
-
-                    /*
-#if DEBUG
-                debugIdentityCard
-#endif
-
-                     */
-                if hasExerciseInfo {
-                    DisclosureGroup(isExpanded: $showExerciseData) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            detailRow("Exercise Type", exerciseSnapshot.type.name)
-
-                            if let equipment = cleanedString(exerciseSnapshot.equipment) {
-                                detailRow("Equipment", equipment)
-                            }
-
-                            if exerciseSnapshot.cardio {
-                                detailRow("Cardio", "Yes")
-                                if let totalDistance = cardioTotalDistanceLabel {
-                                    detailRow("Total Distance", totalDistance)
-                                }
-                                if let totalDuration = cardioTotalDurationLabel {
-                                    detailRow("Total Duration", totalDuration)
-                                }
-                                if let avgPace = cardioAveragePaceLabel {
-                                    detailRow("Avg Pace", avgPace)
-                                }
-                            }
-
-                            if !aliases.isEmpty || isEditingAliases {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text("Aliases")
-                                        .font(.subheadline)
-                                        .fontWeight(.semibold)
-                                        .accessibilityLabel("Exercise Aliases")
-
-                                    if isEditingAliases {
-                                        aliasInputField
-                                        if !aliases.isEmpty {
-                                            aliasEditList
-                                        }
-                                        if let error = aliasError {
-                                            Text(error)
-                                                .font(.caption2)
-                                                .foregroundStyle(.red)
-                                        }
-                                    } else {
-                                        aliasViewList
-                                    }
-                                }
-                            }
-
-                            if !primaryMuscles.isEmpty {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text("Primary Muscles")
-                                        .font(.subheadline)
-                                        .fontWeight(.semibold)
-                                    ScrollView(.horizontal, showsIndicators: false) {
-                                        HStack(spacing: 8) {
-                                            ForEach(primaryMuscles, id: \.self) { muscle in
-                                                MuscleChip(text: muscle)
-                                            }
-                                        }
-                                        .padding(.vertical, 2)
-                                    }
-                                }
-                            }
-
-                            if !secondaryMuscles.isEmpty {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text("Secondary Muscles")
-                                        .font(.subheadline)
-                                        .fontWeight(.semibold)
-                                    ScrollView(.horizontal, showsIndicators: false) {
-                                        HStack(spacing: 8) {
-                                            ForEach(secondaryMuscles, id: \.self) { muscle in
-                                                MuscleChip(text: muscle)
-                                            }
-                                        }
-                                        .padding(.vertical, 2)
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.top, 4)
-                    } label: {
-                        Text("Exercise Data")
-                            .font(.headline)
-                    }
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(12)
-                    .padding(.horizontal)
-                }
-                
-                if !instructions.isEmpty {
-                    DisclosureGroup(isExpanded: $showHowToPerform) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(Array(instructions.enumerated()), id: \.offset) { i, step in
-                                Text("\(i + 1). \(step)")
-                                    .foregroundColor(.secondary)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                        }
-                        .padding(.top, 4)
-                    } label: {
-                        Text("How to Perform")
-                            .font(.headline)
-                    }
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(12)
-                    .padding(.horizontal)
-                }
-
-                ExerciseProgressionCardView(
-                    progressionExercise: progressionExercise,
-                    profile: progressionProfile,
-                    onEdit: {
-                        showingProgressionSheet = true
-                    }
-                )
-                .padding(.horizontal)
-                
-                DisclosureGroup(isExpanded: $showProgress) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                if hasCardioProgress {
-                                    ForEach(CardioProgressMetric.allCases) { tab in
-                                        Button {
-                                            selectedCardioTab = tab
-                                        } label: {
-                                            Text(tab.title)
-                                                .font(.subheadline)
-                                                .padding(.vertical, 6)
-                                                .padding(.horizontal, 12)
-                                                .background(selectedCardioTab == tab
-                                                            ? Color.green.opacity(0.2)
-                                                            : Color.gray.opacity(0.1))
-                                                .cornerRadius(8)
-                                                .foregroundColor(selectedCardioTab == tab ? .green : .primary)
-                                        }
-                                    }
-                                } else {
-                                    ForEach(ProgressMetric.allCases) { tab in
-                                        Button {
-                                            selectedTab = tab
-                                        } label: {
-                                            Text(tab.title)
-                                                .font(.subheadline)
-                                                .padding(.vertical, 6)
-                                                .padding(.horizontal, 12)
-                                                .background(selectedTab == tab
-                                                            ? Color.green.opacity(0.2)
-                                                            : Color.gray.opacity(0.1))
-                                                .cornerRadius(8)
-                                                .foregroundColor(selectedTab == tab ? .green : .primary)
-                                        }
-                                    }
-                                }
-                            }
-                            .padding(.vertical, 2)
-                        }
-                        .overlay(horizontalScrollHints)
-
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(ProgressRange.allCases) { range in
-                                    Button {
-                                        selectedRange = range
-                                    } label: {
-                                        Text(range.rawValue)
-                                            .font(.subheadline)
-                                            .padding(.vertical, 6)
-                                            .padding(.horizontal, 12)
-                                            .background(selectedRange == range
-                                                        ? Color.green.opacity(0.2)
-                                                        : Color.gray.opacity(0.1))
-                                            .cornerRadius(8)
-                                            .foregroundColor(selectedRange == range ? .green : .primary)
-                                    }
-                                }
-                            }
-                            .padding(.vertical, 2)
-                        }
-                        .overlay(horizontalScrollHints)
-
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                if hasCardioProgress {
-                                    ForEach([DistanceUnit.km, DistanceUnit.mi], id: \.rawValue) { unit in
-                                        Button {
-                                            selectedDistanceUnit = unit
-                                        } label: {
-                                            Text(unit.rawValue.uppercased())
-                                                .font(.subheadline)
-                                                .padding(.vertical, 6)
-                                                .padding(.horizontal, 12)
-                                                .background(selectedDistanceUnit == unit
-                                                            ? Color.green.opacity(0.2)
-                                                            : Color.gray.opacity(0.1))
-                                                .cornerRadius(8)
-                                                .foregroundColor(selectedDistanceUnit == unit ? .green : .primary)
-                                        }
-                                    }
-                                } else {
-                                    ForEach(WeightUnit.allCases) { unit in
-                                        Button {
-                                            selectedDisplayUnit = unit
-                                        } label: {
-                                            Text(unit.name + "s")
-                                                .font(.subheadline)
-                                                .padding(.vertical, 6)
-                                                .padding(.horizontal, 12)
-                                                .background(displayUnit == unit
-                                                            ? Color.green.opacity(0.2)
-                                                            : Color.gray.opacity(0.1))
-                                                .cornerRadius(8)
-                                                .foregroundColor(displayUnit == unit ? .green : .primary)
-                                        }
-                                    }
-                                }
-                            }
-                            .padding(.vertical, 2)
-                        }
-                        .overlay(horizontalScrollHints)
-
-                        Chart(chartPoints) { point in
-                            LineMark(
-                                x: .value("Date", point.date, unit: chartXAxisStride),
-                                y: .value("Value", point.value)
-                            )
-                            .symbol(.circle)
-                            .interpolationMethod(.catmullRom)
-                        }
-                        .chartYAxis {
-                            AxisMarks(position: .leading)
-                        }
-                        .chartXAxis {
-                            AxisMarks(values: .stride(by: chartXAxisStride)) { value in
-                                if let date = value.as(Date.self) {
-                                    AxisValueLabel {
-                                        Text(chartXAxisLabel(date))
-                                    }
-                                }
-                            }
-                        }
-                        .chartYScale(domain: 0...chartYMax)
-                        .frame(height: 160)
-
-                        NavigationLink {
-                            if let liveExercise {
-                                ExerciseHistoryChartView(exercise: liveExercise)
-                                    .appBackground()
-                            }
-                        } label: {
-                            Label("Open Full Chart", systemImage: "chart.bar.xaxis")
-                                .font(.subheadline.weight(.semibold))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 8)
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(liveExercise == nil)
-                    }
-                    .padding(.top, 6)
-                } label: {
-                    Text("Your Progress")
-                        .font(.headline)
-                        .foregroundStyle(.tint)
-                }
-                .padding()
-                .background(Color(.systemGray6))
-                .cornerRadius(12)
-                .padding(.horizontal)
-                
-                Button {
-                    showingLogExerciseSheet = true
-                } label: {
-                    HStack {
-                        Image(systemName: "plus.circle.fill")
-                        Text("Log this Exercise")
-                            .fontWeight(.semibold)
-                    }
-                    .foregroundStyle(Color.primary)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.accentColor)
-                    .cornerRadius(14)
-                }
-                .padding(.horizontal)
-                .padding(.bottom, 10)
-                Button {
-                    showingAddRoutineSheet = true
-                } label: {
-                    HStack {
-                        Image(systemName: "plus.circle.fill")
-                        Text("Add to Routine")
-                            .fontWeight(.semibold)
-                    }
-                    .foregroundStyle(Color.primary)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.accentColor)
-                    .cornerRadius(14)
-                }
-                .padding(.horizontal)
-                .padding(.bottom, 12)
-
-                NavigationLink {
-                    TrueSightView(initialExerciseId: exerciseId)
-                        .appBackground()
-                } label: {
-                    HStack {
-                        Image(systemName: "video.badge.waveform")
-                        Text("Open in TrueSight")
-                            .fontWeight(.semibold)
-                    }
-                    .foregroundStyle(Color.primary)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(
-                        (exerciseSnapshot.npId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
-                        ? Color.accentColor
-                        : Color.gray.opacity(0.3)
-                    )
-                    .cornerRadius(14)
-                }
-                .padding(.horizontal)
-                .padding(.bottom, 12)
-                .disabled(exerciseSnapshot.npId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false)
-
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Previous Logs")
-                        .font(.headline)
-                        .padding(.horizontal)
-                        .id(previousLogsSectionID)
-
-                    if previousSessions.isEmpty {
-                        Text("No previous logs yet.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding()
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color.gray.opacity(0.1))
-                            )
-                            .padding(.horizontal)
-                    } else {
-                        VStack(spacing: 8) {
-                            ForEach(previousSessions) { item in
-                                NavigationLink {
-                                    if let session = session(for: item.sessionId) {
-                                        SingleSessionView(
-                                            session: session,
-                                            navigationContext: .fromExerciseHistory(
-                                                sessionId: session.id,
-                                                exerciseId: exerciseId
-                                            )
-                                        )
-                                        .appBackground()
-                                    }
-                                } label: {
-                                    HStack(spacing: 12) {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(item.timestamp.formatted(date: .abbreviated, time: .omitted))
-                                                .font(.subheadline)
-                                                .fontWeight(.semibold)
-                                            Text(item.subtitle)
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                        }
-                                        Spacer()
-                                        Image(systemName: "chevron.right")
-                                            .foregroundColor(.secondary)
-                                    }
-                                    .padding(12)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(Color.gray.opacity(0.1))
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                                .padding(.horizontal)
-                            }
-                        }
-                        .padding(.bottom, 12)
-                    }
-                }
-
-                Button {
-                    showingTransferExerciseSheet = true
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "arrow.left.arrow.right")
-                        Text("Transfer History")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                    }
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(
-                        Capsule()
-                            .fill(Color.gray.opacity(0.14))
-                    )
-                }
-                .buttonStyle(.plain)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.bottom, 14)
-                }
-            }
-            .toolbar {
-                ToolbarItemGroup(placement: .topBarLeading) {
-                    NavigationLink {
-                        if let liveExercise {
-                            ExerciseHistoryChartView(exercise: liveExercise)
-                                .appBackground()
-                        }
-                    } label: {
-                        Label("Charts", systemImage: "chart.bar.xaxis")
-                    }
-                    .disabled(liveExercise == nil)
-                }
-                
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button {
-                        isEditingAliases.toggle()
-                    } label: {
-                        Label(isEditingAliases ? "Done Editing" : "Edit", systemImage: isEditingAliases ? "checkmark.circle" : "pencil")
-                    }
-                    .disabled(exerciseSnapshot.isArchived)
-
-                    Button {
-                        withAnimation(.easeInOut) {
-                            proxy.scrollTo(previousLogsSectionID, anchor: .top)
-                        }
-                    } label: {
-                        Label("History", systemImage: "clock.arrow.circlepath")
-                    }
-                }
-            }
+            exerciseContent(proxy: proxy)
         }
-        .background(
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color(red: 0.85, green: 0.1, blue: 0.1),//.red,
-                    Color.clear//gray.opacity(0.3)
-                ]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: 400)
-            .frame(maxHeight: .infinity, alignment: .top)
-            .ignoresSafeArea(edges: .top)
-        )
-        .navigationTitle(exerciseSnapshot.name)
-        .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showingLogExerciseSheet) {
-            if let liveExercise {
-                LogExerciseSheetView(
-                    exercise: liveExercise,
-                    isPresented: $showingLogExerciseSheet
-                )
-                .presentationDetents([.height(360), .medium])
-                .presentationDragIndicator(.visible)
-            }
-        }
-        .sheet(isPresented: $showingAddRoutineSheet) {
-            if let liveExercise {
-                AddToRoutineSheetView(
-                    exercise: liveExercise,
-                    isPresented: $showingAddRoutineSheet
-                )
-                .presentationDetents([.height(360), .medium])
-                .presentationDragIndicator(.visible)
-            }
-        }
-        .sheet(isPresented: $showingTransferExerciseSheet) {
-            ExerciseTransferToolView(initialSourceExerciseId: exerciseId)
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-        }
-        .sheet(isPresented: $showingProgressionSheet) {
-            if let liveExercise {
-                NavigationStack {
-                    ExerciseProgressionSheetView(exercise: liveExercise)
-                }
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-            }
-        }
+        .modifier(ExerciseDetailNavigationModifier(
+            openedSessionTarget: $openedSessionTarget,
+            showingLogExerciseSheet: $showingLogExerciseSheet,
+            showingAddRoutineSheet: $showingAddRoutineSheet,
+            showingTransferExerciseSheet: $showingTransferExerciseSheet,
+            showingProgressionSheet: $showingProgressionSheet,
+            liveExercise: liveExercise,
+            exerciseId: exerciseId,
+            onOpenSession: handleOpenedSession
+        ))
         .onAppear {
             sessionService.loadSessions()
             progressionService.ensureBuiltInProfiles()
@@ -806,6 +329,512 @@ private struct ExerciseDetailView: View {
         .onChange(of: selectedDistanceUnit) { _, _ in
             refreshDerivedData()
         }
+    }
+
+    @ViewBuilder
+    private func exerciseContent(proxy: ScrollViewProxy) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                heroMediaSection
+                exerciseInfoSection
+                instructionsSection
+                progressionSection
+                progressSection
+                logExerciseButton
+                addToRoutineButton
+                trueSightButton
+                previousLogsSection
+                transferHistoryButton
+            }
+        }
+        .toolbar {
+            detailToolbar(proxy: proxy)
+        }
+        .background(detailBackground)
+        .navigationTitle(exerciseSnapshot.name)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    @ViewBuilder
+    private var heroMediaSection: some View {
+        if let gifURL = exerciseService.gifURL(
+            images: exerciseSnapshot.images,
+            isUserCreated: exerciseSnapshot.isUserCreated
+        ) {
+            CachedMediaView(url: gifURL)
+                .frame(height: 240)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .padding(.horizontal)
+        }
+    }
+
+    @ViewBuilder
+    private var exerciseInfoSection: some View {
+        if hasExerciseInfo {
+            DisclosureGroup(isExpanded: $showExerciseData) {
+                VStack(alignment: .leading, spacing: 12) {
+                    detailRow("Exercise Type", exerciseSnapshot.type.name)
+
+                    if let equipment = cleanedString(exerciseSnapshot.equipment) {
+                        detailRow("Equipment", equipment)
+                    }
+
+                    if exerciseSnapshot.cardio {
+                        detailRow("Cardio", "Yes")
+                        if let totalDistance = cardioTotalDistanceLabel {
+                            detailRow("Total Distance", totalDistance)
+                        }
+                        if let totalDuration = cardioTotalDurationLabel {
+                            detailRow("Total Duration", totalDuration)
+                        }
+                        if let avgPace = cardioAveragePaceLabel {
+                            detailRow("Avg Pace", avgPace)
+                        }
+                    }
+
+                    if !aliases.isEmpty || isEditingAliases {
+                        aliasSection
+                    }
+
+                    if !primaryMuscles.isEmpty {
+                        muscleSection(title: "Primary Muscles", muscles: primaryMuscles)
+                    }
+
+                    if !secondaryMuscles.isEmpty {
+                        muscleSection(title: "Secondary Muscles", muscles: secondaryMuscles)
+                    }
+                }
+                .padding(.top, 4)
+            } label: {
+                Text("Exercise Data")
+                    .font(.headline)
+            }
+            .padding()
+            .background(Color(.systemGray6))
+            .cornerRadius(12)
+            .padding(.horizontal)
+        }
+    }
+
+    @ViewBuilder
+    private var aliasSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Aliases")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .accessibilityLabel("Exercise Aliases")
+
+            if isEditingAliases {
+                aliasInputField
+                if !aliases.isEmpty {
+                    aliasEditList
+                }
+                if let error = aliasError {
+                    Text(error)
+                        .font(.caption2)
+                        .foregroundStyle(.red)
+                }
+            } else {
+                aliasViewList
+            }
+        }
+    }
+
+    private func muscleSection(title: String, muscles: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(muscles, id: \.self) { muscle in
+                        MuscleChip(text: muscle)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var instructionsSection: some View {
+        if !instructions.isEmpty {
+            DisclosureGroup(isExpanded: $showHowToPerform) {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array(instructions.enumerated()), id: \.offset) { i, step in
+                        Text("\(i + 1). \(step)")
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(.top, 4)
+            } label: {
+                Text("How to Perform")
+                    .font(.headline)
+            }
+            .padding()
+            .background(Color(.systemGray6))
+            .cornerRadius(12)
+            .padding(.horizontal)
+        }
+    }
+
+    private var progressionSection: some View {
+        ExerciseProgressionCardView(
+            progressionExercise: progressionExercise,
+            profile: progressionProfile,
+            onEdit: {
+                showingProgressionSheet = true
+            }
+        )
+        .padding(.horizontal)
+    }
+
+    private var progressSection: some View {
+        DisclosureGroup(isExpanded: $showProgress) {
+            VStack(alignment: .leading, spacing: 10) {
+                progressMetricSelector
+                progressRangeSelector
+                progressUnitSelector
+                progressChart
+                openFullChartButton
+            }
+            .padding(.top, 6)
+        } label: {
+            Text("Your Progress")
+                .font(.headline)
+                .foregroundStyle(.tint)
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+        .padding(.horizontal)
+    }
+
+    private var progressMetricSelector: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                if hasCardioProgress {
+                    ForEach(CardioProgressMetric.allCases) { tab in
+                        metricButton(
+                            title: tab.title,
+                            isSelected: selectedCardioTab == tab,
+                            action: { selectedCardioTab = tab }
+                        )
+                    }
+                } else {
+                    ForEach(ProgressMetric.allCases) { tab in
+                        metricButton(
+                            title: tab.title,
+                            isSelected: selectedTab == tab,
+                            action: { selectedTab = tab }
+                        )
+                    }
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        .overlay(horizontalScrollHints)
+    }
+
+    private var progressRangeSelector: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(ProgressRange.allCases) { range in
+                    metricButton(
+                        title: range.rawValue,
+                        isSelected: selectedRange == range,
+                        action: { selectedRange = range }
+                    )
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        .overlay(horizontalScrollHints)
+    }
+
+    private var progressUnitSelector: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                if hasCardioProgress {
+                    ForEach([DistanceUnit.km, DistanceUnit.mi], id: \.rawValue) { unit in
+                        metricButton(
+                            title: unit.rawValue.uppercased(),
+                            isSelected: selectedDistanceUnit == unit,
+                            action: { selectedDistanceUnit = unit }
+                        )
+                    }
+                } else {
+                    ForEach(WeightUnit.allCases) { unit in
+                        metricButton(
+                            title: unit.name + "s",
+                            isSelected: displayUnit == unit,
+                            action: { selectedDisplayUnit = unit }
+                        )
+                    }
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        .overlay(horizontalScrollHints)
+    }
+
+    private func metricButton(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline)
+                .padding(.vertical, 6)
+                .padding(.horizontal, 12)
+                .background(isSelected ? Color.green.opacity(0.2) : Color.gray.opacity(0.1))
+                .cornerRadius(8)
+                .foregroundColor(isSelected ? .green : .primary)
+        }
+    }
+
+    private var progressChart: some View {
+        Chart(chartPoints) { point in
+            LineMark(
+                x: .value("Date", point.date, unit: chartXAxisStride),
+                y: .value("Value", point.value)
+            )
+            .symbol(.circle)
+            .interpolationMethod(.catmullRom)
+        }
+        .chartYAxis {
+            AxisMarks(position: .leading)
+        }
+        .chartXAxis {
+            AxisMarks(values: .stride(by: chartXAxisStride)) { value in
+                if let date = value.as(Date.self) {
+                    AxisValueLabel {
+                        Text(chartXAxisLabel(date))
+                    }
+                }
+            }
+        }
+        .chartYScale(domain: 0...chartYMax)
+        .frame(height: 160)
+    }
+
+    private var openFullChartButton: some View {
+        NavigationLink {
+            if let liveExercise {
+                ExerciseHistoryChartView(exercise: liveExercise)
+                    .appBackground()
+            }
+        } label: {
+            Label("Open Full Chart", systemImage: "chart.bar.xaxis")
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+        }
+        .buttonStyle(.bordered)
+        .disabled(liveExercise == nil)
+    }
+
+    private var logExerciseButton: some View {
+        Button {
+            showingLogExerciseSheet = true
+        } label: {
+            HStack {
+                Image(systemName: "plus.circle.fill")
+                Text("Log this Exercise")
+                    .fontWeight(.semibold)
+            }
+            .foregroundStyle(Color.primary)
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color.accentColor)
+            .cornerRadius(14)
+        }
+        .padding(.horizontal)
+        .padding(.bottom, 10)
+    }
+
+    private var addToRoutineButton: some View {
+        Button {
+            showingAddRoutineSheet = true
+        } label: {
+            HStack {
+                Image(systemName: "plus.circle.fill")
+                Text("Add to Routine")
+                    .fontWeight(.semibold)
+            }
+            .foregroundStyle(Color.primary)
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color.accentColor)
+            .cornerRadius(14)
+        }
+        .padding(.horizontal)
+        .padding(.bottom, 12)
+    }
+
+    private var trueSightButton: some View {
+        NavigationLink {
+            TrueSightView(initialExerciseId: exerciseId)
+                .appBackground()
+        } label: {
+            HStack {
+                Image(systemName: "video.badge.waveform")
+                Text("Open in TrueSight")
+                    .fontWeight(.semibold)
+            }
+            .foregroundStyle(Color.primary)
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(canOpenTrueSight ? Color.accentColor : Color.gray.opacity(0.3))
+            .cornerRadius(14)
+        }
+        .padding(.horizontal)
+        .padding(.bottom, 12)
+        .disabled(!canOpenTrueSight)
+    }
+
+    private var canOpenTrueSight: Bool {
+        exerciseSnapshot.npId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+    }
+
+    private var previousLogsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Previous Logs")
+                .font(.headline)
+                .padding(.horizontal)
+                .id(previousLogsSectionID)
+
+            if previousSessions.isEmpty {
+                Text("No previous logs yet.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.gray.opacity(0.1))
+                    )
+                    .padding(.horizontal)
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(previousSessions) { item in
+                        previousLogLink(for: item)
+                    }
+                }
+                .padding(.bottom, 12)
+            }
+        }
+    }
+
+    private func previousLogLink(for item: PreviousSessionItem) -> some View {
+        NavigationLink {
+            if let session = session(for: item.sessionId) {
+                SingleSessionView(
+                    session: session,
+                    navigationContext: .fromExerciseHistory(
+                        sessionId: session.id,
+                        exerciseId: exerciseId
+                    )
+                )
+                .appBackground()
+            }
+        } label: {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(item.timestamp.formatted(date: .abbreviated, time: .omitted))
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    Text(item.subtitle)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.gray.opacity(0.1))
+            )
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal)
+    }
+
+    private var transferHistoryButton: some View {
+        Button {
+            showingTransferExerciseSheet = true
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.left.arrow.right")
+                Text("Transfer History")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+            }
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                Capsule()
+                    .fill(Color.gray.opacity(0.14))
+            )
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.bottom, 14)
+    }
+
+    private var detailBackground: some View {
+        LinearGradient(
+            gradient: Gradient(colors: [
+                Color(red: 0.85, green: 0.1, blue: 0.1),
+                Color.clear
+            ]),
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .frame(height: 400)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .ignoresSafeArea(edges: .top)
+    }
+
+    @ToolbarContentBuilder
+    private func detailToolbar(proxy: ScrollViewProxy) -> some ToolbarContent {
+        ToolbarItemGroup(placement: .topBarLeading) {
+            NavigationLink {
+                if let liveExercise {
+                    ExerciseHistoryChartView(exercise: liveExercise)
+                        .appBackground()
+                }
+            } label: {
+                Label("Charts", systemImage: "chart.bar.xaxis")
+            }
+            .disabled(liveExercise == nil)
+        }
+
+        ToolbarItemGroup(placement: .topBarTrailing) {
+            Button {
+                isEditingAliases.toggle()
+            } label: {
+                Label(isEditingAliases ? "Done Editing" : "Edit", systemImage: isEditingAliases ? "checkmark.circle" : "pencil")
+            }
+            .disabled(exerciseSnapshot.isArchived)
+
+            Button {
+                withAnimation(.easeInOut) {
+                    proxy.scrollTo(previousLogsSectionID, anchor: .top)
+                }
+            } label: {
+                Label("History", systemImage: "clock.arrow.circlepath")
+            }
+        }
+    }
+
+    private func handleOpenedSession(_ session: Session, navigationContext: SessionNavigationContext) {
+        openedSessionTarget = LoggedExerciseSessionTarget(
+            session: session,
+            navigationContext: navigationContext
+        )
     }
 
     private var matchingEntries: [SessionEntry] {
@@ -1388,6 +1417,81 @@ private struct ExerciseDetailView: View {
 
 }
 
+private struct ExerciseDetailNavigationModifier: ViewModifier {
+    @Binding var openedSessionTarget: ExerciseDetailView.LoggedExerciseSessionTarget?
+    @Binding var showingLogExerciseSheet: Bool
+    @Binding var showingAddRoutineSheet: Bool
+    @Binding var showingTransferExerciseSheet: Bool
+    @Binding var showingProgressionSheet: Bool
+
+    let liveExercise: Exercise?
+    let exerciseId: UUID
+    let onOpenSession: (Session, SessionNavigationContext) -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .navigationDestination(item: $openedSessionTarget, destination: sessionDestination)
+            .sheet(isPresented: $showingLogExerciseSheet) {
+                logExerciseSheetContent
+            }
+            .sheet(isPresented: $showingAddRoutineSheet) {
+                addToRoutineSheetContent
+            }
+            .sheet(isPresented: $showingTransferExerciseSheet) {
+                ExerciseTransferToolView(initialSourceExerciseId: exerciseId)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $showingProgressionSheet) {
+                progressionSheetContent
+            }
+    }
+
+    private func sessionDestination(target: ExerciseDetailView.LoggedExerciseSessionTarget) -> some View {
+        SingleSessionView(
+            session: target.session,
+            navigationContext: target.navigationContext
+        )
+        .appBackground()
+    }
+
+    @ViewBuilder
+    private var logExerciseSheetContent: some View {
+        if let liveExercise {
+            LogExerciseSheetView(
+                exercise: liveExercise,
+                isPresented: $showingLogExerciseSheet,
+                onOpenSession: onOpenSession
+            )
+            .presentationDetents([.height(360), .medium])
+            .presentationDragIndicator(.visible)
+        }
+    }
+
+    @ViewBuilder
+    private var addToRoutineSheetContent: some View {
+        if let liveExercise {
+            AddToRoutineSheetView(
+                exercise: liveExercise,
+                isPresented: $showingAddRoutineSheet
+            )
+            .presentationDetents([.height(360), .medium])
+            .presentationDragIndicator(.visible)
+        }
+    }
+
+    @ViewBuilder
+    private var progressionSheetContent: some View {
+        if let liveExercise {
+            NavigationStack {
+                ExerciseProgressionSheetView(exercise: liveExercise)
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+    }
+}
+
 private struct MuscleChip: View {
     let text: String
 
@@ -1407,6 +1511,7 @@ struct LogExerciseSheetView: View {
 
     let exercise: Exercise
     @Binding var isPresented: Bool
+    let onOpenSession: (Session, SessionNavigationContext) -> Void
 
     private var recentSessions: [Session] {
         sessionService.sessions.sorted { $0.timestamp > $1.timestamp }
@@ -1512,13 +1617,23 @@ struct LogExerciseSheetView: View {
         sessionService.create_notes = ""
         if let newSession = sessionService.addSession() {
             seService.addExercise(session: newSession, exercise: exercise)
+            let navigationContext = SessionNavigationContext.loggingContext(for: newSession, exerciseId: exercise.id)
+            isPresented = false
+            DispatchQueue.main.async {
+                onOpenSession(newSession, navigationContext)
+            }
+            return
         }
         isPresented = false
     }
 
     private func addToSession(_ session: Session) {
         seService.addExercise(session: session, exercise: exercise)
+        let navigationContext = SessionNavigationContext.loggingContext(for: session, exerciseId: exercise.id)
         isPresented = false
+        DispatchQueue.main.async {
+            onOpenSession(session, navigationContext)
+        }
     }
 }
 
