@@ -20,6 +20,7 @@ protocol ProgramRepositoryProtocol {
         restDays: Int
     ) throws -> Program
     func saveChanges(for program: Program) throws
+    func willArchiveOnDelete(_ program: Program) -> Bool
     func delete(_ program: Program) throws
     func restore(_ program: Program) throws
     func setActiveProgram(_ program: Program?) throws

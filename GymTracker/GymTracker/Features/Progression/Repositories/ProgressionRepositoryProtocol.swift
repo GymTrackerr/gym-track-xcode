@@ -49,6 +49,7 @@ protocol ProgressionRepositoryProtocol {
         userId: UUID,
         exercise: Exercise,
         profile: ProgressionProfile?,
+        assignmentSource: ProgressionAssignmentSource,
         targetSetCount: Int,
         targetReps: Int?,
         targetRepsLow: Int?,

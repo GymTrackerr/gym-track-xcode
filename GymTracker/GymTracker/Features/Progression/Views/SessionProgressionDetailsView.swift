@@ -35,6 +35,10 @@ struct SessionProgressionDetailsView: View {
         sessionEntry.appliedProgressionMiniDescriptionSnapshot
     }
 
+    private var sourceLabel: String? {
+        progressionExercise?.assignmentSource.title
+    }
+
     private var targetSummary: String {
         ProgressionDisplayFormatter.targetSummary(
             setCount: sessionEntry.appliedTargetSetCount,
@@ -106,6 +110,9 @@ struct SessionProgressionDetailsView: View {
                         }
 
                         detailRow(title: "Exercise", value: sessionEntry.exercise.name)
+                        if let sourceLabel {
+                            detailRow(title: "Source", value: sourceLabel)
+                        }
                         detailRow(title: "Target", value: targetSummary)
                     }
                 }

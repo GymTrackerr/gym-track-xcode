@@ -12,6 +12,8 @@ struct ProgressionProfilesView: View {
 
     @State private var showingCreateProfile = false
     @State private var editingProfile: ProgressionProfile?
+    @State private var globalProgressionEnabled = false
+    @State private var selectedGlobalProfileId: UUID?
 
     private var builtInProfiles: [ProgressionProfile] {
         progressionService.profiles.filter(\.isBuiltIn)
@@ -24,6 +26,31 @@ struct ProgressionProfilesView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                sectionHeader(
+                    title: "Automatic Progression",
+                    subtitle: "Enable this if you want every routine-less exercise to fall back to one default profile when no exercise, routine, or program override is set."
+                )
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Toggle("Enable progression for everything", isOn: $globalProgressionEnabled)
+
+                    Picker("Default Profile", selection: $selectedGlobalProfileId) {
+                        Text("None").tag(Optional<UUID>.none)
+                        ForEach(progressionService.profiles, id: \.id) { profile in
+                            Text(profile.name).tag(Optional(profile.id))
+                        }
+                    }
+                    .disabled(!globalProgressionEnabled)
+
+                    Text("Session source still wins first: exercise override, then program default, then routine default, and this global default fills the gaps.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.gray.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+
                 sectionHeader(
                     title: "Built-in Progressions",
                     subtitle: "These seed from JSON once, live in the database after that, and can be tuned for your defaults."
@@ -79,7 +106,25 @@ struct ProgressionProfilesView: View {
         .onAppear {
             progressionService.ensureBuiltInProfiles()
             progressionService.loadProfiles()
+            seedGlobalDefaults()
         }
+        .onChange(of: globalProgressionEnabled) { _, newValue in
+            progressionService.saveGlobalDefaults(
+                enabled: newValue,
+                defaultProfileId: selectedGlobalProfileId
+            )
+        }
+        .onChange(of: selectedGlobalProfileId) { _, newValue in
+            progressionService.saveGlobalDefaults(
+                enabled: globalProgressionEnabled,
+                defaultProfileId: newValue
+            )
+        }
+    }
+
+    private func seedGlobalDefaults() {
+        globalProgressionEnabled = progressionService.globalProgressionEnabled
+        selectedGlobalProfileId = progressionService.globalDefaultProfileId
     }
 
     private func profileRow(_ profile: ProgressionProfile) -> some View {

@@ -269,12 +269,25 @@ private struct ExerciseDetailView: View {
     }
 
     private var progressionExercise: ProgressionExercise? {
-        progressionService.progressionExercise(for: exerciseId)
+        progressionService.exerciseOverride(for: exerciseId)
+    }
+
+    private var inheritedProgressionExercise: ProgressionExercise? {
+        guard let progressionExercise = progressionService.progressionExercise(for: exerciseId),
+              !progressionExercise.isExplicitOverride else {
+            return nil
+        }
+        return progressionExercise
     }
 
     private var progressionProfile: ProgressionProfile? {
         guard let progressionExercise else { return nil }
         return progressionService.profile(for: progressionExercise)
+    }
+
+    private var inheritedProgressionProfile: ProgressionProfile? {
+        guard let inheritedProgressionExercise else { return nil }
+        return progressionService.profile(for: inheritedProgressionExercise)
     }
 
 
@@ -483,6 +496,8 @@ private struct ExerciseDetailView: View {
         ExerciseProgressionCardView(
             progressionExercise: progressionExercise,
             profile: progressionProfile,
+            inheritedProgressionExercise: inheritedProgressionExercise,
+            inheritedProfile: inheritedProgressionProfile,
             onEdit: {
                 showingProgressionSheet = true
             }

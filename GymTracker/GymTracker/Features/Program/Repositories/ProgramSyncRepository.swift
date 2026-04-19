@@ -49,9 +49,16 @@ final class ProgramSyncRepository: BaseSyncRepository, ProgramRepositoryProtocol
         enqueue(for: program, operation: .update)
     }
 
+    func willArchiveOnDelete(_ program: Program) -> Bool {
+        localRepository.willArchiveOnDelete(program)
+    }
+
     func delete(_ program: Program) throws {
+        let shouldArchive = localRepository.willArchiveOnDelete(program)
         try localRepository.delete(program)
-        enqueue(for: program, operation: .softDelete)
+        if shouldArchive {
+            enqueue(for: program, operation: .softDelete)
+        }
     }
 
     func restore(_ program: Program) throws {

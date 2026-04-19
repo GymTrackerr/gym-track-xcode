@@ -10,13 +10,15 @@ import SwiftUI
 struct ExerciseProgressionCardView: View {
     let progressionExercise: ProgressionExercise?
     let profile: ProgressionProfile?
+    let inheritedProgressionExercise: ProgressionExercise?
+    let inheritedProfile: ProgressionProfile?
     let onEdit: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Progression")
+                    Text("Exercise Override")
                         .font(.headline)
 
                     if let progressionExercise {
@@ -24,7 +26,7 @@ struct ExerciseProgressionCardView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {
-                        Text("Save a reusable target so session recording can suggest the next weight and reps.")
+                        Text("Set an exercise-only override. If you leave this empty, routine, program, or global defaults can still apply automatically.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -80,8 +82,17 @@ struct ExerciseProgressionCardView: View {
                         value: "\(completedWeightText) x \(progressionExercise.lastCompletedCycleReps ?? progressionExercise.targetRepsHigh ?? progressionExercise.targetReps ?? 0)"
                     )
                 }
+            } else if let inheritedProgressionExercise {
+                detailRow(
+                    title: "Following",
+                    value: inheritedProfile?.name ?? inheritedProgressionExercise.progressionNameSnapshot ?? "Automatic progression"
+                )
+                detailRow(
+                    title: "Source",
+                    value: inheritedProgressionExercise.assignmentSource.title
+                )
             } else {
-                Text("No exercise override yet. Routine or program defaults can still apply this automatically when you start logging.")
+                Text("No exercise override yet. Routine, program, or global defaults can still apply automatically when you start logging.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -120,7 +131,15 @@ struct ExerciseProgressionSheetView: View {
     @State private var ignoreNextProfileSelectionChange = false
 
     private var currentAssignment: ProgressionExercise? {
-        progressionService.progressionExercise(for: exercise.id)
+        progressionService.exerciseOverride(for: exercise.id)
+    }
+
+    private var inheritedAssignment: ProgressionExercise? {
+        guard let progressionExercise = progressionService.progressionExercise(for: exercise.id),
+              !progressionExercise.isExplicitOverride else {
+            return nil
+        }
+        return progressionExercise
     }
 
     private var selectedProfile: ProgressionProfile? {
@@ -159,14 +178,20 @@ struct ExerciseProgressionSheetView: View {
 
             if currentAssignment != nil {
                 Section {
-                    Button("Remove Progression", role: .destructive) {
+                    Button("Remove Override", role: .destructive) {
                         progressionService.removeProgression(from: exercise)
                         dismiss()
                     }
                 }
+            } else if let inheritedAssignment {
+                Section("Automatic Source") {
+                    Text("\(inheritedAssignment.assignmentSource.title) is currently handling this exercise. Saving here will turn this into an exercise-only override.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
-        .navigationTitle("Exercise Progression")
+        .navigationTitle("Exercise Override")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
@@ -213,6 +238,16 @@ struct ExerciseProgressionSheetView: View {
             targetReps = currentAssignment.targetReps ?? 10
             targetRepsLow = currentAssignment.targetRepsLow ?? currentAssignment.targetReps ?? 8
             targetRepsHigh = currentAssignment.targetRepsHigh ?? max(targetRepsLow, 10)
+            return
+        }
+
+        if let inheritedAssignment {
+            ignoreNextProfileSelectionChange = true
+            selectedProfileId = inheritedAssignment.progressionProfileId
+            targetSets = max(inheritedAssignment.targetSetCount, 1)
+            targetReps = inheritedAssignment.targetReps ?? 10
+            targetRepsLow = inheritedAssignment.targetRepsLow ?? inheritedAssignment.targetReps ?? 8
+            targetRepsHigh = inheritedAssignment.targetRepsHigh ?? max(targetRepsLow, 10)
             return
         }
 

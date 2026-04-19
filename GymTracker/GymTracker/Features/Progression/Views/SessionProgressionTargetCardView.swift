@@ -20,6 +20,13 @@ struct SessionProgressionTargetCardView: View {
         let repsHigh: Int?
     }
 
+    private enum TargetStatus {
+        case pending
+        case under
+        case onTarget
+        case over
+    }
+
     let sessionEntry: SessionEntry
     let onAutofill: () -> Void
     let showsUseGoalButton: Bool
@@ -84,22 +91,18 @@ struct SessionProgressionTargetCardView: View {
             .filter { SetDisplayFormatter.isMeaningfulSet($0, exerciseKind: exerciseKind) }
     }
 
-    private var targetCompletionStates: [Bool] {
+    private var targetStatuses: [TargetStatus] {
         targetChecklistRows.map { target in
-            guard targetMeaningfulSets.indices.contains(target.order) else { return false }
+            guard targetMeaningfulSets.indices.contains(target.order) else { return .pending }
             let candidateSet = targetMeaningfulSets[target.order]
-            return set(candidateSet, matches: target)
-        }
-    }
-
-    private var targetAttemptedStates: [Bool] {
-        targetChecklistRows.map { target in
-            targetMeaningfulSets.indices.contains(target.order)
+            return status(for: candidateSet, target: target)
         }
     }
 
     private var nextSuggestedTargetIndex: Int? {
-        targetCompletionStates.firstIndex(of: false)
+        targetStatuses.firstIndex { status in
+            status == .pending || status == .under
+        }
     }
 
     var body: some View {
@@ -145,14 +148,15 @@ struct SessionProgressionTargetCardView: View {
     }
 
     private func checklistRow(_ row: TargetChecklistRow) -> some View {
-        let isCompleted = targetCompletionStates.indices.contains(row.order) ? targetCompletionStates[row.order] : false
-        let isAttempted = targetAttemptedStates.indices.contains(row.order) ? targetAttemptedStates[row.order] : false
-        let isMissed = isAttempted && !isCompleted
+        let status = targetStatuses.indices.contains(row.order) ? targetStatuses[row.order] : .pending
+        let isCompleted = status == .onTarget || status == .over
+        let isMissed = status == .under
+        let isOver = status == .over
         let isSuggested = nextSuggestedTargetIndex == row.order
 
         return HStack(spacing: 12) {
             Image(systemName: isCompleted ? "checkmark.square.fill" : "square")
-                .foregroundStyle(isCompleted ? Color.green : (isMissed ? Color.orange : Color.secondary))
+                .foregroundStyle(statusColor(for: status))
 
             setBadge(text: "\(row.order + 1)")
 
@@ -166,14 +170,18 @@ struct SessionProgressionTargetCardView: View {
                     Text("Missed target on this set")
                         .font(.caption2)
                         .foregroundStyle(.orange)
+                } else if isOver {
+                    Text("Above target on this set")
+                        .font(.caption2)
+                        .foregroundStyle(.blue)
                 } else if isSuggested && !isCompleted {
                     Text("Next target")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 } else if isCompleted {
-                    Text("Completed")
+                    Text(status == .onTarget ? "On target" : "Above target")
                         .font(.caption2)
-                        .foregroundStyle(.green)
+                        .foregroundStyle(statusColor(for: status))
                 }
             }
 
@@ -187,44 +195,32 @@ struct SessionProgressionTargetCardView: View {
                 .stroke(
                     isMissed
                         ? Color.orange.opacity(0.45)
-                        : (isSuggested && !isCompleted ? Color.green.opacity(0.35) : Color.clear),
+                        : (isOver
+                            ? Color.blue.opacity(0.4)
+                            : (isSuggested && !isCompleted ? Color.green.opacity(0.35) : Color.clear)),
                     lineWidth: 1
                 )
         )
     }
 
-    private func set(_ sessionSet: SessionSet, matches target: TargetChecklistRow) -> Bool {
-        guard let rep = firstMeaningfulRep(in: sessionSet) else { return false }
+    private func status(for sessionSet: SessionSet, target: TargetChecklistRow) -> TargetStatus {
+        guard let rep = firstMeaningfulRep(in: sessionSet) else { return .pending }
 
-        let repsMatch: Bool
-        if let exact = target.repsTarget {
-            repsMatch = rep.count == exact
-        } else if let low = target.repsLow, let high = target.repsHigh {
-            repsMatch = rep.count >= low && rep.count <= high
-        } else if let high = target.repsHigh {
-            repsMatch = rep.count == high
-        } else if let low = target.repsLow {
-            repsMatch = rep.count == low
-        } else {
-            repsMatch = true
+        let comparisons = [
+            repsStatus(for: rep.count, target: target),
+            weightStatus(for: rep, target: target)
+        ].compactMap { $0 }
+
+        if comparisons.contains(.under) {
+            return .under
         }
-
-        let weightMatch: Bool
-        if let exact = target.weight {
-            let comparisonWeight = convert(rep.weight, from: rep.weightUnit, to: targetUnit ?? rep.weightUnit)
-            let targetWeight = convert(exact, from: targetUnit ?? rep.weightUnit, to: targetUnit ?? rep.weightUnit)
-            weightMatch = abs(comparisonWeight - targetWeight) < 0.05
-        } else if let low = target.weightLow, let high = target.weightHigh {
-            let comparisonUnit = targetUnit ?? rep.weightUnit
-            let comparisonWeight = convert(rep.weight, from: rep.weightUnit, to: comparisonUnit)
-            let lowerBound = min(low, high)
-            let upperBound = max(low, high)
-            weightMatch = comparisonWeight >= lowerBound - 0.05 && comparisonWeight <= upperBound + 0.05
-        } else {
-            weightMatch = true
+        if comparisons.contains(.over) {
+            return .over
         }
-
-        return repsMatch && weightMatch
+        if comparisons.contains(.onTarget) {
+            return .onTarget
+        }
+        return .pending
     }
 
     private func firstMeaningfulRep(in sessionSet: SessionSet) -> SessionRep? {
@@ -257,6 +253,68 @@ struct SessionProgressionTargetCardView: View {
 
     private func convert(_ weight: Double, from source: WeightUnit, to target: WeightUnit) -> Double {
         weight * source.conversion(to: target)
+    }
+
+    private func repsStatus(for reps: Int, target: TargetChecklistRow) -> TargetStatus? {
+        if let exact = target.repsTarget {
+            if reps < exact { return .under }
+            if reps > exact { return .over }
+            return .onTarget
+        }
+
+        if let low = target.repsLow, let high = target.repsHigh {
+            if reps < low { return .under }
+            if reps > high { return .over }
+            return .onTarget
+        }
+
+        if let high = target.repsHigh {
+            if reps < high { return .under }
+            if reps > high { return .over }
+            return .onTarget
+        }
+
+        if let low = target.repsLow {
+            if reps < low { return .under }
+            if reps > low { return .over }
+            return .onTarget
+        }
+
+        return nil
+    }
+
+    private func weightStatus(for rep: SessionRep, target: TargetChecklistRow) -> TargetStatus? {
+        let comparisonUnit = targetUnit ?? rep.weightUnit
+        let comparisonWeight = convert(rep.weight, from: rep.weightUnit, to: comparisonUnit)
+
+        if let exact = target.weight {
+            if comparisonWeight < exact - 0.05 { return .under }
+            if comparisonWeight > exact + 0.05 { return .over }
+            return .onTarget
+        }
+
+        if let low = target.weightLow, let high = target.weightHigh {
+            let lowerBound = min(low, high)
+            let upperBound = max(low, high)
+            if comparisonWeight < lowerBound - 0.05 { return .under }
+            if comparisonWeight > upperBound + 0.05 { return .over }
+            return .onTarget
+        }
+
+        return nil
+    }
+
+    private func statusColor(for status: TargetStatus) -> Color {
+        switch status {
+        case .pending:
+            return .secondary
+        case .under:
+            return .orange
+        case .onTarget:
+            return .green
+        case .over:
+            return .blue
+        }
     }
 
     @ViewBuilder

@@ -38,6 +38,11 @@ private struct ProgressionWeightRecommendation {
     )
 }
 
+private struct ResolvedProgressionAssignment {
+    let profile: ProgressionProfile
+    let source: ProgressionAssignmentSource
+}
+
 final class ProgressionService: ServiceBase, ObservableObject {
     @Published var profiles: [ProgressionProfile] = []
     @Published var archivedProfiles: [ProgressionProfile] = []
@@ -45,15 +50,18 @@ final class ProgressionService: ServiceBase, ObservableObject {
 
     private let repository: ProgressionRepositoryProtocol
     private let historyRepository: SessionRepositoryProtocol
+    private let userRepository: UserRepositoryProtocol
     private var hasSeededBuiltIns = false
 
     init(
         context: ModelContext,
         repository: ProgressionRepositoryProtocol? = nil,
-        historyRepository: SessionRepositoryProtocol? = nil
+        historyRepository: SessionRepositoryProtocol? = nil,
+        userRepository: UserRepositoryProtocol? = nil
     ) {
         self.repository = repository ?? LocalProgressionRepository(modelContext: context)
         self.historyRepository = historyRepository ?? LocalSessionRepository(modelContext: context)
+        self.userRepository = userRepository ?? LocalUserRepository(modelContext: context)
         super.init(context: context)
     }
 
@@ -186,14 +194,42 @@ final class ProgressionService: ServiceBase, ObservableObject {
         progressionExercises.first(where: { $0.exerciseId == exerciseId })
     }
 
+    func exerciseOverride(for exerciseId: UUID) -> ProgressionExercise? {
+        progressionExercises.first(where: { $0.exerciseId == exerciseId && $0.isExplicitOverride })
+    }
+
+    var globalProgressionEnabled: Bool {
+        currentUser?.globalProgressionEnabled ?? false
+    }
+
+    var globalDefaultProfileId: UUID? {
+        currentUser?.defaultProgressionProfileId
+    }
+
     func profile(for progressionExercise: ProgressionExercise) -> ProgressionProfile? {
         profile(id: progressionExercise.progressionProfileId)
+    }
+
+    func saveGlobalDefaults(enabled: Bool, defaultProfileId: UUID?) {
+        guard let currentUser else { return }
+
+        objectWillChange.send()
+        currentUser.globalProgressionEnabled = enabled
+        currentUser.defaultProgressionProfileId = defaultProfileId
+        currentUser.updatedAt = Date()
+
+        do {
+            try userRepository.saveChanges(for: currentUser)
+        } catch {
+            print("Failed to save global progression defaults: \(error)")
+        }
     }
 
     @discardableResult
     func assignProgression(
         to exercise: Exercise,
         profile: ProgressionProfile?,
+        assignmentSource: ProgressionAssignmentSource = .exerciseOverride,
         targetSets: Int? = nil,
         targetReps: Int? = nil,
         targetRepsLow: Int? = nil,
@@ -219,6 +255,7 @@ final class ProgressionService: ServiceBase, ObservableObject {
                 existing.progressionNameSnapshot = profile?.name
                 existing.progressionMiniDescriptionSnapshot = profile?.miniDescription
                 existing.progressionType = profile?.type
+                existing.assignmentSource = assignmentSource
                 existing.targetSetCount = resolvedSetCount
                 existing.targetReps = resolvedTarget
                 existing.targetRepsLow = resolvedLow
@@ -233,6 +270,7 @@ final class ProgressionService: ServiceBase, ObservableObject {
                     userId: userId,
                     exercise: exercise,
                     profile: profile,
+                    assignmentSource: assignmentSource,
                     targetSetCount: resolvedSetCount,
                     targetReps: resolvedTarget,
                     targetRepsLow: resolvedLow,
@@ -253,7 +291,8 @@ final class ProgressionService: ServiceBase, ObservableObject {
         guard let userId = currentUser?.id else { return }
 
         do {
-            if let progressionExercise = try repository.fetchProgressionExercise(for: userId, exerciseId: exercise.id) {
+            if let progressionExercise = try repository.fetchProgressionExercise(for: userId, exerciseId: exercise.id),
+               progressionExercise.isExplicitOverride {
                 try repository.delete(progressionExercise)
                 loadProgressionExercises()
             }
@@ -303,7 +342,11 @@ final class ProgressionService: ServiceBase, ObservableObject {
         var didChange = false
 
         for sessionEntry in session.sessionEntries {
-            guard let progressionExercise = progressionExercise(for: sessionEntry.exercise.id) else { continue }
+            guard sessionEntry.hasProgressionSnapshot else { continue }
+            guard let progressionExercise = ensuredProgressionExercise(for: sessionEntry) ??
+                progressionExercise(for: sessionEntry.exercise.id) else {
+                continue
+            }
             guard progressionExercise.lastEvaluatedSessionId != session.id else { continue }
 
             let profile = profile(for: progressionExercise)
@@ -338,14 +381,24 @@ final class ProgressionService: ServiceBase, ObservableObject {
     }
 
     private func ensuredProgressionExercise(for sessionEntry: SessionEntry) -> ProgressionExercise? {
-        if let existing = progressionExercise(for: sessionEntry.exercise.id) {
-            return existing
+        if let explicitOverride = exerciseOverride(for: sessionEntry.exercise.id) {
+            return explicitOverride
         }
 
-        guard let defaultProfile = defaultProfile(for: sessionEntry) else { return nil }
+        guard let resolvedAssignment = defaultAssignment(for: sessionEntry) else { return nil }
+
+        if let existing = progressionExercise(for: sessionEntry.exercise.id) {
+            return syncInheritedProgressionExercise(
+                existing,
+                exercise: sessionEntry.exercise,
+                resolvedAssignment: resolvedAssignment
+            )
+        }
+
         return assignProgression(
             to: sessionEntry.exercise,
-            profile: defaultProfile,
+            profile: resolvedAssignment.profile,
+            assignmentSource: resolvedAssignment.source,
             targetSets: nil,
             targetReps: nil,
             targetRepsLow: nil,
@@ -353,11 +406,102 @@ final class ProgressionService: ServiceBase, ObservableObject {
         )
     }
 
-    private func defaultProfile(for sessionEntry: SessionEntry) -> ProgressionProfile? {
-        if let programProfile = profile(id: sessionEntry.session.program?.defaultProgressionProfileId) {
-            return programProfile
+    private func defaultAssignment(for sessionEntry: SessionEntry) -> ResolvedProgressionAssignment? {
+        if let program = sessionEntry.session.program {
+            if let programProfile = profile(id: program.defaultProgressionProfileId) {
+                return ResolvedProgressionAssignment(
+                    profile: programProfile,
+                    source: .programDefault
+                )
+            }
+            return fallbackUserAssignment()
         }
-        return profile(id: sessionEntry.session.routine?.defaultProgressionProfileId)
+
+        if let routine = sessionEntry.session.routine {
+            if let routineProfile = profile(id: routine.defaultProgressionProfileId) {
+                return ResolvedProgressionAssignment(
+                    profile: routineProfile,
+                    source: .routineDefault
+                )
+            }
+            return fallbackUserAssignment()
+        }
+
+        return fallbackUserAssignment()
+    }
+
+    private func fallbackUserAssignment() -> ResolvedProgressionAssignment? {
+        guard globalProgressionEnabled,
+              let userProfile = profile(id: globalDefaultProfileId) else {
+            return nil
+        }
+
+        return ResolvedProgressionAssignment(
+            profile: userProfile,
+            source: .userDefault
+        )
+    }
+
+    private func syncInheritedProgressionExercise(
+        _ progressionExercise: ProgressionExercise,
+        exercise: Exercise,
+        resolvedAssignment: ResolvedProgressionAssignment
+    ) -> ProgressionExercise {
+        guard !progressionExercise.isExplicitOverride else { return progressionExercise }
+
+        let profile = resolvedAssignment.profile
+        let profileChanged = progressionExercise.progressionProfileId != profile.id
+        var didChange = false
+
+        progressionExercise.exerciseNameSnapshot = exercise.name
+
+        if progressionExercise.assignmentSource != resolvedAssignment.source {
+            progressionExercise.assignmentSource = resolvedAssignment.source
+            didChange = true
+        }
+
+        if profileChanged {
+            progressionExercise.progressionProfileId = profile.id
+            progressionExercise.progressionNameSnapshot = profile.name
+            progressionExercise.progressionMiniDescriptionSnapshot = profile.miniDescription
+            progressionExercise.progressionType = profile.type
+            progressionExercise.targetSetCount = max(profile.defaultSetsTarget, 1)
+            progressionExercise.targetRepsLow = profile.defaultRepsLow
+            progressionExercise.targetRepsHigh = profile.defaultRepsHigh
+            progressionExercise.targetReps = resolvedTargetReps(
+                explicitTarget: profile.defaultRepsTarget,
+                fallbackLow: profile.defaultRepsLow,
+                fallbackHigh: profile.defaultRepsHigh,
+                profile: profile
+            )
+            progressionExercise.workingWeight = nil
+            progressionExercise.suggestedWeightLow = nil
+            progressionExercise.suggestedWeightHigh = nil
+            progressionExercise.lastCompletedCycleWeight = nil
+            progressionExercise.lastCompletedCycleReps = nil
+            progressionExercise.lastCompletedCycleUnit = nil
+            progressionExercise.successCount = 0
+            progressionExercise.hasBackfilled = false
+            progressionExercise.backfilledAt = nil
+            progressionExercise.lastEvaluatedSessionId = nil
+            progressionExercise.workingWeightUnit = profile.incrementUnit
+            didChange = true
+        }
+
+        if didChange {
+            do {
+                try repository.saveChanges(for: progressionExercise)
+            } catch {
+                print("Failed to sync inherited progression exercise: \(error)")
+            }
+        }
+
+        backfillIfNeeded(for: progressionExercise, exercise: exercise)
+        if didChange {
+            loadProgressionExercises()
+        }
+
+        return progressionExercise
     }
 
     private func backfillIfNeeded(for progressionExercise: ProgressionExercise, exercise: Exercise) {

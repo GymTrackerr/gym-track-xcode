@@ -14,17 +14,14 @@ struct ProgramDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     let program: Program
-    let opensAddWorkoutOnAppear: Bool
 
     @State private var showingManageProgram = false
     @State private var showingAddBlock = false
     @State private var blockForNewWorkout: ProgramBlock?
     @State private var openedSession: Session?
-    @State private var didHandleInitialAddWorkout = false
 
-    init(program: Program, opensAddWorkoutOnAppear: Bool = false) {
+    init(program: Program) {
         self.program = program
-        self.opensAddWorkoutOnAppear = opensAddWorkoutOnAppear
     }
 
     private var resolvedState: ProgramResolvedState {
@@ -72,7 +69,13 @@ struct ProgramDetailView: View {
                 .appBackground()
         }
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    showingManageProgram = true
+                } label: {
+                    Label("Edit", systemImage: "slider.horizontal.3")
+                }
+
                 if isDirectWorkoutMode {
                     Button {
                         blockForNewWorkout = directWorkoutBlock
@@ -107,9 +110,6 @@ struct ProgramDetailView: View {
             NavigationStack {
                 ProgramWorkoutEditorSheet(block: block)
             }
-        }
-        .onAppear {
-            handleInitialAddWorkoutIfNeeded()
         }
     }
 
@@ -154,24 +154,14 @@ struct ProgramDetailView: View {
             detailRow(title: "Progression", value: defaultProgressionName)
             detailRow(title: "Next Workout", value: resolvedState.nextWorkoutLabel)
 
-            HStack(spacing: 10) {
-                Button {
-                    showingManageProgram = true
-                } label: {
-                    Label("Edit", systemImage: "slider.horizontal.3")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-
-                Button {
-                    openPrimaryWorkout()
-                } label: {
-                    Label(resolvedState.actionTitle, systemImage: resolvedState.activeSession == nil ? "play.fill" : "arrow.clockwise")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(!canLaunchPrimaryWorkout)
+            Button {
+                openPrimaryWorkout()
+            } label: {
+                Label(resolvedState.actionTitle, systemImage: resolvedState.activeSession == nil ? "play.fill" : "arrow.clockwise")
+                    .frame(maxWidth: .infinity)
             }
+            .buttonStyle(.borderedProminent)
+            .disabled(!canLaunchPrimaryWorkout)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -346,13 +336,6 @@ struct ProgramDetailView: View {
         }
     }
 
-    private func handleInitialAddWorkoutIfNeeded() {
-        guard opensAddWorkoutOnAppear, !didHandleInitialAddWorkout else { return }
-        didHandleInitialAddWorkout = true
-
-        guard isDirectWorkoutMode, let directWorkoutBlock else { return }
-        blockForNewWorkout = directWorkoutBlock
-    }
 }
 
 private struct ProgramBlockSummaryCard: View {
@@ -669,6 +652,10 @@ private struct ProgramManagementSheet: View {
         }
     }
 
+    private var deletesAsArchive: Bool {
+        programService.willArchiveOnDelete(program)
+    }
+
     var body: some View {
         List {
             actionsSection
@@ -707,8 +694,8 @@ private struct ProgramManagementSheet: View {
                 ProgramWorkoutEditorSheet(block: block)
             }
         }
-        .confirmationDialog("Delete Program?", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
-            Button("Delete Program", role: .destructive) {
+        .confirmationDialog(deletesAsArchive ? "Archive Program?" : "Delete Program?", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
+            Button(deletesAsArchive ? "Archive Program" : "Delete Program", role: .destructive) {
                 programService.delete(program)
                 dismiss()
                 DispatchQueue.main.async {
@@ -717,7 +704,11 @@ private struct ProgramManagementSheet: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This will remove the program and its blocks from the active list.")
+            Text(
+                deletesAsArchive
+                    ? "This program already has session history, so it will be archived instead of permanently deleted."
+                    : "This will permanently delete the program because it has not been used yet."
+            )
         }
     }
 
@@ -746,7 +737,7 @@ private struct ProgramManagementSheet: View {
             Button(role: .destructive) {
                 showingDeleteConfirmation = true
             } label: {
-                Label("Delete Program", systemImage: "trash")
+                Label(deletesAsArchive ? "Archive Program" : "Delete Program", systemImage: "trash")
             }
         }
     }
@@ -1020,7 +1011,7 @@ struct ProgramEditorSheet: View {
             }
 
             Section("Structure") {
-                Text("New programs start as a continuous workout rotation. Add workouts directly after saving, or switch the program into blocks later when you want phases.")
+                Text("New programs start as a continuous workout rotation. You can keep that simple setup or switch into blocks later if you want phases.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

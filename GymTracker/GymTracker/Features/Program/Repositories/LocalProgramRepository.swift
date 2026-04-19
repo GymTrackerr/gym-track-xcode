@@ -83,8 +83,19 @@ final class LocalProgramRepository: ProgramRepositoryProtocol {
         try modelContext.save()
     }
 
+    func willArchiveOnDelete(_ program: Program) -> Bool {
+        !program.sessions.isEmpty
+    }
+
     func delete(_ program: Program) throws {
-        try SyncRootMetadataManager.markSoftDeleted(program, in: modelContext)
+        if willArchiveOnDelete(program) {
+            program.isArchived = true
+            program.isActive = false
+            program.soft_deleted = false
+            try SyncRootMetadataManager.markUpdated(program, in: modelContext)
+        } else {
+            modelContext.delete(program)
+        }
         try modelContext.save()
     }
 

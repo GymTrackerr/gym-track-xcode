@@ -10,7 +10,6 @@ import SwiftUI
 struct ProgramsRootView: View {
     private struct OpenedProgramTarget: Identifiable, Hashable {
         let programId: UUID
-        let opensAddWorkoutOnAppear: Bool
 
         var id: UUID { programId }
     }
@@ -39,10 +38,7 @@ struct ProgramsRootView: View {
         .navigationDestination(item: $openedProgramTarget) { target in
             if let program = programService.programs.first(where: { $0.id == target.programId }) ??
                 programService.archivedPrograms.first(where: { $0.id == target.programId }) {
-                ProgramDetailView(
-                    program: program,
-                    opensAddWorkoutOnAppear: target.opensAddWorkoutOnAppear
-                )
+                ProgramDetailView(program: program)
                 .appBackground()
             } else {
                 EmptyView()
@@ -70,10 +66,7 @@ struct ProgramsRootView: View {
             NavigationStack {
                 ProgramEditorSheet(program: nil) { program in
                     DispatchQueue.main.async {
-                        openedProgramTarget = OpenedProgramTarget(
-                            programId: program.id,
-                            opensAddWorkoutOnAppear: true
-                        )
+                        openedProgramTarget = OpenedProgramTarget(programId: program.id)
                     }
                 }
             }

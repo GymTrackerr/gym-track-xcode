@@ -27,6 +27,28 @@ enum ProgressionType: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+enum ProgressionAssignmentSource: String, Codable, CaseIterable, Identifiable {
+    case exerciseOverride
+    case programDefault
+    case routineDefault
+    case userDefault
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .exerciseOverride:
+            return "Exercise Override"
+        case .programDefault:
+            return "Program Default"
+        case .routineDefault:
+            return "Routine Default"
+        case .userDefault:
+            return "Global Default"
+        }
+    }
+}
+
 @Model
 final class ProgressionProfile {
     var id: UUID = UUID()
@@ -124,6 +146,7 @@ final class ProgressionExercise {
     var progressionNameSnapshot: String?
     var progressionMiniDescriptionSnapshot: String?
     var progressionTypeRaw: String?
+    var assignmentSourceRaw: String?
     var targetSetCount: Int
     var targetReps: Int?
     var targetRepsLow: Int?
@@ -163,6 +186,7 @@ final class ProgressionExercise {
         self.progressionNameSnapshot = profile?.name
         self.progressionMiniDescriptionSnapshot = profile?.miniDescription
         self.progressionTypeRaw = profile?.type.rawValue
+        self.assignmentSourceRaw = ProgressionAssignmentSource.exerciseOverride.rawValue
         self.targetSetCount = max(targetSetCount, 1)
         self.targetReps = targetReps
         self.targetRepsLow = targetRepsLow
@@ -184,6 +208,21 @@ final class ProgressionExercise {
             return ProgressionType(rawValue: progressionTypeRaw)
         }
         set { progressionTypeRaw = newValue?.rawValue }
+    }
+
+    var assignmentSource: ProgressionAssignmentSource {
+        get {
+            guard let assignmentSourceRaw,
+                  let source = ProgressionAssignmentSource(rawValue: assignmentSourceRaw) else {
+                return .exerciseOverride
+            }
+            return source
+        }
+        set { assignmentSourceRaw = newValue.rawValue }
+    }
+
+    var isExplicitOverride: Bool {
+        assignmentSource == .exerciseOverride
     }
 
     var lastCompletedCycleUnit: WeightUnit? {

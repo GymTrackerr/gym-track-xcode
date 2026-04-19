@@ -123,6 +123,10 @@ final class ProgramService: ServiceBase, ObservableObject {
         }
     }
 
+    func willArchiveOnDelete(_ program: Program) -> Bool {
+        repository.willArchiveOnDelete(program)
+    }
+
     func delete(_ program: Program) {
         do {
             try repository.delete(program)

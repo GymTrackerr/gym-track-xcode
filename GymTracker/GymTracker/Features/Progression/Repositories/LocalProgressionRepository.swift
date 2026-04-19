@@ -217,6 +217,7 @@ final class LocalProgressionRepository: ProgressionRepositoryProtocol {
         userId: UUID,
         exercise: Exercise,
         profile: ProgressionProfile?,
+        assignmentSource: ProgressionAssignmentSource,
         targetSetCount: Int,
         targetReps: Int?,
         targetRepsLow: Int?,
@@ -232,6 +233,7 @@ final class LocalProgressionRepository: ProgressionRepositoryProtocol {
             targetRepsLow: targetRepsLow,
             targetRepsHigh: targetRepsHigh
         )
+        progressionExercise.assignmentSource = assignmentSource
         modelContext.insert(progressionExercise)
         try SyncRootMetadataManager.markCreated(progressionExercise, in: modelContext)
         try modelContext.save()

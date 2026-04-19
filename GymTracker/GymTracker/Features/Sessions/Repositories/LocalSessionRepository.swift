@@ -383,7 +383,14 @@ final class LocalSessionRepository: SessionRepositoryProtocol {
     }
 
     private func createSessionExercises(session: Session, routine: Routine) {
-        for exerciseSplit in routine.exerciseSplits {
+        let orderedSplits = routine.exerciseSplits.sorted { lhs, rhs in
+            if lhs.order != rhs.order {
+                return lhs.order < rhs.order
+            }
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
+
+        for exerciseSplit in orderedSplits {
             let newSessionEntry = SessionEntry(
                 session: session,
                 exerciseSplitDay: exerciseSplit
