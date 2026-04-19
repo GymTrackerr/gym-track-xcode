@@ -25,6 +25,8 @@ final class DebugHarness {
         ExerciseBackupDebug.runSamples()
         HealthKitSmartPullDebug.runSamples()
         SessionExerciseTransferDebug.runSamples()
+        ProgramFeatureDebug.runSamples()
+        ProgressionFeatureDebug.runSamples()
         AuthBootstrapDebug.runSamples()
         print("=== DEBUG done ===")
     }

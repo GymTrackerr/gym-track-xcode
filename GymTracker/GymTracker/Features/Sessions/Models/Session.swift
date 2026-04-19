@@ -23,15 +23,25 @@ final class Session {
     
     var routine: Routine?
     var routine_id: UUID? { routine?.id }
+
+    var program: Program?
+    var program_id: UUID? { program?.id }
+    var programBlockId: UUID? = nil
+    var programBlockName: String? = nil
+    var programWorkoutId: UUID? = nil
+    var programWorkoutName: String? = nil
+    var programWeekIndex: Int? = nil
+    var programSplitIndex: Int? = nil
     
     @Relationship(deleteRule: .cascade)
     var sessionEntries: [SessionEntry]
 
-    init (timestamp: Date, user_id: UUID, routine: Routine?, notes: String) {
+    init (timestamp: Date, user_id: UUID, routine: Routine?, notes: String, program: Program? = nil) {
         self.timestamp = timestamp
         self.user_id = user_id
         self.notes = notes
         self.routine = routine
+        self.program = program
         self.timestampDone = timestamp
         self.createdAt = timestamp
         self.updatedAt = timestamp

@@ -61,7 +61,8 @@ struct ContentView: View {
 
             Tab("Programme", systemImage: "figure.walk.motion", value: 4) {
                 NavigationStack {
-                    SplitDaysView()
+                    ProgramsRootView()
+                        .appBackground()
                 }
             }
             /*

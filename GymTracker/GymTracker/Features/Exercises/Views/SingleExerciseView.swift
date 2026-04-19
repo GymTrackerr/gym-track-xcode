@@ -174,6 +174,7 @@ private struct ExerciseDetailView: View {
     @EnvironmentObject var exerciseService: ExerciseService
     @EnvironmentObject var sessionService: SessionService
     @EnvironmentObject var seService: SessionExerciseService
+    @EnvironmentObject var progressionService: ProgressionService
 
     private static let shortDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -228,6 +229,7 @@ private struct ExerciseDetailView: View {
     @State private var showingLogExerciseSheet = false
     @State private var showingAddRoutineSheet = false
     @State private var showingTransferExerciseSheet = false
+    @State private var showingProgressionSheet = false
     @State private var exerciseAliasDraft = ""
     @State private var isEditingAliases = false
     @State private var aliasError: String? = nil
@@ -247,6 +249,15 @@ private struct ExerciseDetailView: View {
     private var liveExercise: Exercise? {
         exerciseService.exercises.first(where: { $0.id == exerciseId }) ??
         exerciseService.archivedExercises.first(where: { $0.id == exerciseId })
+    }
+
+    private var progressionExercise: ProgressionExercise? {
+        progressionService.progressionExercise(for: exerciseId)
+    }
+
+    private var progressionProfile: ProgressionProfile? {
+        guard let progressionExercise else { return nil }
+        return progressionService.profile(for: progressionExercise)
     }
 
 
@@ -378,6 +389,15 @@ private struct ExerciseDetailView: View {
                     .cornerRadius(12)
                     .padding(.horizontal)
                 }
+
+                ExerciseProgressionCardView(
+                    progressionExercise: progressionExercise,
+                    profile: progressionProfile,
+                    onEdit: {
+                        showingProgressionSheet = true
+                    }
+                )
+                .padding(.horizontal)
                 
                 DisclosureGroup(isExpanded: $showProgress) {
                     VStack(alignment: .leading, spacing: 10) {
@@ -740,8 +760,20 @@ private struct ExerciseDetailView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $showingProgressionSheet) {
+            if let liveExercise {
+                NavigationStack {
+                    ExerciseProgressionSheetView(exercise: liveExercise)
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
+        }
         .onAppear {
             sessionService.loadSessions()
+            progressionService.ensureBuiltInProfiles()
+            progressionService.loadProfiles()
+            progressionService.loadProgressionExercises()
             refreshDerivedData()
             if selectedDisplayUnit == nil {
                 selectedDisplayUnit = dominantUnit
@@ -755,6 +787,9 @@ private struct ExerciseDetailView: View {
         }
         .onReceive(sessionService.$sessions) { _ in
             refreshDerivedData()
+        }
+        .onReceive(progressionService.$progressionExercises) { _ in
+            refreshSnapshotIfNeeded()
         }
         .onChange(of: selectedTab) { _, _ in
             refreshDerivedData()

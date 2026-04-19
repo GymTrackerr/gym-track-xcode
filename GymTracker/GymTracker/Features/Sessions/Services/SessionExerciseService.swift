@@ -15,6 +15,7 @@ class SessionExerciseService: ServiceBase, ObservableObject {
     @Published var addingExercises: [Exercise] = []
     @Published var removingExercises: [SessionEntry] = []
     private let repository: SessionRepositoryProtocol
+    var progressionService: ProgressionService?
 
     init(context: ModelContext, repository: SessionRepositoryProtocol? = nil) {
         self.repository = repository ?? LocalSessionRepository(modelContext: context)
@@ -89,10 +90,19 @@ class SessionExerciseService: ServiceBase, ObservableObject {
         }
     }
     
-    func addExercise(session: Session, exercise: Exercise)  {
+    @discardableResult
+    func addExercise(session: Session, exercise: Exercise) -> SessionEntry? {
+        var sessionEntry: SessionEntry?
         withAnimation {
-            _ = try? repository.addExercise(to: session, exercise: exercise)
+            sessionEntry = try? repository.addExercise(to: session, exercise: exercise)
+            if let sessionEntry {
+                let didMutate = progressionService?.applySnapshot(to: sessionEntry) ?? false
+                if didMutate {
+                    try? repository.saveChanges(for: session)
+                }
+            }
         }
+        return sessionEntry
     }
     
     func removeExercise(session: Session, sessionEntry: SessionEntry) {

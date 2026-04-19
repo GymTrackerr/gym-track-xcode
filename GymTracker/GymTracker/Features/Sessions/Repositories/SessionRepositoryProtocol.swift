@@ -11,6 +11,15 @@ protocol SessionRepositoryProtocol {
     func fetchSessions(for userId: UUID?) throws -> [Session]
     func fetchSessions(in interval: DateInterval?, for userId: UUID?) throws -> [Session]
     func createSession(userId: UUID, routine: Routine?, notes: String) throws -> Session
+    func createProgramSession(
+        userId: UUID,
+        program: Program,
+        programBlock: ProgramBlock,
+        programWorkout: ProgramWorkout,
+        notes: String,
+        programWeekIndex: Int?,
+        programSplitIndex: Int?
+    ) throws -> Session
     func updateRoutine(for session: Session, routine: Routine?) throws
     func deleteSession(_ session: Session) throws
     func deleteSessions(_ sessions: [Session]) throws

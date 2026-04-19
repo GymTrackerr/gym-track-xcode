@@ -82,6 +82,12 @@ struct SessionExerciseView: View {
                     }
                 }
 
+                if sessionEntry.hasProgressionSnapshot && !sessionEntry.exercise.cardio && !navigationContext.isFromExerciseHistory {
+                    sectionCard {
+                        progressionTargetCard
+                    }
+                }
+
                 if isEditingSets {
                     sectionCard {
                         editingSetsView
@@ -247,6 +253,14 @@ struct SessionExerciseView: View {
             }
         }
         .buttonStyle(.plain)
+    }
+
+    private var progressionTargetCard: some View {
+        SessionProgressionTargetCardView(
+            sessionEntry: sessionEntry,
+            previousResultText: previousProgressionResultText,
+            onAutofill: applyProgressionTargetToDraft
+        )
     }
 
     private var addSetForm: some View {
@@ -479,6 +493,14 @@ struct SessionExerciseView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 10))
             }
         }
+    }
+
+    private var previousProgressionResultText: String? {
+        guard let rep = setService.mostRecentRep(for: sessionEntry.exercise) else { return nil }
+        if let weightText = ProgressionDisplayFormatter.weightSummary(weight: rep.weight, unit: rep.weightUnit) {
+            return "\(weightText) x \(rep.count)"
+        }
+        return "\(rep.count) reps"
     }
 
     private var lockedEditingNotice: some View {
@@ -1217,6 +1239,30 @@ struct SessionExerciseView: View {
         }
     }
 
+    private func applyProgressionTargetToDraft() {
+        guard !sessionEntry.exercise.cardio else { return }
+
+        let targetUnit = sessionEntry.appliedTargetWeightUnit ?? draftUnit
+        let targetWeight = sessionEntry.appliedTargetWeight ?? draftReps.first?.weight ?? 0
+        let targetReps = sessionEntry.appliedTargetReps ??
+            sessionEntry.appliedTargetRepsLow ??
+            sessionEntry.appliedTargetRepsHigh ??
+            draftReps.first?.reps ??
+            0
+
+        if isDropSetEnabled {
+            draftStore.updateDraft(for: sessionExerciseId) { draft in
+                draft.isDropSetEnabled = false
+                draft.dropSetInlineHint = nil
+            }
+        }
+
+        draftUnit = targetUnit
+        draftReps = [RepDraft(weight: targetWeight, reps: targetReps, unit: targetUnit)]
+        persistRepSnapshotsToDraftState()
+        dismissKeyboard()
+    }
+
     private func intTextBinding(
         for sessionSet: SessionSet,
         keyPath: ReferenceWritableKeyPath<SessionSet, Int?>
@@ -1547,7 +1593,7 @@ private struct DurationWheelPicker: View {
     }
 }
 
-private extension View {
+extension View {
     func screenContentPadding() -> some View {
         self
             .padding(.horizontal)
