@@ -40,7 +40,7 @@ enum ProgressionAssignmentSource: String, Codable, CaseIterable, Identifiable {
         case .exerciseOverride:
             return "Exercise Override"
         case .programDefault:
-            return "Program Default"
+            return "Programme Default"
         case .routineDefault:
             return "Routine Default"
         case .userDefault:

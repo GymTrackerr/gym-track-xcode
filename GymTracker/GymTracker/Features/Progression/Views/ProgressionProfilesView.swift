@@ -28,7 +28,7 @@ struct ProgressionProfilesView: View {
             VStack(alignment: .leading, spacing: 18) {
                 sectionHeader(
                     title: "Automatic Progression",
-                    subtitle: "Enable this if you want every routine-less exercise to fall back to one default profile when no exercise, routine, or program override is set."
+                    subtitle: "Enable this if you want every routine-less exercise to fall back to one default profile when no exercise, routine, or programme override is set."
                 )
 
                 VStack(alignment: .leading, spacing: 12) {
@@ -42,7 +42,7 @@ struct ProgressionProfilesView: View {
                     }
                     .disabled(!globalProgressionEnabled)
 
-                    Text("Session source still wins first: exercise override, then program default, then routine default, and this global default fills the gaps.")
+                    Text("Session source still wins first: exercise override, then programme default, then routine default, and this global default fills the gaps.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

@@ -1228,7 +1228,7 @@ struct ProgramModuleView: View {
                 NavigationLink(destination: SingleSessionView(session: session).appBackground()) {
                     moduleContent(
                         title: session.programWorkoutName ?? session.routine?.name ?? "Previous workout",
-                        subtitle: module.size == .small ? reviewText : (session.program?.name ?? "Program workout"),
+                        subtitle: module.size == .small ? reviewText : (session.program?.name ?? "Programme workout"),
                         detail: module.size == .medium ? reviewText : nil,
                         actionTitle: "Review Workout"
                     )
@@ -1238,17 +1238,17 @@ struct ProgramModuleView: View {
                 NavigationLink(destination: ProgramDetailView(program: program).appBackground()) {
                     moduleContent(
                         title: program.name,
-                        subtitle: state?.nextWorkoutLabel ?? "Open program",
+                        subtitle: state?.nextWorkoutLabel ?? "Open programme",
                         detail: state?.progressLabel ?? program.scheduleSummary,
-                        actionTitle: "Review Program"
+                        actionTitle: "Review Programme"
                     )
                 }
                 .buttonStyle(.plain)
             case .empty:
                 NavigationLink(destination: ProgramsRootView().appBackground()) {
                     moduleContent(
-                        title: "No active program",
-                        subtitle: "Create or activate a program",
+                        title: "No active programme",
+                        subtitle: "Create or activate a programme",
                         detail: nil,
                         actionTitle: "Open Programme"
                     )

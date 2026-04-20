@@ -55,7 +55,7 @@ enum ModuleType: String, Codable, CaseIterable {
         case .truesight: return "TrueSight"
         case .nutrition: return "Nutrition"
         case .sessionVolume: return "Session Volume"
-        case .program: return "Program"
+        case .program: return "Programme"
         }
     }
     

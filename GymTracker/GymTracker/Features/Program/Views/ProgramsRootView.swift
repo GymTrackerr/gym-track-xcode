@@ -22,6 +22,18 @@ struct ProgramsRootView: View {
     @State private var openedSession: Session?
     @State private var openedProgramTarget: OpenedProgramTarget?
 
+    private var visiblePrograms: [Program] {
+        programService.programs.sorted { lhs, rhs in
+            if lhs.isActive != rhs.isActive {
+                return lhs.isActive && !rhs.isActive
+            }
+            if lhs.timestamp != rhs.timestamp {
+                return lhs.timestamp > rhs.timestamp
+            }
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -58,7 +70,7 @@ struct ProgramsRootView: View {
                 Button {
                     showingCreateProgram = true
                 } label: {
-                    Label("Add Program", systemImage: "plus")
+                    Label("Add Programme", systemImage: "plus")
                 }
             }
         }
@@ -85,46 +97,68 @@ struct ProgramsRootView: View {
 
     private var programsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader(
-                title: "Programs",
-                subtitle: "Keep one program active, see the next workout, and jump straight into it."
-            )
+//            sectionHeader(
+//                title: "Programmes",
+//                subtitle: "Keep one programme active, see the next workout, and jump straight into it."
+//            )
 
             if programService.programs.isEmpty {
                 emptyCard(
-                    title: "No programs yet",
-                    subtitle: "Create a simple weekly or continuous program and layer it on top of your existing routines."
+                    title: "No programmes yet",
+                    subtitle: "Create a simple weekly or continuous programme and layer it on top of your existing routines."
                 )
             } else {
                 VStack(spacing: 12) {
-                    ForEach(programService.programs, id: \.id) { program in
+                    ForEach(visiblePrograms, id: \.id) { program in
                         let state = programService.resolvedState(
                             for: program,
                             sessions: sessionService.sessions
                         )
+                        let workoutCount = programService.workoutCount(for: program)
+                        let nextDueSummary = programService.nextDueSummary(
+                            for: program,
+                            sessions: sessionService.sessions
+                        )
 
-                        VStack(alignment: .leading, spacing: 12) {
+                        if program.isActive {
+                            VStack(alignment: .leading, spacing: 12) {
+                                NavigationLink {
+                                    ProgramDetailView(program: program)
+                                        .appBackground()
+                                } label: {
+                                    ActiveProgrammeCard(
+                                        program: program,
+                                        state: state,
+                                        nextDueSummary: nextDueSummary
+                                    )
+                                }
+                                .buttonStyle(.plain)
+
+                                Button {
+                                    openSession(for: program, state: state)
+                                } label: {
+                                    Label(state.actionTitle, systemImage: state.activeSession == nil ? "play.fill" : "arrow.clockwise")
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .disabled(!canLaunchWorkout(from: state))
+                            }
+                            .padding(14)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.gray.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                        } else {
                             NavigationLink {
                                 ProgramDetailView(program: program)
                                     .appBackground()
                             } label: {
-                                ProgramSummaryCard(program: program, state: state)
+                                InactiveProgrammePreviewCard(
+                                    program: program,
+                                    workoutCount: workoutCount
+                                )
                             }
                             .buttonStyle(.plain)
-
-                            Button {
-                                openSession(for: program, state: state)
-                            } label: {
-                                Label(state.actionTitle, systemImage: state.activeSession == nil ? "play.fill" : "arrow.clockwise")
-                                    .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(!canLaunchWorkout(from: state))
                         }
-                        .padding(14)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.gray.opacity(0.08))
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
                     }
                 }
             }
@@ -138,7 +172,7 @@ struct ProgramsRootView: View {
                     Text("Routines")
                         .font(.title3)
                         .fontWeight(.semibold)
-                    Text("These stay directly startable and are also the building blocks for programs.")
+                    Text("These stay directly startable and are also the building blocks for programmes.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -157,7 +191,7 @@ struct ProgramsRootView: View {
             if routineService.routines.isEmpty {
                 emptyCard(
                     title: "No routines yet",
-                    subtitle: "Create a routine first if you want to attach workouts to a program."
+                    subtitle: "Create a routine first if you want to attach workouts to a programme."
                 )
             } else {
                 VStack(spacing: 12) {
@@ -241,9 +275,10 @@ struct ProgramsRootView: View {
     }
 }
 
-private struct ProgramSummaryCard: View {
+private struct ActiveProgrammeCard: View {
     let program: Program
     let state: ProgramResolvedState
+    let nextDueSummary: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -266,16 +301,8 @@ private struct ProgramSummaryCard: View {
                 Spacer()
             }
 
-            if !program.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(program.notes)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-
-            detailRow(title: "Current Block", value: state.blockLabel)
-            detailRow(title: "Progress", value: state.progressLabel)
             detailRow(title: "Schedule", value: state.scheduleLabel)
+            detailRow(title: "Next Due", value: nextDueSummary)
             detailRow(title: "Next Workout", value: state.nextWorkoutLabel)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -294,6 +321,36 @@ private struct ProgramSummaryCard: View {
                 .foregroundStyle(.primary)
                 .multilineTextAlignment(.trailing)
         }
+    }
+}
+
+private struct InactiveProgrammePreviewCard: View {
+    let program: Program
+    let workoutCount: Int
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(program.name)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+
+                Text("\(workoutCount) workout\(workoutCount == 1 ? "" : "s")")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.gray.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 }
 

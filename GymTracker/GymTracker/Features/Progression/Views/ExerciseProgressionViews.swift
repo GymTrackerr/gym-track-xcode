@@ -26,7 +26,7 @@ struct ExerciseProgressionCardView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {
-                        Text("Set an exercise-only override. If you leave this empty, routine, program, or global defaults can still apply automatically.")
+                        Text("Set an exercise-only override. If you leave this empty, routine, programme, or global defaults can still apply automatically.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -92,7 +92,7 @@ struct ExerciseProgressionCardView: View {
                     value: inheritedProgressionExercise.assignmentSource.title
                 )
             } else {
-                Text("No exercise override yet. Routine, program, or global defaults can still apply automatically when you start logging.")
+                Text("No exercise override yet. Routine, programme, or global defaults can still apply automatically when you start logging.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

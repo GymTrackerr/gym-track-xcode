@@ -122,29 +122,52 @@ struct SingleDayView: View {
             }
             
             List {
-                ForEach(routine.exerciseSplits.sorted { $0.order < $1.order }, id: \.id) { exerciseSplit in
-                    NavigationLink {
-                        SingleExerciseView(exercise: exerciseSplit.exercise)
-                    } label: {
-                        SingleExerciseLabelView(exercise: exerciseSplit.exercise, orderInSplit: exerciseSplit.order)
-                            .id(exerciseSplit.order)
-                    }
-                }
-                .onDelete(perform: removeExercise)
-                .onMove(perform: moveExercise)
-                
-                /* */
                 Section {
-                    ForEach(routine.sessions.sorted { $0.timestamp < $1.timestamp }, id: \.id) { session in
+                    ForEach(routine.exerciseSplits.sorted { $0.order < $1.order }, id: \.id) { exerciseSplit in
+                        NavigationLink {
+                            SingleExerciseView(exercise: exerciseSplit.exercise)
+                        } label: {
+                            SingleExerciseLabelView(exercise: exerciseSplit.exercise, orderInSplit: exerciseSplit.order)
+                                .id(exerciseSplit.order)
+                                .foregroundColor(.primary)
+                        }
+                        .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 16))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.gray.opacity(0.1))
+                                .padding(.vertical, 6)
+                                .padding(.horizontal, 4)
+                        )
+                    }
+                    .onDelete(perform: removeExercise)
+                    .onMove(perform: moveExercise)
+                } header: {
+                    Text("Exercises")
+                }
+
+                Section {
+                    ForEach(routine.sessions.sorted { $0.timestampDone > $1.timestampDone }, id: \.id) { session in
                         NavigationLink {
                             SingleSessionView(session: session)
                         } label: {
                             SingleSessionLabelView(session: session)
-                            //                            .id(exerciseSlit.order)
+                                .foregroundColor(.primary)
                         }
+                        .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 16))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.gray.opacity(0.1))
+                                .padding(.vertical, 6)
+                                .padding(.horizontal, 4)
+                        )
                     }
+                } header: {
+                    Text("Session History")
                 }
             }
+            .listStyle(.plain)
             .scrollContentBackground(.hidden)
         }
         .navigationTitle(routine.name)

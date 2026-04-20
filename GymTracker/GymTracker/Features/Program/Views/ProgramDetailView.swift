@@ -50,10 +50,15 @@ struct ProgramDetailView: View {
         "None"
     }
 
+    private var previousSessions: [Session] {
+        programService.completedSessions(for: program, sessions: sessionService.sessions)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 summaryCard
+                previousSessionsSection
                 if isDirectWorkoutMode {
                     directWorkoutsSection
                 } else {
@@ -180,6 +185,46 @@ struct ProgramDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
+    private var previousSessionsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Previous Sessions")
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                    Text("Quickly jump back into your recent programme workouts.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+            }
+
+            if previousSessions.isEmpty {
+                emptyCard(
+                    title: "No programme sessions yet",
+                    subtitle: "Once you finish workouts from this programme, they will show up here."
+                )
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(Array(previousSessions.prefix(8)), id: \.id) { session in
+                        Button {
+                            openedSession = session
+                        } label: {
+                            SingleSessionLabelView(session: session)
+                                .foregroundStyle(.primary)
+                                .padding(14)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.gray.opacity(0.08))
+                                .clipShape(RoundedRectangle(cornerRadius: 14))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
     private var directWorkoutsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
@@ -187,7 +232,7 @@ struct ProgramDetailView: View {
                     Text("Workouts")
                         .font(.title3)
                         .fontWeight(.semibold)
-                    Text("This program repeats the workout list forever. Use Edit to reorder workouts or switch the structure later.")
+                    Text("This programme repeats the workout list forever. Use Edit to reorder workouts or switch the structure later.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -205,7 +250,7 @@ struct ProgramDetailView: View {
             if directWorkouts.isEmpty {
                 emptyCard(
                     title: "No workouts yet",
-                    subtitle: "Add a routine and the program will keep rotating through the workouts forever."
+                    subtitle: "Add a routine and the programme will keep rotating through the workouts forever."
                 )
             } else {
                 VStack(spacing: 12) {
@@ -229,7 +274,7 @@ struct ProgramDetailView: View {
                     Text("Blocks")
                         .font(.title3)
                         .fontWeight(.semibold)
-                    Text("Open a block to manage its workouts. Add the next block when you are ready to phase the program forward.")
+                    Text("Open a block to manage its workouts. Add the next block when you are ready to phase the programme forward.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -675,7 +720,7 @@ private struct ProgramManagementSheet: View {
             }
         }
         .environment(\.editMode, $editMode)
-        .navigationTitle("Edit Program")
+        .navigationTitle("Edit Programme")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
@@ -702,8 +747,8 @@ private struct ProgramManagementSheet: View {
                 ProgramWorkoutEditorSheet(block: block)
             }
         }
-        .confirmationDialog(deletesAsArchive ? "Archive Program?" : "Delete Program?", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
-            Button(deletesAsArchive ? "Archive Program" : "Delete Program", role: .destructive) {
+        .confirmationDialog(deletesAsArchive ? "Archive Programme?" : "Delete Programme?", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
+            Button(deletesAsArchive ? "Archive Programme" : "Delete Programme", role: .destructive) {
                 programService.delete(program)
                 dismiss()
                 DispatchQueue.main.async {
@@ -714,8 +759,8 @@ private struct ProgramManagementSheet: View {
         } message: {
             Text(
                 deletesAsArchive
-                    ? "This program already has session history, so it will be archived instead of permanently deleted."
-                    : "This will permanently delete the program because it has not been used yet."
+                    ? "This programme already has session history, so it will be archived instead of permanently deleted."
+                    : "This will permanently delete the programme because it has not been used yet."
             )
         }
     }
@@ -725,7 +770,7 @@ private struct ProgramManagementSheet: View {
             Button {
                 showingProgramEditor = true
             } label: {
-                Label("Edit Program Details", systemImage: "pencil")
+                Label("Edit Programme Details", systemImage: "pencil")
             }
 
             if programService.isDirectWorkoutMode(program) {
@@ -745,7 +790,7 @@ private struct ProgramManagementSheet: View {
             Button(role: .destructive) {
                 showingDeleteConfirmation = true
             } label: {
-                Label(deletesAsArchive ? "Archive Program" : "Delete Program", systemImage: "trash")
+                Label(deletesAsArchive ? "Archive Programme" : "Delete Programme", systemImage: "trash")
             }
         }
     }
@@ -753,7 +798,7 @@ private struct ProgramManagementSheet: View {
     private func workoutsSection(for block: ProgramBlock) -> some View {
         Section {
             if managedWorkouts.isEmpty {
-                Text("Add workouts to get this program moving.")
+                Text("Add workouts to get this programme moving.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
@@ -1005,7 +1050,7 @@ struct ProgramEditorSheet: View {
 
     var body: some View {
         Form {
-            Section("Program") {
+            Section("Programme") {
                 TextField("Name", text: $name)
                 TextField("Notes", text: $notes, axis: .vertical)
                     .lineLimit(3, reservesSpace: true)
@@ -1019,7 +1064,7 @@ struct ProgramEditorSheet: View {
             }
 
             Section("Structure") {
-                Text("New programs start as a continuous workout rotation. You can keep that simple setup or switch into blocks later if you want phases.")
+                Text("New programmes start as a continuous workout rotation. You can keep that simple setup or switch into blocks later if you want phases.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -1032,7 +1077,7 @@ struct ProgramEditorSheet: View {
                     }
                 }
 
-                Text("Program-started sessions will use this profile for exercises that do not already have their own saved override.")
+                Text("Programme-started sessions will use this profile for exercises that do not already have their own saved override.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -1044,7 +1089,7 @@ struct ProgramEditorSheet: View {
                 }
             }
         }
-        .navigationTitle(program == nil ? "New Program" : "Edit Program")
+        .navigationTitle(program == nil ? "New Programme" : "Edit Programme")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {

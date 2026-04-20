@@ -59,6 +59,61 @@ final class ProgramService: ServiceBase, ObservableObject {
         programs.first(where: { $0.isActive })
     }
 
+    func workoutCount(for program: Program) -> Int {
+        sortedBlocks(for: program).reduce(0) { partialResult, block in
+            partialResult + block.workouts.count
+        }
+    }
+
+    func completedSessions(
+        for program: Program,
+        sessions: [Session]
+    ) -> [Session] {
+        sessions
+            .filter { !$0.soft_deleted && $0.program?.id == program.id && $0.timestampDone != $0.timestamp }
+            .sorted { lhs, rhs in
+                if lhs.timestampDone != rhs.timestampDone {
+                    return lhs.timestampDone > rhs.timestampDone
+                }
+                return lhs.timestamp > rhs.timestamp
+            }
+    }
+
+    func nextDueSummary(
+        for program: Program,
+        sessions: [Session],
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> String {
+        let state = resolvedState(
+            for: program,
+            sessions: sessions,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+
+        if state.activeSession != nil {
+            return "Now"
+        }
+
+        switch program.mode {
+        case .continuous:
+            return continuousDueSummary(
+                for: state,
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+        case .weekly:
+            return weeklyDueSummary(
+                for: program,
+                state: state,
+                sessions: sessions,
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+        }
+    }
+
     func isDirectWorkoutMode(_ program: Program) -> Bool {
         let blocks = sortedBlocks(for: program)
         guard let firstBlock = blocks.first else { return true }
@@ -751,6 +806,105 @@ final class ProgramService: ServiceBase, ObservableObject {
         }
 
         return 0
+    }
+
+    private func weeklyDueSummary(
+        for program: Program,
+        state: ProgramResolvedState,
+        sessions: [Session],
+        referenceDate: Date,
+        calendar: Calendar
+    ) -> String {
+        if let nextWorkout = state.nextWorkout,
+           let weekdayIndex = nextWorkout.weekdayIndex {
+            let dueDate = nextDate(
+                for: weekdayIndex,
+                from: referenceDate,
+                allowToday: state.shouldShowDashboardStartAction,
+                calendar: calendar
+            )
+            return formattedDueDate(dueDate, referenceDate: referenceDate, calendar: calendar)
+        }
+
+        let nextWeekReference = currentProgramWeekRange(
+            for: program,
+            referenceDate: referenceDate,
+            calendar: calendar
+        ).end
+        let nextState = resolvedState(
+            for: program,
+            sessions: sessions,
+            referenceDate: nextWeekReference,
+            calendar: calendar
+        )
+
+        if let nextWorkout = nextState.nextWorkout,
+           let weekdayIndex = nextWorkout.weekdayIndex {
+            let dueDate = nextDate(
+                for: weekdayIndex,
+                from: nextWeekReference,
+                allowToday: true,
+                calendar: calendar
+            )
+            return formattedDueDate(dueDate, referenceDate: referenceDate, calendar: calendar)
+        }
+
+        return "TBD"
+    }
+
+    private func continuousDueSummary(
+        for state: ProgramResolvedState,
+        referenceDate: Date,
+        calendar: Calendar
+    ) -> String {
+        if let recentCompletedSession = state.recentCompletedSession,
+           calendar.isDate(recentCompletedSession.timestampDone, inSameDayAs: referenceDate),
+           let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: referenceDate)) {
+            return formattedDueDate(tomorrow, referenceDate: referenceDate, calendar: calendar)
+        }
+
+        return formattedDueDate(referenceDate, referenceDate: referenceDate, calendar: calendar)
+    }
+
+    private func nextDate(
+        for weekdayIndex: Int,
+        from referenceDate: Date,
+        allowToday: Bool,
+        calendar: Calendar
+    ) -> Date {
+        let startOfDay = calendar.startOfDay(for: referenceDate)
+        let todayIndex = ProgramWeekday.mondayBasedIndex(for: startOfDay, calendar: calendar)
+        var delta = weekdayIndex - todayIndex
+        if delta < 0 || (!allowToday && delta == 0) {
+            delta += 7
+        }
+        return calendar.date(byAdding: .day, value: delta, to: startOfDay) ?? startOfDay
+    }
+
+    private func formattedDueDate(
+        _ dueDate: Date,
+        referenceDate: Date,
+        calendar: Calendar
+    ) -> String {
+        let startOfReference = calendar.startOfDay(for: referenceDate)
+        let startOfDueDate = calendar.startOfDay(for: dueDate)
+
+        if calendar.isDate(startOfDueDate, inSameDayAs: startOfReference) {
+            return "Today"
+        }
+
+        if let tomorrow = calendar.date(byAdding: .day, value: 1, to: startOfReference),
+           calendar.isDate(startOfDueDate, inSameDayAs: tomorrow) {
+            return "Tomorrow"
+        }
+
+        if let nextWeek = calendar.date(byAdding: .day, value: 7, to: startOfReference),
+           startOfDueDate < nextWeek,
+           let weekday = ProgramWeekday(rawValue: ProgramWeekday.mondayBasedIndex(for: startOfDueDate, calendar: calendar)) {
+            return weekday.title
+        }
+
+        return startOfDueDate.formatted(date: .abbreviated, time: .omitted)
     }
 
     @discardableResult

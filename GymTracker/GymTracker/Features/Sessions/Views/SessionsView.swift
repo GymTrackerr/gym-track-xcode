@@ -281,7 +281,7 @@ struct CreateSessionSheetView: View {
                     .fontWeight(.bold)
                     .foregroundColor(.primary)
 //
-                Text("Start from your active program or pick a routine directly.")
+                Text("Start from your active programme or pick a routine directly.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -292,7 +292,7 @@ struct CreateSessionSheetView: View {
                 VStack(spacing: 16) {
                     if let activeProgram, let activeProgramState {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Active Program")
+                            Text("Active Programme")
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
                                 .foregroundColor(.primary)

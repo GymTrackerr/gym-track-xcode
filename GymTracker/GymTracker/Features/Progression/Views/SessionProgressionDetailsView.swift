@@ -137,7 +137,7 @@ struct SessionProgressionDetailsView: View {
                     }
                 } else {
                     sectionCard {
-                        Text("No progression target was snapped into this session entry yet. Once the exercise is started from a routine, program, or exercise progression, the targets will show here.")
+                        Text("No progression target was snapped into this session entry yet. Once the exercise is started from a routine, programme, or exercise progression, the targets will show here.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
