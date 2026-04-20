@@ -58,12 +58,12 @@ struct ProgramDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 summaryCard
-                previousSessionsSection
                 if isDirectWorkoutMode {
                     directWorkoutsSection
                 } else {
                     blocksSection
                 }
+                previousSessionsSection
             }
             .screenContentPadding()
         }
@@ -213,12 +213,12 @@ struct ProgramDetailView: View {
                         } label: {
                             SingleSessionLabelView(session: session)
                                 .foregroundStyle(.primary)
-                                .padding(14)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color.gray.opacity(0.08))
-                                .clipShape(RoundedRectangle(cornerRadius: 14))
                         }
                         .buttonStyle(.plain)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.gray.opacity(0.08))
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
                     }
                 }
             }

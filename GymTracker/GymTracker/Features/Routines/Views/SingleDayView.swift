@@ -128,7 +128,6 @@ struct SingleDayView: View {
                             SingleExerciseView(exercise: exerciseSplit.exercise)
                         } label: {
                             SingleExerciseLabelView(exercise: exerciseSplit.exercise, orderInSplit: exerciseSplit.order)
-                                .id(exerciseSplit.order)
                                 .foregroundColor(.primary)
                         }
                         .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 16))
