@@ -94,6 +94,7 @@ enum OnboardingScreen: Equatable {
 }
 
 enum OnboardingEvent {
+    case goBack
     case chooseLogin
     case chooseJoin
     case loginStarted

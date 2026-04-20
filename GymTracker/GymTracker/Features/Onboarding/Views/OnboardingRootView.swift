@@ -31,7 +31,21 @@ struct OnboardingRootView: View {
     
     @ViewBuilder
     private func content(for onboardingState: OnboardingState) -> some View {
-        VStack {
+        VStack(spacing: 0) {
+            if showsBackButton {
+                HStack {
+                    Button(action: handleBackTapped) {
+                        Label("Back", systemImage: "chevron.left")
+                            .font(.headline)
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer()
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 24)
+            }
+
             switch coordinator.screen {
             case .welcome:
                 OnboardingWelcomeView(
@@ -106,7 +120,19 @@ struct OnboardingRootView: View {
     }
 
     private func createJoinUser() {
-        guard let user = userService.addUser(text: coordinator.draft.name) else { return }
+        let trimmedName = coordinator.draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
+
+        if case .required(let userId)? = userService.onboardingState,
+           let currentUser = userService.currentUser,
+           currentUser.id == userId,
+           currentUser.needsOnboarding {
+            userService.renameCurrentUser(to: trimmedName)
+            coordinator.send(.joinAccountCreated(userId: userId, name: trimmedName))
+            return
+        }
+
+        guard let user = userService.addUser(text: trimmedName) else { return }
         coordinator.send(.joinAccountCreated(userId: user.id, name: user.name))
     }
 
@@ -118,7 +144,7 @@ struct OnboardingRootView: View {
         coordinator.send(.loginStarted)
 
         Task {
-            if userService.currentUser == nil {
+            if userService.currentUser == nil || isCreatingAccountFromWelcome {
                 _ = userService.addUser(text: trimmedUsername)
             }
 
@@ -174,6 +200,28 @@ struct OnboardingRootView: View {
         }
 
         return error.localizedDescription
+    }
+
+    private var showsBackButton: Bool {
+        coordinator.canGoBack || (coordinator.screen == .welcome && userService.canDismissOnboarding)
+    }
+
+    private var isCreatingAccountFromWelcome: Bool {
+        if case .noAccount? = userService.onboardingState {
+            return true
+        }
+        return false
+    }
+
+    private func handleBackTapped() {
+        if coordinator.canGoBack {
+            coordinator.send(.goBack)
+            return
+        }
+
+        if coordinator.screen == .welcome && userService.canDismissOnboarding {
+            userService.cancelNewAccountOnboarding()
+        }
     }
 }
 

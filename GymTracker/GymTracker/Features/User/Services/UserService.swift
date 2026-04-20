@@ -14,8 +14,11 @@ class UserService: ServiceBase, ObservableObject {
     @Published var accountCreated: Bool = false
     @Published var accounts: [User] = []
     @Published var onboardingState: OnboardingState?
+    @Published private(set) var canDismissOnboarding: Bool = false
     @Published var currentUserLoggedin: UUID
     private let repository: UserRepositoryProtocol
+    private var manualOnboardingOverride: OnboardingState?
+    private var onboardingReturnUserId: UUID?
 //    @Published override var currentUser: User?: User? = nil
     
     init(context: ModelContext, repository: UserRepositoryProtocol) {
@@ -29,7 +32,7 @@ class UserService: ServiceBase, ObservableObject {
             .sink { [weak self] user in
                 guard let self else { return }
                 self.accountCreated = (user != nil)
-                self.onboardingState = self.makeOnboardingState(for: user)
+                self.refreshOnboardingState(for: user)
                 self.ensureDeviceIdForCurrentUser()
             }
             .store(in: &cancellables)
@@ -103,6 +106,7 @@ class UserService: ServiceBase, ObservableObject {
         withAnimation {
             do {
                 let newItem = try repository.createUser(name: trimmedName, isDemo: false)
+                manualOnboardingOverride = nil
                 currentUser = newItem
                 loadAccounts(firstLoad: true)
                 createdUser = newItem
@@ -133,6 +137,9 @@ class UserService: ServiceBase, ObservableObject {
         withAnimation {
             currentUser.onboardingStatus = .completed
             currentUser.updatedAt = Date()
+            manualOnboardingOverride = nil
+            onboardingReturnUserId = nil
+            canDismissOnboarding = false
 
             do {
                 try repository.saveChanges(for: currentUser)
@@ -153,6 +160,31 @@ class UserService: ServiceBase, ObservableObject {
         guard let user else { return .noAccount }
         guard user.needsOnboarding else { return nil }
         return .required(userId: user.id)
+    }
+
+    func startNewAccountOnboarding() {
+        onboardingReturnUserId = currentUser?.id
+        manualOnboardingOverride = .noAccount
+        refreshOnboardingState(for: currentUser)
+    }
+
+    func cancelNewAccountOnboarding() {
+        let returnUserId = onboardingReturnUserId
+        manualOnboardingOverride = nil
+        onboardingReturnUserId = nil
+        canDismissOnboarding = false
+
+        if let returnUserId, currentUser?.id != returnUserId {
+            switchAccount(to: returnUserId)
+            return
+        }
+
+        refreshOnboardingState(for: currentUser)
+    }
+
+    private func refreshOnboardingState(for user: User?) {
+        onboardingState = manualOnboardingOverride ?? makeOnboardingState(for: user)
+        canDismissOnboarding = onboardingReturnUserId != nil
     }
     
     func hkUserAllow(connected: Bool, requested: Bool) {

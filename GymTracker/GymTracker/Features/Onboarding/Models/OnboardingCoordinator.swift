@@ -11,11 +11,22 @@ import Foundation
 
 @MainActor
 final class OnboardingCoordinator: ObservableObject {
+    private enum FlowOrigin: Equatable {
+        case login
+        case join
+        case existingPending
+    }
+
     @Published private(set) var screen: OnboardingScreen = .welcome
     @Published private(set) var draft = OnboardingDraft()
     @Published private(set) var loginErrorMessage: String?
 
     private var activeUserId: UUID?
+    private var flowOrigin: FlowOrigin?
+
+    var canGoBack: Bool {
+        previousScreen() != nil
+    }
 
     func configure(for onboardingState: OnboardingState?, currentUser: User?) {
         guard let onboardingState else {
@@ -28,6 +39,7 @@ final class OnboardingCoordinator: ObservableObject {
             if screen != .welcome && screen != .login && screen != .name {
                 draft = OnboardingDraft()
                 loginErrorMessage = nil
+                flowOrigin = nil
                 screen = .welcome
             }
 
@@ -49,6 +61,9 @@ final class OnboardingCoordinator: ObservableObject {
 
             activeUserId = userId
             draft.name = currentUser?.name ?? draft.name
+            if flowOrigin == nil {
+                flowOrigin = .existingPending
+            }
             screen = .goals
             loginErrorMessage = nil
         }
@@ -82,11 +97,20 @@ final class OnboardingCoordinator: ObservableObject {
 
     func send(_ event: OnboardingEvent) {
         switch event {
+        case .goBack:
+            guard let previousScreen = previousScreen() else { return }
+            if previousScreen == .welcome {
+                loginErrorMessage = nil
+            }
+            screen = previousScreen
+
         case .chooseLogin:
+            flowOrigin = .login
             loginErrorMessage = nil
             screen = .login
 
         case .chooseJoin:
+            flowOrigin = .join
             loginErrorMessage = nil
             screen = .name
 
@@ -109,6 +133,7 @@ final class OnboardingCoordinator: ObservableObject {
         case .joinAccountCreated(let userId, let name):
             activeUserId = userId
             draft.name = name
+            flowOrigin = .join
             screen = .goals
 
         case .continueFromGoals:
@@ -130,6 +155,62 @@ final class OnboardingCoordinator: ObservableObject {
 
         case .continueFromExerciseCatalog:
             screen = .final
+        }
+    }
+
+    private func previousScreen() -> OnboardingScreen? {
+        switch screen {
+        case .welcome:
+            return nil
+
+        case .login:
+            return .welcome
+
+        case .loginSyncing:
+            return nil
+
+        case .name:
+            return .welcome
+
+        case .goals:
+            switch flowOrigin {
+            case .join:
+                return .name
+            case .login:
+                return .login
+            case .existingPending, .none:
+                return nil
+            }
+
+        case .experience:
+            return .goals
+
+        case .plannerChoice:
+            return .experience
+
+        case .permissions:
+            if draft.planChoice != nil {
+                return .plannerChoice
+            }
+            if draft.experience != nil {
+                return .experience
+            }
+            if draft.goals.isEmpty == false {
+                return .goals
+            }
+            if flowOrigin == .login {
+                return .login
+            }
+            return nil
+
+        case .accountLink:
+            return .permissions
+
+        case .exerciseCatalog:
+            return .accountLink
+
+        case .final:
+            return .exerciseCatalog
         }
     }
 }
