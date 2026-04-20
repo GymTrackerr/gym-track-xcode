@@ -1135,9 +1135,9 @@ struct NutritionModuleView: View {
 
 struct ProgramModuleView: View {
     private enum Presentation {
-        case resume(Session)
+        case resume(program: Program, session: Session)
         case start(program: Program, state: ProgramResolvedState)
-        case recent(Session)
+        case review(Session)
         case program(Program, ProgramResolvedState?)
         case empty
     }
@@ -1148,6 +1148,9 @@ struct ProgramModuleView: View {
     @EnvironmentObject private var sessionService: SessionService
 
     @State private var openedSession: Session?
+
+    private var calendar: Calendar { .current }
+    private var referenceDate: Date { Date() }
 
     private var activeProgram: Program? {
         programService.activeProgram
@@ -1170,24 +1173,24 @@ struct ProgramModuleView: View {
     }
 
     private var presentation: Presentation {
-        if let activeState {
+        if let activeProgram, let activeState {
             if let activeSession = activeState.activeSession {
-                return .resume(activeSession)
+                return .resume(program: activeProgram, session: activeSession)
             }
-            if activeState.shouldShowDashboardStartAction && activeState.canStartNextWorkout,
-               let activeProgram {
+
+            if shouldShowDashboardStartAction(for: activeState) {
                 return .start(program: activeProgram, state: activeState)
             }
-            if let recentSession = activeState.recentCompletedSession ?? recentProgramSession {
-                return .recent(recentSession)
+
+            if let recentSession = activeState.recentCompletedSession {
+                return .review(recentSession)
             }
-            if let activeProgram {
-                return .program(activeProgram, activeState)
-            }
+
+            return .program(activeProgram, activeState)
         }
 
         if let recentProgramSession {
-            return .recent(recentProgramSession)
+            return .review(recentProgramSession)
         }
 
         return .empty
@@ -1196,13 +1199,13 @@ struct ProgramModuleView: View {
     var body: some View {
         Group {
             switch presentation {
-            case .resume(let session):
+            case .resume(let program, let session):
                 NavigationLink(destination: SingleSessionView(session: session).appBackground()) {
                     moduleContent(
-                        eyebrow: "Program",
-                        title: session.program?.name ?? "Program",
-                        subtitle: session.programWorkoutName ?? session.routine?.name ?? "Resume current workout",
-                        footnote: "Resume Current Workout",
+                        title: session.programWorkoutName ?? session.routine?.name ?? "Current workout",
+                        subtitle: program.name,
+                        detail: "In progress",
+                        actionTitle: "Continue Workout",
                         highlighted: true
                     )
                 }
@@ -1212,41 +1215,42 @@ struct ProgramModuleView: View {
                     startNextWorkout(program: program, state: state)
                 } label: {
                     moduleContent(
-                        eyebrow: "Program",
-                        title: program.name,
-                        subtitle: state.nextWorkoutLabel,
-                        footnote: "Start Next Workout",
+                        title: state.nextWorkoutLabel,
+                        subtitle: program.name,
+                        detail: state.blockLabel + " • " + state.progressLabel,
+                        actionTitle: "Start Next Workout",
                         highlighted: true
                     )
                 }
                 .buttonStyle(.plain)
-            case .recent(let session):
+            case .review(let session):
+                let reviewText = reviewDetail(for: session)
                 NavigationLink(destination: SingleSessionView(session: session).appBackground()) {
                     moduleContent(
-                        eyebrow: "Recent Program Workout",
-                        title: session.program?.name ?? "Program",
-                        subtitle: session.programWorkoutName ?? session.routine?.name ?? "Recent workout",
-                        footnote: session.timestampDone.formatted(date: .abbreviated, time: .shortened)
+                        title: session.programWorkoutName ?? session.routine?.name ?? "Previous workout",
+                        subtitle: module.size == .small ? reviewText : (session.program?.name ?? "Program workout"),
+                        detail: module.size == .medium ? reviewText : nil,
+                        actionTitle: "Review Workout"
                     )
                 }
                 .buttonStyle(.plain)
             case .program(let program, let state):
                 NavigationLink(destination: ProgramDetailView(program: program).appBackground()) {
                     moduleContent(
-                        eyebrow: "Program",
                         title: program.name,
                         subtitle: state?.nextWorkoutLabel ?? "Open program",
-                        footnote: state?.progressLabel ?? program.scheduleSummary
+                        detail: state?.progressLabel ?? program.scheduleSummary,
+                        actionTitle: "Review Program"
                     )
                 }
                 .buttonStyle(.plain)
             case .empty:
                 NavigationLink(destination: ProgramsRootView().appBackground()) {
                     moduleContent(
-                        eyebrow: "Program",
                         title: "No active program",
-                        subtitle: "Open Programme",
-                        footnote: "Create or activate a program"
+                        subtitle: "Create or activate a program",
+                        detail: nil,
+                        actionTitle: "Open Programme"
                     )
                 }
                 .buttonStyle(.plain)
@@ -1260,25 +1264,13 @@ struct ProgramModuleView: View {
 
     @ViewBuilder
     private func moduleContent(
-        eyebrow: String,
         title: String,
         subtitle: String,
-        footnote: String,
+        detail: String?,
+        actionTitle: String,
         highlighted: Bool = false
     ) -> some View {
-        VStack(alignment: .leading, spacing: module.size == .small ? 8 : 10) {
-            HStack(alignment: .top, spacing: 8) {
-                Label(eyebrow, systemImage: ModuleType.program.iconName)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Spacer()
-
-                Image(systemName: highlighted ? "play.circle.fill" : "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(highlighted ? .blue : .secondary)
-            }
-
+        VStack(alignment: .leading, spacing: module.size == .small ? 10 : 12) {
             Text(title)
                 .font(module.size == .small ? .headline : .title3)
                 .fontWeight(.semibold)
@@ -1290,19 +1282,46 @@ struct ProgramModuleView: View {
                 .foregroundStyle(.primary)
                 .lineLimit(module.size == .small ? 2 : 2)
 
-            if module.size == .medium {
-                Text(footnote)
+            if let detail, module.size == .medium {
+                Text(detail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
-            } else {
-                Text(footnote)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
             }
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 8) {
+                Text(actionTitle)
+                    .font(module.size == .small ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
+                    .foregroundStyle(highlighted ? .blue : .primary)
+                    .lineLimit(1)
+
+                Spacer(minLength: 8)
+
+                Image(systemName: highlighted ? "play.fill" : "arrow.right")
+                    .font(module.size == .small ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
+                    .foregroundStyle(highlighted ? .blue : .secondary)
+            }
+            .padding(.horizontal, module.size == .small ? 10 : 12)
+            .padding(.vertical, module.size == .small ? 8 : 10)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(highlighted ? Color.blue.opacity(0.12) : Color.gray.opacity(0.1))
+            )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+
+    private func shouldShowDashboardStartAction(for state: ProgramResolvedState) -> Bool {
+        state.canStartNextWorkout && state.shouldShowDashboardStartAction
+    }
+
+    private func reviewDetail(for session: Session) -> String {
+        if calendar.isDate(session.timestampDone, inSameDayAs: referenceDate) {
+            return "Completed today"
+        }
+        return session.timestampDone.formatted(date: .abbreviated, time: .shortened)
     }
 
     private func startNextWorkout(program: Program, state: ProgramResolvedState) {

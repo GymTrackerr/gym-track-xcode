@@ -416,7 +416,9 @@ final class ProgramService: ServiceBase, ObservableObject {
                 blocks: sortedBlocks,
                 sessions: relevantSessions,
                 activeSession: activeSession,
-                recentCompletedSession: recentCompletedSession
+                recentCompletedSession: recentCompletedSession,
+                referenceDate: referenceDate,
+                calendar: calendar
             )
         }
     }
@@ -473,9 +475,14 @@ final class ProgramService: ServiceBase, ObservableObject {
         blocks: [ProgramBlock],
         sessions: [Session],
         activeSession: Session?,
-        recentCompletedSession: Session?
+        recentCompletedSession: Session?,
+        referenceDate: Date,
+        calendar: Calendar
     ) -> ProgramResolvedState {
         let completedSessions = sessions.filter { $0.timestampDone != $0.timestamp }
+        let completedToday = recentCompletedSession.map {
+            calendar.isDate($0.timestampDone, inSameDayAs: referenceDate)
+        } ?? false
 
         if let activeSession,
            let block = blocks.first(where: { $0.id == activeSession.programBlockId }) ?? blocks.first,
@@ -539,7 +546,7 @@ final class ProgramService: ServiceBase, ObservableObject {
                     actionTitle: "Start Next Workout",
                     canStartNextWorkout: nextWorkout.routine != nil,
                     canSkipNextWorkout: true,
-                    shouldShowDashboardStartAction: nextWorkout.routine != nil
+                    shouldShowDashboardStartAction: nextWorkout.routine != nil && !completedToday
                 )
             }
 
