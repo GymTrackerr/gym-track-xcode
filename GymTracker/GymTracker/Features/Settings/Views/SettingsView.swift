@@ -26,6 +26,8 @@ struct SettingsView: View {
     @EnvironmentObject var sessionService: SessionService
     @EnvironmentObject var exerciseSplitDayService: ExerciseSplitDayService
     @EnvironmentObject var sessionExerciseService: SessionExerciseService
+    @EnvironmentObject var programService: ProgramService
+    @EnvironmentObject var progressionService: ProgressionService
     @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
     @EnvironmentObject var hkManager: HealthKitManager
     @State private var shareItem: BackupShareItem?
@@ -671,10 +673,14 @@ struct SettingsView: View {
                 sessionService.loadSessions()
                 exerciseSplitDayService.loadFeature()
                 sessionExerciseService.loadFeature()
+                programService.loadPrograms()
+                progressionService.loadFeature()
                 backupAlertTitle = "Import Complete"
                 exportErrorMessage = """
                 Imported exercises \(report.exercises.inserted + report.exercises.updated), \
                 routines \(report.routines.inserted + report.routines.updated), \
+                programs \(report.programs.inserted + report.programs.updated), \
+                progressions \(report.progressionProfiles.inserted + report.progressionProfiles.updated), \
                 sessions \(report.sessions.inserted + report.sessions.updated).
                 """
                 showExportErrorAlert = true
