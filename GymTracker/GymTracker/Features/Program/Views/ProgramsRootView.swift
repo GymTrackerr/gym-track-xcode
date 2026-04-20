@@ -223,10 +223,7 @@ struct ProgramsRootView: View {
     }
 
     private func canLaunchWorkout(from state: ProgramResolvedState) -> Bool {
-        if state.activeSession != nil {
-            return true
-        }
-        return state.nextWorkout?.routine != nil
+        state.canStartNextWorkout
     }
 
     private func openSession(for program: Program, state: ProgramResolvedState) {

@@ -28,6 +28,7 @@ class SessionService : ServiceBase, ObservableObject {
     }()
     private let repository: SessionRepositoryProtocol
     var progressionService: ProgressionService?
+    var programService: ProgramService?
 
     init(context: ModelContext, repository: SessionRepositoryProtocol? = nil) {
         self.repository = repository ?? LocalSessionRepository(modelContext: context)
@@ -210,6 +211,7 @@ class SessionService : ServiceBase, ObservableObject {
         session.timestampDone = Date()
         do {
             try repository.saveChanges(for: session)
+            programService?.handleFinishedSession(session)
             progressionService?.evaluateIfNeeded(for: session)
             loadSessions()
         } catch {

@@ -133,11 +133,7 @@ struct SessionProgressionDetailsView: View {
 
                 if sessionEntry.hasProgressionSnapshot {
                     sectionCard {
-                        SessionProgressionTargetCardView(
-                            sessionEntry: sessionEntry,
-                            onAutofill: {},
-                            showsUseGoalButton: false
-                        )
+                        SessionProgressionTargetCardView(sessionEntry: sessionEntry)
                     }
                 } else {
                     sectionCard {

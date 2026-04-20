@@ -13,11 +13,15 @@ struct ProgramResolvedState {
     let currentBlock: ProgramBlock?
     let nextWorkout: ProgramWorkout?
     let activeSession: Session?
+    let recentCompletedSession: Session?
     let blockLabel: String
     let progressLabel: String
     let scheduleLabel: String
     let nextWorkoutLabel: String
     let actionTitle: String
+    let canStartNextWorkout: Bool
+    let canSkipNextWorkout: Bool
+    let shouldShowDashboardStartAction: Bool
 }
 
 final class ProgramService: ServiceBase, ObservableObject {
@@ -151,6 +155,64 @@ final class ProgramService: ServiceBase, ObservableObject {
             loadPrograms()
         } catch {
             print("Failed to set active program: \(error)")
+        }
+    }
+
+    func skipNextWorkout(
+        for program: Program,
+        sessions: [Session],
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) {
+        let state = resolvedState(
+            for: program,
+            sessions: sessions,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+
+        guard state.activeSession == nil else { return }
+        guard let nextWorkout = state.nextWorkout else { return }
+
+        switch program.mode {
+        case .continuous:
+            program.continuousSkippedWorkoutCount += 1
+        case .weekly:
+            let weekOffset = currentProgramWeekOffset(
+                for: program,
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+            let nextOverride = nextWorkoutAfter(
+                nextWorkout,
+                in: orderedWeeklyWorkouts(for: state.currentBlock)
+            )
+            program.weeklySkipWeekOffset = weekOffset
+            program.weeklySkipNextWorkoutId = nextOverride?.id
+        }
+
+        persistCursorChanges(for: program)
+        loadPrograms()
+    }
+
+    func handleFinishedSession(_ session: Session, calendar: Calendar = .current) {
+        guard let program = session.program else { return }
+        var didMutate = sanitizeSkipState(for: program, referenceDate: session.timestampDone, calendar: calendar)
+
+        if program.mode == .weekly,
+           program.weeklySkipWeekOffset == currentProgramWeekOffset(
+                for: program,
+                referenceDate: session.timestampDone,
+                calendar: calendar
+           ) {
+            program.weeklySkipWeekOffset = nil
+            program.weeklySkipNextWorkoutId = nil
+            didMutate = true
+        }
+
+        if didMutate {
+            persistCursorChanges(for: program)
+            loadPrograms()
         }
     }
 
@@ -299,26 +361,42 @@ final class ProgramService: ServiceBase, ObservableObject {
         referenceDate: Date = Date(),
         calendar: Calendar = .current
     ) -> ProgramResolvedState {
+        let didSanitize = sanitizeSkipState(for: program, referenceDate: referenceDate, calendar: calendar)
+        if didSanitize {
+            persistCursorChanges(for: program)
+        }
+
         let sortedBlocks = sortedBlocks(for: program)
+        let relevantSessions = sessions
+            .filter { !$0.soft_deleted && $0.program?.id == program.id }
+            .sorted { $0.timestamp < $1.timestamp }
+        let activeSession = relevantSessions.last {
+            $0.timestampDone == $0.timestamp
+        }
+        let recentCompletedSession = relevantSessions
+            .filter { $0.timestampDone != $0.timestamp }
+            .max(by: { lhs, rhs in
+                if lhs.timestampDone != rhs.timestampDone {
+                    return lhs.timestampDone < rhs.timestampDone
+                }
+                return lhs.timestamp < rhs.timestamp
+            })
+
         guard !sortedBlocks.isEmpty else {
             return ProgramResolvedState(
                 currentBlock: nil,
                 nextWorkout: nil,
                 activeSession: nil,
+                recentCompletedSession: recentCompletedSession,
                 blockLabel: "Workout Rotation",
                 progressLabel: "Add workouts to begin",
                 scheduleLabel: program.scheduleSummary,
                 nextWorkoutLabel: "Add a workout",
-                actionTitle: "Add Workout"
+                actionTitle: "Add Workout",
+                canStartNextWorkout: false,
+                canSkipNextWorkout: false,
+                shouldShowDashboardStartAction: false
             )
-        }
-
-        let relevantSessions = sessions
-            .filter { !$0.soft_deleted && $0.program?.id == program.id }
-            .sorted { $0.timestamp < $1.timestamp }
-
-        let activeSession = relevantSessions.last {
-            $0.timestampDone == $0.timestamp
         }
 
         switch program.mode {
@@ -328,6 +406,7 @@ final class ProgramService: ServiceBase, ObservableObject {
                 blocks: sortedBlocks,
                 sessions: relevantSessions,
                 activeSession: activeSession,
+                recentCompletedSession: recentCompletedSession,
                 referenceDate: referenceDate,
                 calendar: calendar
             )
@@ -336,7 +415,8 @@ final class ProgramService: ServiceBase, ObservableObject {
                 for: program,
                 blocks: sortedBlocks,
                 sessions: relevantSessions,
-                activeSession: activeSession
+                activeSession: activeSession,
+                recentCompletedSession: recentCompletedSession
             )
         }
     }
@@ -346,22 +426,45 @@ final class ProgramService: ServiceBase, ObservableObject {
         blocks: [ProgramBlock],
         sessions: [Session],
         activeSession: Session?,
+        recentCompletedSession: Session?,
         referenceDate: Date,
         calendar: Calendar
     ) -> ProgramResolvedState {
         let block = currentWeeklyBlock(for: program, blocks: blocks, referenceDate: referenceDate, calendar: calendar)
-        let nextWorkout = activeSession.flatMap { matchingWorkout(for: $0, in: block) } ?? nextWeeklyWorkout(in: block, referenceDate: referenceDate, calendar: calendar)
+        let nextWorkout = activeSession.flatMap { matchingWorkout(for: $0, in: block) } ??
+            nextWeeklyWorkout(
+                for: program,
+                in: block,
+                sessions: sessions,
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
         let weekLabel = weeklyProgressLabel(for: program, block: block, referenceDate: referenceDate, calendar: calendar)
+        let canStartNextWorkout = activeSession != nil || nextWorkout?.routine != nil
+        let canSkipNextWorkout = activeSession == nil && nextWorkout != nil
+        let shouldShowDashboardStartAction: Bool
+        if let activeSession {
+            shouldShowDashboardStartAction = true
+        } else if let nextWorkout {
+            let todayIndex = ProgramWeekday.mondayBasedIndex(for: referenceDate, calendar: calendar)
+            shouldShowDashboardStartAction = nextWorkout.weekdayIndex == todayIndex && nextWorkout.routine != nil
+        } else {
+            shouldShowDashboardStartAction = false
+        }
 
         return ProgramResolvedState(
             currentBlock: block,
             nextWorkout: nextWorkout,
             activeSession: activeSession,
+            recentCompletedSession: recentCompletedSession,
             blockLabel: blockLabel(for: block),
             progressLabel: weekLabel,
             scheduleLabel: nextWorkout?.scheduleLabel ?? program.scheduleSummary,
-            nextWorkoutLabel: nextWorkout?.displayName ?? "No workout",
-            actionTitle: activeSession == nil ? "Start Next Workout" : "Resume Current Workout"
+            nextWorkoutLabel: nextWorkout?.displayName ?? "All workouts completed this week",
+            actionTitle: activeSession == nil ? (nextWorkout == nil ? "Workout Complete" : "Start Next Workout") : "Resume Current Workout",
+            canStartNextWorkout: canStartNextWorkout,
+            canSkipNextWorkout: canSkipNextWorkout,
+            shouldShowDashboardStartAction: shouldShowDashboardStartAction
         )
     }
 
@@ -369,24 +472,37 @@ final class ProgramService: ServiceBase, ObservableObject {
         for program: Program,
         blocks: [ProgramBlock],
         sessions: [Session],
-        activeSession: Session?
+        activeSession: Session?,
+        recentCompletedSession: Session?
     ) -> ProgramResolvedState {
         let completedSessions = sessions.filter { $0.timestampDone != $0.timestamp }
 
         if let activeSession,
            let block = blocks.first(where: { $0.id == activeSession.programBlockId }) ?? blocks.first,
            let workout = matchingWorkout(for: activeSession, in: block) {
+            let consumedWithinBlock = continuousConsumedWorkoutCount(
+                in: block,
+                for: program,
+                blocks: blocks,
+                completedSessions: completedSessions
+            )
             return ProgramResolvedState(
                 currentBlock: block,
                 nextWorkout: workout,
                 activeSession: activeSession,
+                recentCompletedSession: recentCompletedSession,
                 blockLabel: blockLabel(for: block),
-                progressLabel: continuousProgressLabel(for: block, completedSessions: completedSessions),
+                progressLabel: continuousProgressLabel(for: block, consumedWorkoutCount: consumedWithinBlock),
                 scheduleLabel: program.scheduleSummary,
                 nextWorkoutLabel: workout.displayName,
-                actionTitle: "Resume Current Workout"
+                actionTitle: "Resume Current Workout",
+                canStartNextWorkout: true,
+                canSkipNextWorkout: false,
+                shouldShowDashboardStartAction: true
             )
         }
+
+        var remainingConsumedCount = max(program.continuousSkippedWorkoutCount, 0) + completedSessions.count
 
         for block in blocks {
             let workouts = block.workouts.sorted { $0.order < $1.order }
@@ -395,30 +511,39 @@ final class ProgramService: ServiceBase, ObservableObject {
                     currentBlock: block,
                     nextWorkout: nil,
                     activeSession: nil,
+                    recentCompletedSession: recentCompletedSession,
                     blockLabel: blockLabel(for: block),
                     progressLabel: "No workouts yet",
                     scheduleLabel: program.scheduleSummary,
                     nextWorkoutLabel: "Add a workout",
-                    actionTitle: "Add Workout"
+                    actionTitle: "Add Workout",
+                    canStartNextWorkout: false,
+                    canSkipNextWorkout: false,
+                    shouldShowDashboardStartAction: false
                 )
             }
 
-            let completedCount = completedSessions.filter { $0.programBlockId == block.id }.count
-            let completedPasses = completedCount / workouts.count
-
-            if block.repeatsForever || completedPasses < block.durationCount {
-                let nextWorkout = workouts[completedCount % workouts.count]
+            let blockCapacity = block.repeatsForever ? Int.max : max(block.durationCount, 1) * workouts.count
+            if block.repeatsForever || remainingConsumedCount < blockCapacity {
+                let consumedWithinBlock = remainingConsumedCount
+                let nextWorkout = workouts[consumedWithinBlock % workouts.count]
                 return ProgramResolvedState(
                     currentBlock: block,
                     nextWorkout: nextWorkout,
                     activeSession: nil,
+                    recentCompletedSession: recentCompletedSession,
                     blockLabel: blockLabel(for: block),
-                    progressLabel: continuousProgressLabel(for: block, completedSessions: completedSessions),
+                    progressLabel: continuousProgressLabel(for: block, consumedWorkoutCount: consumedWithinBlock),
                     scheduleLabel: program.scheduleSummary,
                     nextWorkoutLabel: nextWorkout.displayName,
-                    actionTitle: "Start Next Workout"
+                    actionTitle: "Start Next Workout",
+                    canStartNextWorkout: nextWorkout.routine != nil,
+                    canSkipNextWorkout: true,
+                    shouldShowDashboardStartAction: nextWorkout.routine != nil
                 )
             }
+
+            remainingConsumedCount -= blockCapacity
         }
 
         let fallbackBlock = blocks.last
@@ -428,11 +553,15 @@ final class ProgramService: ServiceBase, ObservableObject {
             currentBlock: fallbackBlock,
             nextWorkout: fallbackWorkout,
             activeSession: nil,
+            recentCompletedSession: recentCompletedSession,
             blockLabel: blockLabel(for: fallbackBlock),
             progressLabel: "Completed",
             scheduleLabel: program.scheduleSummary,
             nextWorkoutLabel: fallbackWorkout?.displayName ?? "No workout",
-            actionTitle: "Start Workout"
+            actionTitle: "Workout Complete",
+            canStartNextWorkout: false,
+            canSkipNextWorkout: false,
+            shouldShowDashboardStartAction: false
         )
     }
 
@@ -488,34 +617,184 @@ final class ProgramService: ServiceBase, ObservableObject {
     }
 
     private func nextWeeklyWorkout(
+        for program: Program,
         in block: ProgramBlock?,
+        sessions: [Session],
         referenceDate: Date,
         calendar: Calendar
     ) -> ProgramWorkout? {
         guard let block else { return nil }
+        let workouts = orderedWeeklyWorkouts(for: block)
+        guard !workouts.isEmpty else { return nil }
 
-        let workouts = block.workouts.sorted { lhs, rhs in
-            let leftDay = lhs.weekdayIndex ?? Int.max
-            let rightDay = rhs.weekdayIndex ?? Int.max
-            if leftDay == rightDay {
-                return lhs.order < rhs.order
+        let weekOffset = currentProgramWeekOffset(for: program, referenceDate: referenceDate, calendar: calendar)
+        let weekRange = currentProgramWeekRange(for: program, referenceDate: referenceDate, calendar: calendar)
+        let completedSessions = sessions
+            .filter { $0.timestampDone != $0.timestamp }
+            .filter { $0.programBlockId == block.id }
+            .filter { weekRange.contains($0.timestamp) }
+            .sorted { lhs, rhs in
+                if lhs.timestampDone != rhs.timestampDone {
+                    return lhs.timestampDone < rhs.timestampDone
+                }
+                return lhs.timestamp < rhs.timestamp
             }
-            return leftDay < rightDay
+
+        if let overrideWeek = program.weeklySkipWeekOffset,
+           overrideWeek == weekOffset {
+            guard let overrideWorkoutId = program.weeklySkipNextWorkoutId else {
+                return nil
+            }
+            if let overrideWorkout = workouts.first(where: { $0.id == overrideWorkoutId }) {
+                if let latestCompletedWorkout = completedSessions.last.flatMap({ matchingWorkout(for: $0, in: block) }),
+                   let latestIndex = workouts.firstIndex(where: { $0.id == latestCompletedWorkout.id }),
+                   let overrideIndex = workouts.firstIndex(where: { $0.id == overrideWorkout.id }),
+                   overrideIndex <= latestIndex {
+                    return nextWorkoutAfter(latestCompletedWorkout, in: workouts)
+                }
+                return overrideWorkout
+            }
         }
 
-        guard !workouts.isEmpty else { return nil }
+        if let latestCompletedWorkout = completedSessions.last.flatMap({ matchingWorkout(for: $0, in: block) }) {
+            return nextWorkoutAfter(latestCompletedWorkout, in: workouts)
+        }
+
         let weekdayIndex = ProgramWeekday.mondayBasedIndex(for: referenceDate, calendar: calendar)
         return workouts.first(where: { ($0.weekdayIndex ?? weekdayIndex) >= weekdayIndex }) ?? workouts.first
     }
 
-    private func continuousProgressLabel(for block: ProgramBlock, completedSessions: [Session]) -> String {
+    private func continuousProgressLabel(for block: ProgramBlock, consumedWorkoutCount: Int) -> String {
         let workoutsCount = max(block.workouts.count, 1)
-        let completedCount = completedSessions.filter { $0.programBlockId == block.id }.count
-        let completedPasses = completedCount / workoutsCount
+        let completedPasses = consumedWorkoutCount / workoutsCount
         if block.repeatsForever {
             return "Split \(completedPasses + 1)"
         }
         return "Split \(min(completedPasses + 1, block.durationCount)) of \(block.durationCount)"
+    }
+
+    private func currentProgramWeekOffset(
+        for program: Program,
+        referenceDate: Date,
+        calendar: Calendar
+    ) -> Int {
+        let startDate = calendar.startOfDay(for: program.startDate)
+        let today = calendar.startOfDay(for: referenceDate)
+        let dayOffset = max(calendar.dateComponents([.day], from: startDate, to: today).day ?? 0, 0)
+        return dayOffset / 7
+    }
+
+    private func currentProgramWeekRange(
+        for program: Program,
+        referenceDate: Date,
+        calendar: Calendar
+    ) -> DateInterval {
+        let weekOffset = currentProgramWeekOffset(for: program, referenceDate: referenceDate, calendar: calendar)
+        let weekStart = calendar.date(
+            byAdding: .day,
+            value: weekOffset * 7,
+            to: calendar.startOfDay(for: program.startDate)
+        ) ?? calendar.startOfDay(for: program.startDate)
+        let weekEnd = calendar.date(byAdding: .day, value: 7, to: weekStart) ?? weekStart
+        return DateInterval(start: weekStart, end: weekEnd)
+    }
+
+    private func orderedWeeklyWorkouts(for block: ProgramBlock?) -> [ProgramWorkout] {
+        guard let block else { return [] }
+        return block.workouts.sorted { lhs, rhs in
+            let leftDay = lhs.weekdayIndex ?? Int.max
+            let rightDay = rhs.weekdayIndex ?? Int.max
+            if leftDay == rightDay {
+                if lhs.order == rhs.order {
+                    return lhs.id.uuidString < rhs.id.uuidString
+                }
+                return lhs.order < rhs.order
+            }
+            return leftDay < rightDay
+        }
+    }
+
+    private func nextWorkoutAfter(_ workout: ProgramWorkout, in orderedWorkouts: [ProgramWorkout]) -> ProgramWorkout? {
+        guard let currentIndex = orderedWorkouts.firstIndex(where: { $0.id == workout.id }) else {
+            return nil
+        }
+        let nextIndex = orderedWorkouts.index(after: currentIndex)
+        guard orderedWorkouts.indices.contains(nextIndex) else { return nil }
+        return orderedWorkouts[nextIndex]
+    }
+
+    private func continuousConsumedWorkoutCount(
+        in targetBlock: ProgramBlock,
+        for program: Program,
+        blocks: [ProgramBlock],
+        completedSessions: [Session]
+    ) -> Int {
+        var remainingConsumedCount = max(program.continuousSkippedWorkoutCount, 0) + completedSessions.count
+
+        for block in blocks {
+            let workoutsCount = max(block.workouts.count, 1)
+            let blockCapacity = block.repeatsForever ? Int.max : max(block.durationCount, 1) * workoutsCount
+            if block.id == targetBlock.id {
+                return remainingConsumedCount
+            }
+            if block.repeatsForever {
+                return 0
+            }
+            remainingConsumedCount = max(remainingConsumedCount - blockCapacity, 0)
+        }
+
+        return 0
+    }
+
+    @discardableResult
+    private func sanitizeSkipState(
+        for program: Program,
+        referenceDate: Date,
+        calendar: Calendar
+    ) -> Bool {
+        var didMutate = false
+
+        if program.continuousSkippedWorkoutCount < 0 {
+            program.continuousSkippedWorkoutCount = 0
+            didMutate = true
+        }
+
+        if program.mode == .weekly {
+            let currentWeekOffset = currentProgramWeekOffset(for: program, referenceDate: referenceDate, calendar: calendar)
+            if let storedWeekOffset = program.weeklySkipWeekOffset,
+               storedWeekOffset != currentWeekOffset {
+                program.weeklySkipWeekOffset = nil
+                program.weeklySkipNextWorkoutId = nil
+                didMutate = true
+            } else if let workoutId = program.weeklySkipNextWorkoutId {
+                let currentBlock = currentWeeklyBlock(
+                    for: program,
+                    blocks: sortedBlocks(for: program),
+                    referenceDate: referenceDate,
+                    calendar: calendar
+                )
+                let isValid = orderedWeeklyWorkouts(for: currentBlock).contains(where: { $0.id == workoutId })
+                if !isValid {
+                    program.weeklySkipWeekOffset = nil
+                    program.weeklySkipNextWorkoutId = nil
+                    didMutate = true
+                }
+            }
+        } else if program.weeklySkipWeekOffset != nil || program.weeklySkipNextWorkoutId != nil {
+            program.weeklySkipWeekOffset = nil
+            program.weeklySkipNextWorkoutId = nil
+            didMutate = true
+        }
+
+        return didMutate
+    }
+
+    private func persistCursorChanges(for program: Program) {
+        do {
+            try repository.saveChanges(for: program)
+        } catch {
+            print("Failed to persist program cursor changes: \(error)")
+        }
     }
 
     private func matchingWorkout(for session: Session, in block: ProgramBlock?) -> ProgramWorkout? {

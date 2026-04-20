@@ -15,7 +15,9 @@ final class ProgramFeatureDebug {
             test2ContinuousProgramAdvancesAfterFullSplits(),
             test3WeeklyProgramUsesCalendarWeeksAndSessionSnapshots(),
             test4UsedProgramArchivesAndHistoryStillResolves(),
-            test5UnusedProgramDeletesNormally()
+            test5UnusedProgramDeletesNormally(),
+            test6ContinuousSkipAdvancesAndPersists(),
+            test7WeeklySkipAdvancesWithinWeekAndResetsNextWeek()
         ]
         let passCount = results.filter { $0 }.count
         print("=== ProgramFeatureDebug done: \(passCount)/\(results.count) passed ===")
@@ -301,6 +303,146 @@ final class ProgramFeatureDebug {
             return ok
         } catch {
             return fail("program-test5", "Unexpected error: \(error)")
+        }
+    }
+
+    @discardableResult
+    private static func test6ContinuousSkipAdvancesAndPersists() -> Bool {
+        do {
+            let harness = try makeHarness()
+            let user = User(name: "Continuous Skip User")
+            harness.context.insert(user)
+
+            let routineA = Routine(order: 0, name: "Push", user_id: user.id)
+            let routineB = Routine(order: 1, name: "Pull", user_id: user.id)
+            let routineC = Routine(order: 2, name: "Legs", user_id: user.id)
+            harness.context.insert(routineA)
+            harness.context.insert(routineB)
+            harness.context.insert(routineC)
+            try harness.context.save()
+
+            let programService = ProgramService(context: harness.context)
+            programService.currentUser = user
+
+            guard let program = programService.createProgram(
+                name: "Continuous Skip",
+                mode: .continuous,
+                startDate: date(2026, 4, 6)
+            ),
+            let block1 = programService.addBlock(to: program, name: "Block 1", durationCount: 1),
+            let workoutA = programService.addWorkout(to: block1, routine: routineA, name: nil, weekdayIndex: nil),
+            let workoutB = programService.addWorkout(to: block1, routine: routineB, name: nil, weekdayIndex: nil),
+            let block2 = programService.addBlock(to: program, name: "Block 2", durationCount: 1),
+            let workoutC = programService.addWorkout(to: block2, routine: routineC, name: nil, weekdayIndex: nil) else {
+                return fail("program-test6", "Expected continuous program setup to succeed")
+            }
+
+            let initialState = programService.resolvedState(for: program, sessions: [])
+            programService.skipNextWorkout(for: program, sessions: [])
+            let afterFirstSkipProgram = programService.programs.first(where: { $0.id == program.id }) ?? program
+            let afterFirstSkipState = programService.resolvedState(for: afterFirstSkipProgram, sessions: [])
+
+            let reloadedService = ProgramService(context: harness.context)
+            reloadedService.currentUser = user
+            reloadedService.loadPrograms()
+            guard let reloadedProgram = reloadedService.programs.first(where: { $0.id == program.id }) else {
+                return fail("program-test6", "Expected skipped program to reload")
+            }
+            let reloadedState = reloadedService.resolvedState(for: reloadedProgram, sessions: [])
+
+            reloadedService.skipNextWorkout(for: reloadedProgram, sessions: [])
+            let afterSecondSkipProgram = reloadedService.programs.first(where: { $0.id == reloadedProgram.id }) ?? reloadedProgram
+            let afterSecondSkipState = reloadedService.resolvedState(for: afterSecondSkipProgram, sessions: [])
+
+            var ok = true
+            ok = ok && check("program-test6", initialState.nextWorkout?.id == workoutA.id, "Expected first workout before any skips")
+            ok = ok && check("program-test6", afterFirstSkipState.nextWorkout?.id == workoutB.id, "Expected first skip to advance to the second workout")
+            ok = ok && check("program-test6", reloadedState.nextWorkout?.id == workoutB.id, "Expected continuous skip cursor to persist after reload")
+            ok = ok && check("program-test6", afterSecondSkipState.currentBlock?.id == block2.id, "Expected second skip to advance into the next block")
+            ok = ok && check("program-test6", afterSecondSkipState.nextWorkout?.id == workoutC.id, "Expected second skip to land on block 2's first workout")
+            print("[program-test6] \(ok ? "PASS" : "FAIL")")
+            return ok
+        } catch {
+            return fail("program-test6", "Unexpected error: \(error)")
+        }
+    }
+
+    @discardableResult
+    private static func test7WeeklySkipAdvancesWithinWeekAndResetsNextWeek() -> Bool {
+        do {
+            let harness = try makeHarness()
+            let user = User(name: "Weekly Skip User")
+            harness.context.insert(user)
+
+            let mondayRoutine = Routine(order: 0, name: "Monday", user_id: user.id)
+            let wednesdayRoutine = Routine(order: 1, name: "Wednesday", user_id: user.id)
+            let fridayRoutine = Routine(order: 2, name: "Friday", user_id: user.id)
+            harness.context.insert(mondayRoutine)
+            harness.context.insert(wednesdayRoutine)
+            harness.context.insert(fridayRoutine)
+            try harness.context.save()
+
+            let programService = ProgramService(context: harness.context)
+            programService.currentUser = user
+            let mondayReference = date(2026, 4, 6)
+            let nextWeekReference = date(2026, 4, 13)
+
+            guard let program = programService.createProgram(
+                name: "Weekly Skip",
+                mode: .weekly,
+                startDate: mondayReference
+            ),
+            let block = programService.addBlock(to: program, name: "Weeks 1-2", durationCount: 2),
+            let mondayWorkout = programService.addWorkout(to: block, routine: mondayRoutine, name: nil, weekdayIndex: ProgramWeekday.monday.rawValue),
+            let wednesdayWorkout = programService.addWorkout(to: block, routine: wednesdayRoutine, name: nil, weekdayIndex: ProgramWeekday.wednesday.rawValue),
+            let fridayWorkout = programService.addWorkout(to: block, routine: fridayRoutine, name: nil, weekdayIndex: ProgramWeekday.friday.rawValue) else {
+                return fail("program-test7", "Expected weekly program setup to succeed")
+            }
+
+            let initialState = programService.resolvedState(
+                for: program,
+                sessions: [],
+                referenceDate: mondayReference
+            )
+            programService.skipNextWorkout(
+                for: program,
+                sessions: [],
+                referenceDate: mondayReference
+            )
+            let skippedProgram = programService.programs.first(where: { $0.id == program.id }) ?? program
+            let afterSkipState = programService.resolvedState(
+                for: skippedProgram,
+                sessions: [],
+                referenceDate: mondayReference
+            )
+
+            let reloadedService = ProgramService(context: harness.context)
+            reloadedService.currentUser = user
+            reloadedService.loadPrograms()
+            guard let reloadedProgram = reloadedService.programs.first(where: { $0.id == program.id }) else {
+                return fail("program-test7", "Expected weekly skipped program to reload")
+            }
+            let reloadedState = reloadedService.resolvedState(
+                for: reloadedProgram,
+                sessions: [],
+                referenceDate: mondayReference
+            )
+            let nextWeekState = reloadedService.resolvedState(
+                for: reloadedProgram,
+                sessions: [],
+                referenceDate: nextWeekReference
+            )
+
+            var ok = true
+            ok = ok && check("program-test7", initialState.nextWorkout?.id == mondayWorkout.id, "Expected Monday workout at the start of the week")
+            ok = ok && check("program-test7", afterSkipState.nextWorkout?.id == wednesdayWorkout.id, "Expected skipping Monday to advance to Wednesday")
+            ok = ok && check("program-test7", reloadedState.nextWorkout?.id == wednesdayWorkout.id, "Expected weekly skip cursor to persist inside the same week")
+            ok = ok && check("program-test7", nextWeekState.nextWorkout?.id == mondayWorkout.id, "Expected weekly skip cursor to reset on the next program week")
+            ok = ok && check("program-test7", nextWeekState.nextWorkout?.id != fridayWorkout.id, "Expected the next week to no longer use the prior week's skipped cursor")
+            print("[program-test7] \(ok ? "PASS" : "FAIL")")
+            return ok
+        } catch {
+            return fail("program-test7", "Unexpected error: \(error)")
         }
     }
 

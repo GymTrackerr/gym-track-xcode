@@ -9,6 +9,16 @@ import Foundation
 import SwiftUI
 
 struct SessionProgressionTargetCardView: View {
+    struct TargetAutofillSelection {
+        let weight: Double?
+        let weightLow: Double?
+        let weightHigh: Double?
+        let repsTarget: Int?
+        let repsLow: Int?
+        let repsHigh: Int?
+        let weightUnit: WeightUnit?
+    }
+
     private struct TargetChecklistRow: Identifiable {
         let id: Int
         let order: Int
@@ -28,17 +38,14 @@ struct SessionProgressionTargetCardView: View {
     }
 
     let sessionEntry: SessionEntry
-    let onAutofill: () -> Void
-    let showsUseGoalButton: Bool
+    let onAutofill: ((TargetAutofillSelection) -> Void)?
 
     init(
         sessionEntry: SessionEntry,
-        onAutofill: @escaping () -> Void,
-        showsUseGoalButton: Bool = true
+        onAutofill: ((TargetAutofillSelection) -> Void)? = nil
     ) {
         self.sessionEntry = sessionEntry
         self.onAutofill = onAutofill
-        self.showsUseGoalButton = showsUseGoalButton
     }
 
     private var targetUnit: WeightUnit? {
@@ -112,18 +119,9 @@ struct SessionProgressionTargetCardView: View {
                     .font(.headline)
 
                 Spacer()
-
-                if showsUseGoalButton {
-                    Button {
-                        onAutofill()
-                    } label: {
-                        Label("Use Goal", systemImage: "arrow.down.doc")
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
             }
 
-            detailRow(title: "Next Target", value: targetRangeText)
+            targetSummaryRow
 
             if let cycleSummary = sessionEntry.appliedProgressionCycleSummary,
                !cycleSummary.isEmpty {
@@ -154,7 +152,7 @@ struct SessionProgressionTargetCardView: View {
         let isOver = status == .over
         let isSuggested = nextSuggestedTargetIndex == row.order
 
-        return HStack(spacing: 12) {
+        let content = HStack(spacing: 12) {
             Image(systemName: isCompleted ? "checkmark.square.fill" : "square")
                 .foregroundStyle(statusColor(for: status))
 
@@ -200,6 +198,62 @@ struct SessionProgressionTargetCardView: View {
                             : (isSuggested && !isCompleted ? Color.green.opacity(0.35) : Color.clear)),
                     lineWidth: 1
                 )
+        )
+
+        return Group {
+            if let onAutofill {
+                Button {
+                    onAutofill(targetSelection(for: row))
+                } label: {
+                    content
+                }
+                .buttonStyle(.plain)
+            } else {
+                content
+            }
+        }
+    }
+
+    private var targetSummaryRow: some View {
+        Group {
+            if let onAutofill {
+                Button {
+                    onAutofill(summarySelection)
+                } label: {
+                    detailRow(title: "Next Target", value: targetRangeText)
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.gray.opacity(0.08))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
+            } else {
+                detailRow(title: "Next Target", value: targetRangeText)
+            }
+        }
+    }
+
+    private var summarySelection: TargetAutofillSelection {
+        TargetAutofillSelection(
+            weight: sessionEntry.appliedTargetWeight,
+            weightLow: sessionEntry.appliedTargetWeightLow,
+            weightHigh: sessionEntry.appliedTargetWeightHigh,
+            repsTarget: sessionEntry.appliedTargetReps,
+            repsLow: sessionEntry.appliedTargetRepsLow,
+            repsHigh: sessionEntry.appliedTargetRepsHigh,
+            weightUnit: sessionEntry.appliedTargetWeightUnit
+        )
+    }
+
+    private func targetSelection(for row: TargetChecklistRow) -> TargetAutofillSelection {
+        TargetAutofillSelection(
+            weight: row.weight,
+            weightLow: row.weightLow,
+            weightHigh: row.weightHigh,
+            repsTarget: row.repsTarget,
+            repsLow: row.repsLow,
+            repsHigh: row.repsHigh,
+            weightUnit: sessionEntry.appliedTargetWeightUnit
         )
     }
 

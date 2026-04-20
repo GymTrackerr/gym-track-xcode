@@ -162,6 +162,17 @@ struct ProgramDetailView: View {
             }
             .buttonStyle(.borderedProminent)
             .disabled(!canLaunchPrimaryWorkout)
+
+            if resolvedState.activeSession == nil {
+                Button {
+                    programService.skipNextWorkout(for: program, sessions: sessionService.sessions)
+                } label: {
+                    Label("Skip Workout", systemImage: "forward.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .disabled(!resolvedState.canSkipNextWorkout)
+            }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -288,10 +299,7 @@ struct ProgramDetailView: View {
     }
 
     private var canLaunchPrimaryWorkout: Bool {
-        if resolvedState.activeSession != nil {
-            return true
-        }
-        return resolvedState.nextWorkout?.routine != nil
+        resolvedState.canStartNextWorkout
     }
 
     private func openPrimaryWorkout() {

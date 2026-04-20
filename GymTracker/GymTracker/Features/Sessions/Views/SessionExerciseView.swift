@@ -294,10 +294,7 @@ struct SessionExerciseView: View {
                     Text("Progression")
                         .font(.subheadline)
                         .fontWeight(.semibold)
-                    Text(progressionQuickTitle)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Text(progressionQuickSubtitle)
+                    Text(progressionQuickModeTitle)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -1168,22 +1165,27 @@ struct SessionExerciseView: View {
         }
     }
 
-    private var progressionQuickTitle: String {
+    private var progressionQuickModeTitle: String {
         if let progressionExercise = progressionService.progressionExercise(for: sessionEntry.exercise.id) {
-            return progressionExercise.progressionNameSnapshot ?? "Saved progression"
+            if let resolvedProfile = progressionService.profile(for: progressionExercise) {
+                return resolvedProfile.type.title
+            }
+            if let resolvedType = progressionExercise.progressionType {
+                return resolvedType.title
+            }
         }
-        if let snapshot = sessionEntry.appliedProgressionNameSnapshot {
-            return snapshot
-        }
-        return "No saved progression"
-    }
 
-    private var progressionQuickSubtitle: String {
-        if let cycleSummary = sessionEntry.appliedProgressionCycleSummary,
-           !cycleSummary.isEmpty {
-            return cycleSummary
+        if let rawType = sessionEntry.appliedProgressionTypeRaw,
+           let resolvedType = ProgressionType(rawValue: rawType) {
+            return resolvedType.title
         }
-        return "Open details or edit the saved target."
+
+        if let snapshotProfileId = sessionEntry.appliedProgressionProfileId,
+           let resolvedProfile = progressionService.profile(id: snapshotProfileId) {
+            return resolvedProfile.type.title
+        }
+
+        return "No saved progression"
     }
 
     private var weightAdjustmentStep: Double {
@@ -1351,18 +1353,20 @@ struct SessionExerciseView: View {
         }
     }
 
-    private func applyProgressionTargetToDraft() {
+    private func applyProgressionTargetToDraft(
+        _ selection: SessionProgressionTargetCardView.TargetAutofillSelection
+    ) {
         guard !sessionEntry.exercise.cardio else { return }
 
-        let targetUnit = sessionEntry.appliedTargetWeightUnit ?? draftUnit
-        let targetWeight = sessionEntry.appliedTargetWeight ??
-            sessionEntry.appliedTargetWeightLow ??
-            sessionEntry.appliedTargetWeightHigh ??
+        let targetUnit = selection.weightUnit ?? draftUnit
+        let targetWeight = selection.weight ??
+            selection.weightLow ??
+            selection.weightHigh ??
             draftReps.first?.weight ??
             0
-        let targetReps = sessionEntry.appliedTargetReps ??
-            sessionEntry.appliedTargetRepsLow ??
-            sessionEntry.appliedTargetRepsHigh ??
+        let targetReps = selection.repsTarget ??
+            selection.repsLow ??
+            selection.repsHigh ??
             draftReps.first?.reps ??
             0
 
@@ -1372,6 +1376,20 @@ struct SessionExerciseView: View {
         draftReps = [RepDraft(weight: targetWeight, reps: targetReps, unit: targetUnit)]
         persistRepSnapshotsToDraftState()
         dismissKeyboard()
+    }
+
+    private func applyProgressionTargetToDraft() {
+        applyProgressionTargetToDraft(
+            .init(
+                weight: sessionEntry.appliedTargetWeight,
+                weightLow: sessionEntry.appliedTargetWeightLow,
+                weightHigh: sessionEntry.appliedTargetWeightHigh,
+                repsTarget: sessionEntry.appliedTargetReps,
+                repsLow: sessionEntry.appliedTargetRepsLow,
+                repsHigh: sessionEntry.appliedTargetRepsHigh,
+                weightUnit: sessionEntry.appliedTargetWeightUnit
+            )
+        )
     }
 
     private func resetDropSetIfNeeded() {

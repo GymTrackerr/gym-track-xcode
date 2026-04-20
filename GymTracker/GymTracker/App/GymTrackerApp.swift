@@ -184,6 +184,7 @@ struct GymTrackerApp: App {
         healthKitDailyStore.bind(to: userService)
 
         sessionService.progressionService = progressionService
+        sessionService.programService = programService
         sessionExerciseService.progressionService = progressionService
 
         // Service-level sync kickoff hooks run after user binding.

@@ -91,6 +91,9 @@ final class Program {
     var startDate: Date
     var trainDaysBeforeRest: Int
     var restDays: Int
+    var continuousSkippedWorkoutCount: Int = 0
+    var weeklySkipWeekOffset: Int? = nil
+    var weeklySkipNextWorkoutId: UUID? = nil
     var isActive: Bool = false
     var isArchived: Bool = false
     var soft_deleted: Bool = false

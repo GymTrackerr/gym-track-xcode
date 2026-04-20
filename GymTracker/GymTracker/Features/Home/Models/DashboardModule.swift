@@ -42,6 +42,7 @@ enum ModuleType: String, Codable, CaseIterable {
     case truesight = "truesight"
     case nutrition = "nutrition"
     case sessionVolume = "sessionVolume"
+    case program = "program"
     
     var displayName: String {
         switch self {
@@ -54,6 +55,7 @@ enum ModuleType: String, Codable, CaseIterable {
         case .truesight: return "TrueSight"
         case .nutrition: return "Nutrition"
         case .sessionVolume: return "Session Volume"
+        case .program: return "Program"
         }
     }
     
@@ -68,6 +70,7 @@ enum ModuleType: String, Codable, CaseIterable {
         case .truesight: return "video"
         case .nutrition: return "fork.knife"
         case .sessionVolume: return "chart.bar.xaxis"
+        case .program: return "figure.strengthtraining.traditional"
         }
     }
     
@@ -91,6 +94,8 @@ enum ModuleType: String, Codable, CaseIterable {
             return [.small, .medium, .large]
         case .sessionVolume:
             return [.small, .medium, .large]
+        case .program:
+            return [.small, .medium]
         }
     }
 
@@ -98,7 +103,7 @@ enum ModuleType: String, Codable, CaseIterable {
         switch self {
         case .currentWeight, .weeklySteps, .sleep, .activityRings, .fitnessWorkouts:
             return true
-        case .timer, .truesight, .nutrition, .sessionVolume:
+        case .timer, .truesight, .nutrition, .sessionVolume, .program:
             return false
         }
     }
