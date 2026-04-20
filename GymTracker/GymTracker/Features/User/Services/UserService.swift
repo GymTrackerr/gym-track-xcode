@@ -13,8 +13,7 @@ internal import CoreData
 class UserService: ServiceBase, ObservableObject {
     @Published var accountCreated: Bool = false
     @Published var accounts: [User] = []
-    @Published var onBoarding: Bool = false
-    @Published var onBoardingScreen: Int = 0
+    @Published var onboardingState: OnboardingState?
     @Published var currentUserLoggedin: UUID
     private let repository: UserRepositoryProtocol
 //    @Published override var currentUser: User?: User? = nil
@@ -30,11 +29,10 @@ class UserService: ServiceBase, ObservableObject {
             .sink { [weak self] user in
                 guard let self else { return }
                 self.accountCreated = (user != nil)
-                if (user==nil) {self.onBoarding=true}
-                else if (self.accountCreated==false) {accountCreated = true}
+                self.onboardingState = self.makeOnboardingState(for: user)
                 self.ensureDeviceIdForCurrentUser()
             }
-            .store(in: &cancellables)        
+            .store(in: &cancellables)
     }
     
     override func loadFeature() {
@@ -53,23 +51,12 @@ class UserService: ServiceBase, ObservableObject {
 
             if let first = accounts.first {
                 currentUser = first
-                ensureDeviceIdForCurrentUser()
-                accountCreated = true
-                if (firstLoad==false) {
-                    onBoarding = false
-                }
             } else {
                 currentUser = nil
-                accountCreated = false
-                onBoarding = true
             }
-            
         } catch {
             accounts = []
             currentUser = nil
-            accountCreated = false
-            onBoarding = true
-
         }
     }
 
@@ -116,11 +103,25 @@ class UserService: ServiceBase, ObservableObject {
             do {
                 let newItem = try repository.createUser(name: trimmedName, isDemo: false)
                 currentUser = newItem
-                ensureDeviceIdForCurrentUser()
-                accountCreated = true
                 loadAccounts(firstLoad: true)
             } catch {
                 print("Failed to save new split day: \(error)")
+            }
+        }
+    }
+
+    func completeOnboarding() {
+        guard let currentUser else { return }
+
+        withAnimation {
+            currentUser.onboardingStatus = .completed
+            currentUser.updatedAt = Date()
+
+            do {
+                try repository.saveChanges(for: currentUser)
+                onboardingState = nil
+            } catch {
+                print("Failed to complete onboarding: \(error)")
             }
         }
     }
@@ -129,6 +130,12 @@ class UserService: ServiceBase, ObservableObject {
         guard let currentUser else { return }
         _ = LocalDeviceIdentityStore.shared.deviceId(for: currentUser.id)
         BackendSessionStore.shared.setActiveLocalUserId(currentUser.id)
+    }
+
+    private func makeOnboardingState(for user: User?) -> OnboardingState? {
+        guard let user else { return .noAccount }
+        guard user.needsOnboarding else { return nil }
+        return .required(userId: user.id)
     }
     
     func hkUserAllow(connected: Bool, requested: Bool) {

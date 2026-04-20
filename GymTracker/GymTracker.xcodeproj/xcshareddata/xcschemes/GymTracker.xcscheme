@@ -55,6 +55,10 @@
             argument = "-com.apple.CoreData.SQL.Debug 1"
             isEnabled = "YES">
          </CommandLineArgument>
+         <CommandLineArgument
+            argument = "--run-debug-harness"
+            isEnabled = "YES">
+         </CommandLineArgument>
       </CommandLineArguments>
    </LaunchAction>
    <ProfileAction

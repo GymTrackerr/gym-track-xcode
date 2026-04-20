@@ -19,6 +19,7 @@ final class LocalUserRepository: UserRepositoryProtocol {
 
     func createUser(name: String, isDemo: Bool = false) throws -> User {
         let user = User(name: name, isDemo: isDemo)
+        user.onboardingStatus = isDemo ? .completed : .pending
         modelContext.insert(user)
         try SyncRootMetadataManager.markCreated(user, in: modelContext)
         try modelContext.save()

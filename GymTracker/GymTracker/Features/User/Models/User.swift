@@ -24,6 +24,7 @@ final class User {
     var remoteAccountId: String? = nil
     var remoteSyncEnabled: Bool = true
     var exerciseCatalogEnabled: Bool = false
+    var onboardingStatusRaw: String? = nil
     var globalProgressionEnabledStored: Bool? = nil
     var defaultProgressionProfileId: UUID? = nil
     
@@ -55,5 +56,14 @@ final class User {
     var globalProgressionEnabled: Bool {
         get { globalProgressionEnabledStored ?? false }
         set { globalProgressionEnabledStored = newValue }
+    }
+
+    var onboardingStatus: UserOnboardingStatus {
+        get { UserOnboardingStatus(rawValue: onboardingStatusRaw ?? "") ?? .completed }
+        set { onboardingStatusRaw = newValue.rawValue }
+    }
+
+    var needsOnboarding: Bool {
+        !isDemo && onboardingStatus != .completed
     }
 }

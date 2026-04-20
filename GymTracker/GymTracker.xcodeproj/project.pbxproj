@@ -74,7 +74,6 @@
 				Features/Timer/Shared/SharedTimerModels.swift,
 				Features/Timer/Shared/SharedTimerStateStore.swift,
 				Features/Timer/Shared/WatchTimerControlling.swift,
-				Features/User/Models/User.swift,
 				GymTracker.icon,
 				Integrations/Media/MediaCache.swift,
 				Integrations/Watch/WatchSessionManager.swift,
@@ -115,7 +114,6 @@
 				Features/Timer/Shared/SharedTimerModels.swift,
 				Features/Timer/Shared/SharedTimerStateStore.swift,
 				Features/Timer/Shared/WatchTimerControlling.swift,
-				Features/User/Models/User.swift,
 			);
 			target = 65F66C192EE4FD780089B62E /* TrackerWidgetExtension */;
 		};
@@ -511,7 +509,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = GymTracker/GymTracker.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_TEAM = VHCWBN8GY3;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -574,7 +572,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = GymTracker/GymTracker.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_TEAM = VHCWBN8GY3;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
