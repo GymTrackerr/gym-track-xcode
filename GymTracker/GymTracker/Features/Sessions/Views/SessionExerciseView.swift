@@ -11,6 +11,7 @@ struct SessionExerciseView: View {
     @EnvironmentObject var setService: SetService
     @EnvironmentObject var timerService: TimerService
     @EnvironmentObject var exerciseService: ExerciseService
+    @EnvironmentObject var progressionService: ProgressionService
     @EnvironmentObject var draftStore: SessionExerciseDraftStore
 
     @Bindable var sessionEntry: SessionEntry
@@ -79,6 +80,18 @@ struct SessionExerciseView: View {
                 if !navigationContext.isFromExerciseHistory {
                     sectionCard {
                         detailsQuickCard
+                    }
+                }
+
+                if !navigationContext.isFromExerciseHistory && !sessionEntry.exercise.cardio {
+                    sectionCard {
+                        progressionQuickCard
+                    }
+                }
+
+                if sessionEntry.hasProgressionSnapshot && !sessionEntry.exercise.cardio && !navigationContext.isFromExerciseHistory {
+                    sectionCard {
+                        progressionTargetCard
                     }
                 }
 
@@ -181,6 +194,26 @@ struct SessionExerciseView: View {
             .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
+    private func adjustmentControls(
+        decrementTitle: String,
+        incrementTitle: String,
+        decrementAction: @escaping () -> Void,
+        incrementAction: @escaping () -> Void
+    ) -> some View {
+        HStack(spacing: 8) {
+            Button(decrementTitle) {
+                decrementAction()
+            }
+            .buttonStyle(.bordered)
+
+            Button(incrementTitle) {
+                incrementAction()
+            }
+            .buttonStyle(.bordered)
+        }
+        .font(.caption)
+    }
+
     private var timerQuickCard: some View {
         NavigationLink {
             TimerView().appBackground()
@@ -247,6 +280,38 @@ struct SessionExerciseView: View {
             }
         }
         .buttonStyle(.plain)
+    }
+
+    private var progressionQuickCard: some View {
+        NavigationLink {
+            SessionProgressionDetailsView(sessionEntry: sessionEntry)
+                .appBackground()
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "chart.line.uptrend.xyaxis")
+                    .font(.headline)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Progression")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    Text(progressionQuickModeTitle)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var progressionTargetCard: some View {
+        SessionProgressionTargetCardView(
+            sessionEntry: sessionEntry,
+            onAutofill: applyProgressionTargetToDraft
+        )
     }
 
     private var addSetForm: some View {
@@ -326,6 +391,13 @@ struct SessionExerciseView: View {
                                 TextField("", value: $draftReps[0].weight, formatter: weightFormatter)
                                     .keyboardType(.decimalPad)
                                     .textFieldStyle(.roundedBorder)
+
+                                adjustmentControls(
+                                    decrementTitle: "-\(weightAdjustmentStep.clean)",
+                                    incrementTitle: "+\(weightAdjustmentStep.clean)",
+                                    decrementAction: { adjustCurrentWeight(by: -weightAdjustmentStep) },
+                                    incrementAction: { adjustCurrentWeight(by: weightAdjustmentStep) }
+                                )
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -336,6 +408,13 @@ struct SessionExerciseView: View {
                                 TextField("", value: $draftReps[0].reps, formatter: repsFormatter)
                                     .keyboardType(.numberPad)
                                     .textFieldStyle(.roundedBorder)
+
+                                adjustmentControls(
+                                    decrementTitle: "-1",
+                                    incrementTitle: "+1",
+                                    decrementAction: { adjustCurrentReps(by: -1) },
+                                    incrementAction: { adjustCurrentReps(by: 1) }
+                                )
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
@@ -1086,6 +1165,58 @@ struct SessionExerciseView: View {
         }
     }
 
+    private var progressionQuickModeTitle: String {
+        if let progressionExercise = progressionService.progressionExercise(for: sessionEntry.exercise.id) {
+            if let resolvedProfile = progressionService.profile(for: progressionExercise) {
+                return resolvedProfile.type.title
+            }
+            if let resolvedType = progressionExercise.progressionType {
+                return resolvedType.title
+            }
+        }
+
+        if let rawType = sessionEntry.appliedProgressionTypeRaw,
+           let resolvedType = ProgressionType(rawValue: rawType) {
+            return resolvedType.title
+        }
+
+        if let snapshotProfileId = sessionEntry.appliedProgressionProfileId,
+           let resolvedProfile = progressionService.profile(id: snapshotProfileId) {
+            return resolvedProfile.type.title
+        }
+
+        return "No saved progression"
+    }
+
+    private var weightAdjustmentStep: Double {
+        if let low = sessionEntry.appliedTargetWeightLow,
+           let high = sessionEntry.appliedTargetWeightHigh,
+           high > low {
+            return max((high - low).rounded(toPlaces: 2), 0.5)
+        }
+
+        switch draftUnit {
+        case .lb:
+            return 5
+        case .kg:
+            return 2.5
+        }
+    }
+
+    private func adjustCurrentWeight(by delta: Double) {
+        guard !draftReps.isEmpty else { return }
+        resetDropSetIfNeeded()
+        draftReps[0].weight = max((draftReps[0].weight + delta).rounded(toPlaces: 2), 0)
+        persistRepSnapshotsToDraftState()
+    }
+
+    private func adjustCurrentReps(by delta: Int) {
+        guard !draftReps.isEmpty else { return }
+        resetDropSetIfNeeded()
+        draftReps[0].reps = max(draftReps[0].reps + delta, 0)
+        persistRepSnapshotsToDraftState()
+    }
+
     private func trimToSingleRep() {
         if let first = draftReps.first {
             draftReps = [first]
@@ -1210,10 +1341,63 @@ struct SessionExerciseView: View {
             return
         }
 
+        if sessionEntry.hasProgressionSnapshot {
+            applyProgressionTargetToDraft()
+            return
+        }
+
         if let rep = setService.mostRecentRep(for: sessionEntry.exercise) {
             let unit = rep.weightUnit
             draftUnit = unit
             draftReps = [RepDraft(weight: rep.weight, reps: rep.count, unit: unit)]
+        }
+    }
+
+    private func applyProgressionTargetToDraft(
+        _ selection: SessionProgressionTargetCardView.TargetAutofillSelection
+    ) {
+        guard !sessionEntry.exercise.cardio else { return }
+
+        let targetUnit = selection.weightUnit ?? draftUnit
+        let targetWeight = selection.weight ??
+            selection.weightLow ??
+            selection.weightHigh ??
+            draftReps.first?.weight ??
+            0
+        let targetReps = selection.repsTarget ??
+            selection.repsLow ??
+            selection.repsHigh ??
+            draftReps.first?.reps ??
+            0
+
+        resetDropSetIfNeeded()
+
+        draftUnit = targetUnit
+        draftReps = [RepDraft(weight: targetWeight, reps: targetReps, unit: targetUnit)]
+        persistRepSnapshotsToDraftState()
+        dismissKeyboard()
+    }
+
+    private func applyProgressionTargetToDraft() {
+        applyProgressionTargetToDraft(
+            .init(
+                weight: sessionEntry.appliedTargetWeight,
+                weightLow: sessionEntry.appliedTargetWeightLow,
+                weightHigh: sessionEntry.appliedTargetWeightHigh,
+                repsTarget: sessionEntry.appliedTargetReps,
+                repsLow: sessionEntry.appliedTargetRepsLow,
+                repsHigh: sessionEntry.appliedTargetRepsHigh,
+                weightUnit: sessionEntry.appliedTargetWeightUnit
+            )
+        )
+    }
+
+    private func resetDropSetIfNeeded() {
+        if isDropSetEnabled {
+            draftStore.updateDraft(for: sessionExerciseId) { draft in
+                draft.isDropSetEnabled = false
+                draft.dropSetInlineHint = nil
+            }
         }
     }
 
@@ -1445,6 +1629,12 @@ private extension Double {
         }
         return String(format: "%.1f", self)
     }
+
+    func rounded(toPlaces places: Int) -> Double {
+        guard places >= 0 else { return self }
+        let divisor = pow(10.0, Double(places))
+        return (self * divisor).rounded() / divisor
+    }
 }
 
 private struct DurationWheelPicker: View {
@@ -1547,7 +1737,7 @@ private struct DurationWheelPicker: View {
     }
 }
 
-private extension View {
+extension View {
     func screenContentPadding() -> some View {
         self
             .padding(.horizontal)

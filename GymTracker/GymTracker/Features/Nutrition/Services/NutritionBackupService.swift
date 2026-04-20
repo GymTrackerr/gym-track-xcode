@@ -6,7 +6,6 @@ final class NutritionBackupService {
     enum BackupError: LocalizedError {
         case missingUser
         case invalidSchemaVersion(Int)
-        case userMismatch
         case invalidBackup(String)
         case persistence(String)
 
@@ -16,8 +15,6 @@ final class NutritionBackupService {
                 return "You must be signed in to use nutrition backup."
             case .invalidSchemaVersion(let version):
                 return "Unsupported backup schema version: \(version). This app only imports nutrition backups with schemaVersion 2."
-            case .userMismatch:
-                return "Backup user does not match the active account."
             case .invalidBackup(let message):
                 return message
             case .persistence(let message):
@@ -127,7 +124,7 @@ final class NutritionBackupService {
                 return (lhs.mealRecipe?.id.uuidString ?? "") < (rhs.mealRecipe?.id.uuidString ?? "")
             }
         let nutritionLogs = try fetchNutritionLogEntries(userId: userId)
-        let targets = try fetchTargets()
+        let targets = try fetchTargets(userId: userId)
 
         return NutritionBackupPayloadV2(
             schemaVersion: 2,
@@ -142,15 +139,11 @@ final class NutritionBackupService {
     }
 
     private func importV2(payload: NutritionBackupPayloadV2, userId: UUID) throws -> ImportResult {
-        if payload.userId != userId {
-            throw BackupError.userMismatch
-        }
-
         let existingFoodItems = Dictionary(uniqueKeysWithValues: try fetchFoodItems(userId: userId).map { ($0.id, $0) })
         let existingMealRecipes = Dictionary(uniqueKeysWithValues: try fetchMealRecipes(userId: userId).map { ($0.id, $0) })
         let existingMealRecipeItems = Dictionary(uniqueKeysWithValues: try fetchMealRecipeItems(userId: userId).map { ($0.id, $0) })
         let existingLogs = Dictionary(uniqueKeysWithValues: try fetchNutritionLogEntries(userId: userId).map { ($0.id, $0) })
-        let existingTargets = Dictionary(uniqueKeysWithValues: try fetchTargets().map { ($0.id, $0) })
+        let existingTargets = Dictionary(uniqueKeysWithValues: try fetchTargets(userId: userId).map { ($0.id, $0) })
 
         var foodItemsById: [UUID: FoodItem] = existingFoodItems
         for dto in payload.foodItems {
@@ -296,6 +289,7 @@ final class NutritionBackupService {
                 target.id = dto.id
                 modelContext.insert(target)
             }
+            target.userId = userId
             target.createdAt = dto.createdAt
             target.updatedAt = dto.updatedAt
             target.calorieTarget = dto.calorieTarget
@@ -404,11 +398,11 @@ final class NutritionBackupService {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    private func fetchTargets() throws -> [NutritionTarget] {
+    private func fetchTargets(userId: UUID) throws -> [NutritionTarget] {
         let descriptor = FetchDescriptor<NutritionTarget>(
             sortBy: [SortDescriptor(\.createdAt)]
         )
-        return try modelContext.fetch(descriptor)
+        return try modelContext.fetch(descriptor).filter { $0.userId == userId || $0.userId == nil }
     }
 
     private func fetchFoodItems(userId: UUID) throws -> [FoodItem] {

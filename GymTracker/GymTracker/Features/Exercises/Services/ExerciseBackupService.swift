@@ -38,6 +38,11 @@ final class ExerciseBackupService {
         var exercises = ModelImportCounts()
         var routines = ModelImportCounts()
         var splitDays = ModelImportCounts()
+        var programs = ModelImportCounts()
+        var programBlocks = ModelImportCounts()
+        var programWorkouts = ModelImportCounts()
+        var progressionProfiles = ModelImportCounts()
+        var progressionExercises = ModelImportCounts()
         var sessions = ModelImportCounts()
         var sessionEntries = ModelImportCounts()
         var sessionSets = ModelImportCounts()
@@ -58,9 +63,10 @@ final class ExerciseBackupService {
     // MARK: - Export
 
     func exportExercisesJSON() throws -> URL {
-        guard let userId = currentUserProvider()?.id else {
+        guard let currentUser = currentUserProvider() else {
             throw BackupError.missingUser
         }
+        let userId = currentUser.id
 
         let allExercises = try fetchExercises(userId: userId)
         let exportableExercises = allExercises.filter(\.isUserCreated)
@@ -78,6 +84,26 @@ final class ExerciseBackupService {
         let routines = try fetchRoutines(userId: userId)
         let routinesById = Dictionary(uniqueKeysWithValues: routines.map { ($0.id, $0) })
         let routineIds = Set(routines.map(\.id))
+
+        let programs = try fetchPrograms(userId: userId)
+        let programBlocks = programs
+            .flatMap(\.blocks)
+            .sorted { lhs, rhs in
+                if lhs.program.id == rhs.program.id {
+                    return lhs.order < rhs.order
+                }
+                return lhs.program.id.uuidString < rhs.program.id.uuidString
+            }
+        let programWorkouts = programBlocks
+            .flatMap(\.workouts)
+            .sorted { lhs, rhs in
+                if lhs.programBlock.id == rhs.programBlock.id {
+                    return lhs.order < rhs.order
+                }
+                return lhs.programBlock.id.uuidString < rhs.programBlock.id.uuidString
+            }
+        let visibleProgressionProfiles = try fetchAvailableProgressionProfiles(userId: userId)
+        let progressionExercises = try fetchProgressionExercises(userId: userId)
 
         let allSplitDays = try modelContext.fetch(FetchDescriptor<ExerciseSplitDay>(sortBy: [SortDescriptor(\.order)]))
         let splitDaysForUser = allSplitDays.filter { routineIds.contains($0.routine.id) }
@@ -130,7 +156,20 @@ final class ExerciseBackupService {
                 isCompleted: entry.isCompleted,
                 sessionId: entry.session.id.uuidString,
                 exerciseId: exerciseId,
-                exerciseNpId: exerciseNpId
+                exerciseNpId: exerciseNpId,
+                appliedProgressionProfileId: entry.appliedProgressionProfileId?.uuidString,
+                appliedProgressionNameSnapshot: entry.appliedProgressionNameSnapshot,
+                appliedProgressionMiniDescriptionSnapshot: entry.appliedProgressionMiniDescriptionSnapshot,
+                appliedProgressionTypeRaw: entry.appliedProgressionTypeRaw,
+                appliedTargetSetCount: entry.appliedTargetSetCount,
+                appliedTargetReps: entry.appliedTargetReps,
+                appliedTargetRepsLow: entry.appliedTargetRepsLow,
+                appliedTargetRepsHigh: entry.appliedTargetRepsHigh,
+                appliedTargetWeight: entry.appliedTargetWeight,
+                appliedTargetWeightLow: entry.appliedTargetWeightLow,
+                appliedTargetWeightHigh: entry.appliedTargetWeightHigh,
+                appliedTargetWeightUnitRaw: entry.appliedTargetWeightUnitRaw,
+                appliedProgressionCycleSummary: entry.appliedProgressionCycleSummary
             )
         }
         let exportedEntryIds = Set(entryDTOs.compactMap { UUID(uuidString: $0.id) })
@@ -176,14 +215,128 @@ final class ExerciseBackupService {
         }
 
         let routineDTOs = routines.map {
-            RoutineBackupDTO(
+            let splitSnapshot = $0.exerciseSplits
+                .sorted { lhs, rhs in
+                    if lhs.order != rhs.order { return lhs.order < rhs.order }
+                    return lhs.id.uuidString < rhs.id.uuidString
+                }
+                .map { splitDay in
+                    RoutineSplitDaySnapshotDTO(
+                        id: splitDay.id.uuidString,
+                        order: splitDay.order,
+                        exerciseId: splitDay.exercise.id.uuidString,
+                        exerciseNpId: splitDay.exercise.npId
+                    )
+                }
+            return RoutineBackupDTO(
                 id: $0.id.uuidString,
                 userId: $0.user_id.uuidString,
                 order: $0.order,
                 name: $0.name,
                 timestamp: $0.timestamp,
                 isArchived: $0.isArchived,
-                aliases: $0.aliases
+                aliases: $0.aliases,
+                defaultProgressionProfileId: $0.defaultProgressionProfileId?.uuidString,
+                defaultProgressionProfileNameSnapshot: $0.defaultProgressionProfileNameSnapshot,
+                splitDaySnapshot: splitSnapshot
+            )
+        }
+
+        let programDTOs = programs.map {
+            ProgramBackupDTO(
+                id: $0.id.uuidString,
+                userId: $0.user_id.uuidString,
+                name: $0.name,
+                notes: $0.notes,
+                defaultProgressionProfileId: $0.defaultProgressionProfileId?.uuidString,
+                defaultProgressionProfileNameSnapshot: $0.defaultProgressionProfileNameSnapshot,
+                modeRaw: $0.modeRaw,
+                startDate: $0.startDate,
+                trainDaysBeforeRest: $0.trainDaysBeforeRest,
+                restDays: $0.restDays,
+                isActive: $0.isActive,
+                isArchived: $0.isArchived,
+                timestamp: $0.timestamp,
+                createdAt: $0.createdAt,
+                updatedAt: $0.updatedAt
+            )
+        }
+
+        let programBlockDTOs = programBlocks.map {
+            ProgramBlockBackupDTO(
+                id: $0.id.uuidString,
+                order: $0.order,
+                name: $0.name,
+                durationCount: $0.durationCount,
+                programId: $0.program.id.uuidString
+            )
+        }
+
+        let programWorkoutDTOs = programWorkouts.map {
+            ProgramWorkoutBackupDTO(
+                id: $0.id.uuidString,
+                order: $0.order,
+                name: $0.name,
+                weekdayIndex: $0.weekdayIndex,
+                routineNameSnapshot: $0.routineNameSnapshot,
+                programBlockId: $0.programBlock.id.uuidString,
+                routineId: $0.routine?.id.uuidString
+            )
+        }
+
+        let progressionProfileDTOs = visibleProgressionProfiles.map {
+            ProgressionProfileBackupDTO(
+                id: $0.id.uuidString,
+                userId: $0.user_id?.uuidString,
+                name: $0.name,
+                miniDescription: $0.miniDescription,
+                typeRaw: $0.typeRaw,
+                incrementValue: $0.incrementValue,
+                percentageIncreaseStored: $0.percentageIncreaseStored,
+                incrementUnitRaw: $0.incrementUnitRaw,
+                setIncrement: $0.setIncrement,
+                successThreshold: $0.successThreshold,
+                defaultSetsTarget: $0.defaultSetsTarget,
+                defaultRepsTarget: $0.defaultRepsTarget,
+                defaultRepsLow: $0.defaultRepsLow,
+                defaultRepsHigh: $0.defaultRepsHigh,
+                isBuiltIn: $0.isBuiltIn,
+                isArchived: $0.isArchived,
+                timestamp: $0.timestamp,
+                createdAt: $0.createdAt,
+                updatedAt: $0.updatedAt
+            )
+        }
+
+        let progressionExerciseDTOs = progressionExercises.map {
+            ProgressionExerciseBackupDTO(
+                id: $0.id.uuidString,
+                userId: $0.user_id.uuidString,
+                exerciseId: $0.exerciseId.uuidString,
+                exerciseNameSnapshot: $0.exerciseNameSnapshot,
+                progressionProfileId: $0.progressionProfileId?.uuidString,
+                progressionNameSnapshot: $0.progressionNameSnapshot,
+                progressionMiniDescriptionSnapshot: $0.progressionMiniDescriptionSnapshot,
+                progressionTypeRaw: $0.progressionTypeRaw,
+                assignmentSourceRaw: $0.assignmentSourceRaw,
+                targetSetCount: $0.targetSetCount,
+                targetReps: $0.targetReps,
+                targetRepsLow: $0.targetRepsLow,
+                targetRepsHigh: $0.targetRepsHigh,
+                workingWeight: $0.workingWeight,
+                suggestedWeightLow: $0.suggestedWeightLow,
+                suggestedWeightHigh: $0.suggestedWeightHigh,
+                workingWeightUnitRaw: $0.workingWeightUnitRaw,
+                lastCompletedCycleWeight: $0.lastCompletedCycleWeight,
+                lastCompletedCycleReps: $0.lastCompletedCycleReps,
+                lastCompletedCycleUnitRaw: $0.lastCompletedCycleUnitRaw,
+                successCount: $0.successCount,
+                hasBackfilled: $0.hasBackfilled,
+                backfilledAt: $0.backfilledAt,
+                lastEvaluatedSessionId: $0.lastEvaluatedSessionId?.uuidString,
+                timestamp: $0.timestamp,
+                createdAt: $0.createdAt,
+                updatedAt: $0.updatedAt
             )
         }
 
@@ -195,6 +348,13 @@ final class ExerciseBackupService {
                 timestampDone: $0.timestampDone,
                 notes: $0.notes,
                 routineId: $0.routine.map { routinesById[$0.id] != nil ? $0.id.uuidString : nil } ?? nil,
+                programId: $0.program?.id.uuidString,
+                programBlockId: $0.programBlockId?.uuidString,
+                programBlockName: $0.programBlockName,
+                programWorkoutId: $0.programWorkoutId?.uuidString,
+                programWorkoutName: $0.programWorkoutName,
+                programWeekIndex: $0.programWeekIndex,
+                programSplitIndex: $0.programSplitIndex,
                 importHash: $0.importHash
             )
         }
@@ -206,7 +366,14 @@ final class ExerciseBackupService {
             payload: ExercisePayloadDTO(
                 exercises: exportableExercises.map(ExerciseBackupDTO.init),
                 npExerciseExports: npExerciseExports.isEmpty ? nil : npExerciseExports,
+                globalProgressionEnabled: currentUser.globalProgressionEnabled,
+                globalDefaultProgressionProfileId: currentUser.defaultProgressionProfileId?.uuidString,
                 routines: routineDTOs,
+                programs: programDTOs,
+                programBlocks: programBlockDTOs,
+                programWorkouts: programWorkoutDTOs,
+                progressionProfiles: progressionProfileDTOs,
+                progressionExercises: progressionExerciseDTOs,
                 splitDays: splitDayDTOs,
                 sessions: sessionDTOs,
                 sessionEntries: entryDTOs,
@@ -227,7 +394,7 @@ final class ExerciseBackupService {
             encoder.dateEncodingStrategy = .iso8601
             let data = try encoder.encode(payload)
             let fileURL = backupURL()
-            try data.write(to: fileURL, options: .atomic)
+            try data.write(to: fileURL, options: Data.WritingOptions.atomic)
             return fileURL
         } catch {
             throw BackupError.persistence("Could not write exercise backup file.")
@@ -355,6 +522,66 @@ final class ExerciseBackupService {
             report.warnings.append("Created placeholder non-user exercise for npId=\(key) to preserve imported aliases.")
         }
 
+        let existingProgressionProfiles = try fetchAvailableProgressionProfiles(userId: userId)
+        var progressionProfilesById = Dictionary(uniqueKeysWithValues: existingProgressionProfiles.map { ($0.id, $0) })
+
+        for dto in root.payload.progressionProfiles {
+            let profileId = try uuid(from: dto.id, label: "progressionProfile.id")
+
+            let profile: ProgressionProfile
+            if let existing = progressionProfilesById[profileId] {
+                profile = existing
+                report.progressionProfiles.updated += 1
+            } else {
+                profile = ProgressionProfile(
+                    userId: dto.userId == nil ? nil : userId,
+                    name: dto.name,
+                    miniDescription: dto.miniDescription,
+                    type: ProgressionType(rawValue: dto.typeRaw) ?? .linear,
+                    incrementValue: dto.incrementValue,
+                    percentageIncrease: dto.percentageIncreaseStored ?? 0,
+                    incrementUnit: WeightUnit(rawValue: dto.incrementUnitRaw) ?? .lb,
+                    setIncrement: dto.setIncrement,
+                    successThreshold: dto.successThreshold,
+                    defaultSetsTarget: dto.defaultSetsTarget,
+                    defaultRepsTarget: dto.defaultRepsTarget,
+                    defaultRepsLow: dto.defaultRepsLow,
+                    defaultRepsHigh: dto.defaultRepsHigh,
+                    isBuiltIn: dto.isBuiltIn
+                )
+                profile.id = profileId
+                modelContext.insert(profile)
+                report.progressionProfiles.inserted += 1
+            }
+
+            profile.id = profileId
+            profile.user_id = dto.userId == nil ? nil : userId
+            profile.name = dto.name
+            profile.miniDescription = dto.miniDescription
+            profile.typeRaw = dto.typeRaw
+            profile.incrementValue = dto.incrementValue
+            profile.percentageIncreaseStored = dto.percentageIncreaseStored
+            profile.incrementUnitRaw = dto.incrementUnitRaw
+            profile.setIncrement = dto.setIncrement
+            profile.successThreshold = dto.successThreshold
+            profile.defaultSetsTarget = dto.defaultSetsTarget
+            profile.defaultRepsTarget = dto.defaultRepsTarget
+            profile.defaultRepsLow = dto.defaultRepsLow
+            profile.defaultRepsHigh = dto.defaultRepsHigh
+            profile.isBuiltIn = dto.isBuiltIn
+            profile.isArchived = dto.isArchived ?? false
+            profile.timestamp = dto.timestamp
+            profile.createdAt = dto.createdAt
+            profile.updatedAt = dto.updatedAt
+            progressionProfilesById[profileId] = profile
+        }
+
+        if let currentUser = currentUserProvider(), root.payload.globalProgressionEnabled != nil {
+            currentUser.globalProgressionEnabled = root.payload.globalProgressionEnabled ?? false
+            currentUser.defaultProgressionProfileId = root.payload.globalDefaultProgressionProfileId.flatMap { UUID(uuidString: $0) }
+            currentUser.updatedAt = Date()
+        }
+
         let existingRoutines = try fetchRoutines(userId: userId)
         var routinesById = Dictionary(uniqueKeysWithValues: existingRoutines.map { ($0.id, $0) })
 
@@ -380,7 +607,143 @@ final class ExerciseBackupService {
             routine.timestamp = dto.timestamp
             routine.isArchived = dto.isArchived ?? false
             routine.aliases = dto.aliases ?? []
+            routine.defaultProgressionProfileId = dto.defaultProgressionProfileId.flatMap { UUID(uuidString: $0) }
+            routine.defaultProgressionProfileNameSnapshot = dto.defaultProgressionProfileNameSnapshot
             routinesById[routineId] = routine
+        }
+
+        let authoritativeRoutineSplitSnapshots = root.payload.routines.reduce(into: [UUID: [RoutineSplitDaySnapshotDTO]]()) { result, dto in
+            guard let snapshot = dto.splitDaySnapshot,
+                  let routineId = UUID(uuidString: dto.id) else { return }
+            result[routineId] = snapshot
+        }
+
+        let existingPrograms = try fetchPrograms(userId: userId)
+        var programsById = Dictionary(uniqueKeysWithValues: existingPrograms.map { ($0.id, $0) })
+
+        for dto in root.payload.programs {
+            let programId = try uuid(from: dto.id, label: "program.id")
+
+            let program: Program
+            if let existing = programsById[programId] {
+                program = existing
+                report.programs.updated += 1
+            } else {
+                program = Program(
+                    userId: userId,
+                    name: dto.name,
+                    notes: dto.notes,
+                    mode: ProgramMode(rawValue: dto.modeRaw) ?? .weekly,
+                    startDate: dto.startDate,
+                    trainDaysBeforeRest: dto.trainDaysBeforeRest,
+                    restDays: dto.restDays
+                )
+                program.id = programId
+                modelContext.insert(program)
+                report.programs.inserted += 1
+            }
+
+            program.id = programId
+            program.user_id = userId
+            program.name = dto.name
+            program.notes = dto.notes
+            program.defaultProgressionProfileId = dto.defaultProgressionProfileId.flatMap { UUID(uuidString: $0) }
+            program.defaultProgressionProfileNameSnapshot = dto.defaultProgressionProfileNameSnapshot
+            program.modeRaw = dto.modeRaw
+            program.startDate = dto.startDate
+            program.trainDaysBeforeRest = dto.trainDaysBeforeRest
+            program.restDays = dto.restDays
+            program.isActive = dto.isActive
+            program.isArchived = dto.isArchived ?? false
+            program.timestamp = dto.timestamp
+            program.createdAt = dto.createdAt
+            program.updatedAt = dto.updatedAt
+            programsById[programId] = program
+        }
+
+        let existingProgramBlocks = programsById.values
+            .flatMap(\.blocks)
+        var programBlocksById = Dictionary(uniqueKeysWithValues: existingProgramBlocks.map { ($0.id, $0) })
+
+        for dto in root.payload.programBlocks {
+            let blockId = try uuid(from: dto.id, label: "programBlock.id")
+            let programId = try uuid(from: dto.programId, label: "programBlock.programId")
+            guard let program = programsById[programId] else {
+                report.programBlocks.skipped += 1
+                report.warnings.append("Skipped program block \(dto.id) because its program was missing.")
+                continue
+            }
+
+            let block: ProgramBlock
+            if let existing = programBlocksById[blockId] {
+                block = existing
+                report.programBlocks.updated += 1
+            } else {
+                block = ProgramBlock(order: dto.order, program: program, name: dto.name, durationCount: dto.durationCount)
+                block.id = blockId
+                modelContext.insert(block)
+                report.programBlocks.inserted += 1
+            }
+
+            block.id = blockId
+            block.order = dto.order
+            block.name = dto.name
+            block.durationCount = dto.durationCount
+            block.program = program
+            if !program.blocks.contains(where: { $0.id == block.id }) {
+                program.blocks.append(block)
+            }
+            programBlocksById[blockId] = block
+        }
+
+        let existingProgramWorkouts = programBlocksById.values
+            .flatMap(\.workouts)
+        var programWorkoutsById = Dictionary(uniqueKeysWithValues: existingProgramWorkouts.map { ($0.id, $0) })
+
+        for dto in root.payload.programWorkouts {
+            let workoutId = try uuid(from: dto.id, label: "programWorkout.id")
+            let blockId = try uuid(from: dto.programBlockId, label: "programWorkout.programBlockId")
+            guard let block = programBlocksById[blockId] else {
+                report.programWorkouts.skipped += 1
+                report.warnings.append("Skipped program workout \(dto.id) because its block was missing.")
+                continue
+            }
+
+            let routine = dto.routineId
+                .flatMap { UUID(uuidString: $0) }
+                .flatMap { routinesById[$0] }
+            if dto.routineId != nil && routine == nil {
+                report.warnings.append("Imported program workout \(dto.id) without its routine link because the routine was missing.")
+            }
+
+            let workout: ProgramWorkout
+            if let existing = programWorkoutsById[workoutId] {
+                workout = existing
+                report.programWorkouts.updated += 1
+            } else {
+                workout = ProgramWorkout(
+                    order: dto.order,
+                    programBlock: block,
+                    routine: routine,
+                    name: dto.name,
+                    weekdayIndex: dto.weekdayIndex
+                )
+                workout.id = workoutId
+                modelContext.insert(workout)
+                report.programWorkouts.inserted += 1
+            }
+
+            workout.id = workoutId
+            workout.order = dto.order
+            workout.name = dto.name
+            workout.weekdayIndex = dto.weekdayIndex
+            workout.routineNameSnapshot = dto.routineNameSnapshot
+            workout.programBlock = block
+            workout.routine = routine
+            if !block.workouts.contains(where: { $0.id == workout.id }) {
+                block.workouts.append(workout)
+            }
+            programWorkoutsById[workoutId] = workout
         }
 
         let existingSessions = try fetchSessions(userId: userId)
@@ -393,12 +756,27 @@ final class ExerciseBackupService {
             let routine: Routine?
             if let routineIdString = dto.routineId {
                 let routineId = try uuid(from: routineIdString, label: "session.routineId")
-                guard let linkedRoutine = routinesById[routineId] else {
-                    throw BackupError.invalidBackup("Session \(dto.id) references missing routine.")
+                if let linkedRoutine = routinesById[routineId] {
+                    routine = linkedRoutine
+                } else {
+                    routine = nil
+                    report.warnings.append("Imported session \(dto.id) without its routine link because the routine was missing.")
                 }
-                routine = linkedRoutine
             } else {
                 routine = nil
+            }
+
+            let program: Program?
+            if let programIdString = dto.programId {
+                let programId = try uuid(from: programIdString, label: "session.programId")
+                if let linkedProgram = programsById[programId] {
+                    program = linkedProgram
+                } else {
+                    program = nil
+                    report.warnings.append("Imported session \(dto.id) without its program link because the program was missing.")
+                }
+            } else {
+                program = nil
             }
 
             let session: Session
@@ -406,7 +784,7 @@ final class ExerciseBackupService {
                 session = existing
                 report.sessions.updated += 1
             } else {
-                session = Session(timestamp: dto.timestamp, user_id: userId, routine: routine, notes: dto.notes)
+                session = Session(timestamp: dto.timestamp, user_id: userId, routine: routine, notes: dto.notes, program: program)
                 session.id = sessionId
                 modelContext.insert(session)
                 report.sessions.inserted += 1
@@ -418,6 +796,13 @@ final class ExerciseBackupService {
             session.timestampDone = dto.timestampDone
             session.notes = dto.notes
             session.routine = routine
+            session.program = program
+            session.programBlockId = dto.programBlockId.flatMap { UUID(uuidString: $0) }
+            session.programBlockName = dto.programBlockName
+            session.programWorkoutId = dto.programWorkoutId.flatMap { UUID(uuidString: $0) }
+            session.programWorkoutName = dto.programWorkoutName
+            session.programWeekIndex = dto.programWeekIndex
+            session.programSplitIndex = dto.programSplitIndex
             session.importHash = dto.importHash
             sessionsById[sessionId] = session
         }
@@ -455,10 +840,89 @@ final class ExerciseBackupService {
             entry.isCompleted = dto.isCompleted
             entry.session = session
             entry.exercise = exercise
+            entry.appliedProgressionProfileId = dto.appliedProgressionProfileId.flatMap { UUID(uuidString: $0) }
+            entry.appliedProgressionNameSnapshot = dto.appliedProgressionNameSnapshot
+            entry.appliedProgressionMiniDescriptionSnapshot = dto.appliedProgressionMiniDescriptionSnapshot
+            entry.appliedProgressionTypeRaw = dto.appliedProgressionTypeRaw
+            entry.appliedTargetSetCount = dto.appliedTargetSetCount
+            entry.appliedTargetReps = dto.appliedTargetReps
+            entry.appliedTargetRepsLow = dto.appliedTargetRepsLow
+            entry.appliedTargetRepsHigh = dto.appliedTargetRepsHigh
+            entry.appliedTargetWeight = dto.appliedTargetWeight
+            entry.appliedTargetWeightLow = dto.appliedTargetWeightLow
+            entry.appliedTargetWeightHigh = dto.appliedTargetWeightHigh
+            entry.appliedTargetWeightUnitRaw = dto.appliedTargetWeightUnitRaw
+            entry.appliedProgressionCycleSummary = dto.appliedProgressionCycleSummary
             if !session.sessionEntries.contains(where: { $0.id == entry.id }) {
                 session.sessionEntries.append(entry)
             }
             entriesById[entryId] = entry
+        }
+
+        let existingProgressionExercises = try fetchProgressionExercises(userId: userId)
+        var progressionExercisesById = Dictionary(uniqueKeysWithValues: existingProgressionExercises.map { ($0.id, $0) })
+        var progressionExercisesByExerciseId = Dictionary(uniqueKeysWithValues: existingProgressionExercises.map { ($0.exerciseId, $0) })
+
+        for dto in root.payload.progressionExercises {
+            let progressionExerciseId = try uuid(from: dto.id, label: "progressionExercise.id")
+            let exerciseId = try uuid(from: dto.exerciseId, label: "progressionExercise.exerciseId")
+            guard let exercise = preferredExercise(from: exerciseMaps.byId[exerciseId], label: "id=\(exerciseId.uuidString)") else {
+                report.progressionExercises.skipped += 1
+                report.warnings.append("Skipped progression state \(dto.id) because its exercise was missing.")
+                continue
+            }
+
+            let progressionExercise: ProgressionExercise
+            if let existing = progressionExercisesById[progressionExerciseId] ?? progressionExercisesByExerciseId[exerciseId] {
+                progressionExercise = existing
+                report.progressionExercises.updated += 1
+            } else {
+                progressionExercise = ProgressionExercise(
+                    userId: userId,
+                    exerciseId: exercise.id,
+                    exerciseName: dto.exerciseNameSnapshot,
+                    profile: dto.progressionProfileId
+                        .flatMap { UUID(uuidString: $0) }
+                        .flatMap { progressionProfilesById[$0] },
+                    targetSetCount: dto.targetSetCount,
+                    targetReps: dto.targetReps,
+                    targetRepsLow: dto.targetRepsLow,
+                    targetRepsHigh: dto.targetRepsHigh
+                )
+                progressionExercise.id = progressionExerciseId
+                modelContext.insert(progressionExercise)
+                report.progressionExercises.inserted += 1
+            }
+
+            progressionExercise.id = progressionExerciseId
+            progressionExercise.user_id = userId
+            progressionExercise.exerciseId = exercise.id
+            progressionExercise.exerciseNameSnapshot = dto.exerciseNameSnapshot
+            progressionExercise.progressionProfileId = dto.progressionProfileId.flatMap { UUID(uuidString: $0) }
+            progressionExercise.progressionNameSnapshot = dto.progressionNameSnapshot
+            progressionExercise.progressionMiniDescriptionSnapshot = dto.progressionMiniDescriptionSnapshot
+            progressionExercise.progressionTypeRaw = dto.progressionTypeRaw
+            progressionExercise.assignmentSourceRaw = dto.assignmentSourceRaw
+            progressionExercise.targetSetCount = dto.targetSetCount
+            progressionExercise.targetReps = dto.targetReps
+            progressionExercise.targetRepsLow = dto.targetRepsLow
+            progressionExercise.targetRepsHigh = dto.targetRepsHigh
+            progressionExercise.workingWeight = dto.workingWeight
+            progressionExercise.suggestedWeightLow = dto.suggestedWeightLow
+            progressionExercise.suggestedWeightHigh = dto.suggestedWeightHigh
+            progressionExercise.workingWeightUnitRaw = dto.workingWeightUnitRaw
+            progressionExercise.lastCompletedCycleWeight = dto.lastCompletedCycleWeight
+            progressionExercise.lastCompletedCycleReps = dto.lastCompletedCycleReps
+            progressionExercise.lastCompletedCycleUnitRaw = dto.lastCompletedCycleUnitRaw
+            progressionExercise.successCount = dto.successCount
+            progressionExercise.hasBackfilled = dto.hasBackfilled
+            progressionExercise.backfilledAt = dto.backfilledAt
+            progressionExercise.lastEvaluatedSessionId = dto.lastEvaluatedSessionId.flatMap { UUID(uuidString: $0) }
+            progressionExercise.timestamp = dto.timestamp
+            progressionExercise.createdAt = dto.createdAt
+            progressionExercise.updatedAt = dto.updatedAt
+            progressionExercisesById[progressionExerciseId] = progressionExercise
+            progressionExercisesByExerciseId[exercise.id] = progressionExercise
         }
 
         let allSets = try modelContext.fetch(FetchDescriptor<SessionSet>())
@@ -545,11 +1009,62 @@ final class ExerciseBackupService {
         let allSplitDays = try modelContext.fetch(FetchDescriptor<ExerciseSplitDay>())
         var splitDaysById = Dictionary(uniqueKeysWithValues: allSplitDays.filter { $0.routine.user_id == userId }.map { ($0.id, $0) })
 
+        for (routineId, snapshot) in authoritativeRoutineSplitSnapshots {
+            guard let routine = routinesById[routineId] else { continue }
+
+            let snapshotIds = Set(snapshot.compactMap { UUID(uuidString: $0.id) })
+            let staleSplitDays = routine.exerciseSplits.filter { !snapshotIds.contains($0.id) }
+            if !staleSplitDays.isEmpty {
+                routine.exerciseSplits.removeAll { splitDay in
+                    staleSplitDays.contains(where: { $0.id == splitDay.id })
+                }
+                for splitDay in staleSplitDays {
+                    splitDaysById.removeValue(forKey: splitDay.id)
+                    modelContext.delete(splitDay)
+                }
+            }
+
+            for splitDTO in snapshot {
+                let splitDayId = try uuid(from: splitDTO.id, label: "routine.splitDaySnapshot.id")
+                let exercise = try resolveExercise(
+                    exerciseIdString: splitDTO.exerciseId,
+                    exerciseNpId: splitDTO.exerciseNpId,
+                    exercisesById: exerciseMaps.byId,
+                    exercisesByNpId: exerciseMaps.byNpId
+                )
+
+                let splitDay: ExerciseSplitDay
+                if let existing = splitDaysById[splitDayId] {
+                    splitDay = existing
+                    report.splitDays.updated += 1
+                } else {
+                    splitDay = ExerciseSplitDay(order: splitDTO.order, routine: routine, exercise: exercise)
+                    splitDay.id = splitDayId
+                    modelContext.insert(splitDay)
+                    report.splitDays.inserted += 1
+                }
+
+                splitDay.id = splitDayId
+                splitDay.order = splitDTO.order
+                splitDay.routine = routine
+                splitDay.exercise = exercise
+                if !routine.exerciseSplits.contains(where: { $0.id == splitDay.id }) {
+                    routine.exerciseSplits.append(splitDay)
+                }
+                splitDaysById[splitDayId] = splitDay
+            }
+        }
+
         for dto in root.payload.splitDays {
             let splitDayId = try uuid(from: dto.id, label: "splitDay.id")
             let routineId = try uuid(from: dto.routineId, label: "splitDay.routineId")
+            if authoritativeRoutineSplitSnapshots[routineId] != nil {
+                continue
+            }
             guard let routine = routinesById[routineId] else {
-                throw BackupError.invalidBackup("Split day \(dto.id) references missing routine.")
+                report.splitDays.skipped += 1
+                report.warnings.append("Skipped split day \(dto.id) because its routine was missing.")
+                continue
             }
 
             let exercise = try resolveExercise(
@@ -638,6 +1153,36 @@ final class ExerciseBackupService {
         return try modelContext.fetch(descriptor)
     }
 
+    private func fetchPrograms(userId: UUID) throws -> [Program] {
+        let descriptor = FetchDescriptor<Program>(
+            predicate: #Predicate<Program> { item in
+                item.user_id == userId
+            },
+            sortBy: [SortDescriptor(\.timestamp)]
+        )
+        return try modelContext.fetch(descriptor)
+    }
+
+    private func fetchAvailableProgressionProfiles(userId: UUID) throws -> [ProgressionProfile] {
+        let descriptor = FetchDescriptor<ProgressionProfile>(
+            predicate: #Predicate<ProgressionProfile> { item in
+                item.soft_deleted == false && (item.user_id == nil || item.user_id == userId)
+            },
+            sortBy: [SortDescriptor(\.createdAt)]
+        )
+        return try modelContext.fetch(descriptor)
+    }
+
+    private func fetchProgressionExercises(userId: UUID) throws -> [ProgressionExercise] {
+        let descriptor = FetchDescriptor<ProgressionExercise>(
+            predicate: #Predicate<ProgressionExercise> { item in
+                item.user_id == userId && item.soft_deleted == false
+            },
+            sortBy: [SortDescriptor(\.createdAt)]
+        )
+        return try modelContext.fetch(descriptor)
+    }
+
     private func fetchSessions(userId: UUID) throws -> [Session] {
         let descriptor = FetchDescriptor<Session>(
             predicate: #Predicate<Session> { item in
@@ -666,8 +1211,17 @@ final class ExerciseBackupService {
         let splitDays = try modelContext.fetch(FetchDescriptor<ExerciseSplitDay>()).filter { $0.routine.user_id == userId }
         for splitDay in splitDays { modelContext.delete(splitDay) }
 
+        let progressionExercises = try fetchProgressionExercises(userId: userId)
+        for progressionExercise in progressionExercises { modelContext.delete(progressionExercise) }
+
+        let programs = try fetchPrograms(userId: userId)
+        for program in programs { modelContext.delete(program) }
+
         let routines = try fetchRoutines(userId: userId)
         for routine in routines { modelContext.delete(routine) }
+
+        let progressionProfiles = try fetchAvailableProgressionProfiles(userId: userId).filter { $0.user_id == userId }
+        for profile in progressionProfiles { modelContext.delete(profile) }
     }
 
     // MARK: - Warning Helpers
@@ -726,6 +1280,20 @@ final class ExerciseBackupService {
                 payloadByNpId: payloadByNpId,
                 plan: &plan
             )
+        }
+
+        for routine in payload.routines {
+            for splitDay in routine.splitDaySnapshot ?? [] {
+                classifyReference(
+                    exerciseIdString: splitDay.exerciseId,
+                    exerciseNpId: splitDay.exerciseNpId,
+                    existingById: existingById,
+                    existingByNpId: existingByNpId,
+                    payloadById: payloadById,
+                    payloadByNpId: payloadByNpId,
+                    plan: &plan
+                )
+            }
         }
 
         return plan
@@ -894,7 +1462,8 @@ final class ExerciseBackupService {
     private func debugAssertPayloadReferenceScenario(payload: ExercisePayloadDTO, plan: ExercisePreflightPlan) {
 #if DEBUG
         guard !payload.exercises.isEmpty else { return }
-        guard !payload.sessionEntries.isEmpty || !payload.splitDays.isEmpty else { return }
+        let hasRoutineSplitSnapshots = payload.routines.contains { !($0.splitDaySnapshot ?? []).isEmpty }
+        guard !payload.sessionEntries.isEmpty || !payload.splitDays.isEmpty || hasRoutineSplitSnapshots else { return }
 
         let payloadExerciseIds = Set(payload.exercises.compactMap { UUID(uuidString: $0.id) })
         let payloadExerciseNpIds = Set(payload.exercises.compactMap { normalizedNpId($0.npId) })
@@ -921,8 +1490,21 @@ final class ExerciseBackupService {
             }
             return false
         }
+        let routineSplitReferencesPayload = payload.routines.contains { routine in
+            (routine.splitDaySnapshot ?? []).contains { dto in
+                if let key = normalizedNpId(dto.exerciseNpId), payloadExerciseNpIds.contains(key) {
+                    return true
+                }
+                if let idString = dto.exerciseId?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   let id = UUID(uuidString: idString),
+                   payloadExerciseIds.contains(id) {
+                    return true
+                }
+                return false
+            }
+        }
 
-        if sessionReferencesPayload || splitReferencesPayload {
+        if sessionReferencesPayload || splitReferencesPayload || routineSplitReferencesPayload {
             assert(
                 plan.missingReferences.isEmpty,
                 "Preflight should allow payload-contained exercise references for entries/split days."
@@ -981,17 +1563,138 @@ private struct ExerciseBackupRootDTO: Codable {
     let userId: String
     let payload: ExercisePayloadDTO
     let exportWarnings: [String]?
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion
+        case exportedAt
+        case userId
+        case payload
+        case data
+        case exportWarnings
+    }
+
+    init(
+        schemaVersion: Int,
+        exportedAt: Date,
+        userId: String,
+        payload: ExercisePayloadDTO,
+        exportWarnings: [String]?
+    ) {
+        self.schemaVersion = schemaVersion
+        self.exportedAt = exportedAt
+        self.userId = userId
+        self.payload = payload
+        self.exportWarnings = exportWarnings
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        exportedAt = try container.decode(Date.self, forKey: .exportedAt)
+        userId = try container.decode(String.self, forKey: .userId)
+        payload = try container.decodeIfPresent(ExercisePayloadDTO.self, forKey: .payload)
+            ?? container.decodeIfPresent(ExercisePayloadDTO.self, forKey: .data)
+            ?? ExercisePayloadDTO()
+        exportWarnings = try container.decodeIfPresent([String].self, forKey: .exportWarnings)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(schemaVersion, forKey: .schemaVersion)
+        try container.encode(exportedAt, forKey: .exportedAt)
+        try container.encode(userId, forKey: .userId)
+        try container.encode(payload, forKey: .payload)
+        try container.encodeIfPresent(exportWarnings, forKey: .exportWarnings)
+    }
 }
 
 private struct ExercisePayloadDTO: Codable {
     let exercises: [ExerciseBackupDTO]
     let npExerciseExports: [NpExerciseExportDTO]?
+    let globalProgressionEnabled: Bool?
+    let globalDefaultProgressionProfileId: String?
     let routines: [RoutineBackupDTO]
+    let programs: [ProgramBackupDTO]
+    let programBlocks: [ProgramBlockBackupDTO]
+    let programWorkouts: [ProgramWorkoutBackupDTO]
+    let progressionProfiles: [ProgressionProfileBackupDTO]
+    let progressionExercises: [ProgressionExerciseBackupDTO]
     let splitDays: [ExerciseSplitDayBackupDTO]
     let sessions: [SessionBackupDTO]
     let sessionEntries: [SessionEntryBackupDTO]
     let sessionSets: [SessionSetBackupDTO]
     let sessionReps: [SessionRepBackupDTO]
+
+    private enum CodingKeys: String, CodingKey {
+        case exercises
+        case npExerciseExports
+        case globalProgressionEnabled
+        case globalDefaultProgressionProfileId
+        case routines
+        case programs
+        case programBlocks
+        case programWorkouts
+        case progressionProfiles
+        case progressionExercises
+        case splitDays
+        case sessions
+        case sessionEntries
+        case sessionSets
+        case sessionReps
+    }
+
+    init(
+        exercises: [ExerciseBackupDTO] = [],
+        npExerciseExports: [NpExerciseExportDTO]? = nil,
+        globalProgressionEnabled: Bool? = nil,
+        globalDefaultProgressionProfileId: String? = nil,
+        routines: [RoutineBackupDTO] = [],
+        programs: [ProgramBackupDTO] = [],
+        programBlocks: [ProgramBlockBackupDTO] = [],
+        programWorkouts: [ProgramWorkoutBackupDTO] = [],
+        progressionProfiles: [ProgressionProfileBackupDTO] = [],
+        progressionExercises: [ProgressionExerciseBackupDTO] = [],
+        splitDays: [ExerciseSplitDayBackupDTO] = [],
+        sessions: [SessionBackupDTO] = [],
+        sessionEntries: [SessionEntryBackupDTO] = [],
+        sessionSets: [SessionSetBackupDTO] = [],
+        sessionReps: [SessionRepBackupDTO] = []
+    ) {
+        self.exercises = exercises
+        self.npExerciseExports = npExerciseExports
+        self.globalProgressionEnabled = globalProgressionEnabled
+        self.globalDefaultProgressionProfileId = globalDefaultProgressionProfileId
+        self.routines = routines
+        self.programs = programs
+        self.programBlocks = programBlocks
+        self.programWorkouts = programWorkouts
+        self.progressionProfiles = progressionProfiles
+        self.progressionExercises = progressionExercises
+        self.splitDays = splitDays
+        self.sessions = sessions
+        self.sessionEntries = sessionEntries
+        self.sessionSets = sessionSets
+        self.sessionReps = sessionReps
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        exercises = try container.decodeIfPresent([ExerciseBackupDTO].self, forKey: .exercises) ?? []
+        npExerciseExports = try container.decodeIfPresent([NpExerciseExportDTO].self, forKey: .npExerciseExports)
+        globalProgressionEnabled = try container.decodeIfPresent(Bool.self, forKey: .globalProgressionEnabled)
+        globalDefaultProgressionProfileId = try container.decodeIfPresent(String.self, forKey: .globalDefaultProgressionProfileId)
+        routines = try container.decodeIfPresent([RoutineBackupDTO].self, forKey: .routines) ?? []
+        programs = try container.decodeIfPresent([ProgramBackupDTO].self, forKey: .programs) ?? []
+        programBlocks = try container.decodeIfPresent([ProgramBlockBackupDTO].self, forKey: .programBlocks) ?? []
+        programWorkouts = try container.decodeIfPresent([ProgramWorkoutBackupDTO].self, forKey: .programWorkouts) ?? []
+        progressionProfiles = try container.decodeIfPresent([ProgressionProfileBackupDTO].self, forKey: .progressionProfiles) ?? []
+        progressionExercises = try container.decodeIfPresent([ProgressionExerciseBackupDTO].self, forKey: .progressionExercises) ?? []
+        splitDays = try container.decodeIfPresent([ExerciseSplitDayBackupDTO].self, forKey: .splitDays) ?? []
+        sessions = try container.decodeIfPresent([SessionBackupDTO].self, forKey: .sessions) ?? []
+        sessionEntries = try container.decodeIfPresent([SessionEntryBackupDTO].self, forKey: .sessionEntries) ?? []
+        sessionSets = try container.decodeIfPresent([SessionSetBackupDTO].self, forKey: .sessionSets) ?? []
+        sessionReps = try container.decodeIfPresent([SessionRepBackupDTO].self, forKey: .sessionReps) ?? []
+    }
 }
 
 private struct NpExerciseExportDTO: Codable {
@@ -1045,6 +1748,104 @@ private struct RoutineBackupDTO: Codable {
     let timestamp: Date
     let isArchived: Bool?
     let aliases: [String]?
+    let defaultProgressionProfileId: String?
+    let defaultProgressionProfileNameSnapshot: String?
+    let splitDaySnapshot: [RoutineSplitDaySnapshotDTO]?
+}
+
+private struct RoutineSplitDaySnapshotDTO: Codable {
+    let id: String
+    let order: Int
+    let exerciseId: String?
+    let exerciseNpId: String?
+}
+
+private struct ProgramBackupDTO: Codable {
+    let id: String
+    let userId: String
+    let name: String
+    let notes: String
+    let defaultProgressionProfileId: String?
+    let defaultProgressionProfileNameSnapshot: String?
+    let modeRaw: String
+    let startDate: Date
+    let trainDaysBeforeRest: Int
+    let restDays: Int
+    let isActive: Bool
+    let isArchived: Bool?
+    let timestamp: Date
+    let createdAt: Date
+    let updatedAt: Date
+}
+
+private struct ProgramBlockBackupDTO: Codable {
+    let id: String
+    let order: Int
+    let name: String?
+    let durationCount: Int
+    let programId: String
+}
+
+private struct ProgramWorkoutBackupDTO: Codable {
+    let id: String
+    let order: Int
+    let name: String?
+    let weekdayIndex: Int?
+    let routineNameSnapshot: String
+    let programBlockId: String
+    let routineId: String?
+}
+
+private struct ProgressionProfileBackupDTO: Codable {
+    let id: String
+    let userId: String?
+    let name: String
+    let miniDescription: String
+    let typeRaw: String
+    let incrementValue: Double
+    let percentageIncreaseStored: Double?
+    let incrementUnitRaw: Int
+    let setIncrement: Int
+    let successThreshold: Int
+    let defaultSetsTarget: Int
+    let defaultRepsTarget: Int?
+    let defaultRepsLow: Int?
+    let defaultRepsHigh: Int?
+    let isBuiltIn: Bool
+    let isArchived: Bool?
+    let timestamp: Date
+    let createdAt: Date
+    let updatedAt: Date
+}
+
+private struct ProgressionExerciseBackupDTO: Codable {
+    let id: String
+    let userId: String
+    let exerciseId: String
+    let exerciseNameSnapshot: String
+    let progressionProfileId: String?
+    let progressionNameSnapshot: String?
+    let progressionMiniDescriptionSnapshot: String?
+    let progressionTypeRaw: String?
+    let assignmentSourceRaw: String?
+    let targetSetCount: Int
+    let targetReps: Int?
+    let targetRepsLow: Int?
+    let targetRepsHigh: Int?
+    let workingWeight: Double?
+    let suggestedWeightLow: Double?
+    let suggestedWeightHigh: Double?
+    let workingWeightUnitRaw: Int
+    let lastCompletedCycleWeight: Double?
+    let lastCompletedCycleReps: Int?
+    let lastCompletedCycleUnitRaw: Int?
+    let successCount: Int
+    let hasBackfilled: Bool
+    let backfilledAt: Date?
+    let lastEvaluatedSessionId: String?
+    let timestamp: Date
+    let createdAt: Date
+    let updatedAt: Date
 }
 
 private struct ExerciseSplitDayBackupDTO: Codable {
@@ -1062,6 +1863,13 @@ private struct SessionBackupDTO: Codable {
     let timestampDone: Date
     let notes: String
     let routineId: String?
+    let programId: String?
+    let programBlockId: String?
+    let programBlockName: String?
+    let programWorkoutId: String?
+    let programWorkoutName: String?
+    let programWeekIndex: Int?
+    let programSplitIndex: Int?
     let importHash: String?
 }
 
@@ -1072,6 +1880,19 @@ private struct SessionEntryBackupDTO: Codable {
     let sessionId: String
     let exerciseId: String?
     let exerciseNpId: String?
+    let appliedProgressionProfileId: String?
+    let appliedProgressionNameSnapshot: String?
+    let appliedProgressionMiniDescriptionSnapshot: String?
+    let appliedProgressionTypeRaw: String?
+    let appliedTargetSetCount: Int?
+    let appliedTargetReps: Int?
+    let appliedTargetRepsLow: Int?
+    let appliedTargetRepsHigh: Int?
+    let appliedTargetWeight: Double?
+    let appliedTargetWeightLow: Double?
+    let appliedTargetWeightHigh: Double?
+    let appliedTargetWeightUnitRaw: Int?
+    let appliedProgressionCycleSummary: String?
 }
 
 private struct SessionSetBackupDTO: Codable {

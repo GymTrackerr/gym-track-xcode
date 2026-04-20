@@ -28,6 +28,28 @@ final class SessionSyncRepository: BaseSyncRepository, SessionRepositoryProtocol
         return session
     }
 
+    func createProgramSession(
+        userId: UUID,
+        program: Program,
+        programBlock: ProgramBlock,
+        programWorkout: ProgramWorkout,
+        notes: String,
+        programWeekIndex: Int?,
+        programSplitIndex: Int?
+    ) throws -> Session {
+        let session = try localRepository.createProgramSession(
+            userId: userId,
+            program: program,
+            programBlock: programBlock,
+            programWorkout: programWorkout,
+            notes: notes,
+            programWeekIndex: programWeekIndex,
+            programSplitIndex: programSplitIndex
+        )
+        enqueue(for: session, operation: .create)
+        return session
+    }
+
     func updateRoutine(for session: Session, routine: Routine?) throws {
         try localRepository.updateRoutine(for: session, routine: routine)
         enqueue(for: session, operation: .update)

@@ -94,6 +94,40 @@ final class LocalSessionRepository: SessionRepositoryProtocol {
         return session
     }
 
+    func createProgramSession(
+        userId: UUID,
+        program: Program,
+        programBlock: ProgramBlock,
+        programWorkout: ProgramWorkout,
+        notes: String,
+        programWeekIndex: Int?,
+        programSplitIndex: Int?
+    ) throws -> Session {
+        let session = Session(
+            timestamp: Date(),
+            user_id: userId,
+            routine: programWorkout.routine,
+            notes: notes,
+            program: program
+        )
+        session.programBlockId = programBlock.id
+        session.programBlockName = programBlock.displayName
+        session.programWorkoutId = programWorkout.id
+        session.programWorkoutName = programWorkout.displayName
+        session.programWeekIndex = programWeekIndex
+        session.programSplitIndex = programSplitIndex
+
+        modelContext.insert(session)
+        try SyncRootMetadataManager.markCreated(session, in: modelContext)
+
+        if let routine = programWorkout.routine {
+            createSessionExercises(session: session, routine: routine)
+        }
+
+        try modelContext.save()
+        return session
+    }
+
     func updateRoutine(for session: Session, routine: Routine?) throws {
         session.routine = routine
         if let routine {
@@ -349,7 +383,14 @@ final class LocalSessionRepository: SessionRepositoryProtocol {
     }
 
     private func createSessionExercises(session: Session, routine: Routine) {
-        for exerciseSplit in routine.exerciseSplits {
+        let orderedSplits = routine.exerciseSplits.sorted { lhs, rhs in
+            if lhs.order != rhs.order {
+                return lhs.order < rhs.order
+            }
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
+
+        for exerciseSplit in orderedSplits {
             let newSessionEntry = SessionEntry(
                 session: session,
                 exerciseSplitDay: exerciseSplit

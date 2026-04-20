@@ -21,10 +21,12 @@ struct GymTrackerApp: App {
     @StateObject var timerService: TimerService
     @StateObject var exerciseService: ExerciseService
     @StateObject var splitDayService: RoutineService
+    @StateObject var programService: ProgramService
     @StateObject var sessionService: SessionService
     @StateObject var setService: SetService
     @StateObject var exerciseSplitDayService: ExerciseSplitDayService
     @StateObject var sessionExerciseService: SessionExerciseService
+    @StateObject var progressionService: ProgressionService
     @StateObject var nutritionService: NutritionService
     
     @StateObject var watchSessionManager: WatchSessionManager
@@ -77,9 +79,21 @@ struct GymTrackerApp: App {
             queueStore: syncQueueStore,
             eligibilityService: syncEligibilityService
         )
+        let localProgramRepository = LocalProgramRepository(modelContext: context)
+        let programRepository = ProgramSyncRepository(
+            localRepository: localProgramRepository,
+            queueStore: syncQueueStore,
+            eligibilityService: syncEligibilityService
+        )
         let localSessionRepository = LocalSessionRepository(modelContext: context)
         let sessionRepository = SessionSyncRepository(
             localRepository: localSessionRepository,
+            queueStore: syncQueueStore,
+            eligibilityService: syncEligibilityService
+        )
+        let localProgressionRepository = LocalProgressionRepository(modelContext: context)
+        let progressionRepository = ProgressionSyncRepository(
+            localRepository: localProgressionRepository,
             queueStore: syncQueueStore,
             eligibilityService: syncEligibilityService
         )
@@ -134,10 +148,16 @@ struct GymTrackerApp: App {
         let timerService = TimerService(context: context)
         let exerciseService = ExerciseService(context: context, repository: exerciseRepository)
         let splitDayService = RoutineService(context: context, repository: routineRepository)
+        let programService = ProgramService(context: context, repository: programRepository)
         let sessionService = SessionService(context: context, repository: sessionRepository)
         let setService = SetService(context: context, repository: sessionRepository)
         let exerciseSplitDayService = ExerciseSplitDayService(context: context, repository: routineRepository)
         let sessionExerciseService = SessionExerciseService(context: context, repository: sessionRepository)
+        let progressionService = ProgressionService(
+            context: context,
+            repository: progressionRepository,
+            historyRepository: sessionRepository
+        )
         let nutritionService = NutritionService(context: context, repository: nutritionRepository)
         let healthKitManager = HealthKitManager()
         let healthKitDateNormalizer = HealthKitDateNormalizer()
@@ -154,20 +174,28 @@ struct GymTrackerApp: App {
         timerService.bind(to: userService)
         exerciseService.bind(to: userService)
         splitDayService.bind(to: userService)
+        programService.bind(to: userService)
         sessionService.bind(to: userService)
         setService.bind(to: userService)
         exerciseSplitDayService.bind(to: userService)
         sessionExerciseService.bind(to: userService)
+        progressionService.bind(to: userService)
         nutritionService.bind(to: userService)
         healthKitDailyStore.bind(to: userService)
+
+        sessionService.progressionService = progressionService
+        sessionService.programService = programService
+        sessionExerciseService.progressionService = progressionService
 
         // Service-level sync kickoff hooks run after user binding.
         exerciseService.sync()
         splitDayService.sync()
+        programService.sync()
         sessionService.sync()
         setService.sync()
         exerciseSplitDayService.sync()
         sessionExerciseService.sync()
+        progressionService.sync()
         nutritionService.sync()
         healthKitDailyStore.sync()
 
@@ -183,10 +211,12 @@ struct GymTrackerApp: App {
         self._timerService = StateObject(wrappedValue: timerService)
         self._exerciseService = StateObject(wrappedValue: exerciseService)
         self._splitDayService = StateObject(wrappedValue: splitDayService)
+        self._programService = StateObject(wrappedValue: programService)
         self._sessionService = StateObject(wrappedValue: sessionService)
         self._setService = StateObject(wrappedValue: setService)
         self._exerciseSplitDayService = StateObject(wrappedValue: exerciseSplitDayService)
         self._sessionExerciseService = StateObject(wrappedValue: sessionExerciseService)
+        self._progressionService = StateObject(wrappedValue: progressionService)
         self._nutritionService = StateObject(wrappedValue: nutritionService)
         self._healthKitManager = StateObject(wrappedValue: healthKitManager)
         self._healthKitDailyStore = StateObject(wrappedValue: healthKitDailyStore)
@@ -216,12 +246,14 @@ struct GymTrackerApp: App {
                 .environmentObject(syncCoordinator)
                 .environmentObject(dashboardService)
                 .environmentObject(splitDayService)
+                .environmentObject(programService)
                 .environmentObject(exerciseService)
                 .environmentObject(exerciseSplitDayService)
                 .environmentObject(sessionService)
                 .environmentObject(sessionExerciseService)
                 .environmentObject(setService)
                 .environmentObject(timerService)
+                .environmentObject(progressionService)
                 .environmentObject(nutritionService)
         }
         .modelContainer(sharedModelContainer)

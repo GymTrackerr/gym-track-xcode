@@ -17,12 +17,20 @@ struct SingleDayView: View {
     @EnvironmentObject var esdService: ExerciseSplitDayService
     @EnvironmentObject var exerciseService: ExerciseService
     @EnvironmentObject var splitDayService: RoutineService
+    @EnvironmentObject var progressionService: ProgressionService
     @Bindable var routine: Routine
     
     @State var searchResults: [Exercise] = []
     @State private var routineAliasDraft: String = ""
+    @State private var showingProgressionSheet = false
     @EnvironmentObject var toastManager: ActionToastManager
     @Environment(\.editMode) private var editMode
+
+    private var defaultProgressionName: String {
+        progressionService.profile(id: routine.defaultProgressionProfileId)?.name ??
+        routine.defaultProgressionProfileNameSnapshot ??
+        "None"
+    }
 
     var body: some View {
         VStack {
@@ -31,6 +39,7 @@ struct SingleDayView: View {
                     Text("Routine: \(routine.name)")
                     Text("Order: \(routine.order)")
                     Text("Date: \(routine.timestamp.formatted(date: .numeric, time: .omitted))")
+                    Text("Progression: \(defaultProgressionName)")
 
                     if !routine.aliases.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -94,33 +103,70 @@ struct SingleDayView: View {
                             .padding(.horizontal)
                         }
                     }
+
+                    Button {
+                        showingProgressionSheet = true
+                    } label: {
+                        HStack {
+                            Text("Default Progression")
+                            Spacer()
+                            Text(defaultProgressionName)
+                                .foregroundStyle(.secondary)
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal)
                 }
             }
             
             List {
-                ForEach(routine.exerciseSplits.sorted { $0.order < $1.order }, id: \.id) { exerciseSplit in
-                    NavigationLink {
-                        SingleExerciseView(exercise: exerciseSplit.exercise)
-                    } label: {
-                        SingleExerciseLabelView(exercise: exerciseSplit.exercise, orderInSplit: exerciseSplit.order)
-                            .id(exerciseSplit.order)
-                    }
-                }
-                .onDelete(perform: removeExercise)
-                .onMove(perform: moveExercise)
-                
-                /* */
                 Section {
-                    ForEach(routine.sessions.sorted { $0.timestamp < $1.timestamp }, id: \.id) { session in
+                    ForEach(routine.exerciseSplits.sorted { $0.order < $1.order }, id: \.id) { exerciseSplit in
+                        NavigationLink {
+                            SingleExerciseView(exercise: exerciseSplit.exercise)
+                        } label: {
+                            SingleExerciseLabelView(exercise: exerciseSplit.exercise, orderInSplit: exerciseSplit.order)
+                                .foregroundColor(.primary)
+                        }
+                        .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 16))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.gray.opacity(0.1))
+                                .padding(.vertical, 6)
+                                .padding(.horizontal, 4)
+                        )
+                    }
+                    .onDelete(perform: removeExercise)
+                    .onMove(perform: moveExercise)
+                } header: {
+                    Text("Exercises")
+                }
+
+                Section {
+                    ForEach(routine.sessions.sorted { $0.timestampDone > $1.timestampDone }, id: \.id) { session in
                         NavigationLink {
                             SingleSessionView(session: session)
                         } label: {
                             SingleSessionLabelView(session: session)
-                            //                            .id(exerciseSlit.order)
+                                .foregroundColor(.primary)
                         }
+                        .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 16))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.gray.opacity(0.1))
+                                .padding(.vertical, 6)
+                                .padding(.horizontal, 4)
+                        )
                     }
+                } header: {
+                    Text("Session History")
                 }
             }
+            .listStyle(.plain)
             .scrollContentBackground(.hidden)
         }
         .navigationTitle(routine.name)
@@ -226,6 +272,11 @@ struct SingleDayView: View {
                 }
             }
         }
+        .sheet(isPresented: $showingProgressionSheet) {
+            NavigationStack {
+                RoutineProgressionSheet(routine: routine)
+            }
+        }
     }
 
     func removeExerciseEditing(exercise: Exercise) {
@@ -305,6 +356,55 @@ struct SingleDayView: View {
                 }
             }
         )
+    }
+}
+
+private struct RoutineProgressionSheet: View {
+    @EnvironmentObject private var progressionService: ProgressionService
+    @EnvironmentObject private var esdService: ExerciseSplitDayService
+    @Environment(\.dismiss) private var dismiss
+
+    let routine: Routine
+
+    @State private var selectedProfileId: UUID?
+
+    var body: some View {
+        Form {
+            Section("Default Progression") {
+                Picker("Profile", selection: $selectedProfileId) {
+                    Text("None").tag(Optional<UUID>.none)
+                    ForEach(progressionService.profiles, id: \.id) { profile in
+                        Text(profile.name).tag(Optional(profile.id))
+                    }
+                }
+
+                Text("Routine sessions will automatically apply this profile to exercises that do not already have their own saved progression.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .navigationTitle("Routine Progression")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") { dismiss() }
+            }
+
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save") {
+                    let selectedProfile = progressionService.profile(id: selectedProfileId)
+                    routine.defaultProgressionProfileId = selectedProfile?.id
+                    routine.defaultProgressionProfileNameSnapshot = selectedProfile?.name
+                    esdService.saveChanges()
+                    dismiss()
+                }
+            }
+        }
+        .onAppear {
+            progressionService.ensureBuiltInProfiles()
+            progressionService.loadProfiles()
+            selectedProfileId = routine.defaultProgressionProfileId
+        }
     }
 }
 

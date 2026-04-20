@@ -1,0 +1,44 @@
+[
+  {
+    "name": "Load Progression",
+    "miniDescription": "Increase the load by a small amount after a successful session.",
+    "type": "linear",
+    "incrementValue": 5,
+    "percentageIncrease": 0,
+    "incrementUnitRaw": 0,
+    "setIncrement": 1,
+    "successThreshold": 1,
+    "defaultSetsTarget": 3,
+    "defaultRepsTarget": 10,
+    "defaultRepsLow": null,
+    "defaultRepsHigh": null
+  },
+  {
+    "name": "Double Progression",
+    "miniDescription": "Build reps inside a range before moving the weight up.",
+    "type": "doubleProgression",
+    "incrementValue": 5,
+    "percentageIncrease": 2.5,
+    "incrementUnitRaw": 0,
+    "setIncrement": 1,
+    "successThreshold": 1,
+    "defaultSetsTarget": 3,
+    "defaultRepsTarget": 8,
+    "defaultRepsLow": 8,
+    "defaultRepsHigh": 12
+  },
+  {
+    "name": "Volume Progression",
+    "miniDescription": "Add more sets over time while keeping reps steady.",
+    "type": "volume",
+    "incrementValue": 0,
+    "percentageIncrease": 0,
+    "incrementUnitRaw": 0,
+    "setIncrement": 1,
+    "successThreshold": 1,
+    "defaultSetsTarget": 3,
+    "defaultRepsTarget": 10,
+    "defaultRepsLow": null,
+    "defaultRepsHigh": null
+  }
+]

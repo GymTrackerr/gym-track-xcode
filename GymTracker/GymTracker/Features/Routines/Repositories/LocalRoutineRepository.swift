@@ -142,6 +142,7 @@ final class LocalRoutineRepository: RoutineRepositoryProtocol {
         for (index, exercise) in exercises.enumerated() {
             exercise.order = index
         }
+        routine.exerciseSplits = exercises
         try SyncRootMetadataManager.markUpdated(routine, in: modelContext)
         try modelContext.save()
     }
@@ -164,5 +165,6 @@ final class LocalRoutineRepository: RoutineRepositoryProtocol {
         for (index, exercise) in exercises.enumerated() {
             exercise.order = index
         }
+        routine.exerciseSplits = exercises
     }
 }

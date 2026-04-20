@@ -359,12 +359,10 @@ struct DashboardModulesView: View {
             columnCount: columnCount,
             spacing: dashboardSpacing
         )
-        let existingTypes = Set(displayModules.map(\.type))
 
         VStack(alignment: .leading, spacing: 16) {
             if dashboardService.isEditingMode {
                 DashboardInlineEditorBar(
-                    canAddModules: existingTypes.count < ModuleType.allCases.count,
                     onAddModule: { showAddModuleSheet = true },
                     onApplyPreset: { preset in
                         draftModules = dashboardService.modulesForPreset(preset)
@@ -401,8 +399,7 @@ struct DashboardModulesView: View {
         )
         .sheet(isPresented: $showAddModuleSheet) {
             DashboardInlineAddModuleSheet(
-                isPresented: $showAddModuleSheet,
-                existingTypes: existingTypes
+                isPresented: $showAddModuleSheet
             ) { type, size in
                 addDraftModule(type: type, size: size)
             }
@@ -469,7 +466,6 @@ struct DashboardModulesView: View {
     }
 
     private func addDraftModule(type: ModuleType, size: ModuleSize) {
-        guard !draftModules.contains(where: { $0.type == type }) else { return }
         let allowedSizes = type.allowedSizes
         let normalizedSize = allowedSizes.contains(size) ? size : (allowedSizes.first ?? .small)
         draftModules.append(
@@ -625,7 +621,6 @@ struct DashboardGridLayout {
 }
 
 struct DashboardInlineEditorBar: View {
-    let canAddModules: Bool
     let onAddModule: () -> Void
     let onApplyPreset: (DashboardPreset) -> Void
 
@@ -636,7 +631,6 @@ struct DashboardInlineEditorBar: View {
                     Label("Add Module", systemImage: "plus.circle.fill")
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(!canAddModules)
 
                 Menu {
                     Section("Presets") {
@@ -687,37 +681,31 @@ struct DashboardInlineEditorBar: View {
 
 struct DashboardInlineAddModuleSheet: View {
     @Binding var isPresented: Bool
-    let existingTypes: Set<ModuleType>
     let onAdd: (ModuleType, ModuleSize) -> Void
 
     var body: some View {
         NavigationStack {
             List {
-                if availableTypes.isEmpty {
-                    Text("All module types are already on your dashboard.")
-                        .foregroundColor(.secondary)
-                } else {
-                    if !smallTypes.isEmpty {
-                        Section("Small (1x1)") {
-                            ForEach(smallTypes, id: \.self) { type in
-                                addButton(for: type, size: .small)
-                            }
+                if !smallTypes.isEmpty {
+                    Section("Small (1x1)") {
+                        ForEach(smallTypes, id: \.self) { type in
+                            addButton(for: type, size: .small)
                         }
                     }
+                }
 
-                    if !mediumTypes.isEmpty {
-                        Section("Medium (2x1)") {
-                            ForEach(mediumTypes, id: \.self) { type in
-                                addButton(for: type, size: .medium)
-                            }
+                if !mediumTypes.isEmpty {
+                    Section("Medium (2x1)") {
+                        ForEach(mediumTypes, id: \.self) { type in
+                            addButton(for: type, size: .medium)
                         }
                     }
+                }
 
-                    if !largeTypes.isEmpty {
-                        Section("Large (2x2)") {
-                            ForEach(largeTypes, id: \.self) { type in
-                                addButton(for: type, size: .large)
-                            }
+                if !largeTypes.isEmpty {
+                    Section("Large (2x2)") {
+                        ForEach(largeTypes, id: \.self) { type in
+                            addButton(for: type, size: .large)
                         }
                     }
                 }
@@ -735,7 +723,7 @@ struct DashboardInlineAddModuleSheet: View {
     }
 
     private var availableTypes: [ModuleType] {
-        ModuleType.allCases.filter { !existingTypes.contains($0) }
+        ModuleType.allCases
     }
 
     private var smallTypes: [ModuleType] {
@@ -1075,6 +1063,8 @@ struct DashboardModuleContent: View {
             NutritionModuleView(module: module)
         case .sessionVolume:
             SessionVolumeModuleView(module: module)
+        case .program:
+            ProgramModuleView(module: module)
         }
     }
 }
@@ -1140,6 +1130,206 @@ struct NutritionModuleView: View {
         } catch {
             deficitSurplus = nil
         }
+    }
+}
+
+struct ProgramModuleView: View {
+    private enum Presentation {
+        case resume(program: Program, session: Session)
+        case start(program: Program, state: ProgramResolvedState)
+        case review(Session)
+        case program(Program, ProgramResolvedState?)
+        case empty
+    }
+
+    let module: DashboardModule
+
+    @EnvironmentObject private var programService: ProgramService
+    @EnvironmentObject private var sessionService: SessionService
+
+    @State private var openedSession: Session?
+
+    private var calendar: Calendar { .current }
+    private var referenceDate: Date { Date() }
+
+    private var activeProgram: Program? {
+        programService.activeProgram
+    }
+
+    private var activeState: ProgramResolvedState? {
+        guard let activeProgram else { return nil }
+        return programService.resolvedState(for: activeProgram, sessions: sessionService.sessions)
+    }
+
+    private var recentProgramSession: Session? {
+        sessionService.sessions
+            .filter { !$0.soft_deleted && $0.program != nil && $0.timestampDone != $0.timestamp }
+            .max(by: { lhs, rhs in
+                if lhs.timestampDone != rhs.timestampDone {
+                    return lhs.timestampDone < rhs.timestampDone
+                }
+                return lhs.timestamp < rhs.timestamp
+            })
+    }
+
+    private var presentation: Presentation {
+        if let activeProgram, let activeState {
+            if let activeSession = activeState.activeSession {
+                return .resume(program: activeProgram, session: activeSession)
+            }
+
+            if shouldShowDashboardStartAction(for: activeState) {
+                return .start(program: activeProgram, state: activeState)
+            }
+
+            if let recentSession = activeState.recentCompletedSession {
+                return .review(recentSession)
+            }
+
+            return .program(activeProgram, activeState)
+        }
+
+        if let recentProgramSession {
+            return .review(recentProgramSession)
+        }
+
+        return .empty
+    }
+
+    var body: some View {
+        Group {
+            switch presentation {
+            case .resume(let program, let session):
+                NavigationLink(destination: SingleSessionView(session: session).appBackground()) {
+                    moduleContent(
+                        title: session.programWorkoutName ?? session.routine?.name ?? "Current workout",
+                        subtitle: program.name,
+                        detail: "In progress",
+                        actionTitle: "Continue Workout",
+                        highlighted: true
+                    )
+                }
+                .buttonStyle(.plain)
+            case .start(let program, let state):
+                Button {
+                    startNextWorkout(program: program, state: state)
+                } label: {
+                    moduleContent(
+                        title: state.nextWorkoutLabel,
+                        subtitle: program.name,
+                        detail: state.blockLabel + " • " + state.progressLabel,
+                        actionTitle: "Start Next Workout",
+                        highlighted: true
+                    )
+                }
+                .buttonStyle(.plain)
+            case .review(let session):
+                let reviewText = reviewDetail(for: session)
+                NavigationLink(destination: SingleSessionView(session: session).appBackground()) {
+                    moduleContent(
+                        title: session.programWorkoutName ?? session.routine?.name ?? "Previous workout",
+                        subtitle: module.size == .small ? reviewText : (session.program?.name ?? "Programme workout"),
+                        detail: module.size == .medium ? reviewText : nil,
+                        actionTitle: "Review Workout"
+                    )
+                }
+                .buttonStyle(.plain)
+            case .program(let program, let state):
+                NavigationLink(destination: ProgramDetailView(program: program).appBackground()) {
+                    moduleContent(
+                        title: program.name,
+                        subtitle: state?.nextWorkoutLabel ?? "Open programme",
+                        detail: state?.progressLabel ?? program.scheduleSummary,
+                        actionTitle: "Review Programme"
+                    )
+                }
+                .buttonStyle(.plain)
+            case .empty:
+                NavigationLink(destination: ProgramsRootView().appBackground()) {
+                    moduleContent(
+                        title: "No active programme",
+                        subtitle: "Create or activate a programme",
+                        detail: nil,
+                        actionTitle: "Open Programme"
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .navigationDestination(item: $openedSession) { session in
+            SingleSessionView(session: session)
+                .appBackground()
+        }
+    }
+
+    @ViewBuilder
+    private func moduleContent(
+        title: String,
+        subtitle: String,
+        detail: String?,
+        actionTitle: String,
+        highlighted: Bool = false
+    ) -> some View {
+        VStack(alignment: .leading, spacing: module.size == .small ? 10 : 12) {
+            Text(title)
+                .font(module.size == .small ? .headline : .title3)
+                .fontWeight(.semibold)
+                .foregroundStyle(.primary)
+                .lineLimit(module.size == .small ? 2 : 1)
+
+            Text(subtitle)
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+                .lineLimit(module.size == .small ? 2 : 2)
+
+            if let detail, module.size == .medium {
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 8) {
+                Text(actionTitle)
+                    .font(module.size == .small ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
+                    .foregroundStyle(highlighted ? .blue : .primary)
+                    .lineLimit(1)
+
+                Spacer(minLength: 8)
+
+                Image(systemName: highlighted ? "play.fill" : "arrow.right")
+                    .font(module.size == .small ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
+                    .foregroundStyle(highlighted ? .blue : .secondary)
+            }
+            .padding(.horizontal, module.size == .small ? 10 : 12)
+            .padding(.vertical, module.size == .small ? 8 : 10)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(highlighted ? Color.blue.opacity(0.12) : Color.gray.opacity(0.1))
+            )
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+
+    private func shouldShowDashboardStartAction(for state: ProgramResolvedState) -> Bool {
+        state.canStartNextWorkout && state.shouldShowDashboardStartAction
+    }
+
+    private func reviewDetail(for session: Session) -> String {
+        if calendar.isDate(session.timestampDone, inSameDayAs: referenceDate) {
+            return "Completed today"
+        }
+        return session.timestampDone.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    private func startNextWorkout(program: Program, state: ProgramResolvedState) {
+        guard let workout = state.nextWorkout else { return }
+        if !program.isActive {
+            programService.setActive(program)
+        }
+        openedSession = sessionService.startProgramWorkout(program: program, workout: workout)
     }
 }
 

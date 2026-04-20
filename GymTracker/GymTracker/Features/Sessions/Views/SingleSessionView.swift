@@ -432,7 +432,7 @@ struct SingleSessionView: View {
             if isSessionIncomplete {
                 Button {
                     sessionExerciseDraftStore.clearDrafts(for: session.sessionEntries.map(\.id))
-                    session.timestampDone = Date()
+                    sessionService.finishSession(session)
                 } label: {
                     Text("Finish Session")
                         .frame(maxWidth: .infinity)
@@ -613,31 +613,82 @@ struct SingleSessionView: View {
 struct SingleSessionLabelView: View {
     @Bindable var session: Session
 
+    private var metrics: SessionRowMetrics? {
+        SessionRowMetrics(
+            exerciseCount: session.sessionEntries.count,
+            volumeText: SessionService.formattedPounds(SessionService.sessionVolumeInPounds(session)),
+            durationText: sessionDurationText
+        )
+    }
+
+    private var subtitleText: String? {
+        if let routine = session.routine {
+            return routine.name
+        }
+
+        if let workoutName = session.programWorkoutName?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !workoutName.isEmpty {
+            return workoutName
+        }
+
+        if let program = session.program {
+            return program.name
+        }
+
+        return nil
+    }
+
+    private var sessionDurationText: String? {
+        guard session.timestampDone > session.timestamp else { return nil }
+        let duration = session.timestampDone.timeIntervalSince(session.timestamp)
+        guard duration > 0 else { return nil }
+        return "\(Int((duration / 60).rounded())) min"
+    }
+
     var body : some View {
-        HStack {
-            VStack(alignment: .leading) {
-                Text(session.timestamp, format: Date.FormatStyle(date: .long, time: .shortened))
-                
-                HStack {
-                    HStack {
-                        Text("\(session.sessionEntries.count) Exercise\(session.sessionEntries.count > 1 || session.sessionEntries.count==0 ? "s" : "")")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        
-                        if let routine = session.routine {
-                            Text("Routine: \(routine.name)")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(session.timestamp, format: Date.FormatStyle(date: .abbreviated, time: .shortened))
+                    .font(.headline)
+
+                if let subtitleText {
+                    Text(subtitleText)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                if let metrics {
+                    Text(metadataText(metrics: metrics))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.9)
                 }
             }
-            .padding(.vertical, 4)
-            
-            Image(systemName: "chevron.forward")
+            .padding(.vertical, 8)
+            .padding(.leading, 12)
+            .padding(.trailing, 4)
         }
     }
+
+    private func metadataText(metrics: SessionRowMetrics) -> String {
+        var components = [
+            "\(metrics.exerciseCount) exercise\(metrics.exerciseCount == 1 ? "" : "s")",
+            metrics.volumeText
+        ]
+
+        if let durationText = metrics.durationText {
+            components.append(durationText)
+        }
+
+        return components.joined(separator: " · ")
+    }
+}
+
+struct SessionRowMetrics {
+    let exerciseCount: Int
+    let volumeText: String
+    let durationText: String?
 }
 
 

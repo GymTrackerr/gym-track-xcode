@@ -14,6 +14,8 @@ final class Routine {
     var user_id: UUID
     var order: Int
     var name: String
+    var defaultProgressionProfileId: UUID? = nil
+    var defaultProgressionProfileNameSnapshot: String? = nil
     var timestamp: Date
     var isArchived: Bool = false
     var soft_deleted: Bool = false

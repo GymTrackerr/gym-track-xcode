@@ -17,6 +17,9 @@ enum SyncModelType: Int, Codable {
     case nutritionTarget = 7
     case healthDailySummary = 8
     case userProfile = 9
+    case program = 10
+    case progressionProfile = 11
+    case progressionExercise = 12
 }
 
 enum SyncMetadataState: Int, Codable {

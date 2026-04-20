@@ -23,15 +23,25 @@ final class Session {
     
     var routine: Routine?
     var routine_id: UUID? { routine?.id }
+
+    var program: Program?
+    var program_id: UUID? { program?.id }
+    var programBlockId: UUID? = nil
+    var programBlockName: String? = nil
+    var programWorkoutId: UUID? = nil
+    var programWorkoutName: String? = nil
+    var programWeekIndex: Int? = nil
+    var programSplitIndex: Int? = nil
     
     @Relationship(deleteRule: .cascade)
     var sessionEntries: [SessionEntry]
 
-    init (timestamp: Date, user_id: UUID, routine: Routine?, notes: String) {
+    init (timestamp: Date, user_id: UUID, routine: Routine?, notes: String, program: Program? = nil) {
         self.timestamp = timestamp
         self.user_id = user_id
         self.notes = notes
         self.routine = routine
+        self.program = program
         self.timestampDone = timestamp
         self.createdAt = timestamp
         self.updatedAt = timestamp
@@ -46,16 +56,22 @@ extension Session: SyncTrackedRoot {
     var syncSeedDate: Date { timestamp }
 }
 
-enum SessionNavigationContext: Equatable {
+enum SessionNavigationContext: Hashable {
     case active(sessionId: UUID)
+    case activePreferred(sessionId: UUID, exerciseId: UUID)
     case past(sessionId: UUID)
+    case pastPreferred(sessionId: UUID, exerciseId: UUID)
     case fromExerciseHistory(sessionId: UUID, exerciseId: UUID)
 
     var sessionId: UUID {
         switch self {
         case .active(let sessionId):
             return sessionId
+        case .activePreferred(let sessionId, _):
+            return sessionId
         case .past(let sessionId):
+            return sessionId
+        case .pastPreferred(let sessionId, _):
             return sessionId
         case .fromExerciseHistory(let sessionId, _):
             return sessionId
@@ -64,7 +80,7 @@ enum SessionNavigationContext: Equatable {
 
     var isEditableByDefault: Bool {
         switch self {
-        case .active:
+        case .active, .activePreferred, .pastPreferred:
             return true
         case .past, .fromExerciseHistory:
             return false
@@ -73,7 +89,7 @@ enum SessionNavigationContext: Equatable {
 
     var allowsUnlock: Bool {
         switch self {
-        case .active:
+        case .active, .activePreferred, .pastPreferred:
             return false
         case .past, .fromExerciseHistory:
             return true
@@ -89,6 +105,10 @@ enum SessionNavigationContext: Equatable {
 
     var preferredExerciseId: UUID? {
         switch self {
+        case .activePreferred(_, let exerciseId):
+            return exerciseId
+        case .pastPreferred(_, let exerciseId):
+            return exerciseId
         case .fromExerciseHistory(_, let exerciseId):
             return exerciseId
         case .active, .past:
@@ -98,8 +118,10 @@ enum SessionNavigationContext: Equatable {
 
     var statusBadgeText: String {
         switch self {
-        case .active:
+        case .active, .activePreferred:
             return "Current session"
+        case .pastPreferred:
+            return "Logging exercise"
         case .past, .fromExerciseHistory:
             return "Past session"
         }
@@ -110,5 +132,12 @@ enum SessionNavigationContext: Equatable {
             return .active(sessionId: session.id)
         }
         return .past(sessionId: session.id)
+    }
+
+    static func loggingContext(for session: Session, exerciseId: UUID) -> SessionNavigationContext {
+        if session.timestampDone == session.timestamp {
+            return .activePreferred(sessionId: session.id, exerciseId: exerciseId)
+        }
+        return .pastPreferred(sessionId: session.id, exerciseId: exerciseId)
     }
 }

@@ -259,8 +259,18 @@ struct SessionSelectSplit : View {
 struct CreateSessionSheetView: View {
     @EnvironmentObject var sessionService: SessionService
     @EnvironmentObject var splitDayService: RoutineService
+    @EnvironmentObject var programService: ProgramService
     @Binding var openedSession: Session?
     @Binding var isPresented: Bool
+
+    private var activeProgram: Program? {
+        programService.activeProgram
+    }
+
+    private var activeProgramState: ProgramResolvedState? {
+        guard let activeProgram else { return nil }
+        return programService.resolvedState(for: activeProgram, sessions: sessionService.sessions)
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -271,7 +281,7 @@ struct CreateSessionSheetView: View {
                     .fontWeight(.bold)
                     .foregroundColor(.primary)
 //
-                Text("Select a split and add notes to get started")
+                Text("Start from your active programme or pick a routine directly.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -280,6 +290,65 @@ struct CreateSessionSheetView: View {
             
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 16) {
+                    if let activeProgram, let activeProgramState {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Active Programme")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.primary)
+                                .padding(.horizontal, 16)
+
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack(alignment: .top, spacing: 12) {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(activeProgram.name)
+                                            .font(.body)
+                                            .fontWeight(.semibold)
+                                            .foregroundStyle(.primary)
+                                        Text(activeProgramState.blockLabel)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Text(activeProgramState.nextWorkoutLabel)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+
+                                    Spacer()
+
+                                    Button {
+                                        if let activeSession = activeProgramState.activeSession {
+                                            openedSession = activeSession
+                                            sessionService.resetCreationState()
+                                        } else if let workout = activeProgramState.nextWorkout {
+                                            openedSession = sessionService.startProgramWorkout(program: activeProgram, workout: workout)
+                                        }
+                                        isPresented = false
+                                    } label: {
+                                        Text(activeProgramState.actionTitle)
+                                            .font(.caption)
+                                            .fontWeight(.semibold)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 8)
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .disabled(activeProgramState.activeSession == nil && activeProgramState.nextWorkout?.routine == nil)
+                                }
+
+                                HStack {
+                                    Text(activeProgramState.progressLabel)
+                                    Spacer()
+                                    Text(activeProgramState.scheduleLabel)
+                                }
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            }
+                            .padding(12)
+                            .frame(maxWidth: .infinity)
+                            .glassEffect(in: .rect(cornerRadius: 12.0))
+                            .padding(.horizontal, 16)
+                        }
+                    }
+
                     // Split Day Selection
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Workout Split")
@@ -292,9 +361,9 @@ struct CreateSessionSheetView: View {
                             ForEach(splitDayService.routines, id: \.id) { routine in
                                 Button {
                                     if sessionService.selected_splitDay == routine {
-                                        sessionService.selected_splitDay = nil
+                                        sessionService.selectRoutine(nil)
                                     } else {
-                                        sessionService.selected_splitDay = routine
+                                        sessionService.selectRoutine(routine)
                                     }
                                 } label: {
                                     HStack(spacing: 12) {
@@ -350,7 +419,7 @@ struct CreateSessionSheetView: View {
                 } label: {
                     HStack {
                         Image(systemName: "play.fill")
-                        Text("Start Session")
+                        Text(sessionService.selected_splitDay == nil ? "Start Empty Session" : "Start Session")
                             .font(.headline)
                             .fontWeight(.semibold)
                     }
@@ -364,8 +433,7 @@ struct CreateSessionSheetView: View {
                 
                 Button {
                     isPresented = false
-                    sessionService.create_notes = ""
-                    sessionService.selected_splitDay = nil
+                    sessionService.resetCreationState()
                 } label: {
                     Text("Cancel")
                         .font(.body)

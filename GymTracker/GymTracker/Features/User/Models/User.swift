@@ -24,6 +24,8 @@ final class User {
     var remoteAccountId: String? = nil
     var remoteSyncEnabled: Bool = true
     var exerciseCatalogEnabled: Bool = false
+    var globalProgressionEnabledStored: Bool? = nil
+    var defaultProgressionProfileId: UUID? = nil
     
     var defaultTimer: Int = 90
     var showNutritionTab: Bool = true
@@ -48,5 +50,10 @@ final class User {
         self.lastLogin = timestamp
         self.createdAt = timestamp
         self.updatedAt = timestamp
+    }
+
+    var globalProgressionEnabled: Bool {
+        get { globalProgressionEnabledStored ?? false }
+        set { globalProgressionEnabledStored = newValue }
     }
 }
