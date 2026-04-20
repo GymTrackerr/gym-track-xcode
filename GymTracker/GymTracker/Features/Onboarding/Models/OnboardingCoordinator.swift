@@ -20,6 +20,7 @@ final class OnboardingCoordinator: ObservableObject {
     @Published private(set) var screen: OnboardingScreen = .welcome
     @Published private(set) var draft = OnboardingDraft()
     @Published private(set) var loginErrorMessage: String?
+    @Published private(set) var planBuildErrorMessage: String?
 
     private var activeUserId: UUID?
     private var flowOrigin: FlowOrigin?
@@ -39,6 +40,7 @@ final class OnboardingCoordinator: ObservableObject {
             if screen != .welcome && screen != .login && screen != .name {
                 draft = OnboardingDraft()
                 loginErrorMessage = nil
+                planBuildErrorMessage = nil
                 flowOrigin = nil
                 screen = .welcome
             }
@@ -64,7 +66,9 @@ final class OnboardingCoordinator: ObservableObject {
             if flowOrigin == nil {
                 flowOrigin = .existingPending
             }
-            screen = .goals
+            if screen == .welcome {
+                screen = .goals
+            }
             loginErrorMessage = nil
         }
     }
@@ -95,6 +99,74 @@ final class OnboardingCoordinator: ObservableObject {
         draft.experience = experience
     }
 
+    func updateGeneratedDays(_ daysPerWeek: Int) {
+        draft.generatedDaysPerWeek = daysPerWeek
+        draft.selectedRecommendationId = nil
+        clearPlanPreview()
+    }
+
+    func selectRecommendation(_ recommendationId: String) {
+        draft.selectedRecommendationId = recommendationId
+        clearPlanPreview()
+    }
+
+    func selectExistingMode(_ mode: ProgramMode) {
+        draft.existingMode = mode
+        clearPlanPreview()
+    }
+
+    func updateExistingDayCount(_ dayCount: Int) {
+        let sanitizedDayCount = max(2, min(dayCount, 5))
+        draft.existingRoutineDays = OnboardingRoutineFocus.defaultDrafts(for: sanitizedDayCount)
+        draft.existingWeekdays = OnboardingRoutineFocus.defaultWeekdays(for: sanitizedDayCount)
+        clearPlanPreview()
+    }
+
+    func updateExistingFocus(_ focus: OnboardingRoutineFocus, at index: Int) {
+        guard draft.existingRoutineDays.indices.contains(index) else { return }
+        draft.existingRoutineDays[index].focus = focus
+        if focus != .custom, draft.existingRoutineDays[index].customName == "Custom" {
+            draft.existingRoutineDays[index].customName = ""
+        }
+        clearPlanPreview()
+    }
+
+    func updateExistingCustomName(_ customName: String, at index: Int) {
+        guard draft.existingRoutineDays.indices.contains(index) else { return }
+        draft.existingRoutineDays[index].customName = customName
+        clearPlanPreview()
+    }
+
+    func updateExistingWeekday(_ weekday: ProgramWeekday, at index: Int) {
+        guard draft.existingWeekdays.indices.contains(index) else { return }
+        draft.existingWeekdays[index] = weekday
+        clearPlanPreview()
+    }
+
+    func updateContinuousTrainDays(_ value: Int) {
+        draft.continuousTrainDays = max(1, min(value, 7))
+        clearPlanPreview()
+    }
+
+    func updateContinuousRestDays(_ value: Int) {
+        draft.continuousRestDays = max(0, min(value, 7))
+        clearPlanPreview()
+    }
+
+    func setPlanPreview(_ preview: OnboardingPlanPreview?) {
+        draft.planPreview = preview
+        if preview != nil {
+            planBuildErrorMessage = nil
+        }
+    }
+
+    func setPlanBuildError(_ message: String?) {
+        planBuildErrorMessage = message
+        if message != nil {
+            draft.planPreview = nil
+        }
+    }
+
     func send(_ event: OnboardingEvent) {
         switch event {
         case .goBack:
@@ -107,15 +179,18 @@ final class OnboardingCoordinator: ObservableObject {
         case .chooseLogin:
             flowOrigin = .login
             loginErrorMessage = nil
+            clearPlanPreview()
             screen = .login
 
         case .chooseJoin:
             flowOrigin = .join
             loginErrorMessage = nil
+            clearPlanPreview()
             screen = .name
 
         case .loginStarted:
             loginErrorMessage = nil
+            planBuildErrorMessage = nil
             screen = .loginSyncing
 
         case .loginSucceeded(let hasTrainingSetup, let resolvedName):
@@ -146,6 +221,51 @@ final class OnboardingCoordinator: ObservableObject {
 
         case .selectPlanChoice(let choice):
             draft.planChoice = choice
+            clearPlanPreview()
+
+        case .continueFromPlannerChoice:
+            guard let planChoice = draft.planChoice else { return }
+            clearPlanPreview()
+            switch planChoice {
+            case .generateRoutine:
+                if draft.generatedDaysPerWeek == nil {
+                    draft.generatedDaysPerWeek = 3
+                }
+                screen = .generateDays
+            case .existingRoutine:
+                screen = .existingMode
+            }
+
+        case .continueFromGenerateDays:
+            guard draft.generatedDaysPerWeek != nil else { return }
+            screen = .generateSplit
+
+        case .continueFromGenerateSplit:
+            guard draft.selectedRecommendationId != nil else { return }
+            planBuildErrorMessage = nil
+            draft.planPreview = nil
+            screen = .buildingPreview
+
+        case .continueFromExistingMode:
+            guard draft.existingMode != nil else { return }
+            screen = .existingStructure
+
+        case .continueFromExistingStructure:
+            guard !draft.existingRoutineDays.isEmpty else { return }
+            screen = .existingSchedule
+
+        case .continueFromExistingSchedule:
+            guard draft.existingMode != nil else { return }
+            planBuildErrorMessage = nil
+            draft.planPreview = nil
+            screen = .buildingPreview
+
+        case .finishPlanPreviewPreparation:
+            screen = .planPreview
+
+        case .continueFromPlanPreview:
+            guard draft.planPreview != nil else { return }
+            screen = .permissions
 
         case .continueFromPermissions:
             screen = .accountLink
@@ -188,7 +308,38 @@ final class OnboardingCoordinator: ObservableObject {
         case .plannerChoice:
             return .experience
 
+        case .generateDays:
+            return .plannerChoice
+
+        case .generateSplit:
+            return .generateDays
+
+        case .existingMode:
+            return .plannerChoice
+
+        case .existingStructure:
+            return .existingMode
+
+        case .existingSchedule:
+            return .existingStructure
+
+        case .buildingPreview:
+            return nil
+
+        case .planPreview:
+            switch draft.planChoice {
+            case .generateRoutine:
+                return .generateSplit
+            case .existingRoutine:
+                return .existingSchedule
+            case .none:
+                return .plannerChoice
+            }
+
         case .permissions:
+            if draft.planPreview != nil || planBuildErrorMessage != nil {
+                return .planPreview
+            }
             if draft.planChoice != nil {
                 return .plannerChoice
             }
@@ -212,5 +363,10 @@ final class OnboardingCoordinator: ObservableObject {
         case .final:
             return .exerciseCatalog
         }
+    }
+
+    private func clearPlanPreview() {
+        draft.planPreview = nil
+        planBuildErrorMessage = nil
     }
 }

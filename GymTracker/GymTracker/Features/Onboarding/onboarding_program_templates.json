@@ -1,0 +1,253 @@
+{
+  "recommendations": [
+    {
+      "id": "full-body-2",
+      "daysPerWeek": 2,
+      "title": "Full Body",
+      "subtitle": "A simple two-day setup that covers the whole body each session.",
+      "programModeRaw": "weekly",
+      "defaultWeekdays": [1, 4],
+      "trainDaysBeforeRest": 2,
+      "restDays": 1,
+      "routines": [
+        {
+          "id": "full-body-a",
+          "name": "Full Body A",
+          "focus": "Full Body",
+          "slots": [
+            { "id": "squat", "label": "Squat Pattern", "preferredNpIds": ["Barbell_Squat"], "targetMuscles": ["quadriceps", "glutes"], "keywords": ["squat", "leg press", "hack squat"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "press", "label": "Horizontal Press", "preferredNpIds": ["Bench_Press_-_Powerlifting", "Barbell_Bench_Press_-_Medium_Grip"], "targetMuscles": ["chest", "triceps"], "keywords": ["bench", "press", "chest press"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "row", "label": "Row Pattern", "preferredNpIds": ["Bent_Over_Barbell_Row"], "targetMuscles": ["lats", "middle back"], "keywords": ["row", "cable row", "seated row"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "hinge", "label": "Hip Hinge", "preferredNpIds": ["Romanian_Deadlift"], "targetMuscles": ["hamstrings", "glutes"], "keywords": ["rdl", "deadlift", "hinge"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "core", "label": "Core", "preferredNpIds": ["Plank"], "targetMuscles": ["abdominals"], "keywords": ["plank", "crunch", "raise"], "fallbackTypes": ["strength", "weight"] }
+          ]
+        },
+        {
+          "id": "full-body-b",
+          "name": "Full Body B",
+          "focus": "Full Body",
+          "slots": [
+            { "id": "hinge", "label": "Deadlift Pattern", "preferredNpIds": ["Barbell_Deadlift"], "targetMuscles": ["hamstrings", "glutes"], "keywords": ["deadlift", "rdl", "hinge"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "vertical-press", "label": "Vertical Press", "preferredNpIds": ["Barbell_Shoulder_Press", "Arnold_Dumbbell_Press"], "targetMuscles": ["shoulders", "triceps"], "keywords": ["shoulder press", "overhead press", "military press"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "pull", "label": "Vertical Pull", "preferredNpIds": ["Pullups"], "targetMuscles": ["lats", "biceps"], "keywords": ["pull-up", "pulldown", "chin-up"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "single-leg", "label": "Single-Leg Pattern", "preferredNpIds": ["Walking_Lunge"], "targetMuscles": ["quadriceps", "glutes"], "keywords": ["lunge", "split squat", "step-up"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "arms", "label": "Arms", "preferredNpIds": ["Barbell_Curl", "Triceps_Pushdown_-_Rope_Attachment"], "targetMuscles": ["biceps", "triceps"], "keywords": ["curl", "pushdown", "extension"], "fallbackTypes": ["strength", "weight"] }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "full-body-3",
+      "daysPerWeek": 3,
+      "title": "Full Body",
+      "subtitle": "Three balanced sessions with slightly different emphasis across the week.",
+      "programModeRaw": "weekly",
+      "defaultWeekdays": [1, 3, 5],
+      "trainDaysBeforeRest": 3,
+      "restDays": 1,
+      "routines": [
+        {
+          "id": "full-body-a",
+          "name": "Full Body A",
+          "focus": "Full Body",
+          "slots": [
+            { "id": "squat", "label": "Squat Pattern", "preferredNpIds": ["Barbell_Squat"], "targetMuscles": ["quadriceps", "glutes"], "keywords": ["squat", "leg press"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "bench", "label": "Bench Pattern", "preferredNpIds": ["Bench_Press_-_Powerlifting", "Barbell_Bench_Press_-_Medium_Grip"], "targetMuscles": ["chest", "triceps"], "keywords": ["bench", "press"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "row", "label": "Row Pattern", "preferredNpIds": ["Bent_Over_Barbell_Row"], "targetMuscles": ["lats", "middle back"], "keywords": ["row"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "ham", "label": "Hamstrings", "preferredNpIds": ["Lying_Leg_Curls"], "targetMuscles": ["hamstrings"], "keywords": ["leg curl", "hamstring"], "fallbackTypes": ["strength", "weight"] }
+          ]
+        },
+        {
+          "id": "full-body-b",
+          "name": "Full Body B",
+          "focus": "Full Body",
+          "slots": [
+            { "id": "hinge", "label": "Deadlift Pattern", "preferredNpIds": ["Romanian_Deadlift", "Barbell_Deadlift"], "targetMuscles": ["hamstrings", "glutes"], "keywords": ["deadlift", "rdl"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "vertical-press", "label": "Shoulder Press", "preferredNpIds": ["Barbell_Shoulder_Press"], "targetMuscles": ["shoulders", "triceps"], "keywords": ["overhead press", "shoulder press"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "lat", "label": "Vertical Pull", "preferredNpIds": ["Pullups"], "targetMuscles": ["lats", "biceps"], "keywords": ["pull-up", "pulldown"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "quad", "label": "Quad Accessory", "preferredNpIds": ["Leg_Extensions"], "targetMuscles": ["quadriceps"], "keywords": ["extension", "split squat", "lunge"], "fallbackTypes": ["strength", "weight"] }
+          ]
+        },
+        {
+          "id": "full-body-c",
+          "name": "Full Body C",
+          "focus": "Full Body",
+          "slots": [
+            { "id": "single-leg", "label": "Single-Leg Pattern", "preferredNpIds": ["Walking_Lunge"], "targetMuscles": ["quadriceps", "glutes"], "keywords": ["lunge", "split squat", "step-up"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "incline", "label": "Incline Press", "preferredNpIds": ["Barbell_Incline_Bench_Press_-_Medium_Grip"], "targetMuscles": ["chest", "shoulders"], "keywords": ["incline press", "bench"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "row", "label": "Row Variation", "preferredNpIds": ["Seated_Cable_Rows"], "targetMuscles": ["lats", "middle back"], "keywords": ["row"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "core", "label": "Core", "preferredNpIds": ["Plank"], "targetMuscles": ["abdominals"], "keywords": ["plank", "crunch"], "fallbackTypes": ["strength", "weight"] }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "push-pull-legs-3",
+      "daysPerWeek": 3,
+      "title": "Push / Pull / Legs",
+      "subtitle": "A classic three-day split with a focused session for each movement family.",
+      "programModeRaw": "weekly",
+      "defaultWeekdays": [1, 3, 5],
+      "trainDaysBeforeRest": 3,
+      "restDays": 1,
+      "routines": [
+        {
+          "id": "push",
+          "name": "Push",
+          "focus": "Push",
+          "slots": [
+            { "id": "bench", "label": "Bench Pattern", "preferredNpIds": ["Bench_Press_-_Powerlifting", "Barbell_Bench_Press_-_Medium_Grip"], "targetMuscles": ["chest", "triceps"], "keywords": ["bench", "press"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "incline", "label": "Incline Press", "preferredNpIds": ["Barbell_Incline_Bench_Press_-_Medium_Grip"], "targetMuscles": ["upper chest", "shoulders"], "keywords": ["incline press", "machine press"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "shoulder", "label": "Shoulder Press", "preferredNpIds": ["Barbell_Shoulder_Press", "Arnold_Dumbbell_Press"], "targetMuscles": ["shoulders", "triceps"], "keywords": ["shoulder press", "overhead press"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "triceps", "label": "Triceps", "preferredNpIds": ["Triceps_Pushdown_-_Rope_Attachment"], "targetMuscles": ["triceps"], "keywords": ["pushdown", "extension", "dip"], "fallbackTypes": ["strength", "weight"] }
+          ]
+        },
+        {
+          "id": "pull",
+          "name": "Pull",
+          "focus": "Pull",
+          "slots": [
+            { "id": "row", "label": "Row Pattern", "preferredNpIds": ["Bent_Over_Barbell_Row"], "targetMuscles": ["lats", "middle back"], "keywords": ["row"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "pullup", "label": "Vertical Pull", "preferredNpIds": ["Pullups"], "targetMuscles": ["lats", "biceps"], "keywords": ["pull-up", "pulldown"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "rear-delt", "label": "Rear Delt", "preferredNpIds": ["Face_Pull"], "targetMuscles": ["rear delts", "shoulders"], "keywords": ["face pull", "rear delt", "reverse fly"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "biceps", "label": "Biceps", "preferredNpIds": ["Barbell_Curl", "Hammer_Curls"], "targetMuscles": ["biceps"], "keywords": ["curl"], "fallbackTypes": ["strength", "weight"] }
+          ]
+        },
+        {
+          "id": "legs",
+          "name": "Legs",
+          "focus": "Legs",
+          "slots": [
+            { "id": "squat", "label": "Squat Pattern", "preferredNpIds": ["Barbell_Squat"], "targetMuscles": ["quadriceps", "glutes"], "keywords": ["squat", "leg press"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "hinge", "label": "Hip Hinge", "preferredNpIds": ["Romanian_Deadlift"], "targetMuscles": ["hamstrings", "glutes"], "keywords": ["rdl", "deadlift"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "quad", "label": "Quad Accessory", "preferredNpIds": ["Leg_Press", "Leg_Extensions"], "targetMuscles": ["quadriceps"], "keywords": ["leg press", "extension", "lunge"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "calves", "label": "Calves", "preferredNpIds": ["Calf_Raise"], "targetMuscles": ["calves"], "keywords": ["calf"], "fallbackTypes": ["strength", "weight"] }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "upper-lower-4",
+      "daysPerWeek": 4,
+      "title": "Upper / Lower",
+      "subtitle": "Four sessions split between upper and lower body with room for volume.",
+      "programModeRaw": "weekly",
+      "defaultWeekdays": [1, 2, 4, 5],
+      "trainDaysBeforeRest": 4,
+      "restDays": 1,
+      "routines": [
+        {
+          "id": "upper-a",
+          "name": "Upper A",
+          "focus": "Upper",
+          "slots": [
+            { "id": "bench", "label": "Bench Pattern", "preferredNpIds": ["Bench_Press_-_Powerlifting"], "targetMuscles": ["chest", "triceps"], "keywords": ["bench", "press"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "row", "label": "Row Pattern", "preferredNpIds": ["Bent_Over_Barbell_Row"], "targetMuscles": ["lats", "middle back"], "keywords": ["row"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "shoulder", "label": "Shoulder Press", "preferredNpIds": ["Barbell_Shoulder_Press"], "targetMuscles": ["shoulders"], "keywords": ["shoulder press", "overhead"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "arms", "label": "Arms", "preferredNpIds": ["Barbell_Curl", "Triceps_Pushdown_-_Rope_Attachment"], "targetMuscles": ["biceps", "triceps"], "keywords": ["curl", "pushdown"], "fallbackTypes": ["strength", "weight"] }
+          ]
+        },
+        {
+          "id": "lower-a",
+          "name": "Lower A",
+          "focus": "Lower",
+          "slots": [
+            { "id": "squat", "label": "Squat Pattern", "preferredNpIds": ["Barbell_Squat"], "targetMuscles": ["quadriceps", "glutes"], "keywords": ["squat", "leg press"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "hinge", "label": "Hip Hinge", "preferredNpIds": ["Romanian_Deadlift"], "targetMuscles": ["hamstrings", "glutes"], "keywords": ["rdl", "deadlift"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "leg-curl", "label": "Hamstrings", "preferredNpIds": ["Lying_Leg_Curls"], "targetMuscles": ["hamstrings"], "keywords": ["leg curl"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "calves", "label": "Calves", "preferredNpIds": ["Calf_Raise"], "targetMuscles": ["calves"], "keywords": ["calf"], "fallbackTypes": ["strength", "weight"] }
+          ]
+        },
+        {
+          "id": "upper-b",
+          "name": "Upper B",
+          "focus": "Upper",
+          "slots": [
+            { "id": "incline", "label": "Incline Press", "preferredNpIds": ["Barbell_Incline_Bench_Press_-_Medium_Grip"], "targetMuscles": ["chest", "shoulders"], "keywords": ["incline press"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "pullup", "label": "Vertical Pull", "preferredNpIds": ["Pullups"], "targetMuscles": ["lats", "biceps"], "keywords": ["pull-up", "pulldown"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "rear-delt", "label": "Rear Delt", "preferredNpIds": ["Face_Pull"], "targetMuscles": ["rear delts"], "keywords": ["face pull", "rear delt"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "arms", "label": "Arms", "preferredNpIds": ["Hammer_Curls", "Dips_-_Triceps_Version"], "targetMuscles": ["biceps", "triceps"], "keywords": ["curl", "dip", "extension"], "fallbackTypes": ["strength", "weight"] }
+          ]
+        },
+        {
+          "id": "lower-b",
+          "name": "Lower B",
+          "focus": "Lower",
+          "slots": [
+            { "id": "front-squat", "label": "Quad Pattern", "preferredNpIds": ["Front_Barbell_Squat"], "targetMuscles": ["quadriceps", "glutes"], "keywords": ["front squat", "hack squat", "leg press"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "deadlift", "label": "Deadlift Pattern", "preferredNpIds": ["Barbell_Deadlift"], "targetMuscles": ["hamstrings", "glutes"], "keywords": ["deadlift", "rdl"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "single-leg", "label": "Single-Leg", "preferredNpIds": ["Walking_Lunge"], "targetMuscles": ["quadriceps", "glutes"], "keywords": ["lunge", "split squat"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "core", "label": "Core", "preferredNpIds": ["Plank"], "targetMuscles": ["abdominals"], "keywords": ["plank", "crunch"], "fallbackTypes": ["strength", "weight"] }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pplul-5",
+      "daysPerWeek": 5,
+      "title": "Push / Pull / Legs / Upper / Lower",
+      "subtitle": "A five-day setup with extra upper and lower sessions for more weekly volume.",
+      "programModeRaw": "weekly",
+      "defaultWeekdays": [1, 2, 3, 4, 5],
+      "trainDaysBeforeRest": 5,
+      "restDays": 2,
+      "routines": [
+        {
+          "id": "push",
+          "name": "Push",
+          "focus": "Push",
+          "slots": [
+            { "id": "bench", "label": "Bench Pattern", "preferredNpIds": ["Bench_Press_-_Powerlifting"], "targetMuscles": ["chest", "triceps"], "keywords": ["bench", "press"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "incline", "label": "Incline Press", "preferredNpIds": ["Barbell_Incline_Bench_Press_-_Medium_Grip"], "targetMuscles": ["upper chest", "shoulders"], "keywords": ["incline press"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "shoulder", "label": "Shoulder Press", "preferredNpIds": ["Barbell_Shoulder_Press"], "targetMuscles": ["shoulders"], "keywords": ["overhead press"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "triceps", "label": "Triceps", "preferredNpIds": ["Triceps_Pushdown_-_Rope_Attachment"], "targetMuscles": ["triceps"], "keywords": ["pushdown", "extension"], "fallbackTypes": ["strength", "weight"] }
+          ]
+        },
+        {
+          "id": "pull",
+          "name": "Pull",
+          "focus": "Pull",
+          "slots": [
+            { "id": "row", "label": "Row Pattern", "preferredNpIds": ["Bent_Over_Barbell_Row"], "targetMuscles": ["lats", "middle back"], "keywords": ["row"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "pullup", "label": "Vertical Pull", "preferredNpIds": ["Pullups"], "targetMuscles": ["lats", "biceps"], "keywords": ["pull-up", "pulldown"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "rear-delt", "label": "Rear Delt", "preferredNpIds": ["Face_Pull"], "targetMuscles": ["rear delts"], "keywords": ["rear delt", "face pull"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "biceps", "label": "Biceps", "preferredNpIds": ["Barbell_Curl"], "targetMuscles": ["biceps"], "keywords": ["curl"], "fallbackTypes": ["strength", "weight"] }
+          ]
+        },
+        {
+          "id": "legs",
+          "name": "Legs",
+          "focus": "Legs",
+          "slots": [
+            { "id": "squat", "label": "Squat Pattern", "preferredNpIds": ["Barbell_Squat"], "targetMuscles": ["quadriceps", "glutes"], "keywords": ["squat"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "hinge", "label": "Hip Hinge", "preferredNpIds": ["Romanian_Deadlift"], "targetMuscles": ["hamstrings", "glutes"], "keywords": ["rdl", "deadlift"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "quad", "label": "Quad Accessory", "preferredNpIds": ["Leg_Press"], "targetMuscles": ["quadriceps"], "keywords": ["leg press", "extension"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "calves", "label": "Calves", "preferredNpIds": ["Calf_Raise"], "targetMuscles": ["calves"], "keywords": ["calf"], "fallbackTypes": ["strength", "weight"] }
+          ]
+        },
+        {
+          "id": "upper",
+          "name": "Upper",
+          "focus": "Upper",
+          "slots": [
+            { "id": "bench", "label": "Bench Pattern", "preferredNpIds": ["Bench_Press_-_Powerlifting"], "targetMuscles": ["chest", "triceps"], "keywords": ["bench", "press"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "row", "label": "Row Pattern", "preferredNpIds": ["Bent_Over_Barbell_Row"], "targetMuscles": ["lats", "middle back"], "keywords": ["row"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "lat", "label": "Vertical Pull", "preferredNpIds": ["Pullups"], "targetMuscles": ["lats"], "keywords": ["pulldown", "pull-up"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "arms", "label": "Arms", "preferredNpIds": ["Hammer_Curls", "Triceps_Pushdown_-_Rope_Attachment"], "targetMuscles": ["biceps", "triceps"], "keywords": ["curl", "pushdown"], "fallbackTypes": ["strength", "weight"] }
+          ]
+        },
+        {
+          "id": "lower",
+          "name": "Lower",
+          "focus": "Lower",
+          "slots": [
+            { "id": "front-squat", "label": "Quad Pattern", "preferredNpIds": ["Front_Barbell_Squat"], "targetMuscles": ["quadriceps", "glutes"], "keywords": ["front squat", "hack squat"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "deadlift", "label": "Deadlift Pattern", "preferredNpIds": ["Barbell_Deadlift"], "targetMuscles": ["hamstrings", "glutes"], "keywords": ["deadlift"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "single-leg", "label": "Single-Leg", "preferredNpIds": ["Walking_Lunge"], "targetMuscles": ["quadriceps", "glutes"], "keywords": ["lunge", "split squat"], "fallbackTypes": ["strength", "weight"] },
+            { "id": "core", "label": "Core", "preferredNpIds": ["Plank"], "targetMuscles": ["abdominals"], "keywords": ["plank", "crunch"], "fallbackTypes": ["strength", "weight"] }
+          ]
+        }
+      ]
+    }
+  ]
+}

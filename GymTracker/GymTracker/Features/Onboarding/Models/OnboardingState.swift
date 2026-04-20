@@ -87,6 +87,13 @@ enum OnboardingScreen: Equatable {
     case goals
     case experience
     case plannerChoice
+    case generateDays
+    case generateSplit
+    case existingMode
+    case existingStructure
+    case existingSchedule
+    case buildingPreview
+    case planPreview
     case permissions
     case accountLink
     case exerciseCatalog
@@ -104,6 +111,14 @@ enum OnboardingEvent {
     case continueFromGoals
     case continueFromExperience
     case selectPlanChoice(OnboardingPlanChoice)
+    case continueFromPlannerChoice
+    case continueFromGenerateDays
+    case continueFromGenerateSplit
+    case continueFromExistingMode
+    case continueFromExistingStructure
+    case continueFromExistingSchedule
+    case finishPlanPreviewPreparation
+    case continueFromPlanPreview
     case continueFromPermissions
     case continueFromAccountLink
     case continueFromExerciseCatalog
@@ -116,4 +131,12 @@ struct OnboardingDraft: Equatable {
     var goals: Set<OnboardingGoal> = []
     var experience: OnboardingExperienceLevel?
     var planChoice: OnboardingPlanChoice?
+    var generatedDaysPerWeek: Int?
+    var selectedRecommendationId: String?
+    var existingMode: ProgramMode?
+    var existingRoutineDays: [OnboardingRoutineDayDraft] = OnboardingRoutineFocus.defaultDrafts(for: 3)
+    var existingWeekdays: [ProgramWeekday] = OnboardingRoutineFocus.defaultWeekdays(for: 3)
+    var continuousTrainDays: Int = 3
+    var continuousRestDays: Int = 1
+    var planPreview: OnboardingPlanPreview?
 }
