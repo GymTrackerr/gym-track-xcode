@@ -94,19 +94,36 @@ class UserService: ServiceBase, ObservableObject {
     }
     
      
-    func addUser(text: String) {
+    @discardableResult
+    func addUser(text: String) -> User? {
         let trimmedName = text.trimmingCharacters(in: .whitespaces)
-        guard !trimmedName.isEmpty else { return  }
-        
-        
+        guard !trimmedName.isEmpty else { return nil }
+
+        var createdUser: User?
         withAnimation {
             do {
                 let newItem = try repository.createUser(name: trimmedName, isDemo: false)
                 currentUser = newItem
                 loadAccounts(firstLoad: true)
+                createdUser = newItem
             } catch {
                 print("Failed to save new split day: \(error)")
             }
+        }
+
+        return createdUser
+    }
+
+    func renameCurrentUser(to name: String) {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
+        guard let currentUser else { return }
+        guard currentUser.name != trimmedName else { return }
+
+        withAnimation {
+            currentUser.name = trimmedName
+            currentUser.updatedAt = Date()
+            try? repository.saveChanges(for: currentUser)
         }
     }
 

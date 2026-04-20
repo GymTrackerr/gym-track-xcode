@@ -2,85 +2,489 @@ import SwiftUI
 
 struct OnboardingRootView: View {
     @EnvironmentObject private var userService: UserService
+    @EnvironmentObject private var backendAuthService: BackendAuthService
+    @EnvironmentObject private var exerciseService: ExerciseService
+    @EnvironmentObject private var routineService: RoutineService
+    @EnvironmentObject private var programService: ProgramService
+
+    @StateObject private var coordinator = OnboardingCoordinator()
 
     var body: some View {
         Group {
             if let onboardingState = userService.onboardingState {
-                VStack {
-                    switch onboardingState {
-                    case .noAccount:
-                        OnboardingProfileEntryView()
-                    case .required:
-                        OnboardingSetupFlowView()
-                    }
-
-                    Spacer()
-                }
+                content(for: onboardingState)
             } else {
                 EmptyView()
             }
         }
         .appBackground()
+        .onAppear {
+            coordinator.configure(
+                for: userService.onboardingState,
+                currentUser: userService.currentUser
+            )
+        }
+        .onChange(of: userService.onboardingState) { _, newValue in
+            coordinator.configure(for: newValue, currentUser: userService.currentUser)
+        }
+    }
+    
+    @ViewBuilder
+    private func content(for onboardingState: OnboardingState) -> some View {
+        VStack {
+            switch coordinator.screen {
+            case .welcome:
+                OnboardingWelcomeView(
+                    onLogin: { coordinator.send(.chooseLogin) },
+                    onJoin: { coordinator.send(.chooseJoin) }
+                )
+
+            case .login:
+                OnboardingLoginView(
+                    username: coordinator.draft.loginUsername,
+                    password: coordinator.draft.loginPassword,
+                    errorMessage: coordinator.loginErrorMessage,
+                    onUsernameChange: coordinator.updateLoginUsername(_:),
+                    onPasswordChange: coordinator.updateLoginPassword(_:),
+                    onSubmit: performLogin
+                )
+
+            case .loginSyncing:
+                OnboardingSyncingView()
+
+            case .name:
+                OnboardingNameView(
+                    name: coordinator.draft.name,
+                    onNameChange: coordinator.updateName(_:),
+                    onSubmit: createJoinUser
+                )
+
+            case .goals:
+                OnboardingGoalsView(
+                    selectedGoals: coordinator.draft.goals,
+                    onToggleGoal: coordinator.toggleGoal(_:),
+                    onContinue: { coordinator.send(.continueFromGoals) }
+                )
+
+            case .experience:
+                OnboardingExperienceView(
+                    selectedExperience: coordinator.draft.experience,
+                    onSelectExperience: coordinator.selectExperience(_:),
+                    onContinue: { coordinator.send(.continueFromExperience) }
+                )
+
+            case .plannerChoice:
+                OnboardingPlannerChoiceView(
+                    selectedChoice: coordinator.draft.planChoice,
+                    onSelectChoice: { coordinator.send(.selectPlanChoice($0)) }
+                )
+
+            case .permissions:
+                OnboardingPermissionsStepView {
+                    coordinator.send(.continueFromPermissions)
+                }
+
+            case .accountLink:
+                OnboardingAccountLinkStepView {
+                    coordinator.send(.continueFromAccountLink)
+                }
+
+            case .exerciseCatalog:
+                OnboardingExerciseCatalogStepView {
+                    coordinator.send(.continueFromExerciseCatalog)
+                }
+
+            case .final:
+                OnboardingFinalStepView()
+            }
+
+            Spacer()
+        }
+        .onAppear {
+            coordinator.configure(for: onboardingState, currentUser: userService.currentUser)
+        }
+    }
+
+    private func createJoinUser() {
+        guard let user = userService.addUser(text: coordinator.draft.name) else { return }
+        coordinator.send(.joinAccountCreated(userId: user.id, name: user.name))
+    }
+
+    private func performLogin() {
+        let trimmedUsername = coordinator.draft.loginUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty else { return }
+        guard !coordinator.draft.loginPassword.isEmpty else { return }
+
+        coordinator.send(.loginStarted)
+
+        Task {
+            if userService.currentUser == nil {
+                _ = userService.addUser(text: trimmedUsername)
+            }
+
+            do {
+                _ = try await backendAuthService.loginInteract(
+                    username: trimmedUsername,
+                    password: coordinator.draft.loginPassword
+                )
+                _ = try? await backendAuthService.refreshCurrentSession()
+                let currentBackendUser = try? await backendAuthService.fetchCurrentUser()
+
+                if let resolvedName = resolvedAccountName(from: currentBackendUser) {
+                    userService.renameCurrentUser(to: resolvedName)
+                }
+
+                exerciseService.sync()
+                routineService.loadSplitDays()
+                programService.loadPrograms()
+
+                let hasTrainingSetup = !routineService.routines.isEmpty || !programService.programs.isEmpty
+                coordinator.send(
+                    .loginSucceeded(
+                        hasTrainingSetup: hasTrainingSetup,
+                        resolvedName: userService.currentUser?.name
+                    )
+                )
+            } catch {
+                coordinator.send(.loginFailed(loginErrorMessage(from: error)))
+            }
+        }
+    }
+
+    private func resolvedAccountName(from user: BackendMeResponseDTO?) -> String? {
+        let displayName = user?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !displayName.isEmpty {
+            return displayName
+        }
+
+        let username = user?.username?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return username.isEmpty ? nil : username
+    }
+
+    private func loginErrorMessage(from error: Error) -> String {
+        if let apiError = error as? APIHelperError {
+            switch apiError {
+            case .httpError(let statusCode, _, let message, let details):
+                return message ?? details ?? "Request failed with status \(statusCode)."
+            case .missingAccessToken:
+                return "Missing access token. Please try again."
+            case .invalidResponse:
+                return "Invalid response from the backend."
+            }
+        }
+
+        return error.localizedDescription
     }
 }
 
-private struct OnboardingProfileEntryView: View {
-    @EnvironmentObject private var userService: UserService
-    @State private var userName = ""
+private struct OnboardingWelcomeView: View {
+    let onLogin: () -> Void
+    let onJoin: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Text("Welcome to GymTracker")
-                .font(.largeTitle)
-                .foregroundColor(.primary)
-                .padding()
+            Spacer(minLength: 0)
 
-            Text("Please enter your name to get started")
-                .font(.title)
-                .foregroundColor(.secondary)
-                .padding()
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Welcome to GymTracker")
+                    .font(.largeTitle.bold())
 
-            TextField("Name", text: $userName)
-                .textFieldStyle(.roundedBorder)
-                .padding(.horizontal)
+                Text("Start with your account, then we’ll guide you into the setup flow.")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(spacing: 16) {
+                Button("Login", action: onLogin)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.accentColor)
+                    .foregroundStyle(.white)
+                    .clipShape(Capsule())
+
+                Button("Join GymTracker", action: onJoin)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.gray.opacity(0.14))
+                    .foregroundStyle(.primary)
+                    .clipShape(Capsule())
+            }
 
             Spacer()
-
-            Button("Next") {
-                userService.addUser(text: userName)
-                userName = ""
-            }
-            .disabled(userName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color.accentColor)
-            .foregroundStyle(.white)
-            .clipShape(Capsule())
         }
         .padding(24)
     }
 }
 
-private struct OnboardingSetupFlowView: View {
-    @State private var step: OnboardingSetupStep = .permissions
+private struct OnboardingLoginView: View {
+    let username: String
+    let password: String
+    let errorMessage: String?
+    let onUsernameChange: (String) -> Void
+    let onPasswordChange: (String) -> Void
+    let onSubmit: () -> Void
+
+    private var isDisabled: Bool {
+        username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || password.isEmpty
+    }
 
     var body: some View {
-        switch step {
-        case .permissions:
-            OnboardingPermissionsStepView {
-                step = .accountLink
+        VStack(alignment: .leading, spacing: 24) {
+            Text("Sign in")
+                .font(.largeTitle.bold())
+
+            Text("Use your Interact account to link and sync this GymTracker profile.")
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 12) {
+                TextField(
+                    "Interact username",
+                    text: Binding(get: { username }, set: onUsernameChange)
+                )
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled(true)
+                .textFieldStyle(.roundedBorder)
+
+                SecureField(
+                    "Interact password",
+                    text: Binding(get: { password }, set: onPasswordChange)
+                )
+                .textFieldStyle(.roundedBorder)
             }
-        case .accountLink:
-            OnboardingAccountLinkStepView {
-                step = .exerciseCatalog
+
+            if let errorMessage, !errorMessage.isEmpty {
+                Text(errorMessage)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
             }
-        case .exerciseCatalog:
-            OnboardingExerciseCatalogStepView {
-                step = .final
-            }
-        case .final:
-            OnboardingFinalStepView()
+
+            Spacer()
+
+            Button("Sign In", action: onSubmit)
+                .disabled(isDisabled)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.accentColor)
+                .foregroundStyle(.white)
+                .clipShape(Capsule())
         }
+        .padding(24)
+    }
+}
+
+private struct OnboardingSyncingView: View {
+    var body: some View {
+        VStack(spacing: 20) {
+            Spacer()
+            ProgressView()
+                .controlSize(.large)
+            Text("Signing in and syncing your account...")
+                .font(.headline)
+            Text("We’ll route you into the right setup flow once that finishes.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Spacer()
+        }
+        .padding(24)
+    }
+}
+
+private struct OnboardingNameView: View {
+    let name: String
+    let onNameChange: (String) -> Void
+    let onSubmit: () -> Void
+
+    private var isDisabled: Bool {
+        name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Text("What’s your name?")
+                .font(.largeTitle.bold())
+
+            Text("We’ll use this for your local GymTracker profile.")
+                .foregroundStyle(.secondary)
+
+            TextField(
+                "Name",
+                text: Binding(get: { name }, set: onNameChange)
+            )
+            .textFieldStyle(.roundedBorder)
+
+            Spacer()
+
+            Button("Continue", action: onSubmit)
+                .disabled(isDisabled)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.accentColor)
+                .foregroundStyle(.white)
+                .clipShape(Capsule())
+        }
+        .padding(24)
+    }
+}
+
+private struct OnboardingGoalsView: View {
+    let selectedGoals: Set<OnboardingGoal>
+    let onToggleGoal: (OnboardingGoal) -> Void
+    let onContinue: () -> Void
+
+    private let columns = [GridItem(.flexible()), GridItem(.flexible())]
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                Text("Your goals")
+                    .font(.largeTitle.bold())
+
+                Text("Pick up to two so we can shape the right setup flow.")
+                    .foregroundStyle(.secondary)
+
+                LazyVGrid(columns: columns, spacing: 12) {
+                    ForEach(OnboardingGoal.allCases) { goal in
+                        OnboardingSelectionCard(
+                            title: goal.title,
+                            subtitle: nil,
+                            isSelected: selectedGoals.contains(goal),
+                            action: { onToggleGoal(goal) }
+                        )
+                    }
+                }
+
+                Text("\(selectedGoals.count)/2 selected")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                Button("Continue", action: onContinue)
+                    .disabled(selectedGoals.isEmpty)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.accentColor)
+                    .foregroundStyle(.white)
+                    .clipShape(Capsule())
+            }
+            .padding(24)
+        }
+    }
+}
+
+private struct OnboardingExperienceView: View {
+    let selectedExperience: OnboardingExperienceLevel?
+    let onSelectExperience: (OnboardingExperienceLevel) -> Void
+    let onContinue: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Text("Training experience")
+                .font(.largeTitle.bold())
+
+            Text("This sets the tone for the setup flow and later recommendations.")
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 12) {
+                ForEach(OnboardingExperienceLevel.allCases) { experience in
+                    OnboardingSelectionCard(
+                        title: experience.title,
+                        subtitle: nil,
+                        isSelected: selectedExperience == experience,
+                        action: { onSelectExperience(experience) }
+                    )
+                }
+            }
+
+            Spacer()
+
+            Button("Continue", action: onContinue)
+                .disabled(selectedExperience == nil)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.accentColor)
+                .foregroundStyle(.white)
+                .clipShape(Capsule())
+        }
+        .padding(24)
+    }
+}
+
+private struct OnboardingPlannerChoiceView: View {
+    let selectedChoice: OnboardingPlanChoice?
+    let onSelectChoice: (OnboardingPlanChoice) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Text("How do you want to get started?")
+                .font(.largeTitle.bold())
+
+            Text("Choose the path you want. Routine setup starts from here in the next phase.")
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 12) {
+                ForEach(OnboardingPlanChoice.allCases) { choice in
+                    OnboardingSelectionCard(
+                        title: choice.title,
+                        subtitle: choice.subtitle,
+                        isSelected: selectedChoice == choice,
+                        action: { onSelectChoice(choice) }
+                    )
+                }
+            }
+
+            if let selectedChoice {
+                Text("Selected: \(selectedChoice.title)")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Choose one to continue the setup flow.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+        }
+        .padding(24)
+    }
+}
+
+private struct OnboardingSelectionCard: View {
+    let title: String
+    let subtitle: String?
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(title)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    if isSelected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Color.accentColor)
+                    }
+                }
+
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(isSelected ? Color.accentColor.opacity(0.14) : Color.gray.opacity(0.10))
+            .overlay {
+                RoundedRectangle(cornerRadius: 18)
+                    .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 1.5)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 18))
+        }
+        .buttonStyle(.plain)
     }
 }
 
