@@ -148,6 +148,7 @@ enum OnboardingScreen: Equatable {
     case existingSchedule
     case buildingPreview
     case planPreview
+    case planReady
     case progression
     case healthPermissions
     case notificationPermissions
@@ -173,6 +174,7 @@ enum OnboardingEvent {
     case continueFromExistingSchedule
     case finishPlanPreviewPreparation
     case continueFromPlanPreview
+    case continueFromPlanReady
     case selectProgressionChoice(OnboardingProgressionChoice)
     case continueFromProgression
     case continueFromHealthPermissions

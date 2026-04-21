@@ -131,6 +131,28 @@ class UserService: ServiceBase, ObservableObject {
         }
     }
 
+    func setCurrentOnboardingGoals(_ goals: Set<OnboardingGoal>) {
+        guard let currentUser else { return }
+        guard currentUser.onboardingGoals != goals else { return }
+
+        withAnimation {
+            currentUser.onboardingGoals = goals
+            currentUser.updatedAt = Date()
+            try? repository.saveChanges(for: currentUser)
+        }
+    }
+
+    func setCurrentTrainingExperience(_ experience: OnboardingExperienceLevel?) {
+        guard let currentUser else { return }
+        guard currentUser.trainingExperience != experience else { return }
+
+        withAnimation {
+            currentUser.trainingExperience = experience
+            currentUser.updatedAt = Date()
+            try? repository.saveChanges(for: currentUser)
+        }
+    }
+
     func completeOnboarding() {
         guard let currentUser else { return }
 

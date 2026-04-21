@@ -49,6 +49,8 @@ enum LegacyStoreRecoveryService {
             copy.defaultTimer = old.defaultTimer
             copy.showNutritionTab = old.showNutritionTab
             copy.onboardingStatus = old.onboardingStatus
+            copy.onboardingGoalsRaw = old.onboardingGoalsRaw
+            copy.trainingExperienceRaw = old.trainingExperienceRaw
             destination.insert(copy)
             userById[copy.id] = copy
         }

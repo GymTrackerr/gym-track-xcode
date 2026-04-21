@@ -51,6 +51,7 @@ final class OnboardingCoordinator: ObservableObject {
                 if draft.name.isEmpty {
                     draft.name = currentUser?.name ?? ""
                 }
+                preloadProfileDraft(from: currentUser)
                 return
             }
 
@@ -58,11 +59,14 @@ final class OnboardingCoordinator: ObservableObject {
                 if draft.name.isEmpty {
                     draft.name = currentUser?.name ?? ""
                 }
+                preloadProfileDraft(from: currentUser)
                 return
             }
 
             activeUserId = userId
             draft.name = currentUser?.name ?? draft.name
+            draft.goals = currentUser?.onboardingGoals ?? Set<OnboardingGoal>()
+            draft.experience = currentUser?.trainingExperience
             if flowOrigin == nil {
                 flowOrigin = .existingPending
             }
@@ -304,6 +308,9 @@ final class OnboardingCoordinator: ObservableObject {
                 draft.progressionChoice = .recommended
                 draft.selectedProgressionProfileId = nil
             }
+            screen = draft.savedProgramId == nil ? .progression : .planReady
+
+        case .continueFromPlanReady:
             screen = .progression
 
         case .selectProgressionChoice(let choice):
@@ -385,7 +392,13 @@ final class OnboardingCoordinator: ObservableObject {
                 return .plannerChoice
             }
 
+        case .planReady:
+            return .planPreview
+
         case .progression:
+            if draft.savedProgramId != nil {
+                return .planReady
+            }
             return .planPreview
 
         case .healthPermissions:
@@ -405,5 +418,17 @@ final class OnboardingCoordinator: ObservableObject {
         draft.progressionChoice = nil
         draft.selectedProgressionProfileId = nil
         planBuildErrorMessage = nil
+    }
+
+    private func preloadProfileDraft(from user: User?) {
+        guard let user else { return }
+
+        if draft.goals.isEmpty && !user.onboardingGoals.isEmpty {
+            draft.goals = user.onboardingGoals
+        }
+
+        if draft.experience == nil {
+            draft.experience = user.trainingExperience
+        }
     }
 }

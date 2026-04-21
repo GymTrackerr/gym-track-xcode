@@ -21,6 +21,7 @@ struct OnboardingRootView: View {
     @State private var isRequestingHealthPermission = false
     @State private var isRequestingNotificationPermission = false
     @State private var hasPreparedExistingExerciseCatalog = false
+    @State private var showingSavedProgramReview = false
 
     var body: some View {
         Group {
@@ -50,8 +51,26 @@ struct OnboardingRootView: View {
                 Task {
                     await prepareExistingExerciseCatalogIfNeeded()
                 }
-            default:
+            case .planReady:
                 break
+            default:
+                showingSavedProgramReview = false
+                break
+            }
+        }
+        .sheet(isPresented: $showingSavedProgramReview) {
+            if let savedProgram {
+                NavigationStack {
+                    ProgramDetailView(program: savedProgram)
+                        .appBackground()
+                        .toolbar {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button("Done") {
+                                    showingSavedProgramReview = false
+                                }
+                            }
+                        }
+                }
             }
         }
     }
@@ -104,14 +123,14 @@ struct OnboardingRootView: View {
                 OnboardingGoalsView(
                     selectedGoals: coordinator.draft.goals,
                     onToggleGoal: coordinator.toggleGoal(_:),
-                    onContinue: { coordinator.send(.continueFromGoals) }
+                    onContinue: persistGoalsAndContinue
                 )
 
             case .experience:
                 OnboardingExperienceView(
                     selectedExperience: coordinator.draft.experience,
                     onSelectExperience: coordinator.selectExperience(_:),
-                    onContinue: { coordinator.send(.continueFromExperience) }
+                    onContinue: persistExperienceAndContinue
                 )
 
             case .plannerChoice:
@@ -196,10 +215,17 @@ struct OnboardingRootView: View {
             case .planPreview:
                 OnboardingPlanPreviewView(
                     preview: coordinator.draft.planPreview,
+                    exercisesById: exerciseLookupById,
                     errorMessage: coordinator.planBuildErrorMessage,
                     isSaving: isSavingPlan,
                     onRetry: retryPlanPreviewPreparation,
                     onUsePlan: savePreparedPlan
+                )
+
+            case .planReady:
+                OnboardingPlanReadyView(
+                    onContinue: { coordinator.send(.continueFromPlanReady) },
+                    onReviewProgramme: reviewSavedProgram
                 )
 
             case .progression:
@@ -250,6 +276,16 @@ struct OnboardingRootView: View {
 
         guard let user = userService.addUser(text: trimmedName) else { return }
         coordinator.send(.joinAccountCreated(userId: user.id, name: user.name))
+    }
+
+    private func persistGoalsAndContinue() {
+        userService.setCurrentOnboardingGoals(coordinator.draft.goals)
+        coordinator.send(.continueFromGoals)
+    }
+
+    private func persistExperienceAndContinue() {
+        userService.setCurrentTrainingExperience(coordinator.draft.experience)
+        coordinator.send(.continueFromExperience)
     }
 
     private func performLogin() {
@@ -629,6 +665,11 @@ struct OnboardingRootView: View {
             ?? programService.archivedPrograms.first(where: { $0.id == savedProgramId })
     }
 
+    private func reviewSavedProgram() {
+        guard savedProgram != nil else { return }
+        showingSavedProgramReview = true
+    }
+
     private func applyProgressionChoiceAndContinue() {
         progressionService.ensureBuiltInProfiles()
         progressionService.loadProfiles()
@@ -720,8 +761,6 @@ private struct OnboardingWelcomeView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Spacer(minLength: 0)
-
             VStack(alignment: .leading, spacing: 12) {
                 Text("Welcome to GymTracker")
                     .font(.largeTitle.bold())
@@ -731,24 +770,17 @@ private struct OnboardingWelcomeView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Spacer(minLength: 0)
+
             VStack(spacing: 16) {
                 Button("Login", action: onLogin)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.accentColor)
-                    .foregroundStyle(.white)
-                    .clipShape(Capsule())
+                    .onboardingPrimaryButtonStyle()
 
                 Button("Join GymTracker", action: onJoin)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.gray.opacity(0.14))
-                    .foregroundStyle(.primary)
-                    .clipShape(Capsule())
+                    .onboardingPrimaryButtonStyle()
             }
-
-            Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(24)
     }
 }
@@ -799,11 +831,7 @@ private struct OnboardingLoginView: View {
 
             Button("Sign In", action: onSubmit)
                 .disabled(isDisabled)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.accentColor)
-                .foregroundStyle(.white)
-                .clipShape(Capsule())
+                .onboardingPrimaryButtonStyle(isEnabled: !isDisabled)
         }
         .padding(24)
     }
@@ -854,11 +882,7 @@ private struct OnboardingNameView: View {
 
             Button("Continue", action: onSubmit)
                 .disabled(isDisabled)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.accentColor)
-                .foregroundStyle(.white)
-                .clipShape(Capsule())
+                .onboardingPrimaryButtonStyle(isEnabled: !isDisabled)
         }
         .padding(24)
     }
@@ -899,11 +923,7 @@ private struct OnboardingGoalsView: View {
             }
 
             Button("Continue", action: onContinue)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.accentColor)
-                .foregroundStyle(.white)
-                .clipShape(Capsule())
+                .onboardingPrimaryButtonStyle()
         }
         .padding(24)
     }
@@ -937,11 +957,7 @@ private struct OnboardingExperienceView: View {
 
             Button("Continue", action: onContinue)
                 .disabled(selectedExperience == nil)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.accentColor)
-                .foregroundStyle(.white)
-                .clipShape(Capsule())
+                .onboardingPrimaryButtonStyle(isEnabled: selectedExperience != nil)
         }
         .padding(24)
     }
@@ -954,10 +970,10 @@ private struct OnboardingPlannerChoiceView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Text("How do you want to get started?")
+            Text("Nice. Let’s build your setup.")
                 .font(.largeTitle.bold())
 
-            Text("Choose the path you want, then we’ll shape the right setup flow.")
+            Text("You’ve got the basics in. Now choose how you want to start.")
                 .foregroundStyle(.secondary)
 
             VStack(spacing: 12) {
@@ -971,25 +987,11 @@ private struct OnboardingPlannerChoiceView: View {
                 }
             }
 
-            if let selectedChoice {
-                Text("Selected: \(selectedChoice.title)")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            } else {
-                Text("Choose one to continue the setup flow.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-
             Spacer()
 
             Button("Continue", action: onContinue)
                 .disabled(selectedChoice == nil)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.accentColor)
-                .foregroundStyle(.white)
-                .clipShape(Capsule())
+                .onboardingPrimaryButtonStyle(isEnabled: selectedChoice != nil)
         }
         .padding(24)
     }
@@ -1034,11 +1036,7 @@ private struct OnboardingGenerateDaysView: View {
 
             Button("Continue", action: onContinue)
                 .disabled(selectedDaysPerWeek == nil)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.accentColor)
-                .foregroundStyle(.white)
-                .clipShape(Capsule())
+                .onboardingPrimaryButtonStyle(isEnabled: selectedDaysPerWeek != nil)
         }
         .padding(24)
     }
@@ -1080,11 +1078,7 @@ private struct OnboardingGenerateSplitView: View {
 
             Button("Preview Programme", action: onContinue)
                 .disabled(selectedRecommendationId == nil)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.accentColor)
-                .foregroundStyle(.white)
-                .clipShape(Capsule())
+                .onboardingPrimaryButtonStyle(isEnabled: selectedRecommendationId != nil)
         }
         .padding(24)
     }
@@ -1141,11 +1135,7 @@ private struct OnboardingExistingModeView: View {
 
             Button("Continue", action: onContinue)
                 .disabled(selectedMode == nil)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.accentColor)
-                .foregroundStyle(.white)
-                .clipShape(Capsule())
+                .onboardingPrimaryButtonStyle(isEnabled: selectedMode != nil)
         }
         .padding(24)
     }
@@ -1232,11 +1222,7 @@ private struct OnboardingExistingStructureView: View {
 
                 Button("Continue", action: onContinue)
                     .disabled(!canContinue)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.accentColor)
-                    .foregroundStyle(.white)
-                    .clipShape(Capsule())
+                    .onboardingPrimaryButtonStyle(isEnabled: canContinue)
 
                 if !canContinue {
                     Text("Each routine needs a name and at least one exercise.")
@@ -1491,11 +1477,7 @@ private struct OnboardingExistingScheduleView: View {
 
             Button("Preview Programme", action: onContinue)
                 .disabled(!canContinue)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.accentColor)
-                .foregroundStyle(.white)
-                .clipShape(Capsule())
+                .onboardingPrimaryButtonStyle(isEnabled: canContinue)
         }
         .padding(24)
     }
@@ -1521,10 +1503,13 @@ private struct OnboardingBuildingPlanView: View {
 
 private struct OnboardingPlanPreviewView: View {
     let preview: OnboardingPlanPreview?
+    let exercisesById: [UUID: Exercise]
     let errorMessage: String?
     let isSaving: Bool
     let onRetry: () -> Void
     let onUsePlan: () -> Void
+
+    @State private var selectedRoutine: OnboardingPlanPreviewRoutine?
 
     var body: some View {
         ScrollView {
@@ -1547,60 +1532,75 @@ private struct OnboardingPlanPreviewView: View {
 
                     VStack(spacing: 16) {
                         ForEach(preview.routines) { routine in
-                            VStack(alignment: .leading, spacing: 10) {
-                                HStack {
-                                    Text(routine.name)
-                                        .font(.headline)
+                            Button {
+                                selectedRoutine = routine
+                            } label: {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    HStack {
+                                        Text(routine.name)
+                                            .font(.headline)
+                                            .foregroundStyle(.primary)
 
-                                    Spacer()
+                                        Spacer()
 
-                                    if let weekdayIndex = routine.weekdayIndex,
-                                       let weekday = ProgramWeekday(rawValue: weekdayIndex) {
-                                        Text(weekday.shortTitle)
+                                        if let weekdayIndex = routine.weekdayIndex,
+                                           let weekday = ProgramWeekday(rawValue: weekdayIndex) {
+                                            Text(weekday.shortTitle)
+                                                .font(.caption.weight(.semibold))
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 6)
+                                                .background(Color.accentColor.opacity(0.16))
+                                                .clipShape(Capsule())
+                                        }
+
+                                        Image(systemName: "chevron.right")
                                             .font(.caption.weight(.semibold))
-                                            .padding(.horizontal, 10)
-                                            .padding(.vertical, 6)
-                                            .background(Color.accentColor.opacity(0.16))
-                                            .clipShape(Capsule())
+                                            .foregroundStyle(.secondary)
                                     }
-                                }
 
-                                if let focusLabel = routine.focusLabel, !focusLabel.isEmpty {
-                                    Text(focusLabel)
-                                        .font(.footnote)
-                                        .foregroundStyle(.secondary)
-                                }
+                                    if let focusLabel = routine.focusLabel, !focusLabel.isEmpty {
+                                        Text(focusLabel)
+                                            .font(.footnote)
+                                            .foregroundStyle(.secondary)
+                                    }
 
-                                if routine.exercises.isEmpty {
-                                    Text("No exercises added yet.")
-                                        .font(.footnote)
-                                        .foregroundStyle(.secondary)
-                                } else {
-                                    ForEach(routine.exercises) { exercise in
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(exercise.name)
-                                                .font(.subheadline.weight(.semibold))
-                                            Text(exercise.detail)
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
+                                    if routine.exercises.isEmpty {
+                                        Text("No exercises added yet.")
+                                            .font(.footnote)
+                                            .foregroundStyle(.secondary)
+                                    } else {
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            ForEach(routine.exercises.prefix(3)) { exercise in
+                                                VStack(alignment: .leading, spacing: 2) {
+                                                    Text(exercise.name)
+                                                        .font(.subheadline.weight(.semibold))
+                                                        .foregroundStyle(.primary)
+                                                    Text(exercise.detail)
+                                                        .font(.caption)
+                                                        .foregroundStyle(.secondary)
+                                                }
+                                            }
+
+                                            if routine.exercises.count > 3 {
+                                                Text("+ \(routine.exercises.count - 3) more")
+                                                    .font(.caption.weight(.semibold))
+                                                    .foregroundStyle(.secondary)
+                                            }
                                         }
                                     }
                                 }
+                                .padding(16)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.gray.opacity(0.10))
+                                .clipShape(RoundedRectangle(cornerRadius: 18))
                             }
-                            .padding(16)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.gray.opacity(0.10))
-                            .clipShape(RoundedRectangle(cornerRadius: 18))
+                            .buttonStyle(.plain)
                         }
                     }
 
                     Button(isSaving ? "Saving..." : "Use This Programme", action: onUsePlan)
                         .disabled(isSaving)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.accentColor)
-                        .foregroundStyle(.white)
-                        .clipShape(Capsule())
+                        .onboardingPrimaryButtonStyle(isEnabled: !isSaving)
                 } else if let errorMessage {
                     Text("Couldn’t build preview")
                         .font(.largeTitle.bold())
@@ -1609,17 +1609,149 @@ private struct OnboardingPlanPreviewView: View {
                         .foregroundStyle(.secondary)
 
                     Button("Try Again", action: onRetry)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.accentColor)
-                        .foregroundStyle(.white)
-                        .clipShape(Capsule())
+                        .onboardingPrimaryButtonStyle()
                 }
 
                 Spacer()
             }
             .padding(24)
         }
+        .sheet(item: $selectedRoutine) { routine in
+            NavigationStack {
+                OnboardingRoutinePreviewDetailView(
+                    routine: routine,
+                    exercisesById: exercisesById
+                )
+            }
+        }
+    }
+}
+
+private struct OnboardingPlanReadyView: View {
+    let onContinue: () -> Void
+    let onReviewProgramme: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Your programme is ready.")
+                    .font(.largeTitle.bold())
+
+                Text("A few quick setup steps and you’re in.")
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 0)
+
+            VStack(spacing: 16) {
+                Button("Continue setup", action: onContinue)
+                    .onboardingPrimaryButtonStyle()
+
+                Button("Review programme", action: onReviewProgramme)
+                    .onboardingSecondaryButtonStyle()
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(24)
+    }
+}
+
+private struct OnboardingRoutinePreviewDetailView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let routine: OnboardingPlanPreviewRoutine
+    let exercisesById: [UUID: Exercise]
+
+    private var resolvedExercises: [(preview: OnboardingPlanPreviewExercise, exercise: Exercise?)] {
+        routine.exercises.map { preview in
+            (preview: preview, exercise: exercisesById[preview.id])
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Routine: \(routine.name)")
+
+                if let focusLabel = routine.focusLabel, !focusLabel.isEmpty {
+                    Text("Focus: \(focusLabel)")
+                }
+
+                if let weekdayIndex = routine.weekdayIndex,
+                   let weekday = ProgramWeekday(rawValue: weekdayIndex) {
+                    Text("Schedule: \(weekday.title)")
+                }
+
+                Text("Exercises: \(routine.exercises.count)")
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding()
+
+            List {
+                Section {
+                    if resolvedExercises.isEmpty {
+                        Text("No exercises added yet.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(Array(resolvedExercises.enumerated()), id: \.element.preview.id) { index, item in
+                            if let exercise = item.exercise {
+                                NavigationLink {
+                                    SingleExerciseView(exercise: exercise)
+                                } label: {
+                                    SingleExerciseLabelView(
+                                        exercise: exercise,
+                                        orderInSplit: index,
+                                        subtitleText: item.preview.detail
+                                    )
+                                    .foregroundColor(.primary)
+                                }
+                                .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 16))
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color.gray.opacity(0.1))
+                                        .padding(.vertical, 6)
+                                        .padding(.horizontal, 4)
+                                )
+                            } else {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(item.preview.name)
+                                        .font(.headline)
+                                    Text(item.preview.detail)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(8)
+                                .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 16))
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color.gray.opacity(0.1))
+                                        .padding(.vertical, 6)
+                                        .padding(.horizontal, 4)
+                                )
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Exercises")
+                }
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+        }
+        .navigationTitle(routine.name)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Done") {
+                    dismiss()
+                }
+            }
+        }
+        .appBackground()
     }
 }
 
@@ -1712,6 +1844,28 @@ private struct OnboardingSelectionCard: View {
     }
 }
 
+private extension View {
+    func onboardingPrimaryButtonStyle(isEnabled: Bool = true) -> some View {
+        frame(maxWidth: .infinity)
+            .padding()
+            .background(isEnabled ? Color.accentColor : Color.gray.opacity(0.24))
+            .foregroundStyle(isEnabled ? Color.white : Color.secondary)
+            .clipShape(Capsule())
+            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+    }
+
+    func onboardingSecondaryButtonStyle() -> some View {
+        frame(maxWidth: .infinity)
+            .padding()
+            .background(Color.gray.opacity(0.14))
+            .foregroundStyle(.primary)
+            .clipShape(Capsule())
+            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+    }
+}
+
 private extension Array {
     subscript(safe index: Int) -> Element? {
         guard indices.contains(index) else { return nil }
@@ -1733,7 +1887,7 @@ private struct OnboardingProgressionStepView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Text("Progression setup")
+            Text("You’re almost there.")
                 .font(.largeTitle.bold())
 
             Text("Pick how GymTracker should guide progression once your routine is ready.")
@@ -1764,11 +1918,7 @@ private struct OnboardingProgressionStepView: View {
 
             Button("Continue", action: onContinue)
                 .disabled(!canContinue)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.accentColor)
-                .foregroundStyle(.white)
-                .clipShape(Capsule())
+                .onboardingPrimaryButtonStyle(isEnabled: canContinue)
         }
         .padding(24)
         .onAppear {
@@ -1798,6 +1948,9 @@ private struct OnboardingHealthPermissionsStepView: View {
             Text("Apple Health")
                 .font(.largeTitle.bold())
 
+            Text("Just a couple of quick permissions, then you’re in.")
+                .foregroundStyle(.secondary)
+
             Text("If you allow it, GymTracker can use Apple Health to give your training more context.")
                 .foregroundStyle(.secondary)
 
@@ -1815,18 +1968,10 @@ private struct OnboardingHealthPermissionsStepView: View {
 
             Button(isRequesting ? "Requesting..." : "Allow Apple Health", action: onAllow)
                 .disabled(isRequesting)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.accentColor)
-                .foregroundStyle(.white)
-                .clipShape(Capsule())
+                .onboardingPrimaryButtonStyle(isEnabled: !isRequesting)
 
             Button("Not Now", action: onSkip)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.gray.opacity(0.14))
-                .foregroundStyle(.primary)
-                .clipShape(Capsule())
+                .onboardingSecondaryButtonStyle()
         }
         .padding(24)
     }
@@ -1851,6 +1996,9 @@ private struct OnboardingNotificationPermissionsStepView: View {
             Text("Notifications")
                 .font(.largeTitle.bold())
 
+            Text("One last quick permission, then you’re in.")
+                .foregroundStyle(.secondary)
+
             Text("Notifications help GymTracker keep you on track without getting in the way.")
                 .foregroundStyle(.secondary)
 
@@ -1868,18 +2016,10 @@ private struct OnboardingNotificationPermissionsStepView: View {
 
             Button(isRequesting ? "Requesting..." : "Allow Notifications", action: onAllow)
                 .disabled(isRequesting)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.accentColor)
-                .foregroundStyle(.white)
-                .clipShape(Capsule())
+                .onboardingPrimaryButtonStyle(isEnabled: !isRequesting)
 
             Button("Not Now", action: onSkip)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.gray.opacity(0.14))
-                .foregroundStyle(.primary)
-                .clipShape(Capsule())
+                .onboardingSecondaryButtonStyle()
         }
         .padding(24)
     }
