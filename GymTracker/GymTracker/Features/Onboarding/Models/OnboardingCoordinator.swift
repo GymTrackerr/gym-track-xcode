@@ -121,15 +121,6 @@ final class OnboardingCoordinator: ObservableObject {
         clearPlanPreview()
     }
 
-    func updateExistingFocus(_ focus: OnboardingRoutineFocus, at index: Int) {
-        guard draft.existingRoutineDays.indices.contains(index) else { return }
-        draft.existingRoutineDays[index].focus = focus
-        if focus != .custom, draft.existingRoutineDays[index].customName == "Custom" {
-            draft.existingRoutineDays[index].customName = ""
-        }
-        clearPlanPreview()
-    }
-
     func updateExistingCustomName(_ customName: String, at index: Int) {
         guard draft.existingRoutineDays.indices.contains(index) else { return }
         draft.existingRoutineDays[index].customName = customName
@@ -190,6 +181,10 @@ final class OnboardingCoordinator: ObservableObject {
 
     func setSavedProgramId(_ programId: UUID?) {
         draft.savedProgramId = programId
+    }
+
+    func selectProgressionProfile(_ profileId: UUID?) {
+        draft.selectedProgressionProfileId = profileId
     }
 
     func setPlanBuildError(_ message: String?) {
@@ -284,10 +279,6 @@ final class OnboardingCoordinator: ObservableObject {
         case .continueFromExistingStructure:
             guard !draft.existingRoutineDays.isEmpty else { return }
             guard draft.existingRoutineDays.allSatisfy({ !$0.trimmedCustomName.isEmpty }) else { return }
-            screen = .existingExercises
-
-        case .continueFromExistingExercises:
-            guard !draft.existingRoutineDays.isEmpty else { return }
             guard draft.existingRoutineDays.allSatisfy({ !$0.exerciseIds.isEmpty }) else { return }
             screen = .existingSchedule
 
@@ -308,14 +299,21 @@ final class OnboardingCoordinator: ObservableObject {
             guard draft.planPreview != nil else { return }
             if draft.progressionChoice == nil {
                 draft.progressionChoice = .recommended
+                draft.selectedProgressionProfileId = nil
             }
             screen = .progression
 
         case .selectProgressionChoice(let choice):
             draft.progressionChoice = choice
+            if choice != .other {
+                draft.selectedProgressionProfileId = nil
+            }
 
         case .continueFromProgression:
-            guard draft.progressionChoice != nil else { return }
+            guard let progressionChoice = draft.progressionChoice else { return }
+            if progressionChoice == .other, draft.selectedProgressionProfileId == nil {
+                return
+            }
             screen = .healthPermissions
 
         case .continueFromHealthPermissions:
@@ -365,14 +363,11 @@ final class OnboardingCoordinator: ObservableObject {
         case .existingStructure:
             return .existingMode
 
-        case .existingExercises:
+        case .existingExerciseEditor(_):
             return .existingStructure
 
-        case .existingExerciseEditor(_):
-            return .existingExercises
-
         case .existingSchedule:
-            return .existingExercises
+            return .existingStructure
 
         case .buildingPreview:
             return nil
@@ -405,6 +400,7 @@ final class OnboardingCoordinator: ObservableObject {
         draft.planPreview = nil
         draft.savedProgramId = nil
         draft.progressionChoice = nil
+        draft.selectedProgressionProfileId = nil
         planBuildErrorMessage = nil
     }
 }

@@ -92,6 +92,7 @@ enum OnboardingPlanChoice: String, CaseIterable, Identifiable {
 
 enum OnboardingProgressionChoice: String, CaseIterable, Identifiable {
     case recommended
+    case other
     case notNow
 
     var id: String { rawValue }
@@ -100,6 +101,8 @@ enum OnboardingProgressionChoice: String, CaseIterable, Identifiable {
         switch self {
         case .recommended:
             return "Recommended"
+        case .other:
+            return "Other"
         case .notNow:
             return "Not now"
         }
@@ -109,6 +112,8 @@ enum OnboardingProgressionChoice: String, CaseIterable, Identifiable {
         switch self {
         case .recommended:
             return "Use the default progression style GymTracker suggests for your goals."
+        case .other:
+            return "Pick a specific progression style yourself."
         case .notNow:
             return "Leave progression off for now and set it up later."
         }
@@ -139,7 +144,6 @@ enum OnboardingScreen: Equatable {
     case generateSplit
     case existingMode
     case existingStructure
-    case existingExercises
     case existingExerciseEditor(UUID)
     case existingSchedule
     case buildingPreview
@@ -165,7 +169,6 @@ enum OnboardingEvent {
     case continueFromGenerateSplit
     case continueFromExistingMode
     case continueFromExistingStructure
-    case continueFromExistingExercises
     case editExistingRoutineExercises(UUID)
     case continueFromExistingSchedule
     case finishPlanPreviewPreparation
@@ -192,4 +195,5 @@ struct OnboardingDraft: Equatable {
     var planPreview: OnboardingPlanPreview?
     var savedProgramId: UUID?
     var progressionChoice: OnboardingProgressionChoice?
+    var selectedProgressionProfileId: UUID?
 }
