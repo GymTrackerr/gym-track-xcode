@@ -57,7 +57,7 @@
          </CommandLineArgument>
          <CommandLineArgument
             argument = "--run-debug-harness"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </CommandLineArgument>
       </CommandLineArguments>
    </LaunchAction>

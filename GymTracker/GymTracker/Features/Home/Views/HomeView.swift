@@ -24,6 +24,7 @@ struct HomeView: View {
     @EnvironmentObject var dashboardService: DashboardService
 
     @State private var openedSession: Session? = nil
+    @State private var showAddModuleSheet = false
     @StateObject private var homeHealthSnapshot = HomeDashboardHealthSnapshot()
     
     var body: some View {
@@ -31,7 +32,10 @@ struct HomeView: View {
             if userService.currentUser != nil {
                 ScrollView(.vertical, showsIndicators: true) {
                     VStack(alignment: .leading, spacing: 20) {
-                        DashboardGridView(openedSession: $openedSession)
+                        DashboardGridView(
+                            openedSession: $openedSession,
+                            showAddModuleSheet: $showAddModuleSheet
+                        )
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
@@ -49,21 +53,30 @@ struct HomeView: View {
             await refreshHealthData(requestAuthorization: true, waitForSync: false)
         }
         .navigationTitle(userService.currentUser.map { "Welcome \($0.name)" } ?? "Home")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(.large)
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                HStack(spacing: 16) {
-                    Button(action: {
-                        dashboardService.isEditingMode.toggle()
-                    }) {
-                        Label(
-                            dashboardService.isEditingMode ? "Done" : "Edit",
-                            systemImage: dashboardService.isEditingMode ? "checkmark.circle" : "pencil"
-                        )
+            if dashboardService.isEditingMode {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showAddModuleSheet = true
+                    } label: {
+                        Label("Add Module", systemImage: "plus.circle")
                     }
-                    NavigationLink(destination: SettingsView()) {
-                        Label("Settings", systemImage: "gearshape")
-                    }
+                }
+            }
+
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button(action: {
+                    dashboardService.isEditingMode.toggle()
+                }) {
+                    Label(
+                        dashboardService.isEditingMode ? "Done" : "Edit",
+                        systemImage: dashboardService.isEditingMode ? "checkmark.circle" : "pencil"
+                    )
+                }
+
+                NavigationLink(destination: SettingsView()) {
+                    Label("Settings", systemImage: "gearshape")
                 }
             }
         }
@@ -183,6 +196,7 @@ struct DashboardGridView: View {
     @EnvironmentObject var exerciseService: ExerciseService
     @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
     @Binding var openedSession: Session?
+    @Binding var showAddModuleSheet: Bool
     
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -205,7 +219,7 @@ struct DashboardGridView: View {
                 HealthAccessBanner()
             }
 
-            DashboardModulesView()
+            DashboardModulesView(showAddModuleSheet: $showAddModuleSheet)
 
             VStack(alignment: .leading, spacing: 12) {
                 Text("Sessions")
@@ -341,7 +355,7 @@ struct EmptyDashboardView: View {
 
 struct DashboardModulesView: View {
     @EnvironmentObject var dashboardService: DashboardService
-    @State private var showAddModuleSheet = false
+    @Binding var showAddModuleSheet: Bool
     @State private var availableWidth: CGFloat = 0
     @State private var draftModules: [DashboardModule] = []
     @State private var draggedModuleID: String?
@@ -363,7 +377,6 @@ struct DashboardModulesView: View {
         VStack(alignment: .leading, spacing: 16) {
             if dashboardService.isEditingMode {
                 DashboardInlineEditorBar(
-                    onAddModule: { showAddModuleSheet = true },
                     onApplyPreset: { preset in
                         draftModules = dashboardService.modulesForPreset(preset)
                     }
@@ -610,28 +623,62 @@ struct DashboardGridLayout {
             maxOccupiedRow = max(maxOccupiedRow, targetRow + rowSpan)
         }
 
-        self.items = layoutItems
+        var rowHeights = Array(repeating: cellHeight, count: maxOccupiedRow)
+
+        for item in layoutItems where item.module.size.rowSpan == 1 {
+            rowHeights[item.row] = max(
+                rowHeights[item.row],
+                Self.preferredHeight(for: item.module, baseHeight: cellHeight)
+            )
+        }
+
+        var rowOrigins = Array(repeating: CGFloat.zero, count: maxOccupiedRow)
+        var runningY: CGFloat = 0
+        for rowIndex in rowHeights.indices {
+            rowOrigins[rowIndex] = runningY
+            runningY += rowHeights[rowIndex] + spacing
+        }
+
+        self.items = layoutItems.map { item in
+            let rowRange = item.row..<(item.row + item.module.size.rowSpan)
+            let resolvedHeight = rowRange.reduce(CGFloat.zero) { partialResult, rowIndex in
+                partialResult + rowHeights[rowIndex]
+            } + (CGFloat(item.module.size.rowSpan - 1) * spacing)
+
+            return DashboardGridLayoutItem(
+                module: item.module,
+                origin: CGPoint(x: item.origin.x, y: rowOrigins[item.row]),
+                size: CGSize(width: item.size.width, height: resolvedHeight),
+                row: item.row,
+                column: item.column
+            )
+        }
         self.cellWidth = cellWidth
         self.cellHeight = cellHeight
         self.spacing = spacing
         self.height = maxOccupiedRow > 0
-            ? (CGFloat(maxOccupiedRow) * cellHeight) + (CGFloat(maxOccupiedRow - 1) * spacing)
+            ? rowHeights.reduce(CGFloat.zero, +) + (CGFloat(maxOccupiedRow - 1) * spacing)
             : 0
+    }
+
+    private static func preferredHeight(for module: DashboardModule, baseHeight: CGFloat) -> CGFloat {
+        switch (module.type, module.size) {
+        case (.program, .small):
+            return max(baseHeight * 1.08, 136)
+        case (.program, .medium):
+            return max(baseHeight * 1.24, 172)
+        default:
+            return baseHeight
+        }
     }
 }
 
 struct DashboardInlineEditorBar: View {
-    let onAddModule: () -> Void
     let onApplyPreset: (DashboardPreset) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                Button(action: onAddModule) {
-                    Label("Add Module", systemImage: "plus.circle.fill")
-                }
-                .buttonStyle(.borderedProminent)
-
                 Menu {
                     Section("Presets") {
                         ForEach(DashboardPreset.productionCases) { preset in
@@ -1275,18 +1322,18 @@ struct ProgramModuleView: View {
                 .font(module.size == .small ? .headline : .title3)
                 .fontWeight(.semibold)
                 .foregroundStyle(.primary)
-                .lineLimit(module.size == .small ? 2 : 1)
+                .lineLimit(module.size == .small ? 2 : 2)
 
             Text(subtitle)
                 .font(.subheadline)
                 .foregroundStyle(.primary)
-                .lineLimit(module.size == .small ? 2 : 2)
+                .lineLimit(module.size == .small ? 2 : 3)
 
             if let detail, module.size == .medium {
                 Text(detail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    .lineLimit(3)
             }
 
             Spacer(minLength: 0)

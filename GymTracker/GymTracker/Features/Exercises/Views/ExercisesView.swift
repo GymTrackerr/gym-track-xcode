@@ -17,9 +17,12 @@ fileprivate struct ExerciseRowSnapshot: Identifiable {
     let isUserCreated: Bool
     let timestamp: Date
     let thumbnailURL: URL?
-    let willArchiveOnDelete: Bool
     let aliases: [String]
     let primaryMuscles: [String]
+}
+
+fileprivate struct ExerciseNavigationTarget: Hashable {
+    let exerciseId: UUID
 }
 
 struct ExercisesView: View {
@@ -29,58 +32,9 @@ struct ExercisesView: View {
     @State private var selectedMuscle: String = ""
     @State private var showUserExercisesOnly: Bool = false
     @State private var exerciseRows: [ExerciseRowSnapshot] = []
+    @State private var filteredRows: [ExerciseRowSnapshot] = []
+    @State private var availableMuscles: [String] = []
     @EnvironmentObject var toastManager: ActionToastManager
-
-    private var scopeFilteredRows: [ExerciseRowSnapshot] {
-        if showUserExercisesOnly {
-            return exerciseRows.filter { $0.isUserCreated }
-        }
-        return exerciseRows
-    }
-
-    private var filteredExerciseRows: [ExerciseRowSnapshot] {
-        var result = scopeFilteredRows
-
-        if !selectedMuscle.isEmpty {
-            result = result.filter { row in
-                row.primaryMuscles.contains(where: { $0.lowercased() == selectedMuscle.lowercased() })
-            }
-        }
-
-        if !searchText.isEmpty {
-            result = result.filter { row in
-                if row.name.localizedCaseInsensitiveContains(searchText) {
-                    return true
-                }
-                return row.aliases.contains { alias in
-                    alias.localizedCaseInsensitiveContains(searchText)
-                }
-            }
-        }
-
-        return result
-    }
-
-    var uniqueMuscles: [String] {
-        var muscles = Set<String>()
-        let filteredBySearch = scopeFilteredRows.filter { row in
-            guard !searchText.isEmpty else { return true }
-            if row.name.localizedCaseInsensitiveContains(searchText) {
-                return true
-            }
-            return row.aliases.contains { alias in
-                alias.localizedCaseInsensitiveContains(searchText)
-            }
-        }
-
-        for row in filteredBySearch {
-            for muscle in row.primaryMuscles {
-                muscles.insert(muscle)
-            }
-        }
-
-        return Array(muscles).sorted()
-    }
 
     var body : some View {
         VStack(spacing: 0) {
@@ -90,7 +44,7 @@ struct ExercisesView: View {
 //                    .font(.title2)
 //                    .fontWeight(.bold)
                 
-                Text("\(filteredExerciseRows.count) exercises")
+                Text("\(filteredRows.count) exercises")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -120,7 +74,7 @@ struct ExercisesView: View {
                     }
 
                     // Muscle filters
-                    ForEach(uniqueMuscles, id: \.self) { muscle in
+                    ForEach(availableMuscles, id: \.self) { muscle in
                         FilterPill(
                             title: muscle,
                             isSelected: selectedMuscle == muscle
@@ -151,7 +105,7 @@ struct ExercisesView: View {
                 }
                 .frame(maxHeight: .infinity)
                 .padding()
-            } else if filteredExerciseRows.isEmpty {
+            } else if filteredRows.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 40))
@@ -168,10 +122,8 @@ struct ExercisesView: View {
                 .padding()
             } else {
                 List {
-                    ForEach(filteredExerciseRows) { row in
-                        NavigationLink {
-                            SingleExerciseView(exerciseId: row.id)
-                        } label: {
+                    ForEach(filteredRows) { row in
+                        NavigationLink(value: ExerciseNavigationTarget(exerciseId: row.id)) {
                             ExerciseListRow(snapshot: row)
                         }
                         .listRowInsets(EdgeInsets(top: 6, leading: 4, bottom: 6, trailing: 16))
@@ -186,8 +138,7 @@ struct ExercisesView: View {
                             Button(role: .destructive) {
                                 deleteExercise(id: row.id)
                             } label: {
-                                let isArchive = row.willArchiveOnDelete
-                                Label(isArchive ? "Archive" : "Delete", systemImage: isArchive ? "archivebox" : "trash")
+                                Label("Delete", systemImage: "trash")
                             }
                         }
                     }
@@ -195,12 +146,18 @@ struct ExercisesView: View {
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
-                .id(exerciseService.exerciseListRevision)
             }
         }
-        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search exercises")
+        .searchable(
+            text: $searchText,
+            placement: .navigationBarDrawer(displayMode: .automatic),
+            prompt: "Search exercises"
+        )
         .navigationTitle("Exercises")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(for: ExerciseNavigationTarget.self) { target in
+            SingleExerciseView(exerciseId: target.exerciseId)
+        }
         .toolbar {
 #if os(iOS)
             if !exerciseRows.isEmpty {
@@ -230,6 +187,15 @@ struct ExercisesView: View {
             if exerciseRows.isEmpty {
                 editMode?.wrappedValue = .inactive
             }
+        }
+        .onChange(of: searchText) { _, _ in
+            refreshDerivedRows()
+        }
+        .onChange(of: selectedMuscle) { _, _ in
+            refreshDerivedRows()
+        }
+        .onChange(of: showUserExercisesOnly) { _, _ in
+            refreshDerivedRows()
         }
         .sheet(isPresented: $exerciseService.editingExercise) {
             NavigationView {
@@ -275,7 +241,7 @@ struct ExercisesView: View {
 
     private func deleteFilteredExercises(offsets: IndexSet) {
         let ids = offsets.compactMap { index in
-            filteredExerciseRows.indices.contains(index) ? filteredExerciseRows[index].id : nil
+            filteredRows.indices.contains(index) ? filteredRows[index].id : nil
         }
         deleteExercisesOptimistic(ids: ids)
     }
@@ -330,10 +296,49 @@ struct ExercisesView: View {
                 isUserCreated: exercise.isUserCreated,
                 timestamp: exercise.timestamp,
                 thumbnailURL: exerciseService.thumbnailURL(for: exercise),
-                willArchiveOnDelete: exerciseService.willArchiveOnDelete(exercise),
                 aliases: exercise.aliases ?? [],
                 primaryMuscles: exercise.primary_muscles ?? []
             )
+        }
+        refreshDerivedRows()
+    }
+
+    private func refreshDerivedRows() {
+        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let scopedRows = showUserExercisesOnly
+            ? exerciseRows.filter { $0.isUserCreated }
+            : exerciseRows
+
+        let searchMatchedRows = scopedRows.filter { row in
+            matchesSearch(row, query: trimmedSearch)
+        }
+
+        availableMuscles = Array(
+            Set(searchMatchedRows.flatMap(\.primaryMuscles))
+        ).sorted()
+
+        var resolvedSelectedMuscle = selectedMuscle
+        if !resolvedSelectedMuscle.isEmpty,
+           availableMuscles.contains(where: { $0.caseInsensitiveCompare(resolvedSelectedMuscle) == .orderedSame }) == false {
+            resolvedSelectedMuscle = ""
+            selectedMuscle = ""
+        }
+
+        filteredRows = searchMatchedRows.filter { row in
+            guard !resolvedSelectedMuscle.isEmpty else { return true }
+            return row.primaryMuscles.contains(where: {
+                $0.caseInsensitiveCompare(resolvedSelectedMuscle) == .orderedSame
+            })
+        }
+    }
+
+    private func matchesSearch(_ row: ExerciseRowSnapshot, query: String) -> Bool {
+        guard !query.isEmpty else { return true }
+        if row.name.localizedCaseInsensitiveContains(query) {
+            return true
+        }
+        return row.aliases.contains { alias in
+            alias.localizedCaseInsensitiveContains(query)
         }
     }
 
@@ -358,8 +363,7 @@ private struct ExerciseListRow: View {
             } else {
                 HStack {
                     if let thumbnailURL = snapshot.thumbnailURL {
-                        CachedMediaView(url: thumbnailURL)
-                            .scaledToFill()
+                        CachedThumbnailView(url: thumbnailURL)
                             .frame(width: 45, height: 45)
                             .clipShape(RoundedRectangle(cornerRadius: 4))
                             .clipped()

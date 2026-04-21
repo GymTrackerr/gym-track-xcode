@@ -52,6 +52,48 @@ struct CachedMediaView: View {
     }
 }
 
+struct CachedThumbnailView: View {
+    let url: URL
+
+    @State private var image: UIImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .clipped()
+            } else {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.gray.opacity(0.14))
+
+                    Image(systemName: "photo")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .task(id: url) {
+            await loadCachedThumbnail()
+        }
+    }
+
+    @MainActor
+    private func loadCachedThumbnail() async {
+        image = nil
+
+        var resolvedFile = await MediaCache.shared.cachedFile(for: url)
+        if resolvedFile == nil {
+            resolvedFile = try? await MediaCache.shared.fetch(url)
+        }
+
+        guard let cachedFile = resolvedFile else { return }
+        image = UIImage(contentsOfFile: cachedFile.path)
+    }
+}
+
 ///// WebView-based GIF renderer for CachedMediaView.
 //struct GIFWebView: UIViewRepresentable {
 //    let fileURL: URL
