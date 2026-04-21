@@ -229,6 +229,7 @@ struct OnboardingRootView: View {
 
             Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
             coordinator.configure(for: onboardingState, currentUser: userService.currentUser)
         }
@@ -1505,7 +1506,6 @@ private struct OnboardingBuildingPlanView: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            Spacer()
             ProgressView()
                 .controlSize(.large)
             Text(statusText)
@@ -1513,8 +1513,8 @@ private struct OnboardingBuildingPlanView: View {
             Text("This only takes a moment.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
-            Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(24)
     }
 }

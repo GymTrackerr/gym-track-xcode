@@ -37,70 +37,75 @@ struct RoutineExercisePickerSheet: View {
     }
 
     var body: some View {
-        NavigationView {
-            VStack(spacing: 16) {
-                if isSyncingCatalog {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack {
-                            ProgressView()
-                                .controlSize(.small)
-
-                            Text(syncStatusText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Syncing ExerciseDB..." : syncStatusText)
-                                .font(.subheadline.weight(.semibold))
-
-                            Spacer()
-                        }
-
-                        if progressTotal > 0 {
-                            ProgressView(value: Double(progressCompleted) / Double(progressTotal))
-                        }
-                    }
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.accentColor.opacity(0.10))
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                }
-
-                TextField("Search or Create Exercise", text: $searchText)
-                    .textFieldStyle(.roundedBorder)
-
-                Button {
-                    onCreate()
-                } label: {
-                    Label("Add", systemImage: "plus.circle")
-                        .font(.title2)
-                        .padding(.vertical, 4)
-                }
-                .disabled(!canCreate)
-
-                List {
-                    ForEach(filteredExercises, id: \.id) { exercise in
-                        Button {
-                            onToggle(exercise)
-                        } label: {
+        ZStack {
+            NavigationView {
+                VStack(spacing: 16) {
+                    if isSyncingCatalog {
+                        VStack(alignment: .leading, spacing: 10) {
                             HStack {
-                                Image(systemName: showsMinusIcon(exercise) ? "minus" : "plus")
-                                Text(exercise.name)
+                                ProgressView()
+                                    .controlSize(.small)
+
+                                Text(syncStatusText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Syncing ExerciseDB..." : syncStatusText)
+                                    .font(.subheadline.weight(.semibold))
+
+                                Spacer()
+                            }
+
+                            if progressTotal > 0 {
+                                ProgressView(value: Double(progressCompleted) / Double(progressTotal))
                             }
                         }
+                        .padding(14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.accentColor.opacity(0.10))
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
                     }
-                }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
 
-                Spacer()
-            }
-            .padding()
-            .navigationTitle(title)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Save", action: onSave)
-                }
+                    TextField("Search or Create Exercise", text: $searchText)
+                        .textFieldStyle(.roundedBorder)
 
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", action: onCancel)
+                    Button {
+                        onCreate()
+                    } label: {
+                        Label("Add", systemImage: "plus.circle")
+                            .font(.title2)
+                            .padding(.vertical, 4)
+                    }
+                    .disabled(!canCreate)
+
+                    List {
+                        ForEach(filteredExercises, id: \.id) { exercise in
+                            Button {
+                                onToggle(exercise)
+                            } label: {
+                                HStack {
+                                    Image(systemName: showsMinusIcon(exercise) ? "minus" : "plus")
+                                    Text(exercise.name)
+                                }
+                            }
+                            .listRowBackground(Color.clear)
+                        }
+                    }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .padding()
+                .navigationTitle(title)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Save", action: onSave)
+                    }
+
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel", action: onCancel)
+                    }
                 }
             }
         }
+        .appBackground()
     }
 }

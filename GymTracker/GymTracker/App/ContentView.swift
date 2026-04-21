@@ -153,17 +153,21 @@ extension View {
 
 struct AppBackground: View {
     var body: some View {
-        LinearGradient(
-            gradient: Gradient(colors: [
-                Color(red: 0.85, green: 0.1, blue: 0.1),//.red,
-                Color.clear//gray.opacity(0.3)
-            ]),
-            startPoint: .top,
-            endPoint: .bottom,
-        )
-        .frame(height: 400)
-        .frame(maxHeight: .infinity, alignment: .top)
-        .ignoresSafeArea(edges: .top)
+        ZStack(alignment: .top) {
+            Color(.systemBackground)
+
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color(red: 0.85, green: 0.1, blue: 0.1),
+                    Color.clear
+                ]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 400)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+        .ignoresSafeArea()
     }
 }
 
