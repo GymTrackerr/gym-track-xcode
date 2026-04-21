@@ -123,7 +123,10 @@ final class OnboardingCoordinator: ObservableObject {
 
     func updateExistingCustomName(_ customName: String, at index: Int) {
         guard draft.existingRoutineDays.indices.contains(index) else { return }
-        draft.existingRoutineDays[index].customName = customName
+        let trimmedName = customName.trimmingCharacters(in: .whitespacesAndNewlines)
+        draft.existingRoutineDays[index].customName = trimmedName.isEmpty
+            ? OnboardingRoutineFocus.defaultName(for: index + 1)
+            : trimmedName
         clearPlanPreview()
     }
 

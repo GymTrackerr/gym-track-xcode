@@ -35,9 +35,16 @@ enum OnboardingRoutineFocus: String, CaseIterable, Identifiable, Codable {
 
     static func defaultDrafts(for dayCount: Int) -> [OnboardingRoutineDayDraft] {
         let resolvedCount = max(2, min(dayCount, 5))
-        return (0..<resolvedCount).map { _ in
-            OnboardingRoutineDayDraft(focus: .custom)
+        return (0..<resolvedCount).map { index in
+            OnboardingRoutineDayDraft(
+                focus: .custom,
+                customName: defaultName(for: index + 1)
+            )
         }
+    }
+
+    static func defaultName(for position: Int) -> String {
+        "Routine \(position)"
     }
 
     static func defaultWeekdays(for dayCount: Int) -> [ProgramWeekday] {

@@ -3,7 +3,7 @@ import SwiftUI
 struct RoutineExercisePickerSheet: View {
     let title: String
     @Binding var searchText: String
-    let searchResults: [Exercise]
+    let exercises: [Exercise]
     let isSyncingCatalog: Bool
     let syncStatusText: String
     let progressCompleted: Int
@@ -14,40 +14,45 @@ struct RoutineExercisePickerSheet: View {
     let onToggle: (Exercise) -> Void
     let onSave: () -> Void
     let onCancel: () -> Void
-    let onSearchChange: () -> Void
 
-    private var progressValue: Double? {
-        guard progressTotal > 0 else { return nil }
-        return Double(progressCompleted) / Double(progressTotal)
-    }
+    private var filteredExercises: [Exercise] {
+        let trimmedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else { return exercises }
 
-    private var resolvedStatusText: String {
-        let trimmed = syncStatusText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            return isSyncingCatalog ? "Syncing ExerciseDB..." : "ExerciseDB is ready."
+        return exercises.filter { exercise in
+            if exercise.name.localizedCaseInsensitiveContains(trimmedQuery) {
+                return true
+            }
+
+            if (exercise.aliases ?? []).contains(where: { $0.localizedCaseInsensitiveContains(trimmedQuery) }) {
+                return true
+            }
+
+            if (exercise.primary_muscles ?? []).contains(where: { $0.localizedCaseInsensitiveContains(trimmedQuery) }) {
+                return true
+            }
+
+            return (exercise.secondary_muscles ?? []).contains(where: { $0.localizedCaseInsensitiveContains(trimmedQuery) })
         }
-        return trimmed
     }
 
     var body: some View {
         NavigationView {
             VStack(spacing: 16) {
-                if isSyncingCatalog || !syncStatusText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                if isSyncingCatalog {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
-                            if isSyncingCatalog {
-                                ProgressView()
-                                    .controlSize(.small)
-                            }
+                            ProgressView()
+                                .controlSize(.small)
 
-                            Text(resolvedStatusText)
+                            Text(syncStatusText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Syncing ExerciseDB..." : syncStatusText)
                                 .font(.subheadline.weight(.semibold))
 
                             Spacer()
                         }
 
-                        if let progressValue {
-                            ProgressView(value: progressValue)
+                        if progressTotal > 0 {
+                            ProgressView(value: Double(progressCompleted) / Double(progressTotal))
                         }
                     }
                     .padding(14)
@@ -69,7 +74,7 @@ struct RoutineExercisePickerSheet: View {
                 .disabled(!canCreate)
 
                 List {
-                    ForEach(searchResults, id: \.id) { exercise in
+                    ForEach(filteredExercises, id: \.id) { exercise in
                         Button {
                             onToggle(exercise)
                         } label: {
@@ -95,9 +100,6 @@ struct RoutineExercisePickerSheet: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: onCancel)
                 }
-            }
-            .onChange(of: searchText) {
-                onSearchChange()
             }
         }
     }

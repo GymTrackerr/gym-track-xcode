@@ -159,6 +159,7 @@ struct OnboardingRootView: View {
                         routineNumber: routineNumber(for: routineId),
                         routineName: routineDay.customName,
                         selectedExercises: existingExercises(for: routineDay),
+                        availableExercises: availableExerciseChoices,
                         isSyncingCatalog: exerciseService.isCatalogSyncInFlight,
                         syncStatusText: exerciseCatalogStatusText,
                         progressCompleted: exerciseService.catalogSyncProgressCompleted,
@@ -168,7 +169,6 @@ struct OnboardingRootView: View {
                         onCreateExercise: { name in
                             createExistingExercise(name: name, for: routineId)
                         },
-                        onSearchExercises: { query in exerciseService.search(query: query) },
                         onDone: { coordinator.send(.goBack) }
                     )
                 } else {
@@ -204,11 +204,9 @@ struct OnboardingRootView: View {
 
             case .progression:
                 OnboardingProgressionStepView(
-                    selectedChoice: coordinator.draft.progressionChoice,
-                    recommendedProfileName: recommendedProgressionProfile?.name ?? recommendedProgressionProfileName,
-                    recommendedDescription: recommendedProgressionProfile?.miniDescription ?? "A good default based on the goals you picked.",
                     availableProfiles: builtInProgressionProfiles,
                     selectedProfileId: coordinator.draft.selectedProgressionProfileId,
+                    isSkipping: coordinator.draft.progressionChoice == .notNow,
                     onSelectChoice: { coordinator.send(.selectProgressionChoice($0)) },
                     onSelectProfile: coordinator.selectProgressionProfile(_:),
                     onContinue: applyProgressionChoiceAndContinue
@@ -636,10 +634,9 @@ struct OnboardingRootView: View {
 
         let selectedProfile: ProgressionProfile?
         switch coordinator.draft.progressionChoice {
-        case .recommended:
-            selectedProfile = recommendedProgressionProfile
-        case .other:
+        case .recommended, .other:
             selectedProfile = progressionService.profile(id: coordinator.draft.selectedProgressionProfileId)
+                ?? recommendedProgressionProfile
         case .notNow, .none:
             selectedProfile = nil
         }
@@ -1255,6 +1252,7 @@ private struct OnboardingExistingRoutineEditorView: View {
     let routineNumber: Int
     let routineName: String
     let selectedExercises: [Exercise]
+    let availableExercises: [Exercise]
     let isSyncingCatalog: Bool
     let syncStatusText: String
     let progressCompleted: Int
@@ -1262,12 +1260,10 @@ private struct OnboardingExistingRoutineEditorView: View {
     let onUpdateRoutineName: (String) -> Void
     let onToggleExercise: (UUID) -> Void
     let onCreateExercise: (String) -> Bool
-    let onSearchExercises: (String) -> [Exercise]
     let onDone: () -> Void
 
     @State private var showingExerciseSheet = false
     @State private var searchText = ""
-    @State private var searchResults: [Exercise] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -1277,7 +1273,7 @@ private struct OnboardingExistingRoutineEditorView: View {
             Text("Add the routine name and the exercises you want here.")
                 .foregroundStyle(.secondary)
 
-            if isSyncingCatalog || !syncStatusText.isEmpty {
+            if isSyncingCatalog {
                 OnboardingCatalogSyncStatusView(
                     statusText: syncStatusText,
                     progressCompleted: progressCompleted,
@@ -1297,7 +1293,6 @@ private struct OnboardingExistingRoutineEditorView: View {
 
             Button("Add Exercises") {
                 searchText = ""
-                refreshSearch()
                 showingExerciseSheet = true
             }
             .buttonStyle(.borderedProminent)
@@ -1351,15 +1346,13 @@ private struct OnboardingExistingRoutineEditorView: View {
             RoutineExercisePickerSheet(
                 title: "Add Exercises",
                 searchText: $searchText,
-                searchResults: searchResults,
+                exercises: availableExercises,
                 isSyncingCatalog: isSyncingCatalog,
                 syncStatusText: syncStatusText,
                 progressCompleted: progressCompleted,
                 progressTotal: progressTotal,
                 onCreate: {
-                    if onCreateExercise(searchText.trimmingCharacters(in: .whitespacesAndNewlines)) {
-                        refreshSearch()
-                    }
+                    _ = onCreateExercise(searchText.trimmingCharacters(in: .whitespacesAndNewlines))
                 },
                 canCreate: !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                 showsMinusIcon: { exercise in
@@ -1375,8 +1368,7 @@ private struct OnboardingExistingRoutineEditorView: View {
                 onCancel: {
                     showingExerciseSheet = false
                     searchText = ""
-                },
-                onSearchChange: refreshSearch
+                }
             )
         }
     }
@@ -1398,10 +1390,6 @@ private struct OnboardingExistingRoutineEditorView: View {
         }
 
         return exercise.exerciseType.name
-    }
-
-    private func refreshSearch() {
-        searchResults = onSearchExercises(searchText)
     }
 }
 
@@ -1688,10 +1676,13 @@ private struct OnboardingSelectionCard: View {
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 6) {
-                HStack {
+                HStack(alignment: .top) {
                     Text(title)
                         .font(.headline)
                         .foregroundStyle(.primary)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
                     Spacer()
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill")
@@ -1704,6 +1695,8 @@ private struct OnboardingSelectionCard: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.leading)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .padding(16)
@@ -1727,24 +1720,15 @@ private extension Array {
 }
 
 private struct OnboardingProgressionStepView: View {
-    let selectedChoice: OnboardingProgressionChoice?
-    let recommendedProfileName: String
-    let recommendedDescription: String
     let availableProfiles: [ProgressionProfile]
     let selectedProfileId: UUID?
+    let isSkipping: Bool
     let onSelectChoice: (OnboardingProgressionChoice) -> Void
     let onSelectProfile: (UUID?) -> Void
     let onContinue: () -> Void
 
     private var canContinue: Bool {
-        switch selectedChoice {
-        case .recommended, .notNow:
-            return true
-        case .other:
-            return selectedProfileId != nil
-        case .none:
-            return false
-        }
+        isSkipping || selectedProfileId != nil
     }
 
     var body: some View {
@@ -1756,39 +1740,24 @@ private struct OnboardingProgressionStepView: View {
                 .foregroundStyle(.secondary)
 
             VStack(spacing: 12) {
-                OnboardingSelectionCard(
-                    title: "Recommended",
-                    subtitle: "\(recommendedProfileName): \(recommendedDescription)",
-                    isSelected: selectedChoice == .recommended,
-                    action: { onSelectChoice(.recommended) }
-                )
-
-                OnboardingSelectionCard(
-                    title: "Other",
-                    subtitle: "Choose a specific progression style yourself.",
-                    isSelected: selectedChoice == .other,
-                    action: { onSelectChoice(.other) }
-                )
+                ForEach(availableProfiles, id: \.id) { profile in
+                    OnboardingSelectionCard(
+                        title: profile.name,
+                        subtitle: profile.miniDescription,
+                        isSelected: !isSkipping && selectedProfileId == profile.id,
+                        action: {
+                            onSelectChoice(.recommended)
+                            onSelectProfile(profile.id)
+                        }
+                    )
+                }
 
                 OnboardingSelectionCard(
                     title: "Not now",
                     subtitle: "Keep progression off for now. You can turn it on later in settings or per routine.",
-                    isSelected: selectedChoice == .notNow,
+                    isSelected: isSkipping,
                     action: { onSelectChoice(.notNow) }
                 )
-
-                if selectedChoice == .other {
-                    VStack(spacing: 12) {
-                        ForEach(availableProfiles, id: \.id) { profile in
-                            OnboardingSelectionCard(
-                                title: profile.name,
-                                subtitle: profile.miniDescription,
-                                isSelected: selectedProfileId == profile.id,
-                                action: { onSelectProfile(profile.id) }
-                            )
-                        }
-                    }
-                }
             }
 
             Spacer()
@@ -1802,6 +1771,20 @@ private struct OnboardingProgressionStepView: View {
                 .clipShape(Capsule())
         }
         .padding(24)
+        .onAppear {
+            guard isSkipping == false else { return }
+            guard selectedProfileId == nil else { return }
+            guard let firstProfile = availableProfiles.first else { return }
+            onSelectChoice(.recommended)
+            onSelectProfile(firstProfile.id)
+        }
+        .onChange(of: availableProfiles.count) { _, _ in
+            guard isSkipping == false else { return }
+            guard selectedProfileId == nil else { return }
+            guard let firstProfile = availableProfiles.first else { return }
+            onSelectChoice(.recommended)
+            onSelectProfile(firstProfile.id)
+        }
     }
 }
 

@@ -20,7 +20,6 @@ struct SingleDayView: View {
     @EnvironmentObject var progressionService: ProgressionService
     @Bindable var routine: Routine
     
-    @State var searchResults: [Exercise] = []
     @State private var routineAliasDraft: String = ""
     @State private var showingProgressionSheet = false
     @EnvironmentObject var toastManager: ActionToastManager
@@ -188,7 +187,6 @@ struct SingleDayView: View {
             ToolbarItem {
                 Button {
                     exerciseService.editingContent = ""
-                    performSearch()
                     esdService.addingExerciseSplit = true
                 } label: {
                     Label("Add Exercise", systemImage: "plus.circle")
@@ -199,7 +197,7 @@ struct SingleDayView: View {
             RoutineExercisePickerSheet(
                 title: "Add Exercises",
                 searchText: $exerciseService.editingContent,
-                searchResults: searchResults,
+                exercises: exerciseService.exercises,
                 isSyncingCatalog: false,
                 syncStatusText: "",
                 progressCompleted: 0,
@@ -231,8 +229,7 @@ struct SingleDayView: View {
                     esdService.endEditing()
                     exerciseService.editingContent = ""
                     exerciseService.editingContent = ""
-                },
-                onSearchChange: performSearch
+                }
             )
         }
         .sheet(isPresented: $showingProgressionSheet) {
@@ -257,10 +254,6 @@ struct SingleDayView: View {
         } else {
             esdService.addingExercises.append(exercise)
         }
-    }
-    func performSearch() {
-        print("searching \(exerciseService.editingContent)")
-        searchResults = exerciseService.search(query: exerciseService.editingContent)
     }
     func removeExercise(offsets: IndexSet) {
         let sortedSplits = routine.exerciseSplits.sorted { $0.order < $1.order }
