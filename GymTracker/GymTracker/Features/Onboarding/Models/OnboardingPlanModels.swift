@@ -34,19 +34,10 @@ enum OnboardingRoutineFocus: String, CaseIterable, Identifiable, Codable {
     }
 
     static func defaultDrafts(for dayCount: Int) -> [OnboardingRoutineDayDraft] {
-        let focuses: [OnboardingRoutineFocus]
-        switch max(2, min(dayCount, 5)) {
-        case 2:
-            focuses = [.fullBody, .fullBody]
-        case 3:
-            focuses = [.push, .pull, .legs]
-        case 4:
-            focuses = [.upper, .lower, .upper, .lower]
-        default:
-            focuses = [.push, .pull, .legs, .upper, .lower]
+        let resolvedCount = max(2, min(dayCount, 5))
+        return (0..<resolvedCount).map { _ in
+            OnboardingRoutineDayDraft(focus: .custom)
         }
-
-        return focuses.map { OnboardingRoutineDayDraft(focus: $0) }
     }
 
     static func defaultWeekdays(for dayCount: Int) -> [ProgramWeekday] {
@@ -67,13 +58,21 @@ struct OnboardingRoutineDayDraft: Identifiable, Equatable {
     var id: UUID = UUID()
     var focus: OnboardingRoutineFocus
     var customName: String = ""
+    var exerciseIds: [UUID] = []
+
+    var trimmedCustomName: String {
+        customName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     var preferredName: String {
-        let trimmedCustomName = customName.trimmingCharacters(in: .whitespacesAndNewlines)
         if focus == .custom {
-            return trimmedCustomName.isEmpty ? "Custom" : trimmedCustomName
+            return trimmedCustomName
         }
         return trimmedCustomName.isEmpty ? focus.title : trimmedCustomName
+    }
+
+    var scheduleLabel: String {
+        preferredName.isEmpty ? "Unnamed Routine" : preferredName
     }
 }
 

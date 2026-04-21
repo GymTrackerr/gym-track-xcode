@@ -52,6 +52,17 @@ enum OnboardingExperienceLevel: String, CaseIterable, Identifiable {
             return "Experienced"
         }
     }
+
+    var subtitle: String {
+        switch self {
+        case .newToTraining:
+            return "0-12 months"
+        case .someExperience:
+            return "1-3 years"
+        case .experienced:
+            return "3+ years"
+        }
+    }
 }
 
 enum OnboardingPlanChoice: String, CaseIterable, Identifiable {
@@ -63,18 +74,18 @@ enum OnboardingPlanChoice: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .generateRoutine:
-            return "Generate a routine"
+            return "Generate a programme"
         case .existingRoutine:
-            return "I already have my own"
+            return "I already have my own routines"
         }
     }
 
     var subtitle: String {
         switch self {
         case .generateRoutine:
-            return "Start with recommendations based on your goals and experience."
+            return "Start with recommended routines based on your goals and experience."
         case .existingRoutine:
-            return "Set up your own structure and schedule in the next step."
+            return "Build your own routines, add exercises to each one, then choose the programme schedule."
         }
     }
 }
@@ -128,6 +139,8 @@ enum OnboardingScreen: Equatable {
     case generateSplit
     case existingMode
     case existingStructure
+    case existingExercises
+    case existingExerciseEditor(UUID)
     case existingSchedule
     case buildingPreview
     case planPreview
@@ -152,6 +165,8 @@ enum OnboardingEvent {
     case continueFromGenerateSplit
     case continueFromExistingMode
     case continueFromExistingStructure
+    case continueFromExistingExercises
+    case editExistingRoutineExercises(UUID)
     case continueFromExistingSchedule
     case finishPlanPreviewPreparation
     case continueFromPlanPreview

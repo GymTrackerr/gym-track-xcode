@@ -157,11 +157,13 @@ final class OnboardingPlanBuilder {
         name: String,
         mode: ProgramMode,
         routineDays: [OnboardingRoutineDayDraft],
+        exercises: [Exercise],
         weeklyWeekdays: [ProgramWeekday],
         trainDaysBeforeRest: Int,
         restDays: Int
     ) throws -> OnboardingPlanPreview {
         let resolvedNames = resolvedRoutineNames(from: routineDays)
+        let exerciseById = Dictionary(uniqueKeysWithValues: exercises.map { ($0.id, $0) })
 
         if mode == .weekly {
             let weekdayValues = weeklyWeekdays.map(\.rawValue)
@@ -171,21 +173,28 @@ final class OnboardingPlanBuilder {
             }
         }
 
-        let routines = resolvedNames.enumerated().map { index, resolvedName in
-            OnboardingPlanPreviewRoutine(
+        let routines: [OnboardingPlanPreviewRoutine] = resolvedNames.enumerated().map { index, resolvedName in
+            let selectedExercises = routineDays[index].exerciseIds.compactMap { exerciseById[$0] }
+            return OnboardingPlanPreviewRoutine(
                 name: resolvedName,
-                focusLabel: routineDays[index].focus.title,
+                focusLabel: routineDays[index].focus == .custom ? nil : routineDays[index].focus.title,
                 weekdayIndex: mode == .weekly ? weeklyWeekdays[index].rawValue : nil,
-                exerciseIds: [],
-                exercises: []
+                exerciseIds: selectedExercises.map(\.id),
+                exercises: selectedExercises.map { exercise in
+                    OnboardingPlanPreviewExercise(
+                        id: exercise.id,
+                        name: exercise.name,
+                        detail: exerciseDetail(for: exercise)
+                    )
+                }
             )
         }
 
         return OnboardingPlanPreview(
             title: name,
             subtitle: mode == .weekly
-                ? "Review your weekly structure before saving it."
-                : "Review your rotation before saving it.",
+                ? "Review your weekly programme before saving it."
+                : "Review your rotating programme before saving it.",
             source: .existingRoutine,
             mode: mode,
             trainDaysBeforeRest: trainDaysBeforeRest,

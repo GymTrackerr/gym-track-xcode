@@ -20,6 +20,7 @@ struct OnboardingRootView: View {
     @State private var isSavingPlan = false
     @State private var isRequestingHealthPermission = false
     @State private var isRequestingNotificationPermission = false
+    @State private var hasPreparedExistingExerciseCatalog = false
 
     var body: some View {
         Group {
@@ -40,7 +41,18 @@ struct OnboardingRootView: View {
             progressionService.loadProfiles()
         }
         .onChange(of: userService.onboardingState) { _, newValue in
+            hasPreparedExistingExerciseCatalog = false
             coordinator.configure(for: newValue, currentUser: userService.currentUser)
+        }
+        .onChange(of: coordinator.screen) { _, newValue in
+            switch newValue {
+            case .existingExercises, .existingExerciseEditor(_):
+                Task {
+                    await prepareExistingExerciseCatalogIfNeeded()
+                }
+            default:
+                break
+            }
         }
     }
     
@@ -137,14 +149,43 @@ struct OnboardingRootView: View {
                 OnboardingExistingStructureView(
                     routineDays: coordinator.draft.existingRoutineDays,
                     onUpdateDayCount: { coordinator.updateExistingDayCount($0) },
-                    onSelectFocus: { focus, index in
-                        coordinator.updateExistingFocus(focus, at: index)
-                    },
                     onUpdateCustomName: { customName, index in
                         coordinator.updateExistingCustomName(customName, at: index)
                     },
                     onContinue: { coordinator.send(.continueFromExistingStructure) }
                 )
+
+            case .existingExercises:
+                OnboardingExistingExercisesView(
+                    routineDays: coordinator.draft.existingRoutineDays,
+                    exercisesByRoutineId: existingExercisesByRoutineId,
+                    isSyncingCatalog: exerciseService.isCatalogSyncInFlight,
+                    syncStatusText: exerciseCatalogStatusText,
+                    progressCompleted: exerciseService.catalogSyncProgressCompleted,
+                    progressTotal: exerciseService.catalogSyncProgressTotal,
+                    onEditRoutine: { coordinator.send(.editExistingRoutineExercises($0)) },
+                    onContinue: { coordinator.send(.continueFromExistingExercises) }
+                )
+
+            case .existingExerciseEditor(let routineId):
+                if let routineDay = coordinator.existingRoutineDay(id: routineId) {
+                    OnboardingExistingExerciseEditorView(
+                        routineName: routineDay.scheduleLabel,
+                        selectedExercises: existingExercises(for: routineDay),
+                        availableExercises: availableExerciseChoices,
+                        isSyncingCatalog: exerciseService.isCatalogSyncInFlight,
+                        syncStatusText: exerciseCatalogStatusText,
+                        progressCompleted: exerciseService.catalogSyncProgressCompleted,
+                        progressTotal: exerciseService.catalogSyncProgressTotal,
+                        onToggleExercise: { coordinator.toggleExistingExercise($0, for: routineId) },
+                        onCreateExercise: { name, type in
+                            createExistingExercise(name: name, type: type, for: routineId)
+                        },
+                        onDone: { coordinator.send(.goBack) }
+                    )
+                } else {
+                    OnboardingBuildingPlanView(statusText: "Loading routine...")
+                }
 
             case .existingSchedule:
                 OnboardingExistingScheduleView(
@@ -337,6 +378,31 @@ struct OnboardingRootView: View {
         return templateBundle?.recommendations.first(where: { $0.id == preferredId })
     }
 
+    private var availableExerciseChoices: [Exercise] {
+        exerciseService.exercises
+            .filter { !$0.isArchived }
+            .sorted {
+                $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+    }
+
+    private var exerciseLookupById: [UUID: Exercise] {
+        Dictionary(uniqueKeysWithValues: availableExerciseChoices.map { ($0.id, $0) })
+    }
+
+    private var existingExercisesByRoutineId: [UUID: [Exercise]] {
+        Dictionary(uniqueKeysWithValues: coordinator.draft.existingRoutineDays.map { routineDay in
+            (
+                routineDay.id,
+                routineDay.exerciseIds.compactMap { exerciseLookupById[$0] }
+            )
+        })
+    }
+
+    private var exerciseCatalogStatusText: String {
+        exerciseService.catalogSyncStatusText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private var buildingPlanStatusText: String {
         let trimmedCatalogStatus = exerciseService.catalogSyncStatusText.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedCatalogStatus.isEmpty {
@@ -345,9 +411,9 @@ struct OnboardingRootView: View {
 
         switch coordinator.draft.planChoice {
         case .generateRoutine:
-            return "Preparing your routine..."
+            return "Preparing your programme..."
         case .existingRoutine:
-            return "Preparing your preview..."
+            return "Preparing your programme preview..."
         case .none:
             return "Working..."
         }
@@ -455,6 +521,7 @@ struct OnboardingRootView: View {
                     name: existingPlanTitle,
                     mode: coordinator.draft.existingMode ?? .weekly,
                     routineDays: coordinator.draft.existingRoutineDays,
+                    exercises: availableExerciseChoices,
                     weeklyWeekdays: coordinator.draft.existingWeekdays,
                     trainDaysBeforeRest: coordinator.draft.continuousTrainDays,
                     restDays: coordinator.draft.continuousRestDays
@@ -510,15 +577,44 @@ struct OnboardingRootView: View {
     private var existingPlanTitle: String {
         let trimmedName = coordinator.draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedName.isEmpty {
-            return "\(trimmedName)'s Routine"
+            return "\(trimmedName)'s Programme"
         }
 
         switch coordinator.draft.existingMode {
         case .continuous:
-            return "Continuous Routine"
+            return "Continuous Programme"
         case .weekly, .none:
-            return "Weekly Routine"
+            return "Weekly Programme"
         }
+    }
+
+    private func existingExercises(for routineDay: OnboardingRoutineDayDraft) -> [Exercise] {
+        routineDay.exerciseIds.compactMap { exerciseLookupById[$0] }
+    }
+
+    private func createExistingExercise(name: String, type: ExerciseType, for routineId: UUID) -> Bool {
+        guard let exercise = exerciseService.createExercise(name: name, type: type) else {
+            return false
+        }
+
+        coordinator.addExistingExercise(exercise.id, for: routineId)
+        return true
+    }
+
+    private func prepareExistingExerciseCatalogIfNeeded() async {
+        guard !hasPreparedExistingExerciseCatalog else { return }
+        hasPreparedExistingExerciseCatalog = true
+
+        let shouldEnableCatalog = exerciseService.catalogSyncEnabledForCurrentUser == false
+        let shouldForceSync = shouldAutoSyncCatalog || exerciseService.exercises.isEmpty
+
+        if shouldEnableCatalog {
+            exerciseService.setCatalogSyncEnabled(true)
+            return
+        }
+
+        guard shouldForceSync else { return }
+        await exerciseService.syncCatalogNow(force: true)
     }
 
     private var recommendedProgressionProfileName: String {
@@ -777,39 +873,40 @@ private struct OnboardingGoalsView: View {
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                Text("Your goals")
-                    .font(.largeTitle.bold())
+        VStack(alignment: .leading, spacing: 24) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    Text("Your goals")
+                        .font(.largeTitle.bold())
 
-                Text("Pick up to two so we can shape the right setup flow.")
-                    .foregroundStyle(.secondary)
+                    Text("Pick any that fit. Two is a good starting point, but you can choose more or skip this for now.")
+                        .foregroundStyle(.secondary)
 
-                LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(OnboardingGoal.allCases) { goal in
-                        OnboardingSelectionCard(
-                            title: goal.title,
-                            subtitle: nil,
-                            isSelected: selectedGoals.contains(goal),
-                            action: { onToggleGoal(goal) }
-                        )
+                    LazyVGrid(columns: columns, spacing: 12) {
+                        ForEach(OnboardingGoal.allCases) { goal in
+                            OnboardingSelectionCard(
+                                title: goal.title,
+                                subtitle: nil,
+                                isSelected: selectedGoals.contains(goal),
+                                action: { onToggleGoal(goal) }
+                            )
+                        }
                     }
+
+                    Text(selectedGoals.isEmpty ? "No goals selected yet." : "\(selectedGoals.count) selected")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
-
-                Text("\(selectedGoals.count)/2 selected")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-
-                Button("Continue", action: onContinue)
-                    .disabled(selectedGoals.isEmpty)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.accentColor)
-                    .foregroundStyle(.white)
-                    .clipShape(Capsule())
             }
-            .padding(24)
+
+            Button("Continue", action: onContinue)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.accentColor)
+                .foregroundStyle(.white)
+                .clipShape(Capsule())
         }
+        .padding(24)
     }
 }
 
@@ -830,7 +927,7 @@ private struct OnboardingExperienceView: View {
                 ForEach(OnboardingExperienceLevel.allCases) { experience in
                     OnboardingSelectionCard(
                         title: experience.title,
-                        subtitle: nil,
+                        subtitle: experience.subtitle,
                         isSelected: selectedExperience == experience,
                         action: { onSelectExperience(experience) }
                     )
@@ -958,10 +1055,10 @@ private struct OnboardingGenerateSplitView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Text("Suggested split")
+            Text("Suggested programme")
                 .font(.largeTitle.bold())
 
-            Text("Choose the setup you want to preview.")
+            Text("Choose the programme you want to preview.")
                 .foregroundStyle(.secondary)
 
             if let templateLoadErrorMessage, recommendations.isEmpty {
@@ -982,7 +1079,7 @@ private struct OnboardingGenerateSplitView: View {
 
             Spacer()
 
-            Button("Preview Routine", action: onContinue)
+            Button("Preview Programme", action: onContinue)
                 .disabled(selectedRecommendationId == nil)
                 .frame(maxWidth: .infinity)
                 .padding()
@@ -1019,10 +1116,10 @@ private struct OnboardingExistingModeView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Text("Routine type")
+            Text("Programme type")
                 .font(.largeTitle.bold())
 
-            Text("Choose whether your schedule repeats by weekdays or rotates continuously.")
+            Text("Choose whether your programme repeats by weekdays or rotates continuously.")
                 .foregroundStyle(.secondary)
 
             VStack(spacing: 12) {
@@ -1058,19 +1155,22 @@ private struct OnboardingExistingModeView: View {
 private struct OnboardingExistingStructureView: View {
     let routineDays: [OnboardingRoutineDayDraft]
     let onUpdateDayCount: (Int) -> Void
-    let onSelectFocus: (OnboardingRoutineFocus, Int) -> Void
     let onUpdateCustomName: (String, Int) -> Void
     let onContinue: () -> Void
 
     private let dayOptions = [2, 3, 4, 5]
 
+    private var canContinue: Bool {
+        routineDays.allSatisfy { !$0.trimmedCustomName.isEmpty }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                Text("Build your structure")
+                Text("Create your routines")
                     .font(.largeTitle.bold())
 
-                Text("Set the number of training days and choose a focus for each one.")
+                Text("Name each routine first. On the next screen you’ll open each one and add the exercises you want inside it.")
                     .foregroundStyle(.secondary)
 
                 HStack(spacing: 12) {
@@ -1098,32 +1198,21 @@ private struct OnboardingExistingStructureView: View {
                 VStack(spacing: 16) {
                     ForEach(Array(routineDays.enumerated()), id: \.element.id) { index, routineDay in
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Day \(index + 1)")
+                            Text("Routine \(index + 1)")
                                 .font(.headline)
 
-                            Picker(
-                                "Focus",
-                                selection: Binding(
-                                    get: { routineDay.focus },
-                                    set: { onSelectFocus($0, index) }
+                            TextField(
+                                "Routine name",
+                                text: Binding(
+                                    get: { routineDay.customName },
+                                    set: { onUpdateCustomName($0, index) }
                                 )
-                            ) {
-                                ForEach(OnboardingRoutineFocus.allCases) { focus in
-                                    Text(focus.title).tag(focus)
-                                }
-                            }
-                            .pickerStyle(.menu)
+                            )
+                            .textFieldStyle(.roundedBorder)
 
-                            if routineDay.focus == .custom {
-                                TextField(
-                                    "Custom name",
-                                    text: Binding(
-                                        get: { routineDay.customName },
-                                        set: { onUpdateCustomName($0, index) }
-                                    )
-                                )
-                                .textFieldStyle(.roundedBorder)
-                            }
+                            Text("Examples: Upper, Pull, Legs, Day 1, Conditioning")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
                         }
                         .padding(16)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1133,14 +1222,315 @@ private struct OnboardingExistingStructureView: View {
                 }
 
                 Button("Continue", action: onContinue)
+                    .disabled(!canContinue)
                     .frame(maxWidth: .infinity)
                     .padding()
                     .background(Color.accentColor)
                     .foregroundStyle(.white)
                     .clipShape(Capsule())
+
+                if !canContinue {
+                    Text("Name each routine before continuing.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             }
             .padding(24)
         }
+    }
+}
+
+private struct OnboardingExistingExercisesView: View {
+    let routineDays: [OnboardingRoutineDayDraft]
+    let exercisesByRoutineId: [UUID: [Exercise]]
+    let isSyncingCatalog: Bool
+    let syncStatusText: String
+    let progressCompleted: Int
+    let progressTotal: Int
+    let onEditRoutine: (UUID) -> Void
+    let onContinue: () -> Void
+
+    private var canContinue: Bool {
+        routineDays.allSatisfy { routineDay in
+            !(exercisesByRoutineId[routineDay.id] ?? []).isEmpty
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Text("Map exercises to each routine")
+                .font(.largeTitle.bold())
+
+            Text("Open each routine, add the exercises you want, then move on to the programme structure.")
+                .foregroundStyle(.secondary)
+
+            if isSyncingCatalog || !syncStatusText.isEmpty {
+                OnboardingCatalogSyncStatusView(
+                    statusText: syncStatusText,
+                    progressCompleted: progressCompleted,
+                    progressTotal: progressTotal,
+                    isActive: isSyncingCatalog
+                )
+            }
+
+            ScrollView {
+                VStack(spacing: 16) {
+                    ForEach(routineDays) { routineDay in
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(alignment: .top, spacing: 12) {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(routineDay.scheduleLabel)
+                                        .font(.headline)
+
+                                    Text(
+                                        selectedExercises(for: routineDay).isEmpty
+                                            ? "No exercises added yet."
+                                            : "\(selectedExercises(for: routineDay).count) exercise\(selectedExercises(for: routineDay).count == 1 ? "" : "s") selected"
+                                    )
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                }
+
+                                Spacer()
+
+                                Button(selectedExercises(for: routineDay).isEmpty ? "Add Exercises" : "Edit Exercises") {
+                                    onEditRoutine(routineDay.id)
+                                }
+                                .buttonStyle(.borderedProminent)
+                            }
+
+                            if !selectedExercises(for: routineDay).isEmpty {
+                                Text(selectedExercises(for: routineDay).map(\.name).joined(separator: ", "))
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.gray.opacity(0.10))
+                        .clipShape(RoundedRectangle(cornerRadius: 18))
+                    }
+                }
+            }
+
+            Button("Continue", action: onContinue)
+                .disabled(!canContinue)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.accentColor)
+                .foregroundStyle(.white)
+                .clipShape(Capsule())
+
+            if !canContinue {
+                Text("Add at least one exercise to each routine before continuing.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(24)
+    }
+
+    private func selectedExercises(for routineDay: OnboardingRoutineDayDraft) -> [Exercise] {
+        exercisesByRoutineId[routineDay.id] ?? []
+    }
+}
+
+private struct OnboardingExistingExerciseEditorView: View {
+    let routineName: String
+    let selectedExercises: [Exercise]
+    let availableExercises: [Exercise]
+    let isSyncingCatalog: Bool
+    let syncStatusText: String
+    let progressCompleted: Int
+    let progressTotal: Int
+    let onToggleExercise: (UUID) -> Void
+    let onCreateExercise: (String, ExerciseType) -> Bool
+    let onDone: () -> Void
+
+    @State private var searchQuery: String = ""
+    @State private var selectedExerciseType: ExerciseType = .weight
+
+    private var trimmedSearchQuery: String {
+        searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var selectedExerciseIds: Set<UUID> {
+        Set(selectedExercises.map(\.id))
+    }
+
+    private var filteredExercises: [Exercise] {
+        let baseExercises: [Exercise]
+        if trimmedSearchQuery.isEmpty {
+            baseExercises = availableExercises
+        } else {
+            baseExercises = availableExercises.filter { exercise in
+                exercise.name.localizedCaseInsensitiveContains(trimmedSearchQuery)
+                    || (exercise.aliases ?? []).contains(where: { $0.localizedCaseInsensitiveContains(trimmedSearchQuery) })
+                    || (exercise.primary_muscles ?? []).contains(where: { $0.localizedCaseInsensitiveContains(trimmedSearchQuery) })
+                    || (exercise.secondary_muscles ?? []).contains(where: { $0.localizedCaseInsensitiveContains(trimmedSearchQuery) })
+            }
+        }
+
+        let sortedExercises = baseExercises.sorted { lhs, rhs in
+            if selectedExerciseIds.contains(lhs.id) != selectedExerciseIds.contains(rhs.id) {
+                return selectedExerciseIds.contains(lhs.id)
+            }
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        }
+
+        let limit = trimmedSearchQuery.isEmpty ? 30 : 80
+        return Array(sortedExercises.prefix(limit))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text(routineName)
+                .font(.largeTitle.bold())
+
+            Text("Choose the exercises that belong in this routine. You can also create a custom exercise here.")
+                .foregroundStyle(.secondary)
+
+            if isSyncingCatalog || !syncStatusText.isEmpty {
+                OnboardingCatalogSyncStatusView(
+                    statusText: syncStatusText,
+                    progressCompleted: progressCompleted,
+                    progressTotal: progressTotal,
+                    isActive: isSyncingCatalog
+                )
+            }
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    if !selectedExercises.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Selected")
+                                .font(.headline)
+
+                            VStack(spacing: 10) {
+                                ForEach(selectedExercises, id: \.id) { exercise in
+                                    Button {
+                                        onToggleExercise(exercise.id)
+                                    } label: {
+                                        HStack(alignment: .top, spacing: 12) {
+                                            Image(systemName: "minus.circle.fill")
+                                                .foregroundStyle(.red)
+
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text(exercise.name)
+                                                    .font(.subheadline.weight(.semibold))
+                                                    .foregroundStyle(.primary)
+                                                Text(detail(for: exercise))
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+
+                                            Spacer()
+                                        }
+                                        .padding(14)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(Color.gray.opacity(0.10))
+                                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Search ExerciseDB")
+                            .font(.headline)
+
+                        TextField("Search exercises", text: $searchQuery)
+                            .textFieldStyle(.roundedBorder)
+
+                        Picker("New exercise type", selection: $selectedExerciseType) {
+                            ForEach(ExerciseType.allCases) { exerciseType in
+                                Text(exerciseType.name).tag(exerciseType)
+                            }
+                        }
+                        .pickerStyle(.menu)
+
+                        if !trimmedSearchQuery.isEmpty {
+                            Button("Create \"\(trimmedSearchQuery)\"") {
+                                if onCreateExercise(trimmedSearchQuery, selectedExerciseType) {
+                                    searchQuery = ""
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(trimmedSearchQuery.isEmpty ? "Available exercises" : "Results")
+                            .font(.headline)
+
+                        if filteredExercises.isEmpty {
+                            Text("No matching exercises yet. Try another search or create your own.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            VStack(spacing: 10) {
+                                ForEach(filteredExercises, id: \.id) { exercise in
+                                    Button {
+                                        onToggleExercise(exercise.id)
+                                    } label: {
+                                        HStack(alignment: .top, spacing: 12) {
+                                            Image(systemName: selectedExerciseIds.contains(exercise.id) ? "checkmark.circle.fill" : "plus.circle")
+                                                .foregroundStyle(selectedExerciseIds.contains(exercise.id) ? Color.accentColor : Color.secondary)
+
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text(exercise.name)
+                                                    .font(.subheadline.weight(.semibold))
+                                                    .foregroundStyle(.primary)
+                                                Text(detail(for: exercise))
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+
+                                            Spacer()
+                                        }
+                                        .padding(14)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(Color.gray.opacity(0.10))
+                                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Button("Done", action: onDone)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.accentColor)
+                .foregroundStyle(.white)
+                .clipShape(Capsule())
+        }
+        .padding(24)
+    }
+
+    private func detail(for exercise: Exercise) -> String {
+        let muscles = (exercise.primary_muscles ?? []) + (exercise.secondary_muscles ?? [])
+        let muscleSummary = muscles
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .prefix(2)
+            .joined(separator: " / ")
+
+        if !muscleSummary.isEmpty {
+            return muscleSummary
+        }
+
+        if let category = exercise.category?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !category.isEmpty {
+            return category.capitalized
+        }
+
+        return exercise.exerciseType.name
     }
 }
 
@@ -1172,17 +1562,17 @@ private struct OnboardingExistingScheduleView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Text("Schedule")
+            Text("Build the programme structure")
                 .font(.largeTitle.bold())
 
             if selectedMode == .weekly {
-                Text("Pick the weekday for each routine.")
+                Text("Pick the weekday for each routine in the programme.")
                     .foregroundStyle(.secondary)
 
                 VStack(spacing: 12) {
                     ForEach(Array(routineDays.enumerated()), id: \.element.id) { index, routineDay in
                         HStack {
-                            Text(routineDay.preferredName)
+                            Text(routineDay.scheduleLabel)
                                 .font(.headline)
 
                             Spacer()
@@ -1212,7 +1602,7 @@ private struct OnboardingExistingScheduleView: View {
                         .foregroundStyle(.red)
                 }
             } else {
-                Text("Set the rotation cadence for your routine.")
+                Text("Set the rotation cadence for your programme.")
                     .foregroundStyle(.secondary)
 
                 VStack(spacing: 16) {
@@ -1239,7 +1629,7 @@ private struct OnboardingExistingScheduleView: View {
 
             Spacer()
 
-            Button("Preview Routine", action: onContinue)
+            Button("Preview Programme", action: onContinue)
                 .disabled(!canContinue)
                 .frame(maxWidth: .infinity)
                 .padding()
@@ -1323,7 +1713,7 @@ private struct OnboardingPlanPreviewView: View {
                                 }
 
                                 if routine.exercises.isEmpty {
-                                    Text("Exercises can be filled in later inside the app.")
+                                    Text("No exercises added yet.")
                                         .font(.footnote)
                                         .foregroundStyle(.secondary)
                                 } else {
@@ -1345,7 +1735,7 @@ private struct OnboardingPlanPreviewView: View {
                         }
                     }
 
-                    Button(isSaving ? "Saving..." : "Use This Routine", action: onUsePlan)
+                    Button(isSaving ? "Saving..." : "Use This Programme", action: onUsePlan)
                         .disabled(isSaving)
                         .frame(maxWidth: .infinity)
                         .padding()
@@ -1371,6 +1761,50 @@ private struct OnboardingPlanPreviewView: View {
             }
             .padding(24)
         }
+    }
+}
+
+private struct OnboardingCatalogSyncStatusView: View {
+    let statusText: String
+    let progressCompleted: Int
+    let progressTotal: Int
+    let isActive: Bool
+
+    private var progressValue: Double? {
+        guard progressTotal > 0 else { return nil }
+        return Double(progressCompleted) / Double(progressTotal)
+    }
+
+    private var resolvedStatusText: String {
+        let trimmed = statusText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return isActive ? "Syncing ExerciseDB..." : "ExerciseDB is ready."
+        }
+        return trimmed
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                if isActive {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+
+                Text(resolvedStatusText)
+                    .font(.subheadline.weight(.semibold))
+
+                Spacer()
+            }
+
+            if let progressValue {
+                ProgressView(value: progressValue)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.accentColor.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }
 

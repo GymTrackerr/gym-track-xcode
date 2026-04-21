@@ -91,7 +91,6 @@ final class OnboardingCoordinator: ObservableObject {
             return
         }
 
-        guard draft.goals.count < 2 else { return }
         draft.goals.insert(goal)
     }
 
@@ -134,6 +133,35 @@ final class OnboardingCoordinator: ObservableObject {
     func updateExistingCustomName(_ customName: String, at index: Int) {
         guard draft.existingRoutineDays.indices.contains(index) else { return }
         draft.existingRoutineDays[index].customName = customName
+        clearPlanPreview()
+    }
+
+    func existingRoutineDay(id: UUID) -> OnboardingRoutineDayDraft? {
+        draft.existingRoutineDays.first(where: { $0.id == id })
+    }
+
+    func toggleExistingExercise(_ exerciseId: UUID, for routineId: UUID) {
+        guard let index = draft.existingRoutineDays.firstIndex(where: { $0.id == routineId }) else { return }
+
+        if draft.existingRoutineDays[index].exerciseIds.contains(exerciseId) {
+            draft.existingRoutineDays[index].exerciseIds.removeAll { $0 == exerciseId }
+        } else {
+            draft.existingRoutineDays[index].exerciseIds.append(exerciseId)
+        }
+
+        clearPlanPreview()
+    }
+
+    func addExistingExercise(_ exerciseId: UUID, for routineId: UUID) {
+        guard let index = draft.existingRoutineDays.firstIndex(where: { $0.id == routineId }) else { return }
+        guard !draft.existingRoutineDays[index].exerciseIds.contains(exerciseId) else { return }
+        draft.existingRoutineDays[index].exerciseIds.append(exerciseId)
+        clearPlanPreview()
+    }
+
+    func removeExistingExercise(_ exerciseId: UUID, for routineId: UUID) {
+        guard let index = draft.existingRoutineDays.firstIndex(where: { $0.id == routineId }) else { return }
+        draft.existingRoutineDays[index].exerciseIds.removeAll { $0 == exerciseId }
         clearPlanPreview()
     }
 
@@ -216,7 +244,6 @@ final class OnboardingCoordinator: ObservableObject {
             screen = .goals
 
         case .continueFromGoals:
-            guard !draft.goals.isEmpty else { return }
             screen = .experience
 
         case .continueFromExperience:
@@ -256,7 +283,17 @@ final class OnboardingCoordinator: ObservableObject {
 
         case .continueFromExistingStructure:
             guard !draft.existingRoutineDays.isEmpty else { return }
+            guard draft.existingRoutineDays.allSatisfy({ !$0.trimmedCustomName.isEmpty }) else { return }
+            screen = .existingExercises
+
+        case .continueFromExistingExercises:
+            guard !draft.existingRoutineDays.isEmpty else { return }
+            guard draft.existingRoutineDays.allSatisfy({ !$0.exerciseIds.isEmpty }) else { return }
             screen = .existingSchedule
+
+        case .editExistingRoutineExercises(let routineId):
+            guard existingRoutineDay(id: routineId) != nil else { return }
+            screen = .existingExerciseEditor(routineId)
 
         case .continueFromExistingSchedule:
             guard draft.existingMode != nil else { return }
@@ -328,8 +365,14 @@ final class OnboardingCoordinator: ObservableObject {
         case .existingStructure:
             return .existingMode
 
-        case .existingSchedule:
+        case .existingExercises:
             return .existingStructure
+
+        case .existingExerciseEditor(_):
+            return .existingExercises
+
+        case .existingSchedule:
+            return .existingExercises
 
         case .buildingPreview:
             return nil
