@@ -24,6 +24,7 @@ final class DebugHarness {
         ExerciseMergeDebug.runSamples()
         ExerciseBackupDebug.runSamples()
         DashboardFeatureDebug.runSamples()
+        OnboardingFeatureDebug.runSamples()
         HealthKitSmartPullDebug.runSamples()
         SessionExerciseTransferDebug.runSamples()
         ProgramFeatureDebug.runSamples()

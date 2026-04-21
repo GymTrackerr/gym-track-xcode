@@ -79,6 +79,43 @@ enum OnboardingPlanChoice: String, CaseIterable, Identifiable {
     }
 }
 
+enum OnboardingProgressionChoice: String, CaseIterable, Identifiable {
+    case recommended
+    case notNow
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .recommended:
+            return "Recommended"
+        case .notNow:
+            return "Not now"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .recommended:
+            return "Use the default progression style GymTracker suggests for your goals."
+        case .notNow:
+            return "Leave progression off for now and set it up later."
+        }
+    }
+}
+
+enum OnboardingRecommendations {
+    static func recommendedProgressionProfileName(for goals: Set<OnboardingGoal>) -> String {
+        if goals.contains(.getStronger) {
+            return "Load Progression"
+        }
+        if goals.contains(.buildMuscle) {
+            return "Double Progression"
+        }
+        return "Volume Progression"
+    }
+}
+
 enum OnboardingScreen: Equatable {
     case welcome
     case login
@@ -94,10 +131,9 @@ enum OnboardingScreen: Equatable {
     case existingSchedule
     case buildingPreview
     case planPreview
-    case permissions
-    case accountLink
-    case exerciseCatalog
-    case final
+    case progression
+    case healthPermissions
+    case notificationPermissions
 }
 
 enum OnboardingEvent {
@@ -119,9 +155,9 @@ enum OnboardingEvent {
     case continueFromExistingSchedule
     case finishPlanPreviewPreparation
     case continueFromPlanPreview
-    case continueFromPermissions
-    case continueFromAccountLink
-    case continueFromExerciseCatalog
+    case selectProgressionChoice(OnboardingProgressionChoice)
+    case continueFromProgression
+    case continueFromHealthPermissions
 }
 
 struct OnboardingDraft: Equatable {
@@ -139,4 +175,6 @@ struct OnboardingDraft: Equatable {
     var continuousTrainDays: Int = 3
     var continuousRestDays: Int = 1
     var planPreview: OnboardingPlanPreview?
+    var savedProgramId: UUID?
+    var progressionChoice: OnboardingProgressionChoice?
 }

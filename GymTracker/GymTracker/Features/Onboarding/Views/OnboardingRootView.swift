@@ -1,5 +1,8 @@
 import SwiftData
 import SwiftUI
+#if os(iOS)
+import UserNotifications
+#endif
 
 struct OnboardingRootView: View {
     @Environment(\.modelContext) private var context
@@ -8,11 +11,15 @@ struct OnboardingRootView: View {
     @EnvironmentObject private var exerciseService: ExerciseService
     @EnvironmentObject private var routineService: RoutineService
     @EnvironmentObject private var programService: ProgramService
+    @EnvironmentObject private var progressionService: ProgressionService
+    @EnvironmentObject private var hkManager: HealthKitManager
 
     @StateObject private var coordinator = OnboardingCoordinator()
     @State private var templateBundle: OnboardingProgramTemplateBundle?
     @State private var templateLoadErrorMessage: String?
     @State private var isSavingPlan = false
+    @State private var isRequestingHealthPermission = false
+    @State private var isRequestingNotificationPermission = false
 
     var body: some View {
         Group {
@@ -29,6 +36,8 @@ struct OnboardingRootView: View {
                 currentUser: userService.currentUser
             )
             loadTemplatesIfNeeded()
+            progressionService.ensureBuiltInProfiles()
+            progressionService.loadProfiles()
         }
         .onChange(of: userService.onboardingState) { _, newValue in
             coordinator.configure(for: newValue, currentUser: userService.currentUser)
@@ -164,23 +173,28 @@ struct OnboardingRootView: View {
                     onUsePlan: savePreparedPlan
                 )
 
-            case .permissions:
-                OnboardingPermissionsStepView {
-                    coordinator.send(.continueFromPermissions)
-                }
+            case .progression:
+                OnboardingProgressionStepView(
+                    selectedChoice: coordinator.draft.progressionChoice,
+                    recommendedProfileName: recommendedProgressionProfile?.name ?? recommendedProgressionProfileName,
+                    recommendedDescription: recommendedProgressionProfile?.miniDescription ?? "A good default based on the goals you picked.",
+                    onSelectChoice: { coordinator.send(.selectProgressionChoice($0)) },
+                    onContinue: applyProgressionChoiceAndContinue
+                )
 
-            case .accountLink:
-                OnboardingAccountLinkStepView {
-                    coordinator.send(.continueFromAccountLink)
-                }
+            case .healthPermissions:
+                OnboardingHealthPermissionsStepView(
+                    isRequesting: isRequestingHealthPermission,
+                    onAllow: requestHealthPermissionAndContinue,
+                    onSkip: skipHealthPermissionAndContinue
+                )
 
-            case .exerciseCatalog:
-                OnboardingExerciseCatalogStepView {
-                    coordinator.send(.continueFromExerciseCatalog)
-                }
-
-            case .final:
-                OnboardingFinalStepView()
+            case .notificationPermissions:
+                OnboardingNotificationPermissionsStepView(
+                    isRequesting: isRequestingNotificationPermission,
+                    onAllow: requestNotificationPermissionAndFinish,
+                    onSkip: skipNotificationPermissionAndFinish
+                )
             }
 
             Spacer()
@@ -472,7 +486,8 @@ struct OnboardingRootView: View {
             defer { isSavingPlan = false }
 
             do {
-                _ = try planBuilder.persist(preview: preview, for: currentUser)
+                let program = try planBuilder.persist(preview: preview, for: currentUser)
+                coordinator.setSavedProgramId(program.id)
                 routineService.loadSplitDays()
                 programService.loadPrograms()
                 coordinator.send(.continueFromPlanPreview)
@@ -504,6 +519,103 @@ struct OnboardingRootView: View {
         case .weekly, .none:
             return "Weekly Routine"
         }
+    }
+
+    private var recommendedProgressionProfileName: String {
+        OnboardingRecommendations.recommendedProgressionProfileName(for: coordinator.draft.goals)
+    }
+
+    private var recommendedProgressionProfile: ProgressionProfile? {
+        progressionService.profiles.first(where: { $0.name == recommendedProgressionProfileName })
+    }
+
+    private var savedProgram: Program? {
+        guard let savedProgramId = coordinator.draft.savedProgramId else { return nil }
+        return programService.programs.first(where: { $0.id == savedProgramId })
+            ?? programService.archivedPrograms.first(where: { $0.id == savedProgramId })
+    }
+
+    private func applyProgressionChoiceAndContinue() {
+        progressionService.ensureBuiltInProfiles()
+        progressionService.loadProfiles()
+
+        let selectedProfile: ProgressionProfile?
+        switch coordinator.draft.progressionChoice {
+        case .recommended:
+            selectedProfile = recommendedProgressionProfile
+        case .notNow, .none:
+            selectedProfile = nil
+        }
+
+        progressionService.saveGlobalDefaults(
+            enabled: selectedProfile != nil,
+            defaultProfileId: selectedProfile?.id
+        )
+
+        if let savedProgram {
+            savedProgram.defaultProgressionProfileId = selectedProfile?.id
+            savedProgram.defaultProgressionProfileNameSnapshot = selectedProfile?.name
+            programService.saveChanges(for: savedProgram)
+        }
+
+        coordinator.send(.continueFromProgression)
+    }
+
+    private func requestHealthPermissionAndContinue() {
+        guard !isRequestingHealthPermission else { return }
+        isRequestingHealthPermission = true
+
+        Task {
+            await hkManager.requestAuthorization()
+            userService.hkUserAllow(
+                connected: hkManager.hkConnected,
+                requested: hkManager.hkRequested
+            )
+            isRequestingHealthPermission = false
+            coordinator.send(.continueFromHealthPermissions)
+        }
+    }
+
+    private func skipHealthPermissionAndContinue() {
+        userService.hkUserAllow(connected: false, requested: false)
+        coordinator.send(.continueFromHealthPermissions)
+    }
+
+    private func requestNotificationPermissionAndFinish() {
+        guard !isRequestingNotificationPermission else { return }
+        isRequestingNotificationPermission = true
+
+        Task {
+            let granted = await requestNotificationAuthorization()
+            applyNotificationDefaults(granted: granted)
+            isRequestingNotificationPermission = false
+            finishOnboarding()
+        }
+    }
+
+    private func skipNotificationPermissionAndFinish() {
+        applyNotificationDefaults(granted: false)
+        finishOnboarding()
+    }
+
+    private func applyNotificationDefaults(granted: Bool) {
+        userService.setTimerNotificationsEnabled(granted)
+        userService.setTimerFinishedNotificationEnabled(granted)
+        userService.setAwayTooLongEnabled(false)
+    }
+
+    private func finishOnboarding() {
+        isRequestingHealthPermission = false
+        isRequestingNotificationPermission = false
+        userService.completeOnboarding()
+    }
+
+    private func requestNotificationAuthorization() async -> Bool {
+        #if os(iOS)
+        return (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+        #else
+        return false
+        #endif
     }
 }
 
@@ -1309,46 +1421,89 @@ private extension Array {
     }
 }
 
-private struct OnboardingPermissionsStepView: View {
-    @EnvironmentObject private var userService: UserService
-    @EnvironmentObject private var hkManager: HealthKitManager
-
-    let onNext: () -> Void
+private struct OnboardingProgressionStepView: View {
+    let selectedChoice: OnboardingProgressionChoice?
+    let recommendedProfileName: String
+    let recommendedDescription: String
+    let onSelectChoice: (OnboardingProgressionChoice) -> Void
+    let onContinue: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Text("Allow Health access to power GymTracker features like:")
-                .font(.largeTitle)
-                .bold()
+            Text("Progression setup")
+                .font(.largeTitle.bold())
+
+            Text("Pick how GymTracker should guide progression once your routine is ready.")
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 12) {
+                OnboardingSelectionCard(
+                    title: "Recommended",
+                    subtitle: "\(recommendedProfileName): \(recommendedDescription)",
+                    isSelected: selectedChoice == .recommended,
+                    action: { onSelectChoice(.recommended) }
+                )
+
+                OnboardingSelectionCard(
+                    title: "Not now",
+                    subtitle: "Keep progression off for now. You can turn it on later in settings or per routine.",
+                    isSelected: selectedChoice == .notNow,
+                    action: { onSelectChoice(.notNow) }
+                )
+            }
+
+            Spacer()
+
+            Button("Continue", action: onContinue)
+                .disabled(selectedChoice == nil)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.accentColor)
+                .foregroundStyle(.white)
+                .clipShape(Capsule())
+        }
+        .padding(24)
+    }
+}
+
+private struct OnboardingHealthPermissionsStepView: View {
+    let isRequesting: Bool
+    let onAllow: () -> Void
+    let onSkip: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Text("Apple Health")
+                .font(.largeTitle.bold())
+
+            Text("If you allow it, GymTracker can use Apple Health to give your training more context.")
+                .foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: 20) {
-                row("scalemass.fill", "Auto-fill your current weight (if available)")
-                row("figure.walk", "Show weekly activity like steps and trends")
-                row("heart.fill", "Keep your training data alongside your health history")
+                row("figure.walk", "Sync steps, activity, and workouts for trend context.")
+                row("scalemass.fill", "Use your body weight when it is available.")
+                row("waveform.path.ecg", "Keep health and training data closer together.")
             }
 
-            Button("Allow Health Access") {
-                Task {
-                    await hkManager.requestAuthorization()
-                    userService.hkUserAllow(
-                        connected: hkManager.hkConnected,
-                        requested: hkManager.hkRequested
-                    )
-                }
-            }
-            .buttonStyle(.borderedProminent)
-
-            Text("We only request the data needed for these features. You can change access anytime in the Health app or Settings.")
+            Text("You can change this later in the Health app or Settings.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
 
             Spacer()
 
-            Button("Next", action: onNext)
+            Button(isRequesting ? "Requesting..." : "Allow Apple Health", action: onAllow)
+                .disabled(isRequesting)
                 .frame(maxWidth: .infinity)
                 .padding()
                 .background(Color.accentColor)
                 .foregroundStyle(.white)
+                .clipShape(Capsule())
+
+            Button("Not Now", action: onSkip)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.gray.opacity(0.14))
+                .foregroundStyle(.primary)
                 .clipShape(Capsule())
         }
         .padding(24)
@@ -1358,176 +1513,61 @@ private struct OnboardingPermissionsStepView: View {
         HStack(spacing: 16) {
             Image(systemName: icon)
                 .font(.title2)
-
             Text(text)
                 .font(.body)
         }
     }
 }
 
-private struct OnboardingAccountLinkStepView: View {
-    @EnvironmentObject private var backendAuthService: BackendAuthService
-
-    let onNext: () -> Void
-
-    private var isLinked: Bool {
-        guard let accessToken = backendAuthService.sessionSnapshot?.accessToken else {
-            return false
-        }
-        return accessToken.isEmpty == false
-    }
+private struct OnboardingNotificationPermissionsStepView: View {
+    let isRequesting: Bool
+    let onAllow: () -> Void
+    let onSkip: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Text("Optional: Link Your Interact Account")
-                .font(.largeTitle)
-                .bold()
+            Text("Notifications")
+                .font(.largeTitle.bold())
 
-            Text("Linking enables cloud sync for supported data. You can skip this now and link later in Settings.")
+            Text("Notifications help GymTracker keep you on track without getting in the way.")
                 .foregroundStyle(.secondary)
 
-            InteractAccountLinkCard()
+            VStack(alignment: .leading, spacing: 20) {
+                row("timer", "Get timer-finished alerts while resting between sets.")
+                row("bell.badge", "Enable gentle workout reminders later if you want them.")
+                row("checkmark.circle", "Keep the onboarding setup lightweight and adjustable.")
+            }
+
+            Text("You can change notification settings later at any time.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
 
             Spacer()
 
-            Button(isLinked ? "Continue" : "Skip for Now", action: onNext)
+            Button(isRequesting ? "Requesting..." : "Allow Notifications", action: onAllow)
+                .disabled(isRequesting)
                 .frame(maxWidth: .infinity)
                 .padding()
                 .background(Color.accentColor)
                 .foregroundStyle(.white)
                 .clipShape(Capsule())
-        }
-        .padding(24)
-    }
-}
 
-private struct OnboardingExerciseCatalogStepView: View {
-    @EnvironmentObject private var userService: UserService
-    @EnvironmentObject private var exerciseService: ExerciseService
-    @EnvironmentObject private var healthKitDailyStore: HealthKitDailyStore
-
-    @State private var shouldDownloadExerciseDB = true
-    @State private var selectedHealthRange: HealthHistorySyncRange = .defaultSelection
-
-    let onNext: () -> Void
-
-    private var canSyncHealthHistory: Bool {
-        userService.currentUser?.allowHealthAccess == true
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            Text("Exercise Library Download")
-                .font(.largeTitle)
-                .bold()
-
-            Text("Download ExerciseDB now for faster browsing and offline thumbnails. This is optional and you can change it later in Settings.")
-                .foregroundStyle(.secondary)
-
-            Toggle("Download ExerciseDB in the background", isOn: $shouldDownloadExerciseDB)
-
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Optional: Download Apple Health history now")
-                    .font(.headline)
-
-                Picker("History range", selection: $selectedHealthRange) {
-                    ForEach(HealthHistorySyncRange.allCases) { range in
-                        Text(range.title).tag(range)
-                    }
-                }
-                .pickerStyle(.menu)
-
-                Button {
-                    guard let userId = userService.currentUser?.id.uuidString else { return }
-                    Task(priority: .utility) {
-                        _ = await healthKitDailyStore.fullRefreshHealthHistory(
-                            userId: userId,
-                            range: selectedHealthRange
-                        )
-                    }
-                } label: {
-                    Text(
-                        healthKitDailyStore.isBackfillingHistory
-                        ? "Downloading Health History..."
-                        : "Download Health History Now"
-                    )
-                }
-                .buttonStyle(.bordered)
-                .disabled(!canSyncHealthHistory || healthKitDailyStore.isBackfillingHistory)
-
-                if healthKitDailyStore.isBackfillingHistory {
-                    ProgressView(value: progressValue)
-                    Text(healthKitDailyStore.backfillStatusText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else if !canSyncHealthHistory {
-                    Text("Enable Apple Health access first if you want to download history now.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Spacer()
-
-            Button("Continue") {
-                exerciseService.completeOnboardingCatalogChoice(downloadCatalog: shouldDownloadExerciseDB)
-                onNext()
-            }
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color.accentColor)
-            .foregroundStyle(.white)
-            .clipShape(Capsule())
-        }
-        .padding(24)
-        .onAppear {
-            selectedHealthRange = userService.currentHealthHistorySyncRange()
-        }
-        .onChange(of: userService.currentUser?.id) { _, _ in
-            selectedHealthRange = userService.currentHealthHistorySyncRange()
-        }
-        .onChange(of: selectedHealthRange) { _, newValue in
-            guard userService.currentUser?.isDemo != true else { return }
-            userService.setCurrentHealthHistorySyncRange(newValue)
-        }
-    }
-
-    private var progressValue: Double {
-        guard healthKitDailyStore.backfillProgressTotal > 0 else { return 0 }
-        return min(
-            max(
-                Double(healthKitDailyStore.backfillProgressCompleted) /
-                Double(healthKitDailyStore.backfillProgressTotal),
-                0
-            ),
-            1
-        )
-    }
-}
-
-private struct OnboardingFinalStepView: View {
-    @EnvironmentObject private var userService: UserService
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            Text("Welcome, \(userService.currentUser?.name ?? "")")
-                .font(.largeTitle)
-                .foregroundColor(.primary)
+            Button("Not Now", action: onSkip)
+                .frame(maxWidth: .infinity)
                 .padding()
-
-            Text("You are ready to start using GymTracker")
-
-            Spacer()
-
-            Button("Done") {
-                userService.completeOnboarding()
-            }
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color.accentColor)
-            .foregroundStyle(.white)
-            .clipShape(Capsule())
+                .background(Color.gray.opacity(0.14))
+                .foregroundStyle(.primary)
+                .clipShape(Capsule())
         }
         .padding(24)
+    }
+
+    private func row(_ icon: String, _ text: String) -> some View {
+        HStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.title2)
+            Text(text)
+                .font(.body)
+        }
     }
 }

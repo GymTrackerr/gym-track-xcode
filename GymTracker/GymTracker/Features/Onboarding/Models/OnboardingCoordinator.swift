@@ -160,6 +160,10 @@ final class OnboardingCoordinator: ObservableObject {
         }
     }
 
+    func setSavedProgramId(_ programId: UUID?) {
+        draft.savedProgramId = programId
+    }
+
     func setPlanBuildError(_ message: String?) {
         planBuildErrorMessage = message
         if message != nil {
@@ -199,7 +203,7 @@ final class OnboardingCoordinator: ObservableObject {
             }
             draft.loginPassword = ""
             loginErrorMessage = nil
-            screen = hasTrainingSetup ? .permissions : .goals
+            screen = hasTrainingSetup ? .healthPermissions : .goals
 
         case .loginFailed(let message):
             loginErrorMessage = message
@@ -265,16 +269,20 @@ final class OnboardingCoordinator: ObservableObject {
 
         case .continueFromPlanPreview:
             guard draft.planPreview != nil else { return }
-            screen = .permissions
+            if draft.progressionChoice == nil {
+                draft.progressionChoice = .recommended
+            }
+            screen = .progression
 
-        case .continueFromPermissions:
-            screen = .accountLink
+        case .selectProgressionChoice(let choice):
+            draft.progressionChoice = choice
 
-        case .continueFromAccountLink:
-            screen = .exerciseCatalog
+        case .continueFromProgression:
+            guard draft.progressionChoice != nil else { return }
+            screen = .healthPermissions
 
-        case .continueFromExerciseCatalog:
-            screen = .final
+        case .continueFromHealthPermissions:
+            screen = .notificationPermissions
         }
     }
 
@@ -336,37 +344,24 @@ final class OnboardingCoordinator: ObservableObject {
                 return .plannerChoice
             }
 
-        case .permissions:
-            if draft.planPreview != nil || planBuildErrorMessage != nil {
-                return .planPreview
-            }
-            if draft.planChoice != nil {
-                return .plannerChoice
-            }
-            if draft.experience != nil {
-                return .experience
-            }
-            if draft.goals.isEmpty == false {
-                return .goals
-            }
-            if flowOrigin == .login {
-                return .login
+        case .progression:
+            return .planPreview
+
+        case .healthPermissions:
+            if draft.savedProgramId != nil || draft.progressionChoice != nil {
+                return .progression
             }
             return nil
 
-        case .accountLink:
-            return .permissions
-
-        case .exerciseCatalog:
-            return .accountLink
-
-        case .final:
-            return .exerciseCatalog
+        case .notificationPermissions:
+            return .healthPermissions
         }
     }
 
     private func clearPlanPreview() {
         draft.planPreview = nil
+        draft.savedProgramId = nil
+        draft.progressionChoice = nil
         planBuildErrorMessage = nil
     }
 }
