@@ -152,6 +152,7 @@ enum OnboardingScreen: Equatable {
     case progression
     case healthPermissions
     case notificationPermissions
+    case readyToStart
 }
 
 enum OnboardingEvent {
@@ -178,6 +179,7 @@ enum OnboardingEvent {
     case selectProgressionChoice(OnboardingProgressionChoice)
     case continueFromProgression
     case continueFromHealthPermissions
+    case continueFromNotificationPermissions
 }
 
 struct OnboardingDraft: Equatable {

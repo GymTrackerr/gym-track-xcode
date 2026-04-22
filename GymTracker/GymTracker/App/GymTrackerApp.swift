@@ -262,7 +262,6 @@ struct GymTrackerApp: App {
 }
 
 struct RootView: View {
-    @Environment(\.modelContext) private var context
     @EnvironmentObject var userService: UserService
     
     var body: some View {

@@ -37,12 +37,7 @@ final class SyncWorker {
             return .notEligible
         }
 
-        let supportedModelTypes = Array(handlersByModelType.keys)
-
-        guard let item = try queueStore.nextReadyItem(
-            referenceDate: referenceDate,
-            supportedModelTypes: supportedModelTypes
-        ) else {
+        guard let item = try queueStore.nextReadyItem(referenceDate: referenceDate) else {
             return .noWork
         }
 

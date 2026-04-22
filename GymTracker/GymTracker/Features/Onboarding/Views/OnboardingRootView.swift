@@ -24,14 +24,35 @@ struct OnboardingRootView: View {
     @State private var showingSavedProgramReview = false
 
     var body: some View {
-        Group {
-            if let onboardingState = userService.onboardingState {
-                content(for: onboardingState)
-            } else {
-                EmptyView()
+        NavigationStack {
+            Group {
+                if let onboardingState = userService.onboardingState {
+                    content(for: onboardingState)
+                        .appBackground()
+                } else {
+                    EmptyView()
+                }
+            }
+            .toolbarBackground(.hidden, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    if showsBackButton {
+                        Button(action: handleBackTapped) {
+                            Label("Back", systemImage: "chevron.left")
+                        }
+                    }
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: handleRestartTapped) {
+                        Image(systemName: "arrow.counterclockwise")
+                    }
+                    .accessibilityLabel("Restart onboarding")
+                }
             }
         }
-        .appBackground()
         .onAppear {
             coordinator.configure(
                 for: userService.onboardingState,
@@ -78,20 +99,6 @@ struct OnboardingRootView: View {
     @ViewBuilder
     private func content(for onboardingState: OnboardingState) -> some View {
         VStack(spacing: 0) {
-            if showsBackButton {
-                HStack {
-                    Button(action: handleBackTapped) {
-                        Label("Back", systemImage: "chevron.left")
-                            .font(.headline)
-                    }
-                    .buttonStyle(.plain)
-
-                    Spacer()
-                }
-                .padding(.horizontal, 24)
-                .padding(.top, 24)
-            }
-
             switch coordinator.screen {
             case .welcome:
                 OnboardingWelcomeView(
@@ -248,8 +255,13 @@ struct OnboardingRootView: View {
             case .notificationPermissions:
                 OnboardingNotificationPermissionsStepView(
                     isRequesting: isRequestingNotificationPermission,
-                    onAllow: requestNotificationPermissionAndFinish,
-                    onSkip: skipNotificationPermissionAndFinish
+                    onAllow: requestNotificationPermissionAndContinue,
+                    onSkip: skipNotificationPermissionAndContinue
+                )
+
+            case .readyToStart:
+                OnboardingReadyToStartView(
+                    onEnterApp: finishOnboarding
                 )
             }
 
@@ -296,8 +308,9 @@ struct OnboardingRootView: View {
         coordinator.send(.loginStarted)
 
         Task {
+            var temporaryUserId: UUID?
             if userService.currentUser == nil || isCreatingAccountFromWelcome {
-                _ = userService.addUser(text: trimmedUsername)
+                temporaryUserId = userService.addUser(text: trimmedUsername)?.id
             }
 
             do {
@@ -324,6 +337,9 @@ struct OnboardingRootView: View {
                     )
                 )
             } catch {
+                if let temporaryUserId {
+                    userService.removeUser(id: temporaryUserId)
+                }
                 coordinator.send(.loginFailed(loginErrorMessage(from: error)))
             }
         }
@@ -456,6 +472,13 @@ struct OnboardingRootView: View {
         if coordinator.screen == .welcome && userService.canDismissOnboarding {
             userService.cancelNewAccountOnboarding()
         }
+    }
+
+    private func handleRestartTapped() {
+        coordinator.restart()
+        showingSavedProgramReview = false
+        hasPreparedExistingExerciseCatalog = false
+        userService.restartOnboarding()
     }
 
     private func loadTemplatesIfNeeded() {
@@ -717,7 +740,7 @@ struct OnboardingRootView: View {
         coordinator.send(.continueFromHealthPermissions)
     }
 
-    private func requestNotificationPermissionAndFinish() {
+    private func requestNotificationPermissionAndContinue() {
         guard !isRequestingNotificationPermission else { return }
         isRequestingNotificationPermission = true
 
@@ -725,13 +748,13 @@ struct OnboardingRootView: View {
             let granted = await requestNotificationAuthorization()
             applyNotificationDefaults(granted: granted)
             isRequestingNotificationPermission = false
-            finishOnboarding()
+            coordinator.send(.continueFromNotificationPermissions)
         }
     }
 
-    private func skipNotificationPermissionAndFinish() {
+    private func skipNotificationPermissionAndContinue() {
         applyNotificationDefaults(granted: false)
-        finishOnboarding()
+        coordinator.send(.continueFromNotificationPermissions)
     }
 
     private func applyNotificationDefaults(granted: Bool) {
@@ -743,7 +766,9 @@ struct OnboardingRootView: View {
     private func finishOnboarding() {
         isRequestingHealthPermission = false
         isRequestingNotificationPermission = false
-        userService.completeOnboarding()
+        withAnimation(.easeInOut(duration: 0.2)) {
+            userService.completeOnboarding()
+        }
     }
 
     private func requestNotificationAuthorization() async -> Bool {
@@ -1656,6 +1681,75 @@ private struct OnboardingPlanReadyView: View {
     }
 }
 
+private struct OnboardingReadyToStartView: View {
+    let onEnterApp: () -> Void
+
+    @State private var animateOrb = false
+    @State private var revealContent = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Spacer(minLength: 0)
+
+            VStack(alignment: .leading, spacing: 28) {
+                ZStack {
+                    Circle()
+                        .fill(Color.accentColor.opacity(0.16))
+                        .frame(width: 156, height: 156)
+                        .scaleEffect(animateOrb ? 1.06 : 0.94)
+
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.accentColor,
+                                    Color.accentColor.opacity(0.72)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 108, height: 108)
+                        .shadow(color: Color.accentColor.opacity(0.28), radius: 24, y: 12)
+
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 34, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+                .frame(maxWidth: .infinity)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("You’re ready to start.")
+                        .font(.largeTitle.bold())
+
+                    Text("Welcome to Interact. Everything is set up and ready to go.")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .scaleEffect(revealContent ? 1 : 0.97)
+            .opacity(revealContent ? 1 : 0)
+
+            Spacer(minLength: 0)
+
+            Button("Enter GymTracker", action: onEnterApp)
+                .onboardingPrimaryButtonStyle()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(24)
+        .onAppear {
+            withAnimation(.spring(response: 0.64, dampingFraction: 0.84)) {
+                revealContent = true
+            }
+
+            withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
+                animateOrb = true
+            }
+        }
+    }
+}
+
 private struct OnboardingRoutinePreviewDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -1948,7 +2042,7 @@ private struct OnboardingHealthPermissionsStepView: View {
             Text("Apple Health")
                 .font(.largeTitle.bold())
 
-            Text("Just a couple of quick permissions, then you’re in.")
+            Text("A couple of quick permissions and your setup is done.")
                 .foregroundStyle(.secondary)
 
             Text("If you allow it, GymTracker can use Apple Health to give your training more context.")
@@ -1996,7 +2090,7 @@ private struct OnboardingNotificationPermissionsStepView: View {
             Text("Notifications")
                 .font(.largeTitle.bold())
 
-            Text("One last quick permission, then you’re in.")
+            Text("One last quick permission before the finish.")
                 .foregroundStyle(.secondary)
 
             Text("Notifications help GymTracker keep you on track without getting in the way.")

@@ -172,10 +172,77 @@ class UserService: ServiceBase, ObservableObject {
         }
     }
 
+    func restartOnboarding() {
+        let onboardingUserId = currentUser?.needsOnboarding == true ? currentUser?.id : nil
+        let returnAccountId = preferredReturnAccountId(excluding: onboardingUserId)
+
+        if let onboardingUserId {
+            do {
+                try purgeOnboardingArtifacts(for: onboardingUserId)
+            } catch {
+                print("Failed to purge onboarding artifacts: \(error)")
+            }
+
+            removeUser(id: onboardingUserId)
+        }
+
+        if let returnAccountId, currentUser?.id != returnAccountId {
+            switchAccount(to: returnAccountId)
+        }
+
+        startNewAccountOnboarding()
+    }
+
     private func ensureDeviceIdForCurrentUser() {
         guard let currentUser else { return }
         _ = LocalDeviceIdentityStore.shared.deviceId(for: currentUser.id)
         BackendSessionStore.shared.setActiveLocalUserId(currentUser.id)
+    }
+
+    private func preferredReturnAccountId(excluding removedUserId: UUID?) -> UUID? {
+        let remainingAccounts = accounts.filter { account in
+            account.soft_deleted == false && account.id != removedUserId
+        }
+
+        if let completedAccount = remainingAccounts.first(where: { !$0.needsOnboarding }) {
+            return completedAccount.id
+        }
+
+        return remainingAccounts.first?.id
+    }
+
+    private func purgeOnboardingArtifacts(for userId: UUID) throws {
+        let reps = try modelContext.fetch(FetchDescriptor<SessionRep>()).filter { $0.sessionSet.sessionEntry.session.user_id == userId }
+        for rep in reps { modelContext.delete(rep) }
+
+        let sets = try modelContext.fetch(FetchDescriptor<SessionSet>()).filter { $0.sessionEntry.session.user_id == userId }
+        for sessionSet in sets { modelContext.delete(sessionSet) }
+
+        let entries = try modelContext.fetch(FetchDescriptor<SessionEntry>()).filter { $0.session.user_id == userId }
+        for entry in entries { modelContext.delete(entry) }
+
+        let sessions = try modelContext.fetch(FetchDescriptor<Session>()).filter { $0.user_id == userId }
+        for session in sessions { modelContext.delete(session) }
+
+        let splitDays = try modelContext.fetch(FetchDescriptor<ExerciseSplitDay>()).filter { $0.routine.user_id == userId }
+        for splitDay in splitDays { modelContext.delete(splitDay) }
+
+        let progressionExercises = try modelContext.fetch(FetchDescriptor<ProgressionExercise>()).filter { $0.user_id == userId }
+        for progressionExercise in progressionExercises { modelContext.delete(progressionExercise) }
+
+        let programs = try modelContext.fetch(FetchDescriptor<Program>()).filter { $0.user_id == userId }
+        for program in programs { modelContext.delete(program) }
+
+        let routines = try modelContext.fetch(FetchDescriptor<Routine>()).filter { $0.user_id == userId }
+        for routine in routines { modelContext.delete(routine) }
+
+        let exercises = try modelContext.fetch(FetchDescriptor<Exercise>()).filter { $0.user_id == userId }
+        for exercise in exercises { modelContext.delete(exercise) }
+
+        let progressionProfiles = try modelContext.fetch(FetchDescriptor<ProgressionProfile>()).filter { $0.user_id == userId }
+        for profile in progressionProfiles { modelContext.delete(profile) }
+
+        try modelContext.save()
     }
 
     private func makeOnboardingState(for user: User?) -> OnboardingState? {

@@ -29,6 +29,15 @@ final class OnboardingCoordinator: ObservableObject {
         previousScreen() != nil
     }
 
+    func restart() {
+        activeUserId = nil
+        flowOrigin = nil
+        draft = OnboardingDraft()
+        loginErrorMessage = nil
+        planBuildErrorMessage = nil
+        screen = .welcome
+    }
+
     func configure(for onboardingState: OnboardingState?, currentUser: User?) {
         guard let onboardingState else {
             return
@@ -71,7 +80,7 @@ final class OnboardingCoordinator: ObservableObject {
                 flowOrigin = .existingPending
             }
             if screen == .welcome {
-                screen = .goals
+                screen = shouldResumeProfileSteps(for: currentUser) ? .goals : .welcome
             }
             loginErrorMessage = nil
         }
@@ -328,6 +337,9 @@ final class OnboardingCoordinator: ObservableObject {
 
         case .continueFromHealthPermissions:
             screen = .notificationPermissions
+
+        case .continueFromNotificationPermissions:
+            screen = .readyToStart
         }
     }
 
@@ -352,7 +364,7 @@ final class OnboardingCoordinator: ObservableObject {
             case .login:
                 return .login
             case .existingPending, .none:
-                return nil
+                return .welcome
             }
 
         case .experience:
@@ -409,6 +421,9 @@ final class OnboardingCoordinator: ObservableObject {
 
         case .notificationPermissions:
             return .healthPermissions
+
+        case .readyToStart:
+            return .notificationPermissions
         }
     }
 
@@ -430,5 +445,10 @@ final class OnboardingCoordinator: ObservableObject {
         if draft.experience == nil {
             draft.experience = user.trainingExperience
         }
+    }
+
+    private func shouldResumeProfileSteps(for user: User?) -> Bool {
+        guard let user else { return false }
+        return !user.onboardingGoals.isEmpty || user.trainingExperience != nil
     }
 }

@@ -90,12 +90,11 @@ final class SyncQueueStore {
     }
 
     func nextReadyItem(
-        referenceDate: Date = Date(),
-        supportedModelTypes: [SyncModelType]? = nil
+        referenceDate: Date = Date()
     ) throws -> SyncQueueItem? {
         let queuedRaw = SyncQueueStatus.queued.rawValue
         let retryRaw = SyncQueueStatus.retryScheduled.rawValue
-        let descriptor = FetchDescriptor<SyncQueueItem>(
+        var descriptor = FetchDescriptor<SyncQueueItem>(
             predicate: #Predicate<SyncQueueItem> { item in
                 (item.statusRaw == queuedRaw || item.statusRaw == retryRaw) && item.nextAttemptAt <= referenceDate
             },
@@ -104,14 +103,8 @@ final class SyncQueueStore {
                 SortDescriptor(\.createdAt, order: .forward)
             ]
         )
-        let items = try modelContext.fetch(descriptor)
-
-        guard let supportedModelTypes else {
-            return items.first
-        }
-
-        let supportedRawValues = Set(supportedModelTypes.map(\.rawValue))
-        return items.first { supportedRawValues.contains($0.modelTypeRaw) }
+        descriptor.fetchLimit = 1
+        return try modelContext.fetch(descriptor).first
     }
 
     func markInFlight(_ item: SyncQueueItem, at timestamp: Date = Date()) throws {
