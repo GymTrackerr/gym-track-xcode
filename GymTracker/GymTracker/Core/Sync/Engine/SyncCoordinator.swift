@@ -81,10 +81,17 @@ final class SyncCoordinator: ObservableObject {
         runState = .processing
         defer { runState = .monitoring }
 
+        var processedItemsInCurrentPass = 0
         while true {
             let result = try? await worker.processNextEligibleItem(referenceDate: Date())
             switch result {
             case .processedItem, .unsupportedItemSkipped:
+                processedItemsInCurrentPass += 1
+                if processedItemsInCurrentPass >= 8 {
+                    scheduleEvaluation(reason: "batchContinue")
+                    return
+                }
+                await Task.yield()
                 continue
             case .noWork, .notEligible, .none:
                 return

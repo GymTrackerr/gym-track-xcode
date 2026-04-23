@@ -140,7 +140,8 @@ final class DashboardService: ServiceBase, ObservableObject {
             DashboardModule(type: .activityRings, size: .medium, order: 5),
             DashboardModule(type: .truesight, size: .small, order: 6),
             DashboardModule(type: .nutrition, size: .small, order: 7),
-            DashboardModule(type: .sessionVolume, size: .medium, order: 8)
+            DashboardModule(type: .sessionVolume, size: .medium, order: 8),
+            DashboardModule(type: .program, size: .medium, order: 9)
         ]
     }
 
@@ -151,11 +152,12 @@ final class DashboardService: ServiceBase, ObservableObject {
         case .training:
             return [
                 DashboardModule(type: .sessionVolume, size: .large, order: 0),
-                DashboardModule(type: .timer, size: .small, order: 1),
-                DashboardModule(type: .fitnessWorkouts, size: .small, order: 2),
-                DashboardModule(type: .truesight, size: .small, order: 3),
-                DashboardModule(type: .activityRings, size: .medium, order: 4),
-                DashboardModule(type: .weeklySteps, size: .medium, order: 5)
+                DashboardModule(type: .program, size: .medium, order: 1),
+                DashboardModule(type: .timer, size: .small, order: 2),
+                DashboardModule(type: .fitnessWorkouts, size: .small, order: 3),
+                DashboardModule(type: .truesight, size: .small, order: 4),
+                DashboardModule(type: .activityRings, size: .medium, order: 5),
+                DashboardModule(type: .weeklySteps, size: .medium, order: 6)
             ]
         case .health:
             return [
@@ -169,8 +171,9 @@ final class DashboardService: ServiceBase, ObservableObject {
             return [
                 DashboardModule(type: .currentWeight, size: .small, order: 0),
                 DashboardModule(type: .timer, size: .small, order: 1),
-                DashboardModule(type: .sessionVolume, size: .medium, order: 2),
-                DashboardModule(type: .truesight, size: .small, order: 3)
+                DashboardModule(type: .program, size: .medium, order: 2),
+                DashboardModule(type: .sessionVolume, size: .medium, order: 3),
+                DashboardModule(type: .truesight, size: .small, order: 4)
             ]
 #if DEBUG
         case .mixedCompact:

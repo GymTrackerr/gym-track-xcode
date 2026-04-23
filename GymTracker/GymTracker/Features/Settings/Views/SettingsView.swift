@@ -38,7 +38,6 @@ struct SettingsView: View {
     @State private var backupAlertTitle = "Backup"
     @State private var exportErrorMessage = ""
     @State private var showExerciseTransferTool = false
-    @State private var newUserName: String = ""
     @State private var selectedHealthHistoryRange: HealthHistorySyncRange = .defaultSelection
     @State private var isEnablingHealthAccess = false
     @State private var showHealthBackfillPrompt = false
@@ -64,18 +63,15 @@ struct SettingsView: View {
                 .disabled(userService.currentUser?.isDemo == true)
 
                 Section("Accounts") {
-                    HStack {
-                        TextField("New username", text: $newUserName)
-                            .textFieldStyle(.roundedBorder)
-                        Button("Create") {
-                            if !newUserName.trimmingCharacters(in: .whitespaces).isEmpty {
-                                userService.addUser(text: newUserName)
-                                newUserName = ""
-                            }
+                    Button {
+                        userService.startNewAccountOnboarding()
+                    } label: {
+                        HStack {
+                            Image(systemName: "plus.circle.fill")
+                            Text("New Account")
                         }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(newUserName.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
+                    .buttonStyle(.borderedProminent)
                     
                     ForEach(userService.accounts, id: \.id) { account in
                         HStack {

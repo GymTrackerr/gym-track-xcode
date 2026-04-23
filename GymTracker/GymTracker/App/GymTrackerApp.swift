@@ -262,12 +262,11 @@ struct GymTrackerApp: App {
 }
 
 struct RootView: View {
-    @Environment(\.modelContext) private var context
     @EnvironmentObject var userService: UserService
     
     var body: some View {
-        if (userService.onBoarding == true) {
-            OnBoardView()
+        if userService.onboardingState != nil {
+            OnboardingRootView()
         } else {
             ContentView()
         }

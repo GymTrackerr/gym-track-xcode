@@ -368,6 +368,8 @@ final class ExerciseBackupService {
                 npExerciseExports: npExerciseExports.isEmpty ? nil : npExerciseExports,
                 globalProgressionEnabled: currentUser.globalProgressionEnabled,
                 globalDefaultProgressionProfileId: currentUser.defaultProgressionProfileId?.uuidString,
+                onboardingGoalsRaw: currentUser.onboardingGoalsRaw,
+                trainingExperienceRaw: currentUser.trainingExperienceRaw,
                 routines: routineDTOs,
                 programs: programDTOs,
                 programBlocks: programBlockDTOs,
@@ -576,9 +578,20 @@ final class ExerciseBackupService {
             progressionProfilesById[profileId] = profile
         }
 
-        if let currentUser = currentUserProvider(), root.payload.globalProgressionEnabled != nil {
-            currentUser.globalProgressionEnabled = root.payload.globalProgressionEnabled ?? false
-            currentUser.defaultProgressionProfileId = root.payload.globalDefaultProgressionProfileId.flatMap { UUID(uuidString: $0) }
+        if let currentUser = currentUserProvider(),
+           (root.payload.globalProgressionEnabled != nil
+                || root.payload.onboardingGoalsRaw != nil
+                || root.payload.trainingExperienceRaw != nil) {
+            if root.payload.globalProgressionEnabled != nil {
+                currentUser.globalProgressionEnabled = root.payload.globalProgressionEnabled ?? false
+                currentUser.defaultProgressionProfileId = root.payload.globalDefaultProgressionProfileId.flatMap { UUID(uuidString: $0) }
+            }
+            if let onboardingGoalsRaw = root.payload.onboardingGoalsRaw {
+                currentUser.onboardingGoalsRaw = onboardingGoalsRaw
+            }
+            if root.payload.trainingExperienceRaw != nil {
+                currentUser.trainingExperienceRaw = root.payload.trainingExperienceRaw
+            }
             currentUser.updatedAt = Date()
         }
 
@@ -1613,6 +1626,8 @@ private struct ExercisePayloadDTO: Codable {
     let npExerciseExports: [NpExerciseExportDTO]?
     let globalProgressionEnabled: Bool?
     let globalDefaultProgressionProfileId: String?
+    let onboardingGoalsRaw: [String]?
+    let trainingExperienceRaw: String?
     let routines: [RoutineBackupDTO]
     let programs: [ProgramBackupDTO]
     let programBlocks: [ProgramBlockBackupDTO]
@@ -1630,6 +1645,8 @@ private struct ExercisePayloadDTO: Codable {
         case npExerciseExports
         case globalProgressionEnabled
         case globalDefaultProgressionProfileId
+        case onboardingGoalsRaw
+        case trainingExperienceRaw
         case routines
         case programs
         case programBlocks
@@ -1648,6 +1665,8 @@ private struct ExercisePayloadDTO: Codable {
         npExerciseExports: [NpExerciseExportDTO]? = nil,
         globalProgressionEnabled: Bool? = nil,
         globalDefaultProgressionProfileId: String? = nil,
+        onboardingGoalsRaw: [String]? = nil,
+        trainingExperienceRaw: String? = nil,
         routines: [RoutineBackupDTO] = [],
         programs: [ProgramBackupDTO] = [],
         programBlocks: [ProgramBlockBackupDTO] = [],
@@ -1664,6 +1683,8 @@ private struct ExercisePayloadDTO: Codable {
         self.npExerciseExports = npExerciseExports
         self.globalProgressionEnabled = globalProgressionEnabled
         self.globalDefaultProgressionProfileId = globalDefaultProgressionProfileId
+        self.onboardingGoalsRaw = onboardingGoalsRaw
+        self.trainingExperienceRaw = trainingExperienceRaw
         self.routines = routines
         self.programs = programs
         self.programBlocks = programBlocks
@@ -1683,6 +1704,8 @@ private struct ExercisePayloadDTO: Codable {
         npExerciseExports = try container.decodeIfPresent([NpExerciseExportDTO].self, forKey: .npExerciseExports)
         globalProgressionEnabled = try container.decodeIfPresent(Bool.self, forKey: .globalProgressionEnabled)
         globalDefaultProgressionProfileId = try container.decodeIfPresent(String.self, forKey: .globalDefaultProgressionProfileId)
+        onboardingGoalsRaw = try container.decodeIfPresent([String].self, forKey: .onboardingGoalsRaw)
+        trainingExperienceRaw = try container.decodeIfPresent(String.self, forKey: .trainingExperienceRaw)
         routines = try container.decodeIfPresent([RoutineBackupDTO].self, forKey: .routines) ?? []
         programs = try container.decodeIfPresent([ProgramBackupDTO].self, forKey: .programs) ?? []
         programBlocks = try container.decodeIfPresent([ProgramBlockBackupDTO].self, forKey: .programBlocks) ?? []

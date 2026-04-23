@@ -24,6 +24,9 @@ final class User {
     var remoteAccountId: String? = nil
     var remoteSyncEnabled: Bool = true
     var exerciseCatalogEnabled: Bool = false
+    var onboardingStatusRaw: String? = nil
+    var onboardingGoalsRaw: [String] = []
+    var trainingExperienceRaw: String? = nil
     var globalProgressionEnabledStored: Bool? = nil
     var defaultProgressionProfileId: UUID? = nil
     
@@ -55,5 +58,27 @@ final class User {
     var globalProgressionEnabled: Bool {
         get { globalProgressionEnabledStored ?? false }
         set { globalProgressionEnabledStored = newValue }
+    }
+
+    var onboardingStatus: UserOnboardingStatus {
+        get { UserOnboardingStatus(rawValue: onboardingStatusRaw ?? "") ?? .completed }
+        set { onboardingStatusRaw = newValue.rawValue }
+    }
+
+    var onboardingGoals: Set<OnboardingGoal> {
+        get { Set(onboardingGoalsRaw.compactMap(OnboardingGoal.init(rawValue:))) }
+        set { onboardingGoalsRaw = OnboardingGoal.allCases.filter { newValue.contains($0) }.map(\.rawValue) }
+    }
+
+    var trainingExperience: OnboardingExperienceLevel? {
+        get {
+            guard let trainingExperienceRaw else { return nil }
+            return OnboardingExperienceLevel(rawValue: trainingExperienceRaw)
+        }
+        set { trainingExperienceRaw = newValue?.rawValue }
+    }
+
+    var needsOnboarding: Bool {
+        !isDemo && onboardingStatus != .completed
     }
 }

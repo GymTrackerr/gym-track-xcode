@@ -20,7 +20,6 @@ struct SingleDayView: View {
     @EnvironmentObject var progressionService: ProgressionService
     @Bindable var routine: Routine
     
-    @State var searchResults: [Exercise] = []
     @State private var routineAliasDraft: String = ""
     @State private var showingProgressionSheet = false
     @EnvironmentObject var toastManager: ActionToastManager
@@ -188,7 +187,6 @@ struct SingleDayView: View {
             ToolbarItem {
                 Button {
                     exerciseService.editingContent = ""
-                    performSearch()
                     esdService.addingExerciseSplit = true
                 } label: {
                     Label("Add Exercise", systemImage: "plus.circle")
@@ -196,81 +194,43 @@ struct SingleDayView: View {
             }
         }
         .sheet(isPresented: $esdService.addingExerciseSplit) {
-            NavigationView {
-                VStack(spacing: 16) {
-                    TextField("Search or Create Exercise", text: $exerciseService.editingContent)
-                        .textFieldStyle(.roundedBorder)
-                        .padding()
-//                    TextField("Name", text: $exerciseService.editingContent)
-//                        .textFieldStyle(.roundedBorder)
-//                        .padding(.horizontal)
-                    
-                    Button {
-//                        with 
-                        let exerciseNew = exerciseService.addExercise()
-                        DispatchQueue.main.async {
-                            if let exercise = exerciseNew {
-                                addExerciseEditing(exercise: exercise)
-                            }
-                            
-                        }
-                    } label: {
-                        Label("Add", systemImage: "plus.circle")
-                            .font(.title2)
-                            .padding()
-                    }
-                    .disabled(exerciseService.editingContent.trimmingCharacters(in: .whitespaces).isEmpty)
-                    List {
-                        ForEach(searchResults, id: \.id) { exercise in
-                            Button(action: {
-                                if esdService.showingMinusIcon(routine: routine, id: exercise.id) {
-                                    removeExerciseEditing(exercise: exercise)
-                                } else {
-                                    addExerciseEditing(exercise: exercise)
-                                }
-                            }) {
-                                HStack {
-                                    // if it is already added AND not in split
-                                    // if it is adding
-                                    // if it in removing
-                                    if esdService.showingMinusIcon(routine: routine, id:  exercise.id) {
-                                        Image(systemName: "minus")
-                                    } else {
-                                        Image(systemName: "plus")
-                                    }
-                                    
-                                    Text(exercise.name)
-                                }
-                            }
+            RoutineExercisePickerSheet(
+                title: "Add Exercises",
+                searchText: $exerciseService.editingContent,
+                exercises: exerciseService.exercises,
+                isSyncingCatalog: false,
+                syncStatusText: "",
+                progressCompleted: 0,
+                progressTotal: 0,
+                onCreate: {
+                    let exerciseNew = exerciseService.addExercise()
+                    DispatchQueue.main.async {
+                        if let exercise = exerciseNew {
+                            addExerciseEditing(exercise: exercise)
                         }
                     }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
-                    Spacer()
+                },
+                canCreate: !exerciseService.editingContent.trimmingCharacters(in: .whitespaces).isEmpty,
+                showsMinusIcon: { exercise in
+                    esdService.showingMinusIcon(routine: routine, id: exercise.id)
+                },
+                onToggle: { exercise in
+                    if esdService.showingMinusIcon(routine: routine, id: exercise.id) {
+                        removeExerciseEditing(exercise: exercise)
+                    } else {
+                        addExerciseEditing(exercise: exercise)
+                    }
+                },
+                onSave: {
+                    esdService.confirmEditing(routine: routine)
+                    exerciseService.editingContent = ""
+                },
+                onCancel: {
+                    esdService.endEditing()
+                    exerciseService.editingContent = ""
+                    exerciseService.editingContent = ""
                 }
-                .padding()
-                .navigationTitle("Add Exercises")
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button("Save") {
-                            esdService.confirmEditing(routine: routine)
-                            exerciseService.editingContent = ""
-                        }
-                    }
-                
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") {
-                            esdService.endEditing()
-                            exerciseService.editingContent = ""
-                            exerciseService.editingContent = ""
-
-                        }
-                    }
-                }
-                .onChange(of: exerciseService.editingContent) {
-                    performSearch()
-                }
-            }
+            )
         }
         .sheet(isPresented: $showingProgressionSheet) {
             NavigationStack {
@@ -294,10 +254,6 @@ struct SingleDayView: View {
         } else {
             esdService.addingExercises.append(exercise)
         }
-    }
-    func performSearch() {
-        print("searching \(exerciseService.editingContent)")
-        searchResults = exerciseService.search(query: exerciseService.editingContent)
     }
     func removeExercise(offsets: IndexSet) {
         let sortedSplits = routine.exerciseSplits.sorted { $0.order < $1.order }

@@ -5,3 +5,5 @@ Thumbs.db
 GymTracker/Docs/*
 *UserInterfaceState.xcuserstate
 /GymTracker/build
+/GymTracker/.build*
+/.build*

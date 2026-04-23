@@ -914,6 +914,21 @@ class ExerciseService : ServiceBase, ObservableObject {
         }
         return newItem
     }
+
+    func createExercise(name: String, type: ExerciseType) -> Exercise? {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return nil }
+        guard let userId = currentUser?.id else { return nil }
+
+        do {
+            let newItem = try repository.createExercise(name: trimmedName, type: type, userId: userId)
+            refreshExerciseLists()
+            return newItem
+        } catch {
+            print("Failed to create exercise: \(error)")
+            return nil
+        }
+    }
     
     func removeExercise(offsets: IndexSet) {
         print("not activating")

@@ -99,7 +99,9 @@ final class ProgramService: ServiceBase, ObservableObject {
         switch program.mode {
         case .continuous:
             return continuousDueSummary(
-                for: state,
+                for: program,
+                state: state,
+                sessions: sessions,
                 referenceDate: referenceDate,
                 calendar: calendar
             )
@@ -853,17 +855,59 @@ final class ProgramService: ServiceBase, ObservableObject {
     }
 
     private func continuousDueSummary(
-        for state: ProgramResolvedState,
+        for program: Program,
+        state: ProgramResolvedState,
+        sessions: [Session],
         referenceDate: Date,
         calendar: Calendar
     ) -> String {
-        if let recentCompletedSession = state.recentCompletedSession,
-           calendar.isDate(recentCompletedSession.timestampDone, inSameDayAs: referenceDate),
-           let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: referenceDate)) {
-            return formattedDueDate(tomorrow, referenceDate: referenceDate, calendar: calendar)
+        let startOfReference = calendar.startOfDay(for: referenceDate)
+
+        guard let recentCompletedSession = state.recentCompletedSession else {
+            return formattedDueDate(startOfReference, referenceDate: referenceDate, calendar: calendar)
         }
 
-        return formattedDueDate(referenceDate, referenceDate: referenceDate, calendar: calendar)
+        let completedCount = completedSessions(for: program, sessions: sessions).count
+        let nextDueDate = nextContinuousWorkoutDate(
+            for: program,
+            completedWorkoutCount: completedCount,
+            recentCompletedAt: recentCompletedSession.timestampDone,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+
+        return formattedDueDate(nextDueDate, referenceDate: referenceDate, calendar: calendar)
+    }
+
+    private func nextContinuousWorkoutDate(
+        for program: Program,
+        completedWorkoutCount: Int,
+        recentCompletedAt: Date,
+        referenceDate: Date,
+        calendar: Calendar
+    ) -> Date {
+        let startOfReference = calendar.startOfDay(for: referenceDate)
+        let lastCompletedDay = calendar.startOfDay(for: recentCompletedAt)
+        let trainingDays = max(program.trainDaysBeforeRest, 1)
+        let restDays = max(program.restDays, 0)
+        let consumedWorkoutCount = max(program.continuousSkippedWorkoutCount, 0) + completedWorkoutCount
+
+        let offsetAfterCompletion: Int
+        if restDays == 0 {
+            offsetAfterCompletion = 1
+        } else if consumedWorkoutCount > 0, consumedWorkoutCount % trainingDays == 0 {
+            offsetAfterCompletion = restDays + 1
+        } else {
+            offsetAfterCompletion = 1
+        }
+
+        let scheduledDate = calendar.date(
+            byAdding: .day,
+            value: offsetAfterCompletion,
+            to: lastCompletedDay
+        ) ?? startOfReference
+
+        return scheduledDate > startOfReference ? scheduledDate : startOfReference
     }
 
     private func nextDate(

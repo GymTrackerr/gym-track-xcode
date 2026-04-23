@@ -160,13 +160,13 @@ enum DashboardPreset: String, CaseIterable, Identifiable {
     var description: String {
         switch self {
         case .default:
-            return "The original balanced GymTracker dashboard."
+            return "A balanced dashboard with programme, training, and recovery cards."
         case .training:
-            return "Sessions, timers, and workout-focused cards."
+            return "Programme, sessions, timers, and workout-focused cards."
         case .health:
             return "Recovery, activity, sleep, and nutrition."
         case .minimal:
-            return "A simple quick-glance dashboard."
+            return "A simple quick-glance dashboard with your active programme."
 #if DEBUG
         case .mixedCompact:
             return "Debug layout test with small cards around one medium card."
