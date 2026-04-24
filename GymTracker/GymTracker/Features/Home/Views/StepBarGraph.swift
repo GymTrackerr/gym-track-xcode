@@ -9,9 +9,14 @@ struct MetricCard: View {
     var body: some View {
         VStack(alignment: alignment, spacing: 8) {
             HStack {
+                if pageNav {
+                    Spacer()
+                }
                 Text(value)
                     .font(.title3)
+                    .foregroundColor(.primary)
                     .fontWeight(.semibold)
+
                 if pageNav {
                     Spacer()
                     Image(systemName: "chevron.right")

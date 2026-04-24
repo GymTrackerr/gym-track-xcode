@@ -1098,9 +1098,14 @@ struct DashboardModuleCardChrome<Content: View>: View {
             VStack(spacing: 0) {
                 HStack(spacing: 8) {
                     Image(systemName: module.type.iconName)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 16, height: 16)
+
                         .foregroundColor(.secondary)
                         .font(.body)
 
+                    
                     Text(module.type.displayName)
                         .font(spec.headerFont)
                         .foregroundColor(.secondary)
@@ -1213,10 +1218,10 @@ struct FitSightModuleView: View {
     var body: some View {
         NavigationLink(destination: TrueSightView().appBackground()) {
             MetricCard(
-                value: "View"
+                value: "View",
+                pageNav: true
             )
         }
-       
     }
 }
 
@@ -1236,6 +1241,7 @@ struct NutritionModuleView: View {
             NavigationLink(destination: NutritionDayView().appBackground()) {
                 MetricCard(
                     value: smallCardValue,
+                    alignment: .center,
                     pageNav: true
                 )
             }
@@ -1510,7 +1516,8 @@ struct WeeklyStepsModuleView: View {
         } else {
             NavigationLink(destination: HealthHistoryChartView().appBackground()) {
                 MetricCard(
-                    value: displayValue
+                    value: displayValue,
+                    pageNav: true
                 )
             }
         }
@@ -1585,6 +1592,7 @@ struct TimerModuleView: View {
         NavigationLink(destination: TimerView().appBackground()) {
             MetricCard(
                 value: timerService.timer != nil ? timerService.formatted : "--:--",
+                alignment: .center,
                 pageNav: true
             )
         }
@@ -1601,6 +1609,7 @@ struct FitnessWorkoutsModuleView: View {
         NavigationLink(destination: destinationView) {
             MetricCard(
                 value: workoutDisplayValue,
+                alignment: .center,
                 pageNav: true
             )
         }
