@@ -86,8 +86,9 @@ struct HomeView: View {
         requestAuthorization: Bool = false,
         waitForSync: Bool = false
     ) async {
-        guard let currentUser = userService.currentUser, currentUser.isDemo != true else { return }
-        guard currentUser.allowHealthAccess else {
+        guard let currentUser = userService.currentUser else { return }
+        let canReadHealthSummaries = currentUser.allowHealthAccess || currentUser.isDemo == true
+        guard canReadHealthSummaries else {
             if homeHealthSnapshot.ownerUserId == currentUser.id {
                 homeHealthSnapshot.isCollecting = false
                 homeHealthSnapshot.hasLoaded = false
@@ -95,7 +96,10 @@ struct HomeView: View {
             return
         }
 
-        if requestAuthorization, hkManager.hkRequested == false {
+        if requestAuthorization,
+           currentUser.isDemo != true,
+           currentUser.allowHealthAccess,
+           hkManager.hkRequested == false {
             await hkManager.requestAuthorization()
         }
 
@@ -117,6 +121,9 @@ struct HomeView: View {
     @MainActor
     private func collectDashboardHealthSnapshot(for user: User) async {
         let userId = user.id.uuidString
+        let isDemoUser = user.isDemo == true
+        let summaryPolicy: HealthDataFetchPolicy = isDemoUser ? .cachedOnly : .refreshIfStale
+
         if homeHealthSnapshot.ownerUserId != user.id {
             homeHealthSnapshot.ownerUserId = user.id
             homeHealthSnapshot.hasLoaded = false
@@ -134,48 +141,108 @@ struct HomeView: View {
             }
         }
 
-        await hkManager.fetchWorkoutsIfNeeded(days: 90)
-        if hkManager.workouts.isEmpty {
-            await hkManager.fetchWorkouts(days: 90)
+        if !isDemoUser, user.allowHealthAccess {
+            _ = await healthKitDailyStore.smartPullHealthData(userId: userId)
         }
-
-        _ = await healthKitDailyStore.smartPullHealthData(userId: userId)
 
         guard userService.currentUser?.id == user.id else { return }
 
         let today = Date()
-        let weekSummaries = try? await healthKitDailyStore.dailySummaries(
+        let weekSummaries = await weeklySummaries(
+            for: userId,
             endingOn: today,
-            days: 7,
-            userId: userId,
-            policy: .cachedOnly
+            policy: summaryPolicy
+        )
+        let recentSummaries = await summariesForRecentDays(
+            for: userId,
+            endingOn: today,
+            days: 90,
+            policy: summaryPolicy
         )
         let todaySummary = weekSummaries?.last
 
         var resolvedWeight = todaySummary?.bodyWeightKg
-        if (resolvedWeight ?? 0) <= 0 {
+        if !isDemoUser, (resolvedWeight ?? 0) <= 0 {
             resolvedWeight = await hkManager.latestBodyWeightKg()
         }
 
         var resolvedSleepHours: Double?
         if let sleepSeconds = todaySummary?.sleepSeconds, sleepSeconds > 0 {
             resolvedSleepHours = sleepSeconds / 3600
-        } else if let fallbackSleep = await hkManager.latestSleepDurationWithin(hours: 30), fallbackSleep > 0 {
+        } else if !isDemoUser,
+                  let fallbackSleep = await hkManager.latestSleepDurationWithin(hours: 30),
+                  fallbackSleep > 0 {
             resolvedSleepHours = fallbackSleep / 3600
         }
 
         var resolvedRings = activityRingStatus(from: todaySummary)
-        if resolvedRings == nil {
+        if !isDemoUser, resolvedRings == nil {
             resolvedRings = await hkManager.fetchActivityRingStatusSnapshot(for: today)
         }
 
-        homeHealthSnapshot.workoutsCount = hkManager.workouts.count
+        var resolvedWorkoutsCount = recentSummaries?.reduce(0) { partialResult, summary in
+            partialResult + (((summary.exerciseMinutes ?? 0) > 0) ? 1 : 0)
+        }
+        if !isDemoUser, (resolvedWorkoutsCount ?? 0) <= 0 {
+            await hkManager.fetchWorkoutsIfNeeded(days: 90)
+            if hkManager.workouts.isEmpty {
+                await hkManager.fetchWorkouts(days: 90)
+            }
+            resolvedWorkoutsCount = hkManager.workouts.count
+        }
+
+        homeHealthSnapshot.workoutsCount = resolvedWorkoutsCount
         homeHealthSnapshot.currentWeightKg = (resolvedWeight ?? 0) > 0 ? resolvedWeight : nil
         homeHealthSnapshot.weeklyStepsTotal = weekSummaries?.reduce(0.0, { $0 + $1.steps }) ?? 0
         homeHealthSnapshot.sleepHours = resolvedSleepHours
         homeHealthSnapshot.activityRings = resolvedRings
         homeHealthSnapshot.hasLoaded = true
         homeHealthSnapshot.lastUpdatedAt = Date()
+    }
+
+    private func weeklySummaries(
+        for userId: String,
+        endingOn day: Date,
+        policy: HealthDataFetchPolicy
+    ) async -> [HealthKitDailyAggregateData]? {
+        if policy == .cachedOnly {
+            let calendar = Calendar.current
+            let endDay = calendar.startOfDay(for: day)
+            let startDay = calendar.date(byAdding: .day, value: -6, to: endDay) ?? endDay
+            let endExclusive = calendar.date(byAdding: .day, value: 1, to: endDay) ?? endDay
+            let interval = DateInterval(start: startDay, end: endExclusive)
+            return (try? healthKitDailyStore.cachedExistingDailySummaries(in: interval, userId: userId))
+        }
+
+        return try? await healthKitDailyStore.dailySummaries(
+            endingOn: day,
+            days: 7,
+            userId: userId,
+            policy: policy
+        )
+    }
+
+    private func summariesForRecentDays(
+        for userId: String,
+        endingOn day: Date,
+        days: Int,
+        policy: HealthDataFetchPolicy
+    ) async -> [HealthKitDailyAggregateData]? {
+        if policy == .cachedOnly {
+            let calendar = Calendar.current
+            let endDay = calendar.startOfDay(for: day)
+            let startDay = calendar.date(byAdding: .day, value: -(max(days, 1) - 1), to: endDay) ?? endDay
+            let endExclusive = calendar.date(byAdding: .day, value: 1, to: endDay) ?? endDay
+            let interval = DateInterval(start: startDay, end: endExclusive)
+            return (try? healthKitDailyStore.cachedExistingDailySummaries(in: interval, userId: userId))
+        }
+
+        return try? await healthKitDailyStore.dailySummaries(
+            endingOn: day,
+            days: max(days, 1),
+            userId: userId,
+            policy: policy
+        )
     }
 
     private func activityRingStatus(from summary: HealthKitDailyAggregateData?) -> ActivityRingStatus? {
@@ -1514,14 +1581,14 @@ struct FitnessWorkoutsModuleView: View {
     }
 
     private var workoutDisplayValue: String {
-        if userService.currentUser?.isDemo == true {
-            return String(sessionService.sessions.count)
-        }
         if let count = homeHealthSnapshot.workoutsCount {
             return String(count)
         }
         if homeHealthSnapshot.isCollecting && !homeHealthSnapshot.hasLoaded {
             return "Loading..."
+        }
+        if userService.currentUser?.isDemo == true {
+            return String(sessionService.sessions.count)
         }
         return String(hkManager.workouts.count)
     }

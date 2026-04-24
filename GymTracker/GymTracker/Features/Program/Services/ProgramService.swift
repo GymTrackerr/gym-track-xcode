@@ -405,7 +405,7 @@ final class ProgramService: ServiceBase, ObservableObject {
         for workout in workouts {
             _ = addWorkout(
                 to: destinationBlock,
-                routine: workout.routine,
+                routine: routineForWorkout(workout),
                 name: workout.name,
                 weekdayIndex: workout.weekdayIndex
             )
@@ -499,14 +499,14 @@ final class ProgramService: ServiceBase, ObservableObject {
                 calendar: calendar
             )
         let weekLabel = weeklyProgressLabel(for: program, block: block, referenceDate: referenceDate, calendar: calendar)
-        let canStartNextWorkout = activeSession != nil || nextWorkout?.routine != nil
+        let canStartNextWorkout = activeSession != nil || nextWorkout.map { isWorkoutStartable($0) } == true
         let canSkipNextWorkout = activeSession == nil && nextWorkout != nil
         let shouldShowDashboardStartAction: Bool
-        if let activeSession {
+        if activeSession != nil {
             shouldShowDashboardStartAction = true
         } else if let nextWorkout {
             let todayIndex = ProgramWeekday.mondayBasedIndex(for: referenceDate, calendar: calendar)
-            shouldShowDashboardStartAction = nextWorkout.weekdayIndex == todayIndex && nextWorkout.routine != nil
+            shouldShowDashboardStartAction = nextWorkout.weekdayIndex == todayIndex && isWorkoutStartable(nextWorkout)
         } else {
             shouldShowDashboardStartAction = false
         }
@@ -601,9 +601,9 @@ final class ProgramService: ServiceBase, ObservableObject {
                     scheduleLabel: program.scheduleSummary,
                     nextWorkoutLabel: nextWorkout.displayName,
                     actionTitle: "Start Next Workout",
-                    canStartNextWorkout: nextWorkout.routine != nil,
+                    canStartNextWorkout: isWorkoutStartable(nextWorkout),
                     canSkipNextWorkout: true,
-                    shouldShowDashboardStartAction: nextWorkout.routine != nil && !completedToday
+                    shouldShowDashboardStartAction: isWorkoutStartable(nextWorkout) && !completedToday
                 )
             }
 
@@ -1030,6 +1030,34 @@ final class ProgramService: ServiceBase, ObservableObject {
 
     private func hiddenRepeatingBlock(in program: Program) -> ProgramBlock? {
         sortedBlocks(for: program).first(where: \.isHiddenRepeatingBlock)
+    }
+
+    func isWorkoutStartable(_ workout: ProgramWorkout) -> Bool {
+        routineForWorkout(workout) != nil
+    }
+
+    private func routineForWorkout(_ workout: ProgramWorkout) -> Routine? {
+        if let routineId = workout.routineIdSnapshot {
+            let descriptor = FetchDescriptor<Routine>(
+                predicate: #Predicate<Routine> { routine in
+                    routine.id == routineId && routine.soft_deleted == false && routine.isArchived == false
+                }
+            )
+            return try? modelContext.fetch(descriptor).first
+        }
+
+        let trimmedName = workout.routineNameSnapshot.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty, trimmedName != "Routine" else { return nil }
+        let userId = workout.programBlock.program.user_id
+        let descriptor = FetchDescriptor<Routine>(
+            predicate: #Predicate<Routine> { routine in
+                routine.user_id == userId &&
+                routine.name == trimmedName &&
+                routine.soft_deleted == false &&
+                routine.isArchived == false
+            }
+        )
+        return try? modelContext.fetch(descriptor).first
     }
 
     private func ensureDirectWorkoutBlockExists(for program: Program) throws -> ProgramBlock {

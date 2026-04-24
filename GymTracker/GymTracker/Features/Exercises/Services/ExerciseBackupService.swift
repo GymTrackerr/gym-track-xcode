@@ -751,8 +751,9 @@ final class ExerciseBackupService {
             workout.name = dto.name
             workout.weekdayIndex = dto.weekdayIndex
             workout.routineNameSnapshot = dto.routineNameSnapshot
+            workout.routineIdSnapshot = dto.routineId.flatMap { UUID(uuidString: $0) }
             workout.programBlock = block
-            workout.routine = routine
+            workout.updateRoutineLink(routine)
             if !block.workouts.contains(where: { $0.id == workout.id }) {
                 block.workouts.append(workout)
             }

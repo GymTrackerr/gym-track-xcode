@@ -205,6 +205,7 @@ final class ProgramWorkout {
     var order: Int
     var name: String?
     var weekdayIndex: Int?
+    var routineIdSnapshot: UUID?
     var routineNameSnapshot: String
     var programBlock: ProgramBlock
     var routine: Routine?
@@ -219,6 +220,7 @@ final class ProgramWorkout {
         self.order = order
         self.programBlock = programBlock
         self.routine = routine
+        self.routineIdSnapshot = routine?.id
         self.routineNameSnapshot = routine?.name ?? "Routine"
         self.name = name
         self.weekdayIndex = weekdayIndex
@@ -229,7 +231,22 @@ final class ProgramWorkout {
         if !trimmed.isEmpty {
             return trimmed
         }
-        return routine?.name ?? routineNameSnapshot
+        return routineNameSnapshot
+    }
+
+    var hasLinkedRoutine: Bool {
+        routineIdSnapshot != nil
+    }
+
+    func updateRoutineLink(_ routine: Routine?) {
+        self.routine = routine
+        self.routineIdSnapshot = routine?.id
+        if let routine {
+            let trimmed = routine.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                self.routineNameSnapshot = trimmed
+            }
+        }
     }
 
     var resolvedWeekday: ProgramWeekday? {
