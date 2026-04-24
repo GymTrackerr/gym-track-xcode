@@ -63,6 +63,40 @@ struct HomeView: View {
                         Label("Add Module", systemImage: "plus.circle")
                     }
                 }
+
+                ToolbarItem(placement: .topBarLeading) {
+                    Menu {
+                        Section("Presets") {
+                            ForEach(DashboardPreset.productionCases) { preset in
+                                Button {
+                                    dashboardService.pendingPresetSelection = preset
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(preset.displayName)
+                                        Text(preset.description)
+                                    }
+                                }
+                            }
+                        }
+
+#if DEBUG
+                        Section("Debug Layout Tests") {
+                            ForEach(DashboardPreset.debugCases) { preset in
+                                Button {
+                                    dashboardService.pendingPresetSelection = preset
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(preset.displayName)
+                                        Text(preset.description)
+                                    }
+                                }
+                            }
+                        }
+#endif
+                    } label: {
+                        Label("Presets", systemImage: "square.grid.2x2")
+                    }
+                }
             }
 
             ToolbarItemGroup(placement: .topBarTrailing) {
@@ -443,11 +477,7 @@ struct DashboardModulesView: View {
 
         VStack(alignment: .leading, spacing: 16) {
             if dashboardService.isEditingMode {
-                DashboardInlineEditorBar(
-                    onApplyPreset: { preset in
-                        draftModules = dashboardService.modulesForPreset(preset)
-                    }
-                )
+                DashboardInlineEditorBar()
             }
 
             if displayModules.isEmpty {
@@ -495,6 +525,11 @@ struct DashboardModulesView: View {
             } else {
                 finishEditing()
             }
+        }
+        .onChange(of: dashboardService.pendingPresetSelection) { _, preset in
+            guard dashboardService.isEditingMode, let preset else { return }
+            draftModules = dashboardService.modulesForPreset(preset)
+            dashboardService.pendingPresetSelection = nil
         }
     }
 
@@ -607,6 +642,7 @@ struct DashboardGridLayout {
         let totalSpacing = CGFloat(safeColumnCount - 1) * spacing
         let cellWidth = max((availableWidth - totalSpacing) / CGFloat(safeColumnCount), 120)
         let cellHeight = max(min(cellWidth * 0.92, 220), 124)
+        let smallBaseHeight = max(min(cellWidth * 0.6, 188), 104)
 
         var occupancy: [[Bool]] = []
         var layoutItems: [DashboardGridLayoutItem] = []
@@ -690,13 +726,34 @@ struct DashboardGridLayout {
             maxOccupiedRow = max(maxOccupiedRow, targetRow + rowSpan)
         }
 
-        var rowHeights = Array(repeating: cellHeight, count: maxOccupiedRow)
+        var rowHeights = Array(repeating: smallBaseHeight, count: maxOccupiedRow)
 
         for item in layoutItems where item.module.size.rowSpan == 1 {
             rowHeights[item.row] = max(
                 rowHeights[item.row],
-                Self.preferredHeight(for: item.module, baseHeight: cellHeight)
+                Self.preferredHeight(
+                    for: item.module,
+                    smallBaseHeight: smallBaseHeight,
+                    mediumBaseHeight: cellHeight
+                )
             )
+        }
+
+        for item in layoutItems where item.module.size.rowSpan > 1 {
+            for rowIndex in item.row..<(item.row + item.module.size.rowSpan) {
+                rowHeights[rowIndex] = max(rowHeights[rowIndex], cellHeight)
+            }
+        }
+
+        // Force rows containing Programme to honor the boosted Programme height so
+        // neighboring cards in that row expand with it.
+        for item in layoutItems where item.module.type == .program && item.module.size.rowSpan == 1 {
+            let programRowFloor = Self.preferredHeight(
+                for: item.module,
+                smallBaseHeight: smallBaseHeight,
+                mediumBaseHeight: cellHeight
+            )
+            rowHeights[item.row] = max(rowHeights[item.row], programRowFloor)
         }
 
         var rowOrigins = Array(repeating: CGFloat.zero, count: maxOccupiedRow)
@@ -728,60 +785,29 @@ struct DashboardGridLayout {
             : 0
     }
 
-    private static func preferredHeight(for module: DashboardModule, baseHeight: CGFloat) -> CGFloat {
+    private static func preferredHeight(
+        for module: DashboardModule,
+        smallBaseHeight: CGFloat,
+        mediumBaseHeight: CGFloat
+    ) -> CGFloat {
         switch (module.type, module.size) {
         case (.program, .small):
-            return max(baseHeight * 1.08, 136)
+            return max(smallBaseHeight * 1.32, 142)
         case (.program, .medium):
-            return max(baseHeight * 1.24, 172)
+            return max(mediumBaseHeight * 1.44, 172)
+        case (_, .small):
+            return smallBaseHeight
+        case (_, .medium):
+            return mediumBaseHeight
         default:
-            return baseHeight
+            return mediumBaseHeight
         }
     }
 }
 
 struct DashboardInlineEditorBar: View {
-    let onApplyPreset: (DashboardPreset) -> Void
-
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                Menu {
-                    Section("Presets") {
-                        ForEach(DashboardPreset.productionCases) { preset in
-                            Button {
-                                onApplyPreset(preset)
-                            } label: {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(preset.displayName)
-                                    Text(preset.description)
-                                }
-                            }
-                        }
-                    }
-
-#if DEBUG
-                    Section("Debug Layout Tests") {
-                        ForEach(DashboardPreset.debugCases) { preset in
-                            Button {
-                                onApplyPreset(preset)
-                            } label: {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(preset.displayName)
-                                    Text(preset.description)
-                                }
-                            }
-                        }
-                    }
-#endif
-                } label: {
-                    Label("Presets", systemImage: "square.grid.2x2")
-                }
-                .buttonStyle(.bordered)
-
-                Spacer()
-            }
-
             Text("Drag cards to reorder them, and use the menu on each card to resize or hide it.")
                 .font(.footnote)
                 .foregroundColor(.secondary)
