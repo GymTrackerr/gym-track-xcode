@@ -46,10 +46,7 @@ struct ProgressionProfilesView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.gray.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .cardRowContainerStyle()
 
                 sectionHeader(
                     title: "Built-in Progressions",
@@ -176,10 +173,7 @@ struct ProgressionProfilesView: View {
                 }
             }
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.gray.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .cardRowContainerStyle()
     }
 
     @ViewBuilder
@@ -199,10 +193,7 @@ struct ProgressionProfilesView: View {
         Text(text)
             .font(.caption)
             .foregroundStyle(.secondary)
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.gray.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .cardRowContainerStyle()
     }
 
     @ViewBuilder

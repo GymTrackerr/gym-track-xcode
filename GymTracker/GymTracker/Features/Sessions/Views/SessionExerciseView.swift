@@ -180,18 +180,12 @@ struct SessionExerciseView: View {
 
     private func sectionCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.gray.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .cardRowContainerStyle()
     }
 
     private func insetCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
-            .padding(10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.gray.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .cardRowContainerStyle()
     }
 
     private func adjustmentControls(
@@ -602,10 +596,7 @@ struct SessionExerciseView: View {
                             }
                         }
                     }
-                    .padding(12)
-                    .background(Color.gray.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .contentShape(Rectangle())
+                    .cardRowContainerStyle()
                     .onTapGesture {
                         guard canEditSession else { return }
                         copySetIntoCurrentDraft(sessionSet)
@@ -655,10 +646,7 @@ struct SessionExerciseView: View {
 
                         Spacer()
                     }
-                    .padding(12)
-                    .background(Color.gray.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .contentShape(Rectangle())
+                    .cardRowContainerStyle()
                     .onTapGesture {
                         guard canEditSession else { return }
                         copySetIntoCurrentDraft(sessionSet)
@@ -873,9 +861,7 @@ struct SessionExerciseView: View {
                         }
                     }
                 }
-                .padding(12)
-                .background(Color.gray.opacity(0.06))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .cardRowContainerStyle()
             }
         }
     }

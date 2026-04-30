@@ -84,7 +84,7 @@ struct RoutineExercisePickerSheet: View {
                                     Text(exercise.name)
                                 }
                             }
-                            .listRowBackground(Color.clear)
+                            .cardListRowStyle()
                         }
                     }
                     .listStyle(.plain)

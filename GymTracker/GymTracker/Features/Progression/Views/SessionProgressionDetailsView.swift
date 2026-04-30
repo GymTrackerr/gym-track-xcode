@@ -165,10 +165,7 @@ struct SessionProgressionDetailsView: View {
 
     private func sectionCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.gray.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .cardRowContainerStyle()
     }
 
     @ViewBuilder

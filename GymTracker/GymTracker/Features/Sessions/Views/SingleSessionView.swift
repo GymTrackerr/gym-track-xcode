@@ -31,7 +31,6 @@ struct SingleSessionView: View {
     @State private var openedSessionEntryTarget: OpenedSessionEntryTarget?
     @State private var hasAutoOpenedPreferredExercise = false
 
-    private let cardCornerRadius: CGFloat = 16
     private let accentGreen = Color.green
     private let softGreen = Color.green.opacity(0.12)
 
@@ -226,9 +225,7 @@ struct SingleSessionView: View {
         } label: {
             sessionEntryLabel(for: sessionEntry)
         }
-        .listRowInsets(EdgeInsets(top: 6, leading: 4, bottom: 6, trailing: 16))
-        .listRowSeparator(.hidden)
-        .listRowBackground(sessionEntryRowBackground)
+        .cardListRowStyle()
         .swipeActions(edge: completionEdge, allowsFullSwipe: allowsFullSwipe) {
             if canModifySessionExercises {
                 Button {
@@ -269,12 +266,6 @@ struct SingleSessionView: View {
             Spacer()
         }
         .padding(.vertical, 8)
-    }
-
-    private var sessionEntryRowBackground: some View {
-        CardRowBackground()
-            .padding(.vertical, 4)
-            .padding(.horizontal, 4)
     }
 
     private func autoOpenPreferredExerciseIfNeeded() {
@@ -450,11 +441,7 @@ struct SingleSessionView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 10))
             }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius))
-        .shadow(color: Color.black.opacity(0.05), radius: 12, x: 0, y: 6)
+        .cardRowContainerStyle()
     }
 
     private var sessionEditCard: some View {
@@ -497,11 +484,7 @@ struct SingleSessionView: View {
 
             sessionEditActionSection
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius))
-        .shadow(color: Color.black.opacity(0.05), radius: 12, x: 0, y: 6)
+        .cardRowContainerStyle()
     }
 
     private var sessionEditActionSection: some View {

@@ -58,6 +58,14 @@ struct CardRowContainer<Content: View>: View {
     }
 }
 
+private struct CardRowContainerModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        CardRowContainer {
+            content
+        }
+    }
+}
+
 struct CardRowBackground: View {
     @Environment(\.colorScheme) private var colorScheme
 
@@ -209,6 +217,10 @@ struct FilterPill: View {
 extension View {
     func appBackground() -> some View {
         background(AppBackgroundView())
+    }
+
+    func cardRowContainerStyle() -> some View {
+        modifier(CardRowContainerModifier())
     }
 
     func screenContentPadding() -> some View {
