@@ -103,10 +103,11 @@ final class LocalSessionRepository: SessionRepositoryProtocol {
         programWeekIndex: Int?,
         programSplitIndex: Int?
     ) throws -> Session {
+        let linkedRoutine = resolveRoutine(for: programWorkout, userId: userId)
         let session = Session(
             timestamp: Date(),
             user_id: userId,
-            routine: programWorkout.routine,
+            routine: linkedRoutine,
             notes: notes,
             program: program
         )
@@ -120,7 +121,7 @@ final class LocalSessionRepository: SessionRepositoryProtocol {
         modelContext.insert(session)
         try SyncRootMetadataManager.markCreated(session, in: modelContext)
 
-        if let routine = programWorkout.routine {
+        if let routine = linkedRoutine {
             createSessionExercises(session: session, routine: routine)
         }
 
@@ -398,6 +399,29 @@ final class LocalSessionRepository: SessionRepositoryProtocol {
             modelContext.insert(newSessionEntry)
             session.sessionEntries.append(newSessionEntry)
         }
+    }
+
+    private func resolveRoutine(for workout: ProgramWorkout, userId: UUID) -> Routine? {
+        if let routineId = workout.routineIdSnapshot {
+            let descriptor = FetchDescriptor<Routine>(
+                predicate: #Predicate<Routine> { routine in
+                    routine.id == routineId && routine.soft_deleted == false && routine.isArchived == false
+                }
+            )
+            return try? modelContext.fetch(descriptor).first
+        }
+
+        let trimmedName = workout.routineNameSnapshot.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty, trimmedName != "Routine" else { return nil }
+        let descriptor = FetchDescriptor<Routine>(
+            predicate: #Predicate<Routine> { routine in
+                routine.user_id == userId &&
+                routine.name == trimmedName &&
+                routine.soft_deleted == false &&
+                routine.isArchived == false
+            }
+        )
+        return try? modelContext.fetch(descriptor).first
     }
 
     private func reorderSets(sessionEntry: SessionEntry) {

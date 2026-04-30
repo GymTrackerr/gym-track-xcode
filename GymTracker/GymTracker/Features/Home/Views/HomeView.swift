@@ -63,6 +63,40 @@ struct HomeView: View {
                         Label("Add Module", systemImage: "plus.circle")
                     }
                 }
+
+                ToolbarItem(placement: .topBarLeading) {
+                    Menu {
+                        Section("Presets") {
+                            ForEach(DashboardPreset.productionCases) { preset in
+                                Button {
+                                    dashboardService.pendingPresetSelection = preset
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(preset.displayName)
+                                        Text(preset.description)
+                                    }
+                                }
+                            }
+                        }
+
+#if DEBUG
+                        Section("Debug Layout Tests") {
+                            ForEach(DashboardPreset.debugCases) { preset in
+                                Button {
+                                    dashboardService.pendingPresetSelection = preset
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(preset.displayName)
+                                        Text(preset.description)
+                                    }
+                                }
+                            }
+                        }
+#endif
+                    } label: {
+                        Label("Presets", systemImage: "square.grid.2x2")
+                    }
+                }
             }
 
             ToolbarItemGroup(placement: .topBarTrailing) {
@@ -86,8 +120,9 @@ struct HomeView: View {
         requestAuthorization: Bool = false,
         waitForSync: Bool = false
     ) async {
-        guard let currentUser = userService.currentUser, currentUser.isDemo != true else { return }
-        guard currentUser.allowHealthAccess else {
+        guard let currentUser = userService.currentUser else { return }
+        let canReadHealthSummaries = currentUser.allowHealthAccess || currentUser.isDemo == true
+        guard canReadHealthSummaries else {
             if homeHealthSnapshot.ownerUserId == currentUser.id {
                 homeHealthSnapshot.isCollecting = false
                 homeHealthSnapshot.hasLoaded = false
@@ -95,7 +130,10 @@ struct HomeView: View {
             return
         }
 
-        if requestAuthorization, hkManager.hkRequested == false {
+        if requestAuthorization,
+           currentUser.isDemo != true,
+           currentUser.allowHealthAccess,
+           hkManager.hkRequested == false {
             await hkManager.requestAuthorization()
         }
 
@@ -117,6 +155,9 @@ struct HomeView: View {
     @MainActor
     private func collectDashboardHealthSnapshot(for user: User) async {
         let userId = user.id.uuidString
+        let isDemoUser = user.isDemo == true
+        let summaryPolicy: HealthDataFetchPolicy = isDemoUser ? .cachedOnly : .refreshIfStale
+
         if homeHealthSnapshot.ownerUserId != user.id {
             homeHealthSnapshot.ownerUserId = user.id
             homeHealthSnapshot.hasLoaded = false
@@ -134,48 +175,108 @@ struct HomeView: View {
             }
         }
 
-        await hkManager.fetchWorkoutsIfNeeded(days: 90)
-        if hkManager.workouts.isEmpty {
-            await hkManager.fetchWorkouts(days: 90)
+        if !isDemoUser, user.allowHealthAccess {
+            _ = await healthKitDailyStore.smartPullHealthData(userId: userId)
         }
-
-        _ = await healthKitDailyStore.smartPullHealthData(userId: userId)
 
         guard userService.currentUser?.id == user.id else { return }
 
         let today = Date()
-        let weekSummaries = try? await healthKitDailyStore.dailySummaries(
+        let weekSummaries = await weeklySummaries(
+            for: userId,
             endingOn: today,
-            days: 7,
-            userId: userId,
-            policy: .cachedOnly
+            policy: summaryPolicy
+        )
+        let recentSummaries = await summariesForRecentDays(
+            for: userId,
+            endingOn: today,
+            days: 90,
+            policy: summaryPolicy
         )
         let todaySummary = weekSummaries?.last
 
         var resolvedWeight = todaySummary?.bodyWeightKg
-        if (resolvedWeight ?? 0) <= 0 {
+        if !isDemoUser, (resolvedWeight ?? 0) <= 0 {
             resolvedWeight = await hkManager.latestBodyWeightKg()
         }
 
         var resolvedSleepHours: Double?
         if let sleepSeconds = todaySummary?.sleepSeconds, sleepSeconds > 0 {
             resolvedSleepHours = sleepSeconds / 3600
-        } else if let fallbackSleep = await hkManager.latestSleepDurationWithin(hours: 30), fallbackSleep > 0 {
+        } else if !isDemoUser,
+                  let fallbackSleep = await hkManager.latestSleepDurationWithin(hours: 30),
+                  fallbackSleep > 0 {
             resolvedSleepHours = fallbackSleep / 3600
         }
 
         var resolvedRings = activityRingStatus(from: todaySummary)
-        if resolvedRings == nil {
+        if !isDemoUser, resolvedRings == nil {
             resolvedRings = await hkManager.fetchActivityRingStatusSnapshot(for: today)
         }
 
-        homeHealthSnapshot.workoutsCount = hkManager.workouts.count
+        var resolvedWorkoutsCount = recentSummaries?.reduce(0) { partialResult, summary in
+            partialResult + (((summary.exerciseMinutes ?? 0) > 0) ? 1 : 0)
+        }
+        if !isDemoUser, (resolvedWorkoutsCount ?? 0) <= 0 {
+            await hkManager.fetchWorkoutsIfNeeded(days: 90)
+            if hkManager.workouts.isEmpty {
+                await hkManager.fetchWorkouts(days: 90)
+            }
+            resolvedWorkoutsCount = hkManager.workouts.count
+        }
+
+        homeHealthSnapshot.workoutsCount = resolvedWorkoutsCount
         homeHealthSnapshot.currentWeightKg = (resolvedWeight ?? 0) > 0 ? resolvedWeight : nil
         homeHealthSnapshot.weeklyStepsTotal = weekSummaries?.reduce(0.0, { $0 + $1.steps }) ?? 0
         homeHealthSnapshot.sleepHours = resolvedSleepHours
         homeHealthSnapshot.activityRings = resolvedRings
         homeHealthSnapshot.hasLoaded = true
         homeHealthSnapshot.lastUpdatedAt = Date()
+    }
+
+    private func weeklySummaries(
+        for userId: String,
+        endingOn day: Date,
+        policy: HealthDataFetchPolicy
+    ) async -> [HealthKitDailyAggregateData]? {
+        if policy == .cachedOnly {
+            let calendar = Calendar.current
+            let endDay = calendar.startOfDay(for: day)
+            let startDay = calendar.date(byAdding: .day, value: -6, to: endDay) ?? endDay
+            let endExclusive = calendar.date(byAdding: .day, value: 1, to: endDay) ?? endDay
+            let interval = DateInterval(start: startDay, end: endExclusive)
+            return (try? healthKitDailyStore.cachedExistingDailySummaries(in: interval, userId: userId))
+        }
+
+        return try? await healthKitDailyStore.dailySummaries(
+            endingOn: day,
+            days: 7,
+            userId: userId,
+            policy: policy
+        )
+    }
+
+    private func summariesForRecentDays(
+        for userId: String,
+        endingOn day: Date,
+        days: Int,
+        policy: HealthDataFetchPolicy
+    ) async -> [HealthKitDailyAggregateData]? {
+        if policy == .cachedOnly {
+            let calendar = Calendar.current
+            let endDay = calendar.startOfDay(for: day)
+            let startDay = calendar.date(byAdding: .day, value: -(max(days, 1) - 1), to: endDay) ?? endDay
+            let endExclusive = calendar.date(byAdding: .day, value: 1, to: endDay) ?? endDay
+            let interval = DateInterval(start: startDay, end: endExclusive)
+            return (try? healthKitDailyStore.cachedExistingDailySummaries(in: interval, userId: userId))
+        }
+
+        return try? await healthKitDailyStore.dailySummaries(
+            endingOn: day,
+            days: max(days, 1),
+            userId: userId,
+            policy: policy
+        )
     }
 
     private func activityRingStatus(from summary: HealthKitDailyAggregateData?) -> ActivityRingStatus? {
@@ -376,11 +477,7 @@ struct DashboardModulesView: View {
 
         VStack(alignment: .leading, spacing: 16) {
             if dashboardService.isEditingMode {
-                DashboardInlineEditorBar(
-                    onApplyPreset: { preset in
-                        draftModules = dashboardService.modulesForPreset(preset)
-                    }
-                )
+                DashboardInlineEditorBar()
             }
 
             if displayModules.isEmpty {
@@ -428,6 +525,11 @@ struct DashboardModulesView: View {
             } else {
                 finishEditing()
             }
+        }
+        .onChange(of: dashboardService.pendingPresetSelection) { _, preset in
+            guard dashboardService.isEditingMode, let preset else { return }
+            draftModules = dashboardService.modulesForPreset(preset)
+            dashboardService.pendingPresetSelection = nil
         }
     }
 
@@ -540,6 +642,7 @@ struct DashboardGridLayout {
         let totalSpacing = CGFloat(safeColumnCount - 1) * spacing
         let cellWidth = max((availableWidth - totalSpacing) / CGFloat(safeColumnCount), 120)
         let cellHeight = max(min(cellWidth * 0.92, 220), 124)
+        let smallBaseHeight = max(min(cellWidth * 0.6, 188), 104)
 
         var occupancy: [[Bool]] = []
         var layoutItems: [DashboardGridLayoutItem] = []
@@ -623,13 +726,34 @@ struct DashboardGridLayout {
             maxOccupiedRow = max(maxOccupiedRow, targetRow + rowSpan)
         }
 
-        var rowHeights = Array(repeating: cellHeight, count: maxOccupiedRow)
+        var rowHeights = Array(repeating: smallBaseHeight, count: maxOccupiedRow)
 
         for item in layoutItems where item.module.size.rowSpan == 1 {
             rowHeights[item.row] = max(
                 rowHeights[item.row],
-                Self.preferredHeight(for: item.module, baseHeight: cellHeight)
+                Self.preferredHeight(
+                    for: item.module,
+                    smallBaseHeight: smallBaseHeight,
+                    mediumBaseHeight: cellHeight
+                )
             )
+        }
+
+        for item in layoutItems where item.module.size.rowSpan > 1 {
+            for rowIndex in item.row..<(item.row + item.module.size.rowSpan) {
+                rowHeights[rowIndex] = max(rowHeights[rowIndex], cellHeight)
+            }
+        }
+
+        // Force rows containing Programme to honor the boosted Programme height so
+        // neighboring cards in that row expand with it.
+        for item in layoutItems where item.module.type == .program && item.module.size.rowSpan == 1 {
+            let programRowFloor = Self.preferredHeight(
+                for: item.module,
+                smallBaseHeight: smallBaseHeight,
+                mediumBaseHeight: cellHeight
+            )
+            rowHeights[item.row] = max(rowHeights[item.row], programRowFloor)
         }
 
         var rowOrigins = Array(repeating: CGFloat.zero, count: maxOccupiedRow)
@@ -661,60 +785,29 @@ struct DashboardGridLayout {
             : 0
     }
 
-    private static func preferredHeight(for module: DashboardModule, baseHeight: CGFloat) -> CGFloat {
+    private static func preferredHeight(
+        for module: DashboardModule,
+        smallBaseHeight: CGFloat,
+        mediumBaseHeight: CGFloat
+    ) -> CGFloat {
         switch (module.type, module.size) {
         case (.program, .small):
-            return max(baseHeight * 1.08, 136)
+            return max(smallBaseHeight * 1.32, 142)
         case (.program, .medium):
-            return max(baseHeight * 1.24, 172)
+            return max(mediumBaseHeight * 1.44, 172)
+        case (_, .small):
+            return smallBaseHeight
+        case (_, .medium):
+            return mediumBaseHeight
         default:
-            return baseHeight
+            return mediumBaseHeight
         }
     }
 }
 
 struct DashboardInlineEditorBar: View {
-    let onApplyPreset: (DashboardPreset) -> Void
-
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                Menu {
-                    Section("Presets") {
-                        ForEach(DashboardPreset.productionCases) { preset in
-                            Button {
-                                onApplyPreset(preset)
-                            } label: {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(preset.displayName)
-                                    Text(preset.description)
-                                }
-                            }
-                        }
-                    }
-
-#if DEBUG
-                    Section("Debug Layout Tests") {
-                        ForEach(DashboardPreset.debugCases) { preset in
-                            Button {
-                                onApplyPreset(preset)
-                            } label: {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(preset.displayName)
-                                    Text(preset.description)
-                                }
-                            }
-                        }
-                    }
-#endif
-                } label: {
-                    Label("Presets", systemImage: "square.grid.2x2")
-                }
-                .buttonStyle(.bordered)
-
-                Spacer()
-            }
-
             Text("Drag cards to reorder them, and use the menu on each card to resize or hide it.")
                 .font(.footnote)
                 .foregroundColor(.secondary)
@@ -1005,9 +1098,14 @@ struct DashboardModuleCardChrome<Content: View>: View {
             VStack(spacing: 0) {
                 HStack(spacing: 8) {
                     Image(systemName: module.type.iconName)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 16, height: 16)
+
                         .foregroundColor(.secondary)
                         .font(.body)
 
+                    
                     Text(module.type.displayName)
                         .font(spec.headerFont)
                         .foregroundColor(.secondary)
@@ -1120,10 +1218,10 @@ struct FitSightModuleView: View {
     var body: some View {
         NavigationLink(destination: TrueSightView().appBackground()) {
             MetricCard(
-                value: "View"
+                value: "View",
+                pageNav: true
             )
         }
-       
     }
 }
 
@@ -1143,6 +1241,7 @@ struct NutritionModuleView: View {
             NavigationLink(destination: NutritionDayView().appBackground()) {
                 MetricCard(
                     value: smallCardValue,
+                    alignment: .center,
                     pageNav: true
                 )
             }
@@ -1417,7 +1516,8 @@ struct WeeklyStepsModuleView: View {
         } else {
             NavigationLink(destination: HealthHistoryChartView().appBackground()) {
                 MetricCard(
-                    value: displayValue
+                    value: displayValue,
+                    pageNav: true
                 )
             }
         }
@@ -1492,6 +1592,7 @@ struct TimerModuleView: View {
         NavigationLink(destination: TimerView().appBackground()) {
             MetricCard(
                 value: timerService.timer != nil ? timerService.formatted : "--:--",
+                alignment: .center,
                 pageNav: true
             )
         }
@@ -1508,20 +1609,21 @@ struct FitnessWorkoutsModuleView: View {
         NavigationLink(destination: destinationView) {
             MetricCard(
                 value: workoutDisplayValue,
+                alignment: .center,
                 pageNav: true
             )
         }
     }
 
     private var workoutDisplayValue: String {
-        if userService.currentUser?.isDemo == true {
-            return String(sessionService.sessions.count)
-        }
         if let count = homeHealthSnapshot.workoutsCount {
             return String(count)
         }
         if homeHealthSnapshot.isCollecting && !homeHealthSnapshot.hasLoaded {
             return "Loading..."
+        }
+        if userService.currentUser?.isDemo == true {
+            return String(sessionService.sessions.count)
         }
         return String(hkManager.workouts.count)
     }

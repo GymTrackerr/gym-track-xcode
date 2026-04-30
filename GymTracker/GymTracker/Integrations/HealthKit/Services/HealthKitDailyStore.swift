@@ -106,8 +106,11 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
     }
 
     override func loadFeature() {
-        // Intentionally no launch-time fetches here.
-        // Home/Settings initiate smart pull or full refresh explicitly.
+        kickOffLaunchSmartPullIfEligible()
+    }
+
+    override func sync() {
+        kickOffLaunchSmartPullIfEligible()
     }
 
     func dailySummary(
@@ -667,6 +670,16 @@ final class HealthKitDailyStore: ServiceBase, ObservableObject {
 
         blocks.append(currentBlock)
         return blocks
+    }
+
+    private func kickOffLaunchSmartPullIfEligible() {
+        guard let user = currentUser else { return }
+        guard user.isDemo != true else { return }
+        guard user.allowHealthAccess else { return }
+        let userId = user.id.uuidString
+        Task(priority: .utility) {
+            _ = await self.smartPullTodayOnly(userId: userId)
+        }
     }
 
 }

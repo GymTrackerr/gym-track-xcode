@@ -331,7 +331,7 @@ struct CreateSessionSheetView: View {
                                             .padding(.vertical, 8)
                                     }
                                     .buttonStyle(.borderedProminent)
-                                    .disabled(activeProgramState.activeSession == nil && activeProgramState.nextWorkout?.routine == nil)
+                                    .disabled(activeProgramState.activeSession == nil && !activeProgramState.canStartNextWorkout)
                                 }
 
                                 HStack {

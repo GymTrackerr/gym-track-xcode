@@ -6,6 +6,7 @@ import CoreGraphics
 final class DashboardService: ServiceBase, ObservableObject {
     @Published var modules: [DashboardModule] = []
     @Published var isEditingMode: Bool = false
+    @Published var pendingPresetSelection: DashboardPreset?
 
     private let userDefaults = UserDefaults.standard
     private let modulesKey = "dashboardModules"
@@ -140,8 +141,8 @@ final class DashboardService: ServiceBase, ObservableObject {
             DashboardModule(type: .activityRings, size: .medium, order: 5),
             DashboardModule(type: .truesight, size: .small, order: 6),
             DashboardModule(type: .nutrition, size: .small, order: 7),
-            DashboardModule(type: .sessionVolume, size: .medium, order: 8),
-            DashboardModule(type: .program, size: .medium, order: 9)
+            DashboardModule(type: .program, size: .small, order: 8),
+            DashboardModule(type: .sessionVolume, size: .medium, order: 9)
         ]
     }
 
@@ -183,7 +184,8 @@ final class DashboardService: ServiceBase, ObservableObject {
                 DashboardModule(type: .weeklySteps, size: .medium, order: 2),
                 DashboardModule(type: .truesight, size: .small, order: 3),
                 DashboardModule(type: .fitnessWorkouts, size: .small, order: 4),
-                DashboardModule(type: .nutrition, size: .small, order: 5)
+                DashboardModule(type: .nutrition, size: .small, order: 5),
+                DashboardModule(type: .program, size: .medium, order: 6)
             ]
         case .mixedBalanced:
             return [
@@ -193,7 +195,8 @@ final class DashboardService: ServiceBase, ObservableObject {
                 DashboardModule(type: .activityRings, size: .medium, order: 3),
                 DashboardModule(type: .truesight, size: .small, order: 4),
                 DashboardModule(type: .nutrition, size: .small, order: 5),
-                DashboardModule(type: .fitnessWorkouts, size: .small, order: 6)
+                DashboardModule(type: .fitnessWorkouts, size: .small, order: 6),
+                DashboardModule(type: .program, size: .medium, order: 7)
             ]
         case .wideStressTest:
             return [
@@ -203,7 +206,8 @@ final class DashboardService: ServiceBase, ObservableObject {
                 DashboardModule(type: .activityRings, size: .medium, order: 3),
                 DashboardModule(type: .currentWeight, size: .small, order: 4),
                 DashboardModule(type: .timer, size: .small, order: 5),
-                DashboardModule(type: .truesight, size: .small, order: 6)
+                DashboardModule(type: .truesight, size: .small, order: 6),
+                DashboardModule(type: .program, size: .medium, order: 7)
             ]
 #endif
         }

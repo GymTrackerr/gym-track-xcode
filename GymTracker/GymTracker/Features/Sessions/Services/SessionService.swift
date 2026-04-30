@@ -144,7 +144,7 @@ class SessionService : ServiceBase, ObservableObject {
     func startProgramWorkout(program: Program, workout: ProgramWorkout) -> Session? {
         selectedProgram = program
         selectedProgramWorkout = workout
-        selected_splitDay = workout.routine
+        selected_splitDay = nil
         return addSession()
     }
 
@@ -157,7 +157,7 @@ class SessionService : ServiceBase, ObservableObject {
     func selectProgramWorkout(program: Program, workout: ProgramWorkout) {
         selectedProgram = program
         selectedProgramWorkout = workout
-        selected_splitDay = workout.routine
+        selected_splitDay = nil
     }
 
     func resetCreationState() {

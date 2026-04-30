@@ -440,6 +440,7 @@ private struct ProgramBlockSummaryCard: View {
 }
 
 private struct ProgramWorkoutRowCard: View {
+    @EnvironmentObject private var programService: ProgramService
     let workout: ProgramWorkout
     let resolvedState: ProgramResolvedState
     let showScheduleLabel: Bool
@@ -504,7 +505,7 @@ private struct ProgramWorkoutRowCard: View {
                     .frame(minWidth: 64)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(isLockedByAnotherActiveSession || workout.routine == nil)
+            .disabled(isLockedByAnotherActiveSession || !programService.isWorkoutStartable(workout))
         }
         .padding(12)
         .background(Color.gray.opacity(0.06))
