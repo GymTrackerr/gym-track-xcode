@@ -7,3 +7,4 @@ GymTracker/Docs/*
 /GymTracker/build
 /GymTracker/.build*
 /.build*
+docs/*

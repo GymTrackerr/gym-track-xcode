@@ -150,29 +150,3 @@ extension View {
         }
     }
 }
-
-struct AppBackground: View {
-    var body: some View {
-        ZStack(alignment: .top) {
-            Color(.systemBackground)
-
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color(red: 0.85, green: 0.1, blue: 0.1),
-                    Color.clear
-                ]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: 400)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        }
-        .ignoresSafeArea()
-    }
-}
-
-extension View {
-    func appBackground() -> some View {
-        self.background(AppBackground())
-    }
-}

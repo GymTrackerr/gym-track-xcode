@@ -120,7 +120,7 @@ struct SessionExerciseView: View {
                     }
                 }
             }
-            .screenContentPadding()
+            .sessionExerciseContentPadding()
         }
         .navigationTitle(sessionEntry.exercise.name)
         .navigationBarTitleDisplayMode(.inline)
@@ -1738,7 +1738,7 @@ private struct DurationWheelPicker: View {
 }
 
 extension View {
-    func screenContentPadding() -> some View {
+    func sessionExerciseContentPadding() -> some View {
         self
             .padding(.horizontal)
             .padding(.top, 8)

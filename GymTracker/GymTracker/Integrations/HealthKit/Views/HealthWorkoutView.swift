@@ -144,23 +144,6 @@ struct HealthWorkoutView: View {
     }
 }
 
-// Filter Pill Component
-struct FilterPill: View {
-    let title: String
-    let isSelected: Bool
-
-    var body: some View {
-        Text(title)
-            .font(.caption)
-            .fontWeight(.semibold)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(isSelected ? Color.accentColor : Color.gray.opacity(0.2))
-            .foregroundColor(isSelected ? .white : .primary)
-            .cornerRadius(20)
-    }
-}
-
 // Workout Row Component
 struct WorkoutRow: View {
     let workout: HealthKitWorkout
