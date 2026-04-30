@@ -129,7 +129,7 @@ struct NutritionDayView: View {
         }
         .sheet(isPresented: $showDatePickerSheet) {
             NutritionDatePickerSheet(selectedDate: $selectedDate)
-                .presentationDetents([.medium])
+                .presentationDetents([.large])
         }
         .sheet(isPresented: $showLogSheet) {
             NutritionLogSheet(selectedDate: selectedDate)
@@ -205,17 +205,16 @@ struct NutritionDayView: View {
                     Button {
                         showDatePickerSheet = true
                     } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "calendar")
-                                .font(.subheadline.weight(.semibold))
-                            Text(selectedDate, format: .dateTime.month(.abbreviated).day().year())
-                                .font(.headline)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.8)
-                        }
-                        .foregroundStyle(.primary)
+                        Image(systemName: "calendar")
+                            .font(.headline)
+                            .frame(width: 32, height: 32)
                     }
                     .buttonStyle(.plain)
+
+                    Text(selectedDate, format: .dateTime.month(.abbreviated).day().year())
+                        .font(.headline)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
 
                     Spacer()
 
@@ -310,6 +309,7 @@ struct NutritionDayView: View {
         }
     }
 
+    @ViewBuilder
     private func nutritionCategorySection(
         category: FoodLogCategory,
         standalone: [NutritionLogEntry],
@@ -657,16 +657,24 @@ private struct NutritionDatePickerSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack {
-                DatePicker("Date", selection: $selectedDate, displayedComponents: .date)
-                    .datePickerStyle(.graphical)
-                    .labelsHidden()
-                    .padding()
-
-                Spacer()
+            ScrollView {
+                CardRowContainer {
+                    DatePicker("Date", selection: $selectedDate, displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                        .labelsHidden()
+                }
+                .screenContentPadding()
             }
             .navigationTitle("Select Date")
+            .navigationBarTitleDisplayMode(.inline)
+            .appBackground()
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Today") {
+                        selectedDate = Calendar.current.startOfDay(for: Date())
+                    }
+                }
+
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                 }

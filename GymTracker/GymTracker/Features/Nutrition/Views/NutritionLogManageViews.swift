@@ -117,82 +117,25 @@ struct NutritionLogSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    Picker("Mode", selection: $mode) {
-                        ForEach(NutritionLogMode.allCases) { value in
-                            Text(value.rawValue).tag(value)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                }
-
-                switch mode {
-                case .food, .drink:
-                    Section(mode == .drink ? "Drink" : "Food") {
-                        Button {
-                            showFoodPicker = true
-                        } label: {
-                            HStack {
-                                Text(mode == .drink ? "Drink" : "Food")
-                                Spacer()
-                                Text(selectedFood?.name ?? "Select")
-                                    .foregroundStyle(selectedFood == nil ? .secondary : .primary)
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundStyle(.tertiary)
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    ConnectedCardSection {
+                        ConnectedCardRow {
+                            Picker("Mode", selection: $mode) {
+                                ForEach(NutritionLogMode.allCases) { value in
+                                    Text(value.rawValue).tag(value)
+                                }
                             }
+                            .pickerStyle(.segmented)
                         }
-                        .buttonStyle(.plain)
-
-                        TextField("Amount (\(amountUnitLabel))", text: $amount)
-                            .keyboardType(.decimalPad)
                     }
-                case .meal:
-                    Section("Meal") {
-                        Button {
-                            showMealPicker = true
-                        } label: {
-                            HStack {
-                                Text("Template")
-                                Spacer()
-                                Text(selectedMeal?.name ?? "Select")
-                                    .foregroundStyle(selectedMeal == nil ? .secondary : .primary)
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundStyle(.tertiary)
-                            }
-                        }
-                        .buttonStyle(.plain)
 
-                        if let selectedMeal {
-                            Text("\(selectedMeal.items.count) items")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        TextField("Servings", value: $mealServings, format: .number)
-                            .keyboardType(.decimalPad)
-                    }
-                case .quickAdd:
-                    Section("Quick Add") {
-                        TextField("Calories", text: $quickCalories)
-                            .keyboardType(.decimalPad)
-                    }
+                    modeSection
+                    detailsSection
                 }
-
-                Section("Details") {
-                    Picker("Category", selection: $category) {
-                        ForEach(FoodLogCategory.displayOrder) { item in
-                            Text(item.displayName).tag(item)
-                        }
-                    }
-
-                    DatePicker("Time", selection: $selectedTime, displayedComponents: .hourAndMinute)
-
-                    TextField("Note (optional)", text: $note)
-                }
+                .screenContentPadding()
             }
+            .appBackground()
             .navigationTitle("Log")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -251,6 +194,115 @@ struct NutritionLogSheet: View {
             } message: {
                 Text(saveErrorMessage)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var modeSection: some View {
+        switch mode {
+        case .food, .drink:
+            VStack(alignment: .leading, spacing: 8) {
+                SectionHeaderView(title: mode == .drink ? "Drink" : "Food")
+                ConnectedCardSection {
+                    Button {
+                        showFoodPicker = true
+                    } label: {
+                        ConnectedCardRow {
+                            pickerRow(
+                                title: mode == .drink ? "Drink" : "Food",
+                                value: selectedFood?.name ?? "Select"
+                            )
+                        }
+                    }
+                    .buttonStyle(.plain)
+
+                    ConnectedCardDivider()
+
+                    ConnectedCardRow {
+                        TextField("Amount (\(amountUnitLabel))", text: $amount)
+                            .keyboardType(.decimalPad)
+                    }
+                }
+            }
+        case .meal:
+            VStack(alignment: .leading, spacing: 8) {
+                SectionHeaderView(title: "Meal")
+                ConnectedCardSection {
+                    Button {
+                        showMealPicker = true
+                    } label: {
+                        ConnectedCardRow {
+                            pickerRow(title: "Template", value: selectedMeal?.name ?? "Select")
+                        }
+                    }
+                    .buttonStyle(.plain)
+
+                    if let selectedMeal {
+                        ConnectedCardDivider()
+                        ConnectedCardRow {
+                            Text("\(selectedMeal.items.count) items")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    ConnectedCardDivider()
+
+                    ConnectedCardRow {
+                        TextField("Servings", value: $mealServings, format: .number)
+                            .keyboardType(.decimalPad)
+                    }
+                }
+            }
+        case .quickAdd:
+            VStack(alignment: .leading, spacing: 8) {
+                SectionHeaderView(title: "Quick Add")
+                ConnectedCardSection {
+                    ConnectedCardRow {
+                        TextField("Calories", text: $quickCalories)
+                            .keyboardType(.decimalPad)
+                    }
+                }
+            }
+        }
+    }
+
+    private var detailsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: "Details")
+            ConnectedCardSection {
+                ConnectedCardRow {
+                    Picker("Category", selection: $category) {
+                        ForEach(FoodLogCategory.displayOrder) { item in
+                            Text(item.displayName).tag(item)
+                        }
+                    }
+                }
+
+                ConnectedCardDivider()
+
+                ConnectedCardRow {
+                    DatePicker("Time", selection: $selectedTime, displayedComponents: .hourAndMinute)
+                }
+
+                ConnectedCardDivider()
+
+                ConnectedCardRow {
+                    TextField("Note (optional)", text: $note)
+                }
+            }
+        }
+    }
+
+    private func pickerRow(title: String, value: String) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Text(value)
+                .foregroundStyle(value == "Select" ? .secondary : .primary)
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
         }
     }
 
@@ -362,41 +414,27 @@ struct NutritionFoodPickerView: View {
     }
 
     var body: some View {
-        List {
-            Section {
-                Picker("Type", selection: $filter) {
-                    ForEach(FoodFilterKind.allCases) { item in
-                        Text(item.title).tag(item)
-                    }
-                }
-                .pickerStyle(.segmented)
-                Toggle("Show archived", isOn: $showArchived)
-            }
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                foodFilterCard
 
-            if !sections.favorites.isEmpty {
-                Section("Favorites") {
-                    ForEach(sections.favorites, id: \.id) { food in
-                        foodRow(food)
-                    }
+                if !sections.favorites.isEmpty {
+                    foodSection(title: "Favorites", foods: sections.favorites)
                 }
-            }
 
-            if !sections.recent.isEmpty {
-                Section("Recent") {
-                    ForEach(sections.recent, id: \.id) { food in
-                        foodRow(food)
-                    }
+                if !sections.recent.isEmpty {
+                    foodSection(title: "Recent", foods: sections.recent)
                 }
-            }
 
-            Section("All") {
-                ForEach(sections.all, id: \.id) { food in
-                    foodRow(food)
-                }
+                foodSection(title: "All", foods: sections.all)
             }
+            .screenContentPadding()
         }
-        .scrollContentBackground(.hidden)
-        .searchable(text: $searchText)
+        .appBackground()
+        .searchable(
+            text: $searchText,
+            placement: .navigationBarDrawer(displayMode: .always)
+        )
         .navigationTitle(pickerTitle)
         .onAppear {
             filter = initialFilter
@@ -439,30 +477,72 @@ struct NutritionFoodPickerView: View {
             || (food.brand?.localizedCaseInsensitiveContains(searchText) ?? false)
     }
 
-    private func foodRow(_ food: FoodItem) -> some View {
+    private var foodFilterCard: some View {
+        ConnectedCardSection {
+            ConnectedCardRow {
+                Picker("Type", selection: $filter) {
+                    ForEach(FoodFilterKind.allCases) { item in
+                        Text(item.title).tag(item)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+
+            ConnectedCardDivider()
+
+            ConnectedCardRow {
+                Toggle("Show archived", isOn: $showArchived)
+            }
+        }
+    }
+
+    private func foodSection(title: String, foods: [FoodItem]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: title)
+
+            if foods.isEmpty {
+                EmptyStateView(
+                    title: searchText.isEmpty ? "No \(title.lowercased())" : "No results",
+                    systemImage: "fork.knife",
+                    message: searchText.isEmpty ? "Create an item to see it here." : "No items match your search."
+                )
+            } else {
+                LazyVStack(spacing: 8) {
+                    ForEach(foods, id: \.id) { food in
+                        selectableFoodCard(food)
+                    }
+                }
+            }
+        }
+    }
+
+    private func selectableFoodCard(_ food: FoodItem) -> some View {
         Button {
             onSelect(food)
             dismiss()
         } label: {
-            FoodRowView(food: food) {
-                if food.isFavorite {
-                    Image(systemName: "star.fill")
-                        .foregroundStyle(.yellow)
+            CardRowContainer {
+                FoodRowView(food: food) {
+                    if food.isFavorite {
+                        Image(systemName: "star.fill")
+                            .foregroundStyle(.yellow)
+                    }
                 }
             }
         }
         .buttonStyle(.plain)
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+        .contextMenu {
             if food.isArchived {
-                Button("Unarchive") {
+                Button {
                     do {
                         try nutritionService.unarchiveFood(food: food)
                     } catch {
                         actionErrorMessage = error.localizedDescription
                         showActionError = true
                     }
+                } label: {
+                    Label("Unarchive", systemImage: "archivebox")
                 }
-                .tint(.green)
             }
         }
     }
@@ -483,21 +563,17 @@ struct NutritionMealPickerView: View {
     }
 
     var body: some View {
-        List {
-            Section {
-                ForEach(filteredMeals, id: \.id) { meal in
-                    Button {
-                        onSelect(meal)
-                        dismiss()
-                    } label: {
-                        MealRowView(meal: meal)
-                    }
-                    .buttonStyle(.plain)
-                }
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                mealPickerSection
             }
+            .screenContentPadding()
         }
-        .scrollContentBackground(.hidden)
-        .searchable(text: $searchText)
+        .appBackground()
+        .searchable(
+            text: $searchText,
+            placement: .navigationBarDrawer(displayMode: .always)
+        )
         .navigationTitle("Select Meal")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -529,6 +605,38 @@ struct NutritionMealPickerView: View {
             }
         }
     }
+
+    private var mealPickerSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: "Meals")
+
+            if filteredMeals.isEmpty {
+                EmptyStateView(
+                    title: searchText.isEmpty ? "No meals" : "No results",
+                    systemImage: "fork.knife",
+                    message: searchText.isEmpty ? "Create a meal template to see it here." : "No meals match your search."
+                )
+            } else {
+                LazyVStack(spacing: 8) {
+                    ForEach(filteredMeals, id: \.id) { meal in
+                        selectableMealCard(meal)
+                    }
+                }
+            }
+        }
+    }
+
+    private func selectableMealCard(_ meal: MealRecipe) -> some View {
+        Button {
+            onSelect(meal)
+            dismiss()
+        } label: {
+            CardRowContainer {
+                MealRowView(meal: meal)
+            }
+        }
+        .buttonStyle(.plain)
+    }
 }
 
 struct ManageNutritionView: View {
@@ -542,14 +650,20 @@ struct ManageNutritionView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 12) {
-                Picker("Manage", selection: $selectedTab) {
-                    ForEach(ManageTab.allCases) { tab in
-                        Text(tab.rawValue).tag(tab)
+            VStack(spacing: 0) {
+                ConnectedCardSection {
+                    ConnectedCardRow {
+                        Picker("Manage", selection: $selectedTab) {
+                            ForEach(ManageTab.allCases) { tab in
+                                Text(tab.rawValue).tag(tab)
+                            }
+                        }
+                        .pickerStyle(.segmented)
                     }
                 }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 6)
 
                 if selectedTab == .foods {
                     ManageFoodsView()
@@ -558,6 +672,7 @@ struct ManageNutritionView: View {
                 }
             }
             .navigationTitle("Manage")
+            .appBackground()
         }
     }
 }
@@ -582,66 +697,17 @@ private struct ManageFoodsView: View {
     }
 
     var body: some View {
-        List {
-            Section {
-                Picker("Type", selection: $filter) {
-                    ForEach(FoodFilterKind.allCases) { item in
-                        Text(item.title).tag(item)
-                    }
-                }
-                .pickerStyle(.segmented)
-                Toggle("Show archived", isOn: $showArchived)
-                Button {
-                    showCreateFood = true
-                } label: {
-                    Label(createTitle, systemImage: "plus.circle")
-                }
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                manageFoodControls
+                managedFoodSection
             }
-
-            Section(filter.pluralTitle) {
-                ForEach(foods, id: \.id) { food in
-                    Button {
-                        editingFood = food
-                    } label: {
-                        FoodRowView(food: food) {
-                            Button {
-                                nutritionService.toggleFavorite(food: food)
-                            } label: {
-                                Image(systemName: food.isFavorite ? "star.fill" : "star")
-                                    .foregroundStyle(food.isFavorite ? .yellow : .secondary)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        if food.isArchived {
-                            Button("Unarchive") {
-                                do {
-                                    try nutritionService.unarchiveFood(food: food)
-                                } catch {
-                                    actionErrorMessage = error.localizedDescription
-                                    showActionError = true
-                                }
-                            }
-                            .tint(.green)
-                        } else {
-                            Button("Archive") {
-                                do {
-                                    try nutritionService.archiveFood(food: food)
-                                } catch {
-                                    actionErrorMessage = error.localizedDescription
-                                    showActionError = true
-                                }
-                            }
-                            .tint(.orange)
-                        }
-                    }
-                }
-            }
+            .screenContentPadding()
         }
-        .scrollContentBackground(.hidden)
-        .searchable(text: $searchText)
+        .searchable(
+            text: $searchText,
+            placement: .navigationBarDrawer(displayMode: .always)
+        )
         .sheet(isPresented: $showCreateFood) {
             NavigationStack {
                 NutritionFoodEditorView(preferredKind: filter.kind)
@@ -660,6 +726,100 @@ private struct ManageFoodsView: View {
             Text(actionErrorMessage)
         }
     }
+
+    private var manageFoodControls: some View {
+        ConnectedCardSection {
+            ConnectedCardRow {
+                Picker("Type", selection: $filter) {
+                    ForEach(FoodFilterKind.allCases) { item in
+                        Text(item.title).tag(item)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+
+            ConnectedCardDivider()
+
+            ConnectedCardRow {
+                Toggle("Show archived", isOn: $showArchived)
+            }
+
+            ConnectedCardDivider()
+
+            Button {
+                showCreateFood = true
+            } label: {
+                ConnectedCardRow {
+                    Label(createTitle, systemImage: "plus.circle")
+                }
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var managedFoodSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: filter.pluralTitle)
+
+            if foods.isEmpty {
+                EmptyStateView(
+                    title: searchText.isEmpty ? "No \(filter.pluralTitle.lowercased())" : "No results",
+                    systemImage: "fork.knife",
+                    message: searchText.isEmpty ? "Add an item to see it here." : "No items match your search."
+                )
+            } else {
+                LazyVStack(spacing: 8) {
+                    ForEach(foods, id: \.id) { food in
+                        managedFoodCard(food)
+                    }
+                }
+            }
+        }
+    }
+
+    private func managedFoodCard(_ food: FoodItem) -> some View {
+        Button {
+            editingFood = food
+        } label: {
+            CardRowContainer {
+                FoodRowView(food: food) {
+                    Button {
+                        nutritionService.toggleFavorite(food: food)
+                    } label: {
+                        Image(systemName: food.isFavorite ? "star.fill" : "star")
+                            .foregroundStyle(food.isFavorite ? .yellow : .secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            if food.isArchived {
+                Button {
+                    do {
+                        try nutritionService.unarchiveFood(food: food)
+                    } catch {
+                        actionErrorMessage = error.localizedDescription
+                        showActionError = true
+                    }
+                } label: {
+                    Label("Unarchive", systemImage: "archivebox")
+                }
+            } else {
+                Button {
+                    do {
+                        try nutritionService.archiveFood(food: food)
+                    } catch {
+                        actionErrorMessage = error.localizedDescription
+                        showActionError = true
+                    }
+                } label: {
+                    Label("Archive", systemImage: "archivebox")
+                }
+            }
+        }
+    }
 }
 
 private struct ManageMealsView: View {
@@ -674,35 +834,17 @@ private struct ManageMealsView: View {
     }
 
     var body: some View {
-        List {
-            Section {
-                Button {
-                    showCreateMeal = true
-                } label: {
-                    Label("Add Meal", systemImage: "plus.circle")
-                }
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                manageMealControls
+                managedMealSection
             }
-
-            Section("Meals") {
-                ForEach(meals, id: \.id) { meal in
-                    Button {
-                        editingMeal = meal
-                    } label: {
-                        MealRowView(meal: meal)
-                    }
-                    .buttonStyle(.plain)
-                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                        Button(role: .destructive) {
-                            nutritionService.deleteMeal(meal)
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-                    }
-                }
-            }
+            .screenContentPadding()
         }
-        .scrollContentBackground(.hidden)
-        .searchable(text: $searchText)
+        .searchable(
+            text: $searchText,
+            placement: .navigationBarDrawer(displayMode: .always)
+        )
         .onAppear {
             nutritionService.loadMeals()
             nutritionService.loadFoods()
@@ -718,6 +860,57 @@ private struct ManageMealsView: View {
                 NutritionMealTemplateEditorView(meal: meal)
             }
             .presentationDetents([.large])
+        }
+    }
+
+    private var manageMealControls: some View {
+        ConnectedCardSection {
+            Button {
+                showCreateMeal = true
+            } label: {
+                ConnectedCardRow {
+                    Label("Add Meal", systemImage: "plus.circle")
+                }
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var managedMealSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: "Meals")
+
+            if meals.isEmpty {
+                EmptyStateView(
+                    title: searchText.isEmpty ? "No meals" : "No results",
+                    systemImage: "fork.knife",
+                    message: searchText.isEmpty ? "Add a meal to see it here." : "No meals match your search."
+                )
+            } else {
+                LazyVStack(spacing: 8) {
+                    ForEach(meals, id: \.id) { meal in
+                        managedMealCard(meal)
+                    }
+                }
+            }
+        }
+    }
+
+    private func managedMealCard(_ meal: MealRecipe) -> some View {
+        Button {
+            editingMeal = meal
+        } label: {
+            CardRowContainer {
+                MealRowView(meal: meal)
+            }
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button(role: .destructive) {
+                nutritionService.deleteMeal(meal)
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
         }
     }
 }
@@ -786,6 +979,8 @@ struct NutritionFoodEditorView: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .appBackground()
         .navigationTitle(food == nil ? "Add Food" : "Edit Food")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -950,6 +1145,7 @@ struct NutritionMealTemplateEditorView: View {
                     }
                 }
             }
+            .cardListRowStyle()
 
             Section(sectionTitle) {
                 Picker("Type", selection: $filter) {
@@ -995,6 +1191,7 @@ struct NutritionMealTemplateEditorView: View {
                                 .keyboardType(.decimalPad)
                         }
                         .padding(.vertical, 4)
+                        .cardListRowStyle()
                     }
                     .onDelete { offsets in
                         draftItems.remove(atOffsets: offsets)
@@ -1008,6 +1205,7 @@ struct NutritionMealTemplateEditorView: View {
                     } label: {
                         Label("Add Item", systemImage: "plus.circle")
                     }
+                    .cardListRowStyle()
                 }
             }
 
@@ -1017,9 +1215,12 @@ struct NutritionMealTemplateEditorView: View {
                         .font(.caption)
                         .foregroundStyle(.red)
                 }
+                .cardListRowStyle()
             }
         }
+        .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .appBackground()
         .navigationTitle(meal == nil ? "Create Meal Template" : "Edit Meal Template")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {

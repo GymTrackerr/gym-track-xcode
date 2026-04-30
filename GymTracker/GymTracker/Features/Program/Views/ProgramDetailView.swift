@@ -209,11 +209,10 @@ struct ProgramDetailView: View {
                         Button {
                             openedSession = session
                         } label: {
-                            CardRowContainer {
-                                SingleSessionLabelView(session: session)
-                                    .foregroundStyle(.primary)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
+                            SingleSessionLabelView(session: session)
+                                .foregroundStyle(.primary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(CardRowBackground())
                         }
                         .buttonStyle(.plain)
                     }
