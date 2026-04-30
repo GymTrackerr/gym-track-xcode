@@ -219,8 +219,11 @@ struct NutritionLogSheet: View {
                     ConnectedCardDivider()
 
                     ConnectedCardRow {
-                        TextField("Amount (\(amountUnitLabel))", text: $amount)
-                            .keyboardType(.decimalPad)
+                        LabeledContent("Amount") {
+                            TextField(amountUnitLabel, text: $amount)
+                                .keyboardType(.decimalPad)
+                                .multilineTextAlignment(.trailing)
+                        }
                     }
                 }
             }
@@ -249,8 +252,11 @@ struct NutritionLogSheet: View {
                     ConnectedCardDivider()
 
                     ConnectedCardRow {
-                        TextField("Servings", value: $mealServings, format: .number)
-                            .keyboardType(.decimalPad)
+                        LabeledContent("Servings") {
+                            TextField("1", value: $mealServings, format: .number)
+                                .keyboardType(.decimalPad)
+                                .multilineTextAlignment(.trailing)
+                        }
                     }
                 }
             }
@@ -259,8 +265,11 @@ struct NutritionLogSheet: View {
                 SectionHeaderView(title: "Quick Add")
                 ConnectedCardSection {
                     ConnectedCardRow {
-                        TextField("Calories", text: $quickCalories)
-                            .keyboardType(.decimalPad)
+                        LabeledContent("Calories") {
+                            TextField("0", text: $quickCalories)
+                                .keyboardType(.decimalPad)
+                                .multilineTextAlignment(.trailing)
+                        }
                     }
                 }
             }
@@ -288,7 +297,10 @@ struct NutritionLogSheet: View {
                 ConnectedCardDivider()
 
                 ConnectedCardRow {
-                    TextField("Note (optional)", text: $note)
+                    LabeledContent("Note") {
+                        TextField("Optional", text: $note)
+                            .multilineTextAlignment(.trailing)
+                    }
                 }
             }
         }
@@ -661,9 +673,7 @@ struct ManageNutritionView: View {
                         .pickerStyle(.segmented)
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-                .padding(.bottom, 6)
+                .screenContentPadding()
 
                 if selectedTab == .foods {
                     ManageFoodsView()
@@ -942,72 +952,22 @@ struct NutritionFoodEditorView: View {
     @State private var errorText: String?
 
     var body: some View {
-        Form {
-            Section("Food") {
-                LabeledContent("Name") {
-                    TextField("Required", text: $name)
-                        .multilineTextAlignment(.trailing)
-                }
-                LabeledContent("Brand") {
-                    TextField("Optional", text: $brand)
-                        .multilineTextAlignment(.trailing)
-                }
-                LabeledContent("Reference Label") {
-                    TextField("Optional", text: $referenceLabel)
-                        .multilineTextAlignment(.trailing)
-                }
-                Picker("Type", selection: $kind) {
-                    Text("Food").tag(FoodItemKind.food)
-                    Text("Drink").tag(FoodItemKind.drink)
-                    Text("Ingredient").tag(FoodItemKind.ingredient)
-                }
-                Picker("Unit", selection: $unit) {
-                    ForEach(FoodItemUnit.allCases) { value in
-                        Text(value.displayName).tag(value)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                foodDetailsSection
+                referenceAmountSection
+                nutritionValuesSection
+
+                if let errorText {
+                    CardRowContainer {
+                        Text(errorText)
+                            .font(.caption)
+                            .foregroundStyle(.red)
                     }
                 }
             }
-
-            Section("Reference Amount") {
-                LabeledContent("\(unit.displayName) per reference") {
-                    TextField("Required", text: $gramsPerReference)
-                        .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
-                }
-            }
-
-            Section("Nutrition Per Reference") {
-                LabeledContent("Calories") {
-                    TextField("0", text: $kcalPerReference)
-                        .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
-                }
-                LabeledContent("Protein") {
-                    TextField("0", text: $proteinPerReference)
-                        .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
-                }
-                LabeledContent("Carbs") {
-                    TextField("0", text: $carbPerReference)
-                        .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
-                }
-                LabeledContent("Fat") {
-                    TextField("0", text: $fatPerReference)
-                        .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
-                }
-            }
-
-            if let errorText {
-                Section {
-                    Text(errorText)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-            }
+            .screenContentPadding()
         }
-        .scrollContentBackground(.hidden)
         .appBackground()
         .navigationTitle(food == nil ? "Add Food" : "Edit Food")
         .toolbar {
@@ -1020,6 +980,118 @@ struct NutritionFoodEditorView: View {
         }
         .onAppear {
             loadInitialValues()
+        }
+    }
+
+    private var foodDetailsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: "Food")
+            ConnectedCardSection {
+                ConnectedCardRow {
+                    LabeledContent("Name") {
+                        TextField("Required", text: $name)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+
+                ConnectedCardDivider()
+
+                ConnectedCardRow {
+                    LabeledContent("Brand") {
+                        TextField("Optional", text: $brand)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+
+                ConnectedCardDivider()
+
+                ConnectedCardRow {
+                    LabeledContent("Reference Label") {
+                        TextField("Optional", text: $referenceLabel)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+
+                ConnectedCardDivider()
+
+                ConnectedCardRow {
+                    Picker("Type", selection: $kind) {
+                        Text("Food").tag(FoodItemKind.food)
+                        Text("Drink").tag(FoodItemKind.drink)
+                        Text("Ingredient").tag(FoodItemKind.ingredient)
+                    }
+                }
+
+                ConnectedCardDivider()
+
+                ConnectedCardRow {
+                    Picker("Unit", selection: $unit) {
+                        ForEach(FoodItemUnit.allCases) { value in
+                            Text(value.displayName).tag(value)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var referenceAmountSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: "Reference Amount")
+            ConnectedCardSection {
+                ConnectedCardRow {
+                    LabeledContent("\(unit.displayName) per reference") {
+                        TextField("Required", text: $gramsPerReference)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+            }
+        }
+    }
+
+    private var nutritionValuesSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: "Nutrition Per Reference")
+            ConnectedCardSection {
+                ConnectedCardRow {
+                    LabeledContent("Calories") {
+                        TextField("0", text: $kcalPerReference)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+
+                ConnectedCardDivider()
+
+                ConnectedCardRow {
+                    LabeledContent("Protein") {
+                        TextField("0", text: $proteinPerReference)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+
+                ConnectedCardDivider()
+
+                ConnectedCardRow {
+                    LabeledContent("Carbs") {
+                        TextField("0", text: $carbPerReference)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+
+                ConnectedCardDivider()
+
+                ConnectedCardRow {
+                    LabeledContent("Fat") {
+                        TextField("0", text: $fatPerReference)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+            }
         }
     }
 
@@ -1161,105 +1233,21 @@ struct NutritionMealTemplateEditorView: View {
     }
 
     var body: some View {
-        List {
-            Section("Meal") {
-                LabeledContent("Name") {
-                    TextField("Required", text: $name)
-                        .multilineTextAlignment(.trailing)
-                }
-                LabeledContent("Batch Size") {
-                    TextField("1", text: $batchSizeText)
-                        .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
-                }
-                LabeledContent("Serving Unit") {
-                    TextField("Serving Unit Label", text: $servingUnitLabel)
-                        .multilineTextAlignment(.trailing)
-                }
-                Picker("Default Category", selection: $defaultCategory) {
-                    ForEach(FoodLogCategory.displayOrder) { item in
-                        Text(item.displayName).tag(item)
-                    }
-                }
-            }
-            .cardListRowStyle()
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                mealDetailsSection
+                mealItemsSection
 
-            Section(sectionTitle) {
-                Picker("Type", selection: $filter) {
-                    ForEach(FoodFilterKind.allCases) { item in
-                        Text(item.title).tag(item)
-                    }
-                }
-                .pickerStyle(.segmented)
-                Toggle("Show archived", isOn: $showArchivedFoods)
-
-                if availableFoods.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("No \(filter.pluralTitle.lowercased()) yet")
-                            .font(.headline)
-                        Text("Create a \(selectionLabel.lowercased()) first to build this template.")
+                if let errorText {
+                    CardRowContainer {
+                        Text(errorText)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Button("Create \(selectionLabel)") {
-                            showCreateFood = true
-                        }
+                            .foregroundStyle(.red)
                     }
-                    .padding(.vertical, 4)
-                } else {
-                    ForEach($draftItems) { $item in
-                        VStack(spacing: 8) {
-                            Button {
-                                editingDraftItemID = item.id
-                                showFoodPicker = true
-                            } label: {
-                                HStack {
-                                    Text(selectionLabel)
-                                    Spacer()
-                                    Text(foodName(for: item.foodId) ?? "Select")
-                                        .foregroundStyle(item.foodId == nil ? .secondary : .primary)
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption)
-                                        .foregroundStyle(.tertiary)
-                                }
-                            }
-                            .buttonStyle(.plain)
-
-                            LabeledContent("Grams") {
-                                TextField("0", text: $item.gramsText)
-                                    .keyboardType(.decimalPad)
-                                    .multilineTextAlignment(.trailing)
-                            }
-                        }
-                        .padding(.vertical, 4)
-                        .cardListRowStyle()
-                    }
-                    .onDelete { offsets in
-                        draftItems.remove(atOffsets: offsets)
-                    }
-                    .onMove { source, destination in
-                        draftItems.move(fromOffsets: source, toOffset: destination)
-                    }
-
-                    Button {
-                        draftItems.append(MealTemplateDraftItem())
-                    } label: {
-                        Label("Add Item", systemImage: "plus.circle")
-                    }
-                    .cardListRowStyle()
                 }
             }
-
-            if let errorText {
-                Section {
-                    Text(errorText)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-                .cardListRowStyle()
-            }
+            .screenContentPadding()
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
         .appBackground()
         .navigationTitle(meal == nil ? "Create Meal Template" : "Edit Meal Template")
         .toolbar {
@@ -1268,9 +1256,6 @@ struct NutritionMealTemplateEditorView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Save") { save() }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                EditButton()
             }
         }
         .onAppear {
@@ -1296,6 +1281,141 @@ struct NutritionMealTemplateEditorView: View {
                 }
                 draftItems[index].foodId = selectedFood.id
                 editingDraftItemID = nil
+            }
+        }
+    }
+
+    private var mealDetailsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: "Meal")
+            ConnectedCardSection {
+                ConnectedCardRow {
+                    LabeledContent("Name") {
+                        TextField("Required", text: $name)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+
+                ConnectedCardDivider()
+
+                ConnectedCardRow {
+                    LabeledContent("Batch Size") {
+                        TextField("1", text: $batchSizeText)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+
+                ConnectedCardDivider()
+
+                ConnectedCardRow {
+                    LabeledContent("Serving Unit") {
+                        TextField("Serving Unit Label", text: $servingUnitLabel)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+
+                ConnectedCardDivider()
+
+                ConnectedCardRow {
+                    Picker("Default Category", selection: $defaultCategory) {
+                        ForEach(FoodLogCategory.displayOrder) { item in
+                            Text(item.displayName).tag(item)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var mealItemsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: sectionTitle)
+            ConnectedCardSection {
+                ConnectedCardRow {
+                    Picker("Type", selection: $filter) {
+                        ForEach(FoodFilterKind.allCases) { item in
+                            Text(item.title).tag(item)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                ConnectedCardDivider()
+
+                ConnectedCardRow {
+                    Toggle("Show archived", isOn: $showArchivedFoods)
+                }
+            }
+
+            if availableFoods.isEmpty {
+                EmptyStateView(
+                    title: "No \(filter.pluralTitle.lowercased()) yet",
+                    systemImage: "fork.knife",
+                    message: "Create a \(selectionLabel.lowercased()) first to build this template."
+                )
+
+                Button {
+                    showCreateFood = true
+                } label: {
+                    CardRowContainer {
+                        Label("Create \(selectionLabel)", systemImage: "plus.circle")
+                    }
+                }
+                .buttonStyle(.plain)
+            } else {
+                LazyVStack(spacing: 8) {
+                    ForEach($draftItems) { $item in
+                        mealDraftItemCard($item)
+                    }
+
+                    Button {
+                        draftItems.append(MealTemplateDraftItem())
+                    } label: {
+                        CardRowContainer {
+                            Label("Add Item", systemImage: "plus.circle")
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private func mealDraftItemCard(_ item: Binding<MealTemplateDraftItem>) -> some View {
+        CardRowContainer {
+            VStack(spacing: 10) {
+                Button {
+                    editingDraftItemID = item.wrappedValue.id
+                    showFoodPicker = true
+                } label: {
+                    HStack {
+                        Text(selectionLabel)
+                        Spacer()
+                        Text(foodName(for: item.wrappedValue.foodId) ?? "Select")
+                            .foregroundStyle(item.wrappedValue.foodId == nil ? .secondary : .primary)
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .buttonStyle(.plain)
+
+                HStack {
+                    LabeledContent("Grams") {
+                        TextField("0", text: item.gramsText)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+
+                    if draftItems.count > 1 {
+                        Button(role: .destructive) {
+                            draftItems.removeAll { $0.id == item.wrappedValue.id }
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                    }
+                }
             }
         }
     }

@@ -353,14 +353,21 @@ private struct RoutineCreateSheetView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        Form {
-            Section("Routine") {
-                LabeledContent("Name") {
-                    TextField("Required", text: $routineService.editingContent)
-                        .multilineTextAlignment(.trailing)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                SectionHeaderView(title: "Routine")
+                ConnectedCardSection {
+                    ConnectedCardRow {
+                        LabeledContent("Name") {
+                            TextField("Required", text: $routineService.editingContent)
+                                .multilineTextAlignment(.trailing)
+                        }
+                    }
                 }
             }
+            .screenContentPadding()
         }
+        .appBackground()
         .navigationTitle("New Routine")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

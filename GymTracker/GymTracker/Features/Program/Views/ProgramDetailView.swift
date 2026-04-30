@@ -1045,52 +1045,88 @@ struct ProgramEditorSheet: View {
     }
 
     var body: some View {
-        Form {
-            Section("Programme") {
-                LabeledContent("Name") {
-                    TextField("Required", text: $name)
-                        .multilineTextAlignment(.trailing)
-                }
-                LabeledContent("Notes") {
-                    TextField("Optional", text: $notes, axis: .vertical)
-                        .lineLimit(3, reservesSpace: true)
-                        .multilineTextAlignment(.trailing)
-                }
-                Picker("Schedule", selection: $mode) {
-                    ForEach(ProgramMode.allCases) { mode in
-                        Text(mode.title).tag(mode)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 8) {
+                    SectionHeaderView(title: "Programme")
+                    ConnectedCardSection {
+                        ConnectedCardRow {
+                            LabeledContent("Name") {
+                                TextField("Required", text: $name)
+                                    .multilineTextAlignment(.trailing)
+                            }
+                        }
+                        ConnectedCardDivider()
+                        ConnectedCardRow {
+                            LabeledContent("Notes") {
+                                TextField("Optional", text: $notes, axis: .vertical)
+                                    .lineLimit(3, reservesSpace: true)
+                                    .multilineTextAlignment(.trailing)
+                            }
+                        }
+                        ConnectedCardDivider()
+                        ConnectedCardRow {
+                            Picker("Schedule", selection: $mode) {
+                                ForEach(ProgramMode.allCases) { mode in
+                                    Text(mode.title).tag(mode)
+                                }
+                            }
+                        }
+                        ConnectedCardDivider()
+                        ConnectedCardRow {
+                            DatePicker("Start Date", selection: $startDate, displayedComponents: .date)
+                        }
+                        ConnectedCardDivider()
+                        ConnectedCardRow {
+                            Toggle("Set Active", isOn: $isActive)
+                        }
                     }
                 }
-                DatePicker("Start Date", selection: $startDate, displayedComponents: .date)
-                Toggle("Set Active", isOn: $isActive)
-            }
 
-            Section("Structure") {
-                Text("New programmes start as a continuous workout rotation. You can keep that simple setup or switch into blocks later if you want phases.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+                CardRowContainer {
+                    Text("New programmes start as a continuous workout rotation. You can keep that simple setup or switch into blocks later if you want phases.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
-            Section("Progression") {
-                Picker("Default Profile", selection: $selectedProgressionProfileId) {
-                    Text("None").tag(Optional<UUID>.none)
-                    ForEach(progressionService.profiles, id: \.id) { profile in
-                        Text(profile.name).tag(Optional(profile.id))
+                VStack(alignment: .leading, spacing: 8) {
+                    SectionHeaderView(title: "Progression")
+                    ConnectedCardSection {
+                        ConnectedCardRow {
+                            Picker("Default Profile", selection: $selectedProgressionProfileId) {
+                                Text("None").tag(Optional<UUID>.none)
+                                ForEach(progressionService.profiles, id: \.id) { profile in
+                                    Text(profile.name).tag(Optional(profile.id))
+                                }
+                            }
+                        }
+                        ConnectedCardDivider()
+                        ConnectedCardRow {
+                            Text("Programme-started sessions will use this profile for exercises that do not already have their own saved override.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
 
-                Text("Programme-started sessions will use this profile for exercises that do not already have their own saved override.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            if mode == .continuous {
-                Section("Continuous Schedule") {
-                    Stepper("Train Days Before Rest: \(trainDaysBeforeRest)", value: $trainDaysBeforeRest, in: 1...14)
-                    Stepper("Rest Days: \(restDays)", value: $restDays, in: 0...7)
+                if mode == .continuous {
+                    VStack(alignment: .leading, spacing: 8) {
+                        SectionHeaderView(title: "Continuous Schedule")
+                        ConnectedCardSection {
+                            ConnectedCardRow {
+                                Stepper("Train Days Before Rest: \(trainDaysBeforeRest)", value: $trainDaysBeforeRest, in: 1...14)
+                            }
+                            ConnectedCardDivider()
+                            ConnectedCardRow {
+                                Stepper("Rest Days: \(restDays)", value: $restDays, in: 0...7)
+                            }
+                        }
+                    }
                 }
             }
+            .screenContentPadding()
         }
+        .appBackground()
         .navigationTitle(program == nil ? "New Programme" : "Edit Programme")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -1172,28 +1208,50 @@ private struct ProgramBlockEditorSheet: View {
     @State private var copyPreviousBlock = false
 
     var body: some View {
-        Form {
-            Section("Block") {
-                LabeledContent("Name") {
-                    TextField("Optional", text: $name)
-                        .multilineTextAlignment(.trailing)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 8) {
+                    SectionHeaderView(title: "Block")
+                    ConnectedCardSection {
+                        ConnectedCardRow {
+                            LabeledContent("Name") {
+                                TextField("Optional", text: $name)
+                                    .multilineTextAlignment(.trailing)
+                            }
+                        }
+                        ConnectedCardDivider()
+                        ConnectedCardRow {
+                            Toggle("Repeat Forever", isOn: $repeatsForever)
+                        }
+                        if !repeatsForever {
+                            ConnectedCardDivider()
+                            ConnectedCardRow {
+                                Stepper(durationLabel, value: $durationCount, in: 1...24)
+                            }
+                        }
+                    }
                 }
-                Toggle("Repeat Forever", isOn: $repeatsForever)
 
-                if !repeatsForever {
-                    Stepper(durationLabel, value: $durationCount, in: 1...24)
+                if let previousBlock, !previousBlock.workouts.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        SectionHeaderView(title: "Copy Previous Block")
+                        ConnectedCardSection {
+                            ConnectedCardRow {
+                                Toggle("Copy workouts from \(previousBlock.displayName)", isOn: $copyPreviousBlock)
+                            }
+                            ConnectedCardDivider()
+                            ConnectedCardRow {
+                                Text("This copies the routines and workout order so you can tweak the next phase instead of rebuilding it from scratch.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                 }
             }
-
-            if let previousBlock, !previousBlock.workouts.isEmpty {
-                Section("Copy Previous Block") {
-                    Toggle("Copy workouts from \(previousBlock.displayName)", isOn: $copyPreviousBlock)
-                    Text("This copies the routines and workout order so you can tweak the next phase instead of rebuilding it from scratch.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
+            .screenContentPadding()
         }
+        .appBackground()
         .navigationTitle("New Block")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -1248,34 +1306,50 @@ private struct ProgramWorkoutEditorSheet: View {
     }
 
     var body: some View {
-        Form {
-            Section("Workout") {
-                if routineService.routines.isEmpty {
-                    Text("Create a routine first, then come back and attach it to this workout slot.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Picker("Routine", selection: $selectedRoutineId) {
-                        ForEach(routineService.routines, id: \.id) { routine in
-                            Text(routine.name).tag(Optional(routine.id))
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                SectionHeaderView(title: "Workout")
+                ConnectedCardSection {
+                    if routineService.routines.isEmpty {
+                        ConnectedCardRow {
+                            Text("Create a routine first, then come back and attach it to this workout slot.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        ConnectedCardRow {
+                            Picker("Routine", selection: $selectedRoutineId) {
+                                ForEach(routineService.routines, id: \.id) { routine in
+                                    Text(routine.name).tag(Optional(routine.id))
+                                }
+                            }
                         }
                     }
-                }
 
-                LabeledContent("Custom Name") {
-                    TextField("Optional", text: $customName)
-                        .multilineTextAlignment(.trailing)
-                }
+                    ConnectedCardDivider()
 
-                if block.program.mode == .weekly {
-                    Picker("Day", selection: $selectedWeekday) {
-                        ForEach(ProgramWeekday.allCases) { weekday in
-                            Text(weekday.title).tag(weekday)
+                    ConnectedCardRow {
+                        LabeledContent("Custom Name") {
+                            TextField("Optional", text: $customName)
+                                .multilineTextAlignment(.trailing)
+                        }
+                    }
+
+                    if block.program.mode == .weekly {
+                        ConnectedCardDivider()
+                        ConnectedCardRow {
+                            Picker("Day", selection: $selectedWeekday) {
+                                ForEach(ProgramWeekday.allCases) { weekday in
+                                    Text(weekday.title).tag(weekday)
+                                }
+                            }
                         }
                     }
                 }
             }
+            .screenContentPadding()
         }
+        .appBackground()
         .navigationTitle("Add Workout")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

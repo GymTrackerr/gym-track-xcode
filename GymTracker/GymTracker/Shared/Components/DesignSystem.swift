@@ -29,9 +29,11 @@ struct AppBackgroundView: View {
 
 struct CardRowContainer<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
+    let isSelected: Bool
     let content: Content
 
-    init(@ViewBuilder content: () -> Content) {
+    init(isSelected: Bool = false, @ViewBuilder content: () -> Content) {
+        self.isSelected = isSelected
         self.content = content()
     }
 
@@ -42,7 +44,10 @@ struct CardRowContainer<Content: View>: View {
             .background(cardFill)
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.white.opacity(colorScheme == .dark ? 0.15 : 0.12), lineWidth: 1)
+                    .stroke(
+                        isSelected ? Color.accentColor : Color.white.opacity(colorScheme == .dark ? 0.15 : 0.12),
+                        lineWidth: isSelected ? 1.5 : 1
+                    )
             )
             .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
@@ -50,10 +55,14 @@ struct CardRowContainer<Content: View>: View {
     @ViewBuilder private var cardFill: some View {
         if colorScheme == .dark {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(0.08))
+                .fill(isSelected ? Color.accentColor.opacity(0.18) : Color.white.opacity(0.08))
         } else {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(.ultraThinMaterial)
+                .fill(isSelected ? Color.accentColor.opacity(0.12) : Color.clear)
+                .background {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                }
         }
     }
 }

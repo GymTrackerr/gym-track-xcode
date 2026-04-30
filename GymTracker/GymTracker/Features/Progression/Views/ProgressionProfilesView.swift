@@ -267,65 +267,15 @@ private struct ProgressionProfileEditorSheet: View {
     }
 
     var body: some View {
-        Form {
-            Section("Profile") {
-                LabeledContent("Name") {
-                    TextField("Required", text: $name)
-                        .multilineTextAlignment(.trailing)
-                        .disabled(profile?.isBuiltIn == true)
-                }
-
-                LabeledContent("Description") {
-                    TextField("Mini Description", text: $miniDescription, axis: .vertical)
-                        .lineLimit(3, reservesSpace: true)
-                        .multilineTextAlignment(.trailing)
-                }
-
-                Picker("Type", selection: $type) {
-                    ForEach(ProgressionType.allCases) { type in
-                        Text(type.title).tag(type)
-                    }
-                }
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                profileSection
+                targetsSection
+                advancementSection
             }
-
-            Section("Targets") {
-                Stepper("Default Sets: \(defaultSetsTarget)", value: $defaultSetsTarget, in: 1...12)
-
-                if type == .doubleProgression {
-                    Stepper("Rep Range Low: \(defaultRepsLow)", value: $defaultRepsLow, in: 1...30)
-                    Stepper("Rep Range High: \(defaultRepsHigh)", value: $defaultRepsHigh, in: 1...30)
-                } else {
-                    Stepper("Target Reps: \(defaultRepsTarget)", value: $defaultRepsTarget, in: 1...30)
-                }
-            }
-
-            Section("Advancement") {
-                LabeledContent("Weight Increment") {
-                    TextField("Weight Increment", value: $incrementValue, format: .number)
-                        .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
-                }
-
-                LabeledContent("Percentage Increase") {
-                    TextField("Percentage Increase", value: $percentageIncrease, format: .number)
-                        .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
-                }
-
-                Picker("Increment Unit", selection: $incrementUnit) {
-                    ForEach(WeightUnit.allCases) { unit in
-                        Text(unit.name).tag(unit)
-                    }
-                }
-                .pickerStyle(.segmented)
-
-                Stepper("Success Threshold: \(successThreshold)", value: $successThreshold, in: 1...10)
-
-                if type == .volume {
-                    Stepper("Set Increment: \(setIncrement)", value: $setIncrement, in: 1...5)
-                }
-            }
+            .screenContentPadding()
         }
+        .appBackground()
         .navigationTitle(profile == nil ? "New Profile" : "Edit Profile")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -348,6 +298,104 @@ private struct ProgressionProfileEditorSheet: View {
         .onChange(of: defaultRepsHigh) { _, newValue in
             if defaultRepsLow > newValue {
                 defaultRepsLow = newValue
+            }
+        }
+    }
+
+    private var profileSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: "Profile")
+            ConnectedCardSection {
+                ConnectedCardRow {
+                    LabeledContent("Name") {
+                        TextField("Required", text: $name)
+                            .multilineTextAlignment(.trailing)
+                            .disabled(profile?.isBuiltIn == true)
+                    }
+                }
+                ConnectedCardDivider()
+                ConnectedCardRow {
+                    LabeledContent("Description") {
+                        TextField("Mini Description", text: $miniDescription, axis: .vertical)
+                            .lineLimit(3, reservesSpace: true)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+                ConnectedCardDivider()
+                ConnectedCardRow {
+                    Picker("Type", selection: $type) {
+                        ForEach(ProgressionType.allCases) { type in
+                            Text(type.title).tag(type)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var targetsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: "Targets")
+            ConnectedCardSection {
+                ConnectedCardRow {
+                    Stepper("Default Sets: \(defaultSetsTarget)", value: $defaultSetsTarget, in: 1...12)
+                }
+                ConnectedCardDivider()
+                if type == .doubleProgression {
+                    ConnectedCardRow {
+                        Stepper("Rep Range Low: \(defaultRepsLow)", value: $defaultRepsLow, in: 1...30)
+                    }
+                    ConnectedCardDivider()
+                    ConnectedCardRow {
+                        Stepper("Rep Range High: \(defaultRepsHigh)", value: $defaultRepsHigh, in: 1...30)
+                    }
+                } else {
+                    ConnectedCardRow {
+                        Stepper("Target Reps: \(defaultRepsTarget)", value: $defaultRepsTarget, in: 1...30)
+                    }
+                }
+            }
+        }
+    }
+
+    private var advancementSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: "Advancement")
+            ConnectedCardSection {
+                ConnectedCardRow {
+                    LabeledContent("Weight Increment") {
+                        TextField("Weight Increment", value: $incrementValue, format: .number)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+                ConnectedCardDivider()
+                ConnectedCardRow {
+                    LabeledContent("Percentage Increase") {
+                        TextField("Percentage Increase", value: $percentageIncrease, format: .number)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+                ConnectedCardDivider()
+                ConnectedCardRow {
+                    Picker("Increment Unit", selection: $incrementUnit) {
+                        ForEach(WeightUnit.allCases) { unit in
+                            Text(unit.name).tag(unit)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                ConnectedCardDivider()
+                ConnectedCardRow {
+                    Stepper("Success Threshold: \(successThreshold)", value: $successThreshold, in: 1...10)
+                }
+                if type == .volume {
+                    ConnectedCardDivider()
+                    ConnectedCardRow {
+                        Stepper("Set Increment: \(setIncrement)", value: $setIncrement, in: 1...5)
+                    }
+                }
             }
         }
     }

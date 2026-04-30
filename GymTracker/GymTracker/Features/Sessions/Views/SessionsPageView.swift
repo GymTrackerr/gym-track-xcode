@@ -22,10 +22,8 @@ struct SessionsPageView: View {
                 }
             }
             .pickerStyle(.segmented)
-            .padding(.horizontal)
 
             summaryCard
-                .padding(.horizontal)
 
             if visibleSessions.isEmpty {
                 ContentUnavailableView {
@@ -73,6 +71,7 @@ struct SessionsPageView: View {
                 .scrollContentBackground(.hidden)
             }
         }
+        .screenContentPadding()
         .appBackground()
         .navigationTitle("Sessions")
         .navigationBarTitleDisplayMode(.inline)

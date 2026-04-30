@@ -49,7 +49,7 @@ struct ExercisesView: View {
                     .foregroundColor(.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
+            .padding(.vertical, 4)
 
             // Filter Pills
             ScrollView(.horizontal, showsIndicators: false) {
@@ -85,7 +85,6 @@ struct ExercisesView: View {
                     }
                     Spacer()
                 }
-                .padding(.horizontal)
             }
             .padding(.vertical, 12)
 
@@ -141,6 +140,7 @@ struct ExercisesView: View {
                 .scrollContentBackground(.hidden)
             }
         }
+        .screenContentPadding()
         .searchable(
             text: $searchText,
             placement: .navigationBarDrawer(displayMode: .automatic),
