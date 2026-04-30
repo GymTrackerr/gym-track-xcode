@@ -66,105 +66,23 @@ struct NutritionDayView: View {
     }
 
     var body: some View {
-        VStack(spacing: 12) {
-            dayHeader
-            dailySummary
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                dayHeader
+                dailySummary
 
-            if dayLogs.isEmpty {
-                ContentUnavailableView("No logs for this day", systemImage: "fork.knife")
-                    .frame(maxHeight: .infinity)
-            } else {
-                List {
-                    ForEach(FoodLogCategory.displayOrder) { category in
-                        let standalone = standaloneLogs(for: category)
-                        let meals = mealLogs(for: category)
-
-                        if !standalone.isEmpty || !meals.isEmpty {
-                            Section {
-                                ForEach(standalone, id: \.id) { log in
-                                    NutritionLogRow(log: log)
-                                        .contentShape(Rectangle())
-                                        .onTapGesture {
-                                            editingLog = log
-                                        }
-                                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                            Button(role: .destructive) {
-                                                nutritionService.deleteFoodLog(log, selectedDate: selectedDate)
-                                            } label: {
-                                                Label("Delete", systemImage: "trash")
-                                            }
-                                        }
-                                        .cardListRowStyle()
-                                }
-
-                                ForEach(meals, id: \.id) { log in
-                                    let isExpanded = expandedMealLogIDs.contains(log.id)
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        NutritionMealLogHeaderRow(
-                                            log: log,
-                                            isExpanded: isExpanded,
-                                            onSaveAsTemplate: {
-                                                mealLogToSaveTemplate = log
-                                                mealTemplateName = log.nameSnapshot
-                                                showSaveTemplateAlert = true
-                                            }
-                                        )
-                                        .contentShape(Rectangle())
-                                        .onTapGesture {
-                                            toggleMealLog(log.id)
-                                        }
-                                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                            Button(role: .destructive) {
-                                                nutritionService.deleteMealEntry(log, selectedDate: selectedDate)
-                                                expandedMealLogIDs.remove(log.id)
-                                            } label: {
-                                                Label("Delete", systemImage: "trash")
-                                            }
-                                        }
-
-                                        if isExpanded {
-                                            let items = log.recipeItemsSnapshot ?? []
-                                            if items.isEmpty {
-                                                Text("No meal item snapshot available")
-                                                    .font(.caption)
-                                                    .foregroundStyle(.secondary)
-                                                    .padding(.leading, 24)
-                                            } else {
-                                                let displayScale = recipeItemDisplayScale(for: log, items: items)
-                                                Divider()
-                                                    .padding(.leading, 12)
-                                                    .padding(.bottom, 4)
-
-                                                VStack(spacing: 8) {
-                                                    ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                                                        RecipeItemSnapshotRow(item: item, scale: displayScale)
-                                                    }
-                                                }
-                                                .padding(.top, 3)
-                                                .padding(.leading, 24)
-                                            }
-                                        }
-                                    }
-                                    .padding(.vertical, 8)
-                                    .padding(.leading, 12)
-                                    .padding(.trailing, 4)
-                                    .cardListRowStyle()
-                                }
-                            } header: {
-                                Text(category.displayName)
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(.primary)
-                                    .textCase(nil)
-                                    .padding(.top, 14)
-                            }
-                        }
-                    }
+                if dayLogs.isEmpty {
+                    EmptyStateView(
+                        title: "No logs for this day",
+                        systemImage: "fork.knife",
+                        message: "Add food, quick calories, or a meal to start tracking this day."
+                    )
+                } else {
+                    logSections
                 }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
             }
+            .screenContentPadding()
         }
-        .padding(.top, 8)
         .appBackground()
         .navigationTitle("Nutrition")
         .navigationBarTitleDisplayMode(.inline)
@@ -270,47 +188,57 @@ struct NutritionDayView: View {
     }
 
     private var dayHeader: some View {
-        HStack(spacing: 12) {
-            Button {
-                selectedDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.headline)
-                    .frame(width: 32, height: 32)
-            }
+        ConnectedCardSection {
+            ConnectedCardRow {
+                HStack(spacing: 10) {
+                    Button {
+                        selectedDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.headline)
+                            .frame(width: 32, height: 32)
+                    }
+                    .buttonStyle(.plain)
 
-            Spacer()
+                    Spacer()
 
-            Text(selectedDate, format: .dateTime.month(.abbreviated).day().year())
-                .font(.headline)
+                    Button {
+                        showDatePickerSheet = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "calendar")
+                                .font(.subheadline.weight(.semibold))
+                            Text(selectedDate, format: .dateTime.month(.abbreviated).day().year())
+                                .font(.headline)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        }
+                        .foregroundStyle(.primary)
+                    }
+                    .buttonStyle(.plain)
 
-            Spacer()
+                    Spacer()
 
-            Button {
-                selectedDate = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate) ?? selectedDate
-            } label: {
-                Image(systemName: "chevron.right")
-                    .font(.headline)
-                    .frame(width: 32, height: 32)
-            }
+                    Button {
+                        selectedDate = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate) ?? selectedDate
+                    } label: {
+                        Image(systemName: "chevron.right")
+                            .font(.headline)
+                            .frame(width: 32, height: 32)
+                    }
+                    .buttonStyle(.plain)
 
-            Button {
-                showDatePickerSheet = true
-            } label: {
-                Image(systemName: "calendar")
-                    .font(.headline)
-                    .frame(width: 32, height: 32)
-            }
-
-            Button {
-                showCopyYesterdayConfirmation = true
-            } label: {
-                Image(systemName: "doc.on.doc")
-                    .font(.headline)
-                    .frame(width: 32, height: 32)
+                    Button {
+                        showCopyYesterdayConfirmation = true
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                            .font(.headline)
+                            .frame(width: 32, height: 32)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
         }
-        .padding(.horizontal)
     }
 
     private var dailySummary: some View {
@@ -365,7 +293,140 @@ struct NutritionDayView: View {
                 }
             }
         }
-        .padding(.horizontal)
+    }
+
+    private var logSections: some View {
+        ForEach(FoodLogCategory.displayOrder) { category in
+            let standalone = standaloneLogs(for: category)
+            let meals = mealLogs(for: category)
+
+            if !standalone.isEmpty || !meals.isEmpty {
+                nutritionCategorySection(
+                    category: category,
+                    standalone: standalone,
+                    meals: meals
+                )
+            }
+        }
+    }
+
+    private func nutritionCategorySection(
+        category: FoodLogCategory,
+        standalone: [NutritionLogEntry],
+        meals: [NutritionLogEntry]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: category.displayName)
+
+            ConnectedCardSection {
+                let combinedCount = standalone.count + meals.count
+
+                ForEach(Array(standalone.enumerated()), id: \.element.id) { index, log in
+                    foodLogRow(log)
+
+                    if index < combinedCount - 1 {
+                        ConnectedCardDivider(leadingInset: 14)
+                    }
+                }
+
+                ForEach(Array(meals.enumerated()), id: \.element.id) { index, log in
+                    mealLogRow(log)
+
+                    if standalone.count + index < combinedCount - 1 {
+                        ConnectedCardDivider(leadingInset: 14)
+                    }
+                }
+            }
+        }
+    }
+
+    private func foodLogRow(_ log: NutritionLogEntry) -> some View {
+        ConnectedCardRow {
+            NutritionLogRow(log: log)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            editingLog = log
+        }
+        .contextMenu {
+            Button {
+                editingLog = log
+            } label: {
+                Label("Edit", systemImage: "pencil")
+            }
+
+            Button(role: .destructive) {
+                nutritionService.deleteFoodLog(log, selectedDate: selectedDate)
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+    }
+
+    private func mealLogRow(_ log: NutritionLogEntry) -> some View {
+        let isExpanded = expandedMealLogIDs.contains(log.id)
+
+        return ConnectedCardRow {
+            VStack(alignment: .leading, spacing: 10) {
+                NutritionMealLogHeaderRow(
+                    log: log,
+                    isExpanded: isExpanded,
+                    onSaveAsTemplate: {
+                        mealLogToSaveTemplate = log
+                        mealTemplateName = log.nameSnapshot
+                        showSaveTemplateAlert = true
+                    }
+                )
+
+                if isExpanded {
+                    mealSnapshotRows(for: log)
+                }
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            toggleMealLog(log.id)
+        }
+        .contextMenu {
+            Button {
+                mealLogToSaveTemplate = log
+                mealTemplateName = log.nameSnapshot
+                showSaveTemplateAlert = true
+            } label: {
+                Label("Save as Template", systemImage: "tray.and.arrow.down")
+            }
+
+            Button(role: .destructive) {
+                nutritionService.deleteMealEntry(log, selectedDate: selectedDate)
+                expandedMealLogIDs.remove(log.id)
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func mealSnapshotRows(for log: NutritionLogEntry) -> some View {
+        let items = log.recipeItemsSnapshot ?? []
+
+        if items.isEmpty {
+            Text("No meal item snapshot available")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.leading, 24)
+        } else {
+            let displayScale = recipeItemDisplayScale(for: log, items: items)
+
+            Divider()
+                .padding(.leading, 24)
+
+            VStack(spacing: 8) {
+                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                    RecipeItemSnapshotRow(item: item, scale: displayScale)
+                }
+            }
+            .padding(.leading, 24)
+        }
     }
 
     private func standaloneLogs(for category: FoodLogCategory) -> [NutritionLogEntry] {
@@ -491,7 +552,6 @@ private struct NutritionMealLogHeaderRow: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 4)
     }
 
     private func displayAmount(_ value: Double) -> String {
@@ -546,9 +606,6 @@ private struct NutritionLogRow: View {
                 }
             }
         }
-        .padding(.vertical, 8)
-        .padding(.leading, 12)
-        .padding(.trailing, 4)
     }
 
     private func displayAmount(_ value: Double) -> String {

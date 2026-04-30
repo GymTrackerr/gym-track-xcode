@@ -79,6 +79,46 @@ struct CardRowBackground: View {
     }
 }
 
+struct ConnectedCardSection<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            content
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(CardRowBackground())
+        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+struct ConnectedCardRow<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct ConnectedCardDivider: View {
+    var leadingInset: CGFloat = 14
+
+    var body: some View {
+        Divider()
+            .padding(.leading, leadingInset)
+    }
+}
+
 struct NavigableCardRow<Content: View, Destination: View>: View {
     let destination: Destination
     let content: Content
