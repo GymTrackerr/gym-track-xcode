@@ -37,6 +37,7 @@ struct NotesImportExercisePickerView: View {
                     }
                 }
             }
+            .screenContentPadding()
             .navigationTitle("Choose Exercise")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Search name or alias")

@@ -359,6 +359,7 @@ private struct ExerciseDetailView: View {
                 previousLogsSection
                 transferHistoryButton
             }
+            .screenContentPadding()
         }
         .toolbar {
             detailToolbar(proxy: proxy)
@@ -377,7 +378,6 @@ private struct ExerciseDetailView: View {
             CachedMediaView(url: gifURL)
                 .frame(height: 240)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
-                .padding(.horizontal)
         }
     }
 
@@ -425,7 +425,6 @@ private struct ExerciseDetailView: View {
             .padding()
             .background(Color(.systemGray6))
             .cornerRadius(12)
-            .padding(.horizontal)
         }
     }
 
@@ -488,7 +487,6 @@ private struct ExerciseDetailView: View {
             .padding()
             .background(Color(.systemGray6))
             .cornerRadius(12)
-            .padding(.horizontal)
         }
     }
 
@@ -502,7 +500,6 @@ private struct ExerciseDetailView: View {
                 showingProgressionSheet = true
             }
         )
-        .padding(.horizontal)
     }
 
     private var progressSection: some View {
@@ -523,7 +520,6 @@ private struct ExerciseDetailView: View {
         .padding()
         .background(Color(.systemGray6))
         .cornerRadius(12)
-        .padding(.horizontal)
     }
 
     private var progressMetricSelector: some View {
@@ -662,7 +658,6 @@ private struct ExerciseDetailView: View {
             .background(Color.accentColor)
             .cornerRadius(14)
         }
-        .padding(.horizontal)
         .padding(.bottom, 10)
     }
 
@@ -681,7 +676,6 @@ private struct ExerciseDetailView: View {
             .background(Color.accentColor)
             .cornerRadius(14)
         }
-        .padding(.horizontal)
         .padding(.bottom, 12)
     }
 
@@ -701,7 +695,6 @@ private struct ExerciseDetailView: View {
             .background(canOpenTrueSight ? Color.accentColor : Color.gray.opacity(0.3))
             .cornerRadius(14)
         }
-        .padding(.horizontal)
         .padding(.bottom, 12)
         .disabled(!canOpenTrueSight)
     }
@@ -714,16 +707,14 @@ private struct ExerciseDetailView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Previous Logs")
                 .font(.headline)
-                .padding(.horizontal)
                 .id(previousLogsSectionID)
 
             if previousSessions.isEmpty {
                 EmptyStateView(
                     title: "No Previous Logs",
                     systemImage: "clock.arrow.circlepath",
-                    message: "Completed sessions for this exercise will appear here."
-                )
-                .padding(.horizontal)
+                message: "Completed sessions for this exercise will appear here."
+            )
             } else {
                 VStack(spacing: 8) {
                     ForEach(previousSessions) { item in
@@ -765,7 +756,6 @@ private struct ExerciseDetailView: View {
             }
         }
         .buttonStyle(.plain)
-        .padding(.horizontal)
     }
 
     private var transferHistoryButton: some View {

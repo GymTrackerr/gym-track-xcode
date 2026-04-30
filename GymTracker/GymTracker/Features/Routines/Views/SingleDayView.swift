@@ -55,16 +55,13 @@ struct SingleDayView: View {
                         }
                     }
                 }
-                .padding()
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Identity")
                         .font(.headline)
-                        .padding(.horizontal)
 
                     TextField("Routine Name", text: $routine.name)
                         .textFieldStyle(.roundedBorder)
-                        .padding(.horizontal)
 
                     HStack(spacing: 8) {
                         TextField("Add alias", text: $routineAliasDraft)
@@ -76,7 +73,6 @@ struct SingleDayView: View {
                         .buttonStyle(.bordered)
                         .disabled(routineAliasDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
-                    .padding(.horizontal)
 
                     if !routine.aliases.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -99,7 +95,6 @@ struct SingleDayView: View {
                                     .clipShape(Capsule())
                                 }
                             }
-                            .padding(.horizontal)
                         }
                     }
 
@@ -116,7 +111,6 @@ struct SingleDayView: View {
                         }
                     }
                     .buttonStyle(.plain)
-                    .padding(.horizontal)
                 }
             }
             
@@ -154,6 +148,7 @@ struct SingleDayView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
         }
+        .screenContentPadding()
         .navigationTitle(routine.name)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
@@ -325,6 +320,7 @@ private struct RoutineProgressionSheet: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .screenContentPadding()
         .navigationTitle("Routine Progression")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

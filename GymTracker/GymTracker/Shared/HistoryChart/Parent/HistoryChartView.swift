@@ -301,7 +301,7 @@ struct HistoryChartView<FilterControls: View>: View {
                         .padding(.horizontal, 4)
                 }
             }
-            .padding()
+            .screenContentPadding()
         }
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)

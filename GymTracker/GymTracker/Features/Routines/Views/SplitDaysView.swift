@@ -40,6 +40,7 @@ struct SplitDaysView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .screenContentPadding()
         .appBackground()
         .navigationTitle("Routines")
         .toolbar {
@@ -77,7 +78,7 @@ struct SplitDaysView: View {
                     
                     Spacer()
                 }
-                .padding()
+                .screenContentPadding()
                 .navigationTitle("Create New Routine")
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {

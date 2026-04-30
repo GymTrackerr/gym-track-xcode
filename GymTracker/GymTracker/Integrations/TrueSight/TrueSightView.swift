@@ -58,7 +58,6 @@ struct TrueSightView: View {
                 Text("Exercise Video Analysis")
                     .font(.title2)
                     .fontWeight(.bold)
-                    .padding(.horizontal, 16)
                 
                 NavigationLink {
                     FitSightExercisePickerView(selectedExerciseId: $selectedExerciseId)
@@ -85,7 +84,6 @@ struct TrueSightView: View {
                     .background(Color(.systemGray6))
                     .cornerRadius(12)
                 }
-                .padding(.horizontal, 16)
 
                 // Select video button (only show if not in webcam mode)
                 if !isWebcamMode {
@@ -111,7 +109,6 @@ struct TrueSightView: View {
                         .background(Color.blue)
                         .cornerRadius(10)
                     }
-                    .padding(.horizontal, 16)
                     .disabled(manager.isProcessing || isPreparingVideo)
                 }
                 
@@ -128,7 +125,6 @@ struct TrueSightView: View {
                             .background(Color.green)
                             .cornerRadius(10)
                     }
-                    .padding(.horizontal, 16)
                     .disabled(manager.isProcessing || selectedExercise == nil || isPreparingVideo || isCheckingExercise)
                 }
 
@@ -140,7 +136,6 @@ struct TrueSightView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
-                    .padding(.horizontal, 16)
                 }
                 
                 // Processing status
@@ -168,7 +163,6 @@ struct TrueSightView: View {
                     .frame(maxWidth: .infinity)
                     .background(Color(.systemGray6))
                     .cornerRadius(12)
-                    .padding(.horizontal, 16)
                 }
 
                 if let selectionErrorMessage {
@@ -177,7 +171,6 @@ struct TrueSightView: View {
                         .padding()
                         .background(Color.red.opacity(0.1))
                         .cornerRadius(8)
-                        .padding(.horizontal, 16)
                 }
                 
                 // Error message
@@ -187,7 +180,6 @@ struct TrueSightView: View {
                         .padding()
                         .background(Color.red.opacity(0.1))
                         .cornerRadius(8)
-                        .padding(.horizontal, 16)
                 }
                 
                 // Processed video
@@ -200,7 +192,6 @@ struct TrueSightView: View {
                         ProcessedVideoPlayer(url: processedURL)
                             .frame(height: 300)
                             .cornerRadius(10)
-                            .padding(.horizontal, 16)
                         
                         Button(action: {
                             downloadVideo(url: processedURL)
@@ -213,13 +204,13 @@ struct TrueSightView: View {
                                 .background(Color.purple)
                                 .cornerRadius(10)
                         }
-                        .padding(.horizontal, 16)
                     }
                 }
                 
                 Spacer(minLength: 8)
             }
             .padding(.vertical, 12)
+            .screenContentPadding()
         }
         .navigationTitle("TrueSight")
         .navigationBarTitleDisplayMode(.inline)
@@ -359,6 +350,7 @@ struct FitSightExercisePickerView: View {
                 Text("Only exercises with a valid npId are shown here, so the selection stays aligned with the ExerciseDB-backed TrueSight flow.")
             }
         }
+        .screenContentPadding()
         .navigationTitle("Choose Exercise")
         .searchable(text: $searchText, prompt: "Search exercises or npId")
     }

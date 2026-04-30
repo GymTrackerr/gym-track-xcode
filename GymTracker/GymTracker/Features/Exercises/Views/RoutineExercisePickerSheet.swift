@@ -93,7 +93,7 @@ struct RoutineExercisePickerSheet: View {
                     Spacer()
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .padding()
+                .screenContentPadding()
                 .navigationTitle(title)
                 .toolbar {
                     ToolbarItem(placement: .navigationBarTrailing) {

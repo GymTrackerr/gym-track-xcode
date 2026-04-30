@@ -712,6 +712,7 @@ private struct ProgramManagementSheet: View {
                 blocksSection
             }
         }
+        .screenContentPadding()
         .environment(\.editMode, $editMode)
         .navigationTitle("Edit Programme")
         .navigationBarTitleDisplayMode(.inline)
@@ -934,6 +935,7 @@ private struct ProgramBlockManagementSheet: View {
                 }
             }
         }
+        .screenContentPadding()
         .environment(\.editMode, $editMode)
         .navigationTitle("Edit Block")
         .navigationBarTitleDisplayMode(.inline)

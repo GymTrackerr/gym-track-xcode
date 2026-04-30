@@ -69,7 +69,7 @@ struct CreateSetView: View {
             }
             Spacer()
         }
-        .padding()
+        .screenContentPadding()
         .navigationTitle("Create New Set")
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {

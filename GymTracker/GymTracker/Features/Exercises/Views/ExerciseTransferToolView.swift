@@ -363,6 +363,7 @@ private struct ExerciseSinglePickerSheet: View {
                     }
                 }
             }
+            .screenContentPadding()
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: prompt)
@@ -463,6 +464,7 @@ private struct SessionMultiPickerSheet: View {
                     }
                 }
             }
+            .screenContentPadding()
             .navigationTitle("Sessions")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Search sessions")

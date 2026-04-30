@@ -1560,6 +1560,7 @@ private struct MoveSetExercisePickerView: View {
                     }
                 }
             }
+            .screenContentPadding()
             .navigationTitle("Transfer Set")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Search exercise")
@@ -1726,9 +1727,11 @@ private struct DurationWheelPicker: View {
 extension View {
     func sessionExerciseContentPadding() -> some View {
         self
-            .padding(.horizontal)
+            .frame(maxWidth: 600, alignment: .leading)
+            .padding(.horizontal, 16)
             .padding(.top, 8)
             .padding(.bottom, 96)
+            .frame(maxWidth: .infinity, alignment: .center)
     }
 }
 

@@ -48,13 +48,11 @@ struct SingleSessionView: View {
                     sessionEditCard
                 }
             }
-            .padding(.horizontal)
             .padding(.top, 6)
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Today's Exercises")
                     .font(.headline)
-                    .padding(.horizontal)
 
                 List {
                     ForEach(sortedSessionEntries, id: \.id) { sessionEntry in
@@ -67,6 +65,7 @@ struct SingleSessionView: View {
                 .scrollContentBackground(.hidden)
             }
         }
+        .screenContentPadding()
         .foregroundStyle(.primary)
         
         .navigationTitle(sessionTitle)
@@ -720,9 +719,9 @@ struct addingExerciseSessionView : View {
                 }
 
                 .listStyle(.plain)
+                .screenContentPadding()
                 Spacer()
             }
-            .padding()
             .navigationTitle("Add Exercises")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
