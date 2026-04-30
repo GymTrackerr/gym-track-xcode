@@ -30,7 +30,6 @@ struct ContentView: View {
                             .appBackground()
                             .navigationDestination(isPresented: $linkActive) {
                                 TimerView()
-                                    .appBackground()
                             }
                     }
                 }
@@ -39,7 +38,7 @@ struct ContentView: View {
             if userService.currentUser?.showNutritionTab ?? true {
                 Tab("Nutrition", systemImage: "fork.knife", value: 3) {
                     NavigationStack {
-                        NutritionDayView().appBackground()
+                        NutritionDayView()
                     }
                 }
             }
@@ -47,21 +46,18 @@ struct ContentView: View {
             Tab("Sessions", systemImage: "list.bullet.rectangle", value: 2) {
                 NavigationStack {
                     SessionsPageView()
-                        .appBackground()
                 }
             }
             
             Tab("Exercises", systemImage: "dumbbell", value: 1) {
                 NavigationStack {
                     ExercisesView()
-                        .appBackground()
                 }
             }
 
             Tab("Programme", systemImage: "figure.walk.motion", value: 4) {
                 NavigationStack {
                     ProgramsRootView()
-                        .appBackground()
                 }
             }
             /*

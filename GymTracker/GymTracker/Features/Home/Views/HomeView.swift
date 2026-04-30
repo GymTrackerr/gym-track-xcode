@@ -1238,7 +1238,7 @@ struct NutritionModuleView: View {
                 .padding(.horizontal, 4)
                 .padding(.vertical, 2)
         } else {
-            NavigationLink(destination: NutritionDayView().appBackground()) {
+            NavigationLink(destination: NutritionDayView()) {
                 MetricCard(
                     value: smallCardValue,
                     alignment: .center,
@@ -1391,7 +1391,7 @@ struct ProgramModuleView: View {
                 }
                 .buttonStyle(.plain)
             case .empty:
-                NavigationLink(destination: ProgramsRootView().appBackground()) {
+                NavigationLink(destination: ProgramsRootView()) {
                     moduleContent(
                         title: "No active programme",
                         subtitle: "Create or activate a programme",
@@ -1589,7 +1589,7 @@ struct TimerModuleView: View {
     @EnvironmentObject var timerService: TimerService
     
     var body: some View {
-        NavigationLink(destination: TimerView().appBackground()) {
+        NavigationLink(destination: TimerView()) {
             MetricCard(
                 value: timerService.timer != nil ? timerService.formatted : "--:--",
                 alignment: .center,
@@ -1631,7 +1631,7 @@ struct FitnessWorkoutsModuleView: View {
     @ViewBuilder
     private var destinationView: some View {
         if userService.currentUser?.isDemo == true {
-            SessionsPageView().appBackground()
+            SessionsPageView()
         } else {
             HealthWorkoutView().appBackground()
         }

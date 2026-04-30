@@ -106,6 +106,7 @@ struct TimerView: View {
             
             Spacer()
         }
+        .appBackground()
     }
     
     // Circle progress

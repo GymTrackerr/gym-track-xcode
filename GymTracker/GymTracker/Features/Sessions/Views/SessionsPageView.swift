@@ -80,6 +80,7 @@ struct SessionsPageView: View {
                 .scrollContentBackground(.hidden)
             }
         }
+        .appBackground()
         .navigationTitle("Sessions")
         .navigationBarTitleDisplayMode(.inline)
         

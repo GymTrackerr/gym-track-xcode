@@ -153,6 +153,7 @@ struct ExercisesView: View {
             placement: .navigationBarDrawer(displayMode: .automatic),
             prompt: "Search exercises"
         )
+        .appBackground()
         .navigationTitle("Exercises")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: ExerciseNavigationTarget.self) { target in

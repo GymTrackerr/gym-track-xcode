@@ -162,6 +162,7 @@ struct NutritionDayView: View {
             }
         }
         .padding(.top, 8)
+        .appBackground()
         .navigationTitle("Nutrition")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

@@ -86,7 +86,7 @@ struct SingleSessionView: View {
         #endif
             ToolbarItem(placement: .navigationBarTrailing) {
                 NavigationLink {
-                    TimerView().appBackground()
+                    TimerView()
                 } label: {
                     Label(timerButtonTitle, systemImage: "timer")
                 }

@@ -216,7 +216,7 @@ struct SessionExerciseView: View {
 
     private var timerQuickCard: some View {
         NavigationLink {
-            TimerView().appBackground()
+            TimerView()
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: "timer")

@@ -385,6 +385,7 @@ struct SettingsView: View {
             }
             .scrollContentBackground(.hidden)
         }
+        .appBackground()
         .navigationTitle("Settings")
         .alert(backupAlertTitle, isPresented: $showExportErrorAlert) {
             Button("OK", role: .cancel) { }
@@ -442,6 +443,7 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showExerciseTransferTool) {
             ExerciseTransferToolView()
+                .appBackground()
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }

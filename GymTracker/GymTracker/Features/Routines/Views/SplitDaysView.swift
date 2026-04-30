@@ -38,6 +38,7 @@ struct SplitDaysView: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .appBackground()
         .navigationTitle("Routines")
         .toolbar {
 #if os(iOS)
@@ -85,6 +86,7 @@ struct SplitDaysView: View {
                     }
                 }
             }
+            .appBackground()
         }
     }
 
