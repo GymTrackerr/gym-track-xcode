@@ -42,7 +42,6 @@ struct CreateSetView: View {
                 .textFieldStyle(.roundedBorder)
                 .padding(.horizontal)
             
-            /* add reps*/
             Text("Add Reps")
             ForEach (sessionSet.sessionReps, id: \.id) { rep in
                 CreateSingleRepView(sessionSet: sessionSet, sessionRep: rep)

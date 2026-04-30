@@ -116,7 +116,7 @@ struct SessionsPageView: View {
                 openedSession: $openedSession,
                 isPresented: $showingCreateSession
             )
-            .presentationDetents([.medium, .large])
+            .editorSheetPresentation()
         }
         .navigationDestination(isPresented: $showingNotesImport) {
             NotesImportView(currentUserId: userService.currentUser?.id) {

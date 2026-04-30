@@ -87,16 +87,6 @@ struct TrueSightView: View {
                 }
                 .padding(.horizontal, 16)
 
-                // Options
-                /*
-                Toggle("Draw Skeleton", isOn: $drawSkeleton)
-                    .padding(.horizontal, 16)
-                Toggle("Show Recommendations", isOn: $showRecommendations)
-                    .padding(.horizontal, 16)
-                Toggle("Webcam Mode", isOn: $isWebcamMode)
-                    .padding(.horizontal, 16)
-                */
-                
                 // Select video button (only show if not in webcam mode)
                 if !isWebcamMode {
                     Button(action: {

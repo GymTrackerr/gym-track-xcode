@@ -94,11 +94,13 @@ struct ProgressionProfilesView: View {
             NavigationStack {
                 ProgressionProfileEditorSheet(profile: nil)
             }
+            .editorSheetPresentation()
         }
         .sheet(item: $editingProfile) { profile in
             NavigationStack {
                 ProgressionProfileEditorSheet(profile: profile)
             }
+            .editorSheetPresentation()
         }
         .onAppear {
             progressionService.ensureBuiltInProfiles()
@@ -267,11 +269,17 @@ private struct ProgressionProfileEditorSheet: View {
     var body: some View {
         Form {
             Section("Profile") {
-                TextField("Name", text: $name)
-                    .disabled(profile?.isBuiltIn == true)
+                LabeledContent("Name") {
+                    TextField("Required", text: $name)
+                        .multilineTextAlignment(.trailing)
+                        .disabled(profile?.isBuiltIn == true)
+                }
 
-                TextField("Mini Description", text: $miniDescription, axis: .vertical)
-                    .lineLimit(3, reservesSpace: true)
+                LabeledContent("Description") {
+                    TextField("Mini Description", text: $miniDescription, axis: .vertical)
+                        .lineLimit(3, reservesSpace: true)
+                        .multilineTextAlignment(.trailing)
+                }
 
                 Picker("Type", selection: $type) {
                     ForEach(ProgressionType.allCases) { type in
@@ -292,11 +300,17 @@ private struct ProgressionProfileEditorSheet: View {
             }
 
             Section("Advancement") {
-                TextField("Weight Increment", value: $incrementValue, format: .number)
-                    .keyboardType(.decimalPad)
+                LabeledContent("Weight Increment") {
+                    TextField("Weight Increment", value: $incrementValue, format: .number)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                }
 
-                TextField("Percentage Increase", value: $percentageIncrease, format: .number)
-                    .keyboardType(.decimalPad)
+                LabeledContent("Percentage Increase") {
+                    TextField("Percentage Increase", value: $percentageIncrease, format: .number)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                }
 
                 Picker("Increment Unit", selection: $incrementUnit) {
                     ForEach(WeightUnit.allCases) { unit in

@@ -99,42 +99,12 @@ struct SessionsView: View {
                 }
             }
         }
-//        .toolbar {
-//#if os(iOS)
-//            ToolbarItem(placement: .navigationBarTrailing) {
-//                EditButton()
-//            }
-//#endif
-//        }
-        // https://nilcoalescing.com/blog/PresentingLiquidGlassSheetsInSwiftUI/
-        // https://nilcoalescing.com/blog/SwiftUISearchEnhancementsIniOSAndiPadOS26/
-/*
-        .toolbar {
-            if showBottomToolbar {
-                DefaultToolbarItem(kind: .search, placement: .bottomBar)
-                ToolbarSpacer(.flexible, placement: .bottomBar)
-                ToolbarItem(placement: .bottomBar) {
-                    Button("Import", systemImage: "doc.text") {
-                        showingNotesImport = true
-                    }
-                }
-                ToolbarItem(placement: .bottomBar) {
-                    Button("New", systemImage: "plus") {
-                        showingCreateSession = true
-                    }
-                }
-                .matchedTransitionSource(
-                    id: "new", in: transition
-                )
-            }
-        }*/
         .sheet(isPresented: $showingCreateSession) {
             CreateSessionSheetView(
                 openedSession: $openedSession,
                 isPresented: $showingCreateSession
             )
-            .presentationDetents([.medium, .large])
-//            .presentationDragIndicator(.visible)
+            .editorSheetPresentation()
             .navigationTransition(
                 .zoom(sourceID: "info", in: transition)
             )

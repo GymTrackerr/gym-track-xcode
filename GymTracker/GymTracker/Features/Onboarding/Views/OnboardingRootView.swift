@@ -806,7 +806,7 @@ private struct OnboardingWelcomeView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(24)
+        .onboardingContentPadding()
     }
 }
 
@@ -858,7 +858,7 @@ private struct OnboardingLoginView: View {
                 .disabled(isDisabled)
                 .onboardingPrimaryButtonStyle(isEnabled: !isDisabled)
         }
-        .padding(24)
+        .onboardingContentPadding()
     }
 }
 
@@ -876,7 +876,7 @@ private struct OnboardingSyncingView: View {
                 .multilineTextAlignment(.center)
             Spacer()
         }
-        .padding(24)
+        .onboardingContentPadding()
     }
 }
 
@@ -909,7 +909,7 @@ private struct OnboardingNameView: View {
                 .disabled(isDisabled)
                 .onboardingPrimaryButtonStyle(isEnabled: !isDisabled)
         }
-        .padding(24)
+        .onboardingContentPadding()
     }
 }
 
@@ -950,7 +950,7 @@ private struct OnboardingGoalsView: View {
             Button("Continue", action: onContinue)
                 .onboardingPrimaryButtonStyle()
         }
-        .padding(24)
+        .onboardingContentPadding()
     }
 }
 
@@ -984,7 +984,7 @@ private struct OnboardingExperienceView: View {
                 .disabled(selectedExperience == nil)
                 .onboardingPrimaryButtonStyle(isEnabled: selectedExperience != nil)
         }
-        .padding(24)
+        .onboardingContentPadding()
     }
 }
 
@@ -1018,7 +1018,7 @@ private struct OnboardingPlannerChoiceView: View {
                 .disabled(selectedChoice == nil)
                 .onboardingPrimaryButtonStyle(isEnabled: selectedChoice != nil)
         }
-        .padding(24)
+        .onboardingContentPadding()
     }
 }
 
@@ -1063,7 +1063,7 @@ private struct OnboardingGenerateDaysView: View {
                 .disabled(selectedDaysPerWeek == nil)
                 .onboardingPrimaryButtonStyle(isEnabled: selectedDaysPerWeek != nil)
         }
-        .padding(24)
+        .onboardingContentPadding()
     }
 }
 
@@ -1105,7 +1105,7 @@ private struct OnboardingGenerateSplitView: View {
                 .disabled(selectedRecommendationId == nil)
                 .onboardingPrimaryButtonStyle(isEnabled: selectedRecommendationId != nil)
         }
-        .padding(24)
+        .onboardingContentPadding()
     }
 
     private func subtitle(for recommendation: OnboardingProgramTemplate) -> String {
@@ -1162,7 +1162,7 @@ private struct OnboardingExistingModeView: View {
                 .disabled(selectedMode == nil)
                 .onboardingPrimaryButtonStyle(isEnabled: selectedMode != nil)
         }
-        .padding(24)
+        .onboardingContentPadding()
     }
 }
 
@@ -1236,10 +1236,7 @@ private struct OnboardingExistingStructureView: View {
                                 Image(systemName: "chevron.right")
                                     .foregroundStyle(.secondary)
                             }
-                            .padding(16)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.gray.opacity(0.10))
-                            .clipShape(RoundedRectangle(cornerRadius: 18))
+                            .cardRowContainerStyle()
                         }
                         .buttonStyle(.plain)
                     }
@@ -1255,7 +1252,7 @@ private struct OnboardingExistingStructureView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .padding(24)
+            .onboardingContentPadding()
         }
     }
 }
@@ -1294,14 +1291,18 @@ private struct OnboardingExistingRoutineEditorView: View {
                 )
             }
 
-            TextField(
-                "Routine name",
-                text: Binding(
-                    get: { routineName },
-                    set: onUpdateRoutineName
-                )
-            )
-            .textFieldStyle(.roundedBorder)
+            CardRowContainer {
+                LabeledContent("Routine Name") {
+                    TextField(
+                        "Required",
+                        text: Binding(
+                            get: { routineName },
+                            set: onUpdateRoutineName
+                        )
+                    )
+                    .multilineTextAlignment(.trailing)
+                }
+            }
 
             Button("Add Exercises") {
                 searchText = ""
@@ -1335,10 +1336,7 @@ private struct OnboardingExistingRoutineEditorView: View {
 
                                     Spacer()
                                 }
-                                .padding(14)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color.gray.opacity(0.10))
-                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                                .cardRowContainerStyle()
                             }
                             .buttonStyle(.plain)
                         }
@@ -1353,7 +1351,7 @@ private struct OnboardingExistingRoutineEditorView: View {
                 .foregroundStyle(.white)
                 .clipShape(Capsule())
         }
-        .padding(24)
+        .onboardingContentPadding()
         .sheet(isPresented: $showingExerciseSheet) {
             RoutineExercisePickerSheet(
                 title: "Add Exercises",
@@ -1461,9 +1459,7 @@ private struct OnboardingExistingScheduleView: View {
                             }
                             .pickerStyle(.menu)
                         }
-                        .padding(16)
-                        .background(Color.gray.opacity(0.10))
-                        .clipShape(RoundedRectangle(cornerRadius: 18))
+                        .cardRowContainerStyle()
                     }
                 }
 
@@ -1493,9 +1489,7 @@ private struct OnboardingExistingScheduleView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
-                .padding(16)
-                .background(Color.gray.opacity(0.10))
-                .clipShape(RoundedRectangle(cornerRadius: 18))
+                .cardRowContainerStyle()
             }
 
             Spacer()
@@ -1504,7 +1498,7 @@ private struct OnboardingExistingScheduleView: View {
                 .disabled(!canContinue)
                 .onboardingPrimaryButtonStyle(isEnabled: canContinue)
         }
-        .padding(24)
+        .onboardingContentPadding()
     }
 }
 
@@ -1522,7 +1516,7 @@ private struct OnboardingBuildingPlanView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(24)
+        .onboardingContentPadding()
     }
 }
 
@@ -1614,10 +1608,7 @@ private struct OnboardingPlanPreviewView: View {
                                         }
                                     }
                                 }
-                                .padding(16)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color.gray.opacity(0.10))
-                                .clipShape(RoundedRectangle(cornerRadius: 18))
+                                .cardRowContainerStyle()
                             }
                             .buttonStyle(.plain)
                         }
@@ -1639,7 +1630,7 @@ private struct OnboardingPlanPreviewView: View {
 
                 Spacer()
             }
-            .padding(24)
+            .onboardingContentPadding()
         }
         .sheet(item: $selectedRoutine) { routine in
             NavigationStack {
@@ -1677,7 +1668,7 @@ private struct OnboardingPlanReadyView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(24)
+        .onboardingContentPadding()
     }
 }
 
@@ -1737,7 +1728,7 @@ private struct OnboardingReadyToStartView: View {
                 .onboardingPrimaryButtonStyle()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(24)
+        .onboardingContentPadding()
         .onAppear {
             withAnimation(.spring(response: 0.64, dampingFraction: 0.84)) {
                 revealContent = true
@@ -1925,6 +1916,13 @@ private struct OnboardingSelectionCard: View {
 }
 
 private extension View {
+    func onboardingContentPadding() -> some View {
+        frame(maxWidth: 600, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
     func onboardingPrimaryButtonStyle(isEnabled: Bool = true) -> some View {
         frame(maxWidth: .infinity)
             .padding()
@@ -2000,7 +1998,7 @@ private struct OnboardingProgressionStepView: View {
                 .disabled(!canContinue)
                 .onboardingPrimaryButtonStyle(isEnabled: canContinue)
         }
-        .padding(24)
+        .onboardingContentPadding()
         .onAppear {
             guard isSkipping == false else { return }
             guard selectedProfileId == nil else { return }
@@ -2053,7 +2051,7 @@ private struct OnboardingHealthPermissionsStepView: View {
             Button("Not Now", action: onSkip)
                 .onboardingSecondaryButtonStyle()
         }
-        .padding(24)
+        .onboardingContentPadding()
     }
 
     private func row(_ icon: String, _ text: String) -> some View {
@@ -2101,7 +2099,7 @@ private struct OnboardingNotificationPermissionsStepView: View {
             Button("Not Now", action: onSkip)
                 .onboardingSecondaryButtonStyle()
         }
-        .padding(24)
+        .onboardingContentPadding()
     }
 
     private func row(_ icon: String, _ text: String) -> some View {

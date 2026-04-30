@@ -7,14 +7,6 @@
 
 import SwiftUI
 
-//struct DefaultTimerView: View {
-//    @EnvironmentObject var userService: UserService
-//    
-//    var body: some View {
-//
-//
-//    }
-//}
 struct TimerView: View {
     @EnvironmentObject var timerService: TimerService
     @EnvironmentObject var userService: UserService
@@ -72,7 +64,6 @@ struct TimerView: View {
             
             if timerService.timer == nil {
                 Button("Start") {
-//                    let length = userService.currentUser?.defaultTimer ?? 90
                     timerService.start()
                 }
                 .buttonStyle(MainTimerButton(color: Color(.blue)))

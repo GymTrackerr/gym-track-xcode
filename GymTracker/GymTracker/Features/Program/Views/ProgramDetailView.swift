@@ -102,6 +102,7 @@ struct ProgramDetailView: View {
                     dismiss()
                 }
             }
+            .editorSheetPresentation()
         }
         .sheet(isPresented: $showingAddBlock) {
             NavigationStack {
@@ -110,11 +111,13 @@ struct ProgramDetailView: View {
                     previousBlock: visibleBlocks.last
                 )
             }
+            .editorSheetPresentation()
         }
         .sheet(item: $blockForNewWorkout) { block in
             NavigationStack {
                 ProgramWorkoutEditorSheet(block: block)
             }
+            .editorSheetPresentation()
         }
     }
 
@@ -614,6 +617,7 @@ private struct ProgramBlockDetailView: View {
             NavigationStack {
                 ProgramWorkoutEditorSheet(block: block)
             }
+            .editorSheetPresentation()
         }
         .sheet(isPresented: $showingManageWorkouts) {
             NavigationStack {
@@ -621,6 +625,7 @@ private struct ProgramBlockDetailView: View {
                     dismiss()
                 }
             }
+            .editorSheetPresentation()
         }
     }
 
@@ -729,11 +734,13 @@ private struct ProgramManagementSheet: View {
             NavigationStack {
                 ProgramEditorSheet(program: program)
             }
+            .editorSheetPresentation()
         }
         .sheet(item: $blockForNewWorkout) { block in
             NavigationStack {
                 ProgramWorkoutEditorSheet(block: block)
             }
+            .editorSheetPresentation()
         }
         .confirmationDialog(deletesAsArchive ? "Archive Programme?" : "Delete Programme?", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
             Button(deletesAsArchive ? "Archive Programme" : "Delete Programme", role: .destructive) {
@@ -947,6 +954,7 @@ private struct ProgramBlockManagementSheet: View {
             NavigationStack {
                 ProgramWorkoutEditorSheet(block: block)
             }
+            .editorSheetPresentation()
         }
         .confirmationDialog("Delete Block?", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
             Button("Delete Block", role: .destructive) {
@@ -1039,9 +1047,15 @@ struct ProgramEditorSheet: View {
     var body: some View {
         Form {
             Section("Programme") {
-                TextField("Name", text: $name)
-                TextField("Notes", text: $notes, axis: .vertical)
-                    .lineLimit(3, reservesSpace: true)
+                LabeledContent("Name") {
+                    TextField("Required", text: $name)
+                        .multilineTextAlignment(.trailing)
+                }
+                LabeledContent("Notes") {
+                    TextField("Optional", text: $notes, axis: .vertical)
+                        .lineLimit(3, reservesSpace: true)
+                        .multilineTextAlignment(.trailing)
+                }
                 Picker("Schedule", selection: $mode) {
                     ForEach(ProgramMode.allCases) { mode in
                         Text(mode.title).tag(mode)
@@ -1160,7 +1174,10 @@ private struct ProgramBlockEditorSheet: View {
     var body: some View {
         Form {
             Section("Block") {
-                TextField("Name (optional)", text: $name)
+                LabeledContent("Name") {
+                    TextField("Optional", text: $name)
+                        .multilineTextAlignment(.trailing)
+                }
                 Toggle("Repeat Forever", isOn: $repeatsForever)
 
                 if !repeatsForever {
@@ -1245,7 +1262,10 @@ private struct ProgramWorkoutEditorSheet: View {
                     }
                 }
 
-                TextField("Custom Name (optional)", text: $customName)
+                LabeledContent("Custom Name") {
+                    TextField("Optional", text: $customName)
+                        .multilineTextAlignment(.trailing)
+                }
 
                 if block.program.mode == .weekly {
                     Picker("Day", selection: $selectedWeekday) {

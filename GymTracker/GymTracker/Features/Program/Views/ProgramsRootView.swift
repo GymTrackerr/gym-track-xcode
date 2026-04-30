@@ -83,11 +83,13 @@ struct ProgramsRootView: View {
                     }
                 }
             }
+            .editorSheetPresentation()
         }
         .sheet(isPresented: $routineService.editingSplit) {
             NavigationStack {
                 RoutineCreateSheetView()
             }
+            .editorSheetPresentation()
         }
         .onAppear {
             programService.loadPrograms()
@@ -353,7 +355,10 @@ private struct RoutineCreateSheetView: View {
     var body: some View {
         Form {
             Section("Routine") {
-                TextField("Name", text: $routineService.editingContent)
+                LabeledContent("Name") {
+                    TextField("Required", text: $routineService.editingContent)
+                        .multilineTextAlignment(.trailing)
+                }
             }
         }
         .navigationTitle("New Routine")

@@ -35,13 +35,6 @@ class SessionExerciseService: ServiceBase, ObservableObject {
     func amountAdded(session: Session, exercise: Exercise) -> Int {
         return (addingExercises.filter { $0.id == exercise.id }.count) +
         (session.sessionEntries.filter { $0.exercise.id == exercise.id}.count)
-        
-    /*
-        var count=0
-        for ex in session.sessionEntries where ex.exercise.id == exercise.id {
-            count += 1
-        }
-        return count*/
     }
     
     func showingMinusIcon(session: Session, id: UUID) -> Bool{

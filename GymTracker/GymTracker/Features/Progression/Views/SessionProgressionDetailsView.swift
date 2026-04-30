@@ -158,8 +158,7 @@ struct SessionProgressionDetailsView: View {
             NavigationStack {
                 ExerciseProgressionSheetView(exercise: sessionEntry.exercise)
             }
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
+            .editorSheetPresentation()
         }
     }
 

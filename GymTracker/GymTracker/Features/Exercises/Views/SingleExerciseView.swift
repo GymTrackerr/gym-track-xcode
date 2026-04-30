@@ -1394,30 +1394,6 @@ private struct ExerciseDetailView: View {
         .opacity(0.45)
     }
 
-    /*
-#if DEBUG
-    private var debugIdentityCard: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Debug Identity")
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundColor(.secondary)
-            Text("Exercise ID: \(exercise.id.uuidString)")
-                .font(.caption2)
-                .textSelection(.enabled)
-            Text("npId: \(exercise.npId ?? "nil")")
-                .font(.caption2)
-                .textSelection(.enabled)
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.yellow.opacity(0.12))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .padding(.horizontal)
-    }
-#endif
-     */
-
     private var previousSessions: [PreviousSessionItem] {
         previousSessionsCache
     }
@@ -1446,8 +1422,7 @@ private struct ExerciseDetailNavigationModifier: ViewModifier {
             }
             .sheet(isPresented: $showingTransferExerciseSheet) {
                 ExerciseTransferToolView(initialSourceExerciseId: exerciseId)
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
+                    .editorSheetPresentation()
             }
             .sheet(isPresented: $showingProgressionSheet) {
                 progressionSheetContent
@@ -1493,8 +1468,7 @@ private struct ExerciseDetailNavigationModifier: ViewModifier {
             NavigationStack {
                 ExerciseProgressionSheetView(exercise: liveExercise)
             }
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
+            .editorSheetPresentation()
         }
     }
 }
@@ -1761,13 +1735,8 @@ struct SingleExerciseLabelView: View {
                 }
             }
         }
-
-
         .padding(8)
-//        .background/*(*/Color.gray.opacity(0.1))
         .cornerRadius(12)
-//        .padding(.vertical, 4)
-//        .padding(.horizontal, 8)
     }
 }
 

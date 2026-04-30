@@ -75,11 +75,6 @@ struct HealthWorkoutView: View {
                     } label: {
                         Label("Map View", systemImage: "map")
                     }
-//                    NavigationLink {
-//                        WorkoutRoutesMapView
-//                    }, label: {
-//                        Text("")
-//                    }
                 }
                 .padding(.horizontal)
             }

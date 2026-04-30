@@ -118,8 +118,7 @@ struct SettingsView: View {
         .sheet(isPresented: $showExerciseTransferTool) {
             ExerciseTransferToolView()
                 .appBackground()
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
+                .editorSheetPresentation()
         }
     }
 

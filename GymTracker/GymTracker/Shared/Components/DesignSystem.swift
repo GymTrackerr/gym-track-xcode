@@ -236,6 +236,11 @@ extension View {
             .frame(maxWidth: .infinity, alignment: .center)
     }
 
+    func editorSheetPresentation() -> some View {
+        presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+    }
+
     func cardListRowStyle(
         top: CGFloat = 6,
         leading: CGFloat = 4,

@@ -140,11 +140,11 @@ struct NutritionDayView: View {
         }
         .sheet(isPresented: $showTargetsSheet) {
             NutritionTargetsView()
-                .presentationDetents([.medium, .large])
+                .editorSheetPresentation()
         }
         .sheet(item: $editingLog) { log in
             EditNutritionLogView(log: log, selectedDate: selectedDate)
-                .presentationDetents([.medium, .large])
+                .editorSheetPresentation()
         }
         .confirmationDialog(
             "Copy yesterday's standalone items into this day?",

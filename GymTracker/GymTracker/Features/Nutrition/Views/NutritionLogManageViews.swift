@@ -944,9 +944,18 @@ struct NutritionFoodEditorView: View {
     var body: some View {
         Form {
             Section("Food") {
-                TextField("Name", text: $name)
-                TextField("Brand (optional)", text: $brand)
-                TextField("Reference label (optional)", text: $referenceLabel)
+                LabeledContent("Name") {
+                    TextField("Required", text: $name)
+                        .multilineTextAlignment(.trailing)
+                }
+                LabeledContent("Brand") {
+                    TextField("Optional", text: $brand)
+                        .multilineTextAlignment(.trailing)
+                }
+                LabeledContent("Reference Label") {
+                    TextField("Optional", text: $referenceLabel)
+                        .multilineTextAlignment(.trailing)
+                }
                 Picker("Type", selection: $kind) {
                     Text("Food").tag(FoodItemKind.food)
                     Text("Drink").tag(FoodItemKind.drink)
@@ -960,15 +969,34 @@ struct NutritionFoodEditorView: View {
             }
 
             Section("Reference Amount") {
-                TextField("\(unit.displayName) per reference", text: $gramsPerReference)
-                    .keyboardType(.decimalPad)
+                LabeledContent("\(unit.displayName) per reference") {
+                    TextField("Required", text: $gramsPerReference)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                }
             }
 
             Section("Nutrition Per Reference") {
-                TextField("Calories", text: $kcalPerReference).keyboardType(.decimalPad)
-                TextField("Protein", text: $proteinPerReference).keyboardType(.decimalPad)
-                TextField("Carbs", text: $carbPerReference).keyboardType(.decimalPad)
-                TextField("Fat", text: $fatPerReference).keyboardType(.decimalPad)
+                LabeledContent("Calories") {
+                    TextField("0", text: $kcalPerReference)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                }
+                LabeledContent("Protein") {
+                    TextField("0", text: $proteinPerReference)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                }
+                LabeledContent("Carbs") {
+                    TextField("0", text: $carbPerReference)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                }
+                LabeledContent("Fat") {
+                    TextField("0", text: $fatPerReference)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                }
             }
 
             if let errorText {
@@ -1135,10 +1163,19 @@ struct NutritionMealTemplateEditorView: View {
     var body: some View {
         List {
             Section("Meal") {
-                TextField("Name", text: $name)
-                TextField("Batch Size", text: $batchSizeText)
-                    .keyboardType(.decimalPad)
-                TextField("Serving Unit Label", text: $servingUnitLabel)
+                LabeledContent("Name") {
+                    TextField("Required", text: $name)
+                        .multilineTextAlignment(.trailing)
+                }
+                LabeledContent("Batch Size") {
+                    TextField("1", text: $batchSizeText)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                }
+                LabeledContent("Serving Unit") {
+                    TextField("Serving Unit Label", text: $servingUnitLabel)
+                        .multilineTextAlignment(.trailing)
+                }
                 Picker("Default Category", selection: $defaultCategory) {
                     ForEach(FoodLogCategory.displayOrder) { item in
                         Text(item.displayName).tag(item)
@@ -1187,8 +1224,11 @@ struct NutritionMealTemplateEditorView: View {
                             }
                             .buttonStyle(.plain)
 
-                            TextField("Grams", text: $item.gramsText)
-                                .keyboardType(.decimalPad)
+                            LabeledContent("Grams") {
+                                TextField("0", text: $item.gramsText)
+                                    .keyboardType(.decimalPad)
+                                    .multilineTextAlignment(.trailing)
+                            }
                         }
                         .padding(.vertical, 4)
                         .cardListRowStyle()
