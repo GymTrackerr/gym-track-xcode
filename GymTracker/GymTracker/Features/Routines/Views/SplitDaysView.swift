@@ -21,6 +21,7 @@ struct SplitDaysView: View {
                 } label: {
                     SingleDayLabelView(routine: routine)
                 }
+                .cardListRowStyle()
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     Button(role: .destructive) {
                         deleteRoutine(routine)
@@ -37,6 +38,7 @@ struct SplitDaysView: View {
                 ContentUnavailableView("No routines yet", systemImage: "figure.walk.motion")
             }
         }
+        .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .appBackground()
         .navigationTitle("Routines")

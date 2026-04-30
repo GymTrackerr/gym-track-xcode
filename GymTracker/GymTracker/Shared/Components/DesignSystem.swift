@@ -58,6 +58,27 @@ struct CardRowContainer<Content: View>: View {
     }
 }
 
+struct CardRowBackground: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .fill(cardFill)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.white.opacity(colorScheme == .dark ? 0.15 : 0.12), lineWidth: 1)
+            )
+    }
+
+    private var cardFill: AnyShapeStyle {
+        if colorScheme == .dark {
+            return AnyShapeStyle(Color.white.opacity(0.08))
+        } else {
+            return AnyShapeStyle(.ultraThinMaterial)
+        }
+    }
+}
+
 struct NavigableCardRow<Content: View, Destination: View>: View {
     let destination: Destination
     let content: Content
@@ -161,5 +182,22 @@ extension View {
         padding(.horizontal, 16)
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    func cardListRowStyle(
+        top: CGFloat = 6,
+        leading: CGFloat = 4,
+        bottom: CGFloat = 6,
+        trailing: CGFloat = 16,
+        backgroundVerticalPadding: CGFloat = 4,
+        backgroundHorizontalPadding: CGFloat = 4
+    ) -> some View {
+        listRowInsets(EdgeInsets(top: top, leading: leading, bottom: bottom, trailing: trailing))
+            .listRowSeparator(.hidden)
+            .listRowBackground(
+                CardRowBackground()
+                    .padding(.vertical, backgroundVerticalPadding)
+                    .padding(.horizontal, backgroundHorizontalPadding)
+            )
     }
 }

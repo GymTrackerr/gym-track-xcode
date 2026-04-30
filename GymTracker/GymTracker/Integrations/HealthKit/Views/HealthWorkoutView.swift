@@ -114,6 +114,9 @@ struct HealthWorkoutView: View {
                 List {
                     ForEach(filteredWorkouts) { workout in
                         WorkoutRow(workout: workout)
+                            .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                     }
                 }
                 .listStyle(.plain)
@@ -149,64 +152,59 @@ struct WorkoutRow: View {
     let workout: HealthKitWorkout
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Header
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(workout.typeDisplayName)
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                    
-                    Text(formatDate(workout.startDate))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                Spacer()
-                
-                // Duration
-                VStack(alignment: .trailing, spacing: 2) {
-                    HStack {
-                        Text(formatDuration(workout.duration))
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Image(systemName: "clock.fill")
+        CardRowContainer {
+            VStack(alignment: .leading, spacing: 8) {
+                // Header
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(workout.typeDisplayName)
+                            .font(.headline)
+                            .fontWeight(.semibold)
+
+                        Text(formatDate(workout.startDate))
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
+
+                    Spacer()
+
+                    // Duration
+                    VStack(alignment: .trailing, spacing: 2) {
+                        HStack {
+                            Text(formatDuration(workout.duration))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Image(systemName: "clock.fill")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
-            }
-            
-            // Stats Row
-            HStack(spacing: 16) {
-                // Calories
-                StatCard(
-                    icon: "flame.fill",
-                    value: workout.calories > 0 ? "\(Int(workout.calories))" : "—",
-                    label: "kcal",
-                    color: .orange
-                )
-                
-                // Distance (if available)
-                if let distance = workout.distance, distance > 0 {
+
+                // Stats Row
+                HStack(spacing: 16) {
+                    // Calories
                     StatCard(
-                        icon: "location.fill",
-                        value: formatDistance(distance),
-                        label: "km",
-                        color: .blue
+                        icon: "flame.fill",
+                        value: workout.calories > 0 ? "\(Int(workout.calories))" : "—",
+                        label: "kcal",
+                        color: .orange
                     )
+
+                    // Distance (if available)
+                    if let distance = workout.distance, distance > 0 {
+                        StatCard(
+                            icon: "location.fill",
+                            value: formatDistance(distance),
+                            label: "km",
+                            color: .blue
+                        )
+                    }
+
+                    Spacer()
                 }
-                
-                Spacer()
             }
         }
-        .padding(12)
-        .background(Color.gray.opacity(0.1))
-        .cornerRadius(12)
-        .listRowInsets(EdgeInsets())
-        .listRowSeparator(.hidden)
-        .listRowBackground(Color.clear)
-        .padding(12)
     }
     
     func formatDate(_ date: Date) -> String {

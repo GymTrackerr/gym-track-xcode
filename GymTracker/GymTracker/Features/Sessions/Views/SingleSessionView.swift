@@ -272,8 +272,7 @@ struct SingleSessionView: View {
     }
 
     private var sessionEntryRowBackground: some View {
-        RoundedRectangle(cornerRadius: 12)
-            .fill(Color.gray.opacity(0.1))
+        CardRowBackground()
             .padding(.vertical, 4)
             .padding(.horizontal, 4)
     }

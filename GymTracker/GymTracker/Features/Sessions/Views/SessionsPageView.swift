@@ -66,14 +66,7 @@ struct SessionsPageView: View {
                                 Label("Delete", systemImage: "trash")
                             }
                         }
-                        .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 16))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.gray.opacity(0.1))
-                                .padding(.vertical, 6)
-                                .padding(.horizontal, 4)
-                        )
+                        .cardListRowStyle()
                     }
                 }
                 .listStyle(.plain)
@@ -140,32 +133,30 @@ struct SessionsPageView: View {
     }
 
     private var summaryCard: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(summary.title)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            Text("\(summary.sessionCount) Session\(summary.sessionCount == 1 ? "" : "s")")
-                .font(.headline)
-
-            Text("Total volume: \(SessionService.formattedPounds(summary.totalVolume))")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            Text("Avg session volume: \(SessionService.formattedPounds(summary.averageSessionVolume))")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            if let averageDurationMinutes = summary.averageDurationMinutes {
-                Text("Avg duration: \(Int(averageDurationMinutes.rounded())) min")
+        CardRowContainer {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(summary.title)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+
+                Text("\(summary.sessionCount) Session\(summary.sessionCount == 1 ? "" : "s")")
+                    .font(.headline)
+
+                Text("Total volume: \(SessionService.formattedPounds(summary.totalVolume))")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Text("Avg session volume: \(SessionService.formattedPounds(summary.averageSessionVolume))")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                if let averageDurationMinutes = summary.averageDurationMinutes {
+                    Text("Avg duration: \(Int(averageDurationMinutes.rounded())) min")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func refreshViewData() {

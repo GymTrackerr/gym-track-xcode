@@ -94,6 +94,7 @@ struct NutritionDayView: View {
                                                 Label("Delete", systemImage: "trash")
                                             }
                                         }
+                                        .cardListRowStyle()
                                 }
 
                                 ForEach(meals, id: \.id) { log in
@@ -144,7 +145,10 @@ struct NutritionDayView: View {
                                             }
                                         }
                                     }
-                                    .padding(.vertical, 2)
+                                    .padding(.vertical, 8)
+                                    .padding(.leading, 12)
+                                    .padding(.trailing, 4)
+                                    .cardListRowStyle()
                                 }
                             } header: {
                                 Text(category.displayName)
@@ -153,11 +157,10 @@ struct NutritionDayView: View {
                                     .textCase(nil)
                                     .padding(.top, 14)
                             }
-                            .listRowBackground(Color(.secondarySystemBackground).opacity(0.74))
                         }
                     }
                 }
-                .listStyle(.insetGrouped)
+                .listStyle(.plain)
                 .scrollContentBackground(.hidden)
             }
         }
@@ -311,60 +314,57 @@ struct NutritionDayView: View {
     }
 
     private var dailySummary: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("\(Int(totalKcal.rounded())) kcal")
-                    .font(.title3)
-                    .fontWeight(.semibold)
+        CardRowContainer {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("\(Int(totalKcal.rounded())) kcal")
+                        .font(.title3)
+                        .fontWeight(.semibold)
 
-                Spacer()
+                    Spacer()
 
-                Button {
-                    showTargetsSheet = true
-                } label: {
-                    Label("Target", systemImage: "scope")
-                        .font(.caption)
+                    Button {
+                        showTargetsSheet = true
+                    } label: {
+                        Label("Target", systemImage: "scope")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.bordered)
                 }
-                .buttonStyle(.bordered)
-            }
 
-            HStack(spacing: 12) {
-                NutritionMacroChip(title: "Protein", value: totalProtein)
-                NutritionMacroChip(title: "Carbs", value: totalCarbs)
-                NutritionMacroChip(title: "Fat", value: totalFat)
-            }
+                HStack(spacing: 12) {
+                    NutritionMacroChip(title: "Protein", value: totalProtein)
+                    NutritionMacroChip(title: "Carbs", value: totalCarbs)
+                    NutritionMacroChip(title: "Fat", value: totalFat)
+                }
 
-            if isTargetEnabled {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Remaining: \(Int(remainingCalories.rounded())) kcal")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                if isTargetEnabled {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Remaining: \(Int(remainingCalories.rounded())) kcal")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
 
-                    HStack(spacing: 12) {
-                        if let remainingProtein {
-                            Text("P \(Int(remainingProtein.rounded()))g")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        if let remainingCarbs {
-                            Text("C \(Int(remainingCarbs.rounded()))g")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        if let remainingFat {
-                            Text("F \(Int(remainingFat.rounded()))g")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                        HStack(spacing: 12) {
+                            if let remainingProtein {
+                                Text("P \(Int(remainingProtein.rounded()))g")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            if let remainingCarbs {
+                                Text("C \(Int(remainingCarbs.rounded()))g")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            if let remainingFat {
+                                Text("F \(Int(remainingFat.rounded()))g")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .shadow(color: Color.black.opacity(0.07), radius: 10, x: 0, y: 3)
         .padding(.horizontal)
     }
 
@@ -546,7 +546,9 @@ private struct NutritionLogRow: View {
                 }
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 8)
+        .padding(.leading, 12)
+        .padding(.trailing, 4)
     }
 
     private func displayAmount(_ value: Double) -> String {

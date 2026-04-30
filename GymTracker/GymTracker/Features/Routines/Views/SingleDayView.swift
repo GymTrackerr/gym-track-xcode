@@ -129,14 +129,7 @@ struct SingleDayView: View {
                             SingleExerciseLabelView(exercise: exerciseSplit.exercise, orderInSplit: exerciseSplit.order)
                                 .foregroundColor(.primary)
                         }
-                        .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 16))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.gray.opacity(0.1))
-                                .padding(.vertical, 6)
-                                .padding(.horizontal, 4)
-                        )
+                        .cardListRowStyle()
                     }
                     .onDelete(perform: removeExercise)
                     .onMove(perform: moveExercise)
@@ -152,14 +145,7 @@ struct SingleDayView: View {
                             SingleSessionLabelView(session: session)
                                 .foregroundColor(.primary)
                         }
-                        .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 16))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.gray.opacity(0.1))
-                                .padding(.vertical, 6)
-                                .padding(.horizontal, 4)
-                        )
+                        .cardListRowStyle()
                     }
                 } header: {
                     Text("Session History")

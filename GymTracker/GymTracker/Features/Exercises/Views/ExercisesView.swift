@@ -126,14 +126,7 @@ struct ExercisesView: View {
                         NavigationLink(value: ExerciseNavigationTarget(exerciseId: row.id)) {
                             ExerciseListRow(snapshot: row)
                         }
-                        .listRowInsets(EdgeInsets(top: 6, leading: 4, bottom: 6, trailing: 16))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.gray.opacity(0.1))
-                                .padding(.vertical, 4)
-                                .padding(.horizontal, 4)
-                        )
+                        .cardListRowStyle()
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             Button(role: .destructive) {
                                 deleteExercise(id: row.id)

@@ -718,16 +718,12 @@ private struct ExerciseDetailView: View {
                 .id(previousLogsSectionID)
 
             if previousSessions.isEmpty {
-                Text("No previous logs yet.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.gray.opacity(0.1))
-                    )
-                    .padding(.horizontal)
+                EmptyStateView(
+                    title: "No Previous Logs",
+                    systemImage: "clock.arrow.circlepath",
+                    message: "Completed sessions for this exercise will appear here."
+                )
+                .padding(.horizontal)
             } else {
                 VStack(spacing: 8) {
                     ForEach(previousSessions) { item in
@@ -752,25 +748,21 @@ private struct ExerciseDetailView: View {
                 .appBackground()
             }
         } label: {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(item.timestamp.formatted(date: .abbreviated, time: .omitted))
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                    Text(item.subtitle)
-                        .font(.caption)
+            CardRowContainer {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(item.timestamp.formatted(date: .abbreviated, time: .omitted))
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        Text(item.subtitle)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
                         .foregroundColor(.secondary)
                 }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .foregroundColor(.secondary)
             }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.gray.opacity(0.1))
-            )
         }
         .buttonStyle(.plain)
         .padding(.horizontal)

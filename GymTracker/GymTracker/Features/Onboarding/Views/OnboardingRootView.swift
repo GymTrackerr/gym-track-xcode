@@ -1801,14 +1801,7 @@ private struct OnboardingRoutinePreviewDetailView: View {
                                     )
                                     .foregroundColor(.primary)
                                 }
-                                .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 16))
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .fill(Color.gray.opacity(0.1))
-                                        .padding(.vertical, 6)
-                                        .padding(.horizontal, 4)
-                                )
+                                .cardListRowStyle()
                             } else {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(item.preview.name)
@@ -1818,14 +1811,7 @@ private struct OnboardingRoutinePreviewDetailView: View {
                                         .foregroundStyle(.secondary)
                                 }
                                 .padding(8)
-                                .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 16))
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .fill(Color.gray.opacity(0.1))
-                                        .padding(.vertical, 6)
-                                        .padding(.horizontal, 4)
-                                )
+                                .cardListRowStyle()
                             }
                         }
                     }
