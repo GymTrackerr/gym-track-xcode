@@ -83,7 +83,9 @@ struct RoutineExercisePickerSheet: View {
                                     Image(systemName: showsMinusIcon(exercise) ? "minus" : "plus")
                                     Text(exercise.name)
                                 }
+                                .cardListRowContentPadding()
                             }
+                            .buttonStyle(.plain)
                             .cardListRowStyle()
                         }
                     }

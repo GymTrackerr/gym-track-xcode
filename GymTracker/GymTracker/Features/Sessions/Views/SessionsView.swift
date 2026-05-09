@@ -15,14 +15,10 @@ struct SessionsView: View {
     @EnvironmentObject var exerciseService: ExerciseService
     @EnvironmentObject var userService: UserService
     @Binding var openedSession: Session?
-//    var showBottomToolbar: Bool = true
     
     @Namespace private var transition
     @State private var showingNotesImport = false
     @State private var showingCreateSession = false
-//    @State private var newSession = false
-
-//    @State private var isEditing = false
 
     private var sortedSessions: [Session] {
         sessionService.sessions.sorted { $0.timestampDone > $1.timestampDone }
@@ -30,40 +26,21 @@ struct SessionsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
+            CardRowContainer {
                 Button {
                     showingCreateSession = true
                 } label: {
-                    HStack {
-                        Image(systemName: "plus")
-                        Text("New Session")
-                            .font(.headline)
-                            .foregroundColor(.primary)
-                        
-                    }
+                    Label("New Session", systemImage: "plus.circle")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.plain)
-                .padding()
-                .frame(maxWidth: .infinity)
-//                .background(
-//                    RoundedRectangle(cornerRadius: 16)
-//                        .fill(Color(.systemBackground))
-//                        .shadow(color: .gray.opacity(0.2), radius: 4, y: 2)
-//                )
-                .adaptiveCardSurface(cornerRadius: 16)
-
-//                .padding()
             }
 
             if !sortedSessions.isEmpty {
-                HStack {
-                    Text("Previous Sessions")
-                        .font(.headline)
-                        .underline()
-                        .padding(.top, 8)
-                }
+                SectionHeaderView(title: "Previous Sessions")
                 
-                VStack(spacing: 12) {
+                VStack(spacing: 8) {
                     ForEach(sortedSessions, id: \.id) { session in
                         NavigationLink {
                             SingleSessionView(session: session)
@@ -92,9 +69,7 @@ struct SessionsView: View {
                             }
                         }
                         .buttonStyle(.plain)
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .adaptiveCardSurface(cornerRadius: 16)
+                        .cardRowContainerStyle()
                     }
                 }
             }
@@ -126,12 +101,11 @@ struct SessionsView: View {
 
 
 struct SessionSelectSplit2 : View {
-    @EnvironmentObject var sessionService: SessionService
     @EnvironmentObject var splitDayService: RoutineService
     @Bindable var session: Session
 
     var body: some View {
-        VStack {
+        VStack(spacing: 8) {
             ForEach(splitDayService.routines, id: \.id) { routine in
                 Button {
                     print("updated splitday of session")
@@ -139,7 +113,7 @@ struct SessionSelectSplit2 : View {
                     if (session.routine == routine) {
                         session.routine = nil
                     } else {
-                            session.routine = routine
+                        session.routine = routine
                     }
                 } label: {
                     HStack {
@@ -147,34 +121,16 @@ struct SessionSelectSplit2 : View {
                             .font(.headline)
                             .foregroundColor(.primary)
                         Spacer()
-//                        if let currentSession = session {
-//                            Image(systemName: currentSession.routine == routine
-//                                  ? "checkmark.circle.fill"
-//                                  : "circle")
-//                            .font(.title3)
-//                            .foregroundStyle(currentSession.routine == routine ? .green : .gray.opacity(0.4))
-//                        } else {
-                            Image(systemName: sessionService.selected_splitDay == routine
-                                  ? "checkmark.circle.fill"
-                                  : "circle")
+                        Image(systemName: session.routine == routine
+                              ? "checkmark.circle.fill"
+                              : "circle")
                             .font(.title3)
-                            .foregroundStyle(sessionService.selected_splitDay == routine ? .green : .gray.opacity(0.4))
-//                        }
+                            .foregroundStyle(session.routine == routine ? .green : .gray.opacity(0.4))
                     }
                 }
                 .buttonStyle(.plain)
-                
-                .padding()
-                .frame(maxWidth: .infinity)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color(.systemBackground))
-                        .shadow(color: .gray.opacity(0.2), radius: 4, y: 2)
-                )
-                .padding(.horizontal)
-                .padding(.vertical, 2)
+                .cardRowContainerStyle()
             }
-            
         }
     }
 }
@@ -182,12 +138,9 @@ struct SessionSelectSplit2 : View {
 struct SessionSelectSplit : View {
     @EnvironmentObject var sessionService: SessionService
     @EnvironmentObject var splitDayService: RoutineService
-//    @State var session: Session? = nil
-//    @State var changingCurrent: Bool = false
-//    @State var session: Session?
-//    @Binding
+
     var body: some View {
-        VStack {
+        VStack(spacing: 8) {
             ForEach(splitDayService.routines, id: \.id) { routine in
                 Button {
                     if (sessionService.selected_splitDay == routine) {
@@ -210,18 +163,8 @@ struct SessionSelectSplit : View {
                     }
                 }
                 .buttonStyle(.plain)
-                
-                .padding()
-                .frame(maxWidth: .infinity)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color(.systemBackground))
-                        .shadow(color: .gray.opacity(0.2), radius: 4, y: 2)
-                )
-                .padding(.horizontal)
-                .padding(.vertical, 2)
+                .cardRowContainerStyle()
             }
-            
         }
     }
 }
@@ -244,88 +187,73 @@ struct CreateSessionSheetView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            VStack(alignment: .leading, spacing: 12) {
-                Text("New Session")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(.primary)
-//
-                Text("Start from your active programme or pick a routine directly.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(16)
-            
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 16) {
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("New Session")
+                            .font(.title2.weight(.bold))
+
+                        Text("Start from your active programme or pick a routine directly.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
                     if let activeProgram, let activeProgramState {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Active Programme")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.primary)
-                                .padding(.horizontal, 16)
+                            SectionHeaderView(title: "Active Programme")
 
-                            VStack(alignment: .leading, spacing: 10) {
-                                HStack(alignment: .top, spacing: 12) {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(activeProgram.name)
-                                            .font(.body)
-                                            .fontWeight(.semibold)
-                                            .foregroundStyle(.primary)
-                                        Text(activeProgramState.blockLabel)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                        Text(activeProgramState.nextWorkoutLabel)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-
-                                    Spacer()
-
-                                    Button {
-                                        if let activeSession = activeProgramState.activeSession {
-                                            openedSession = activeSession
-                                            sessionService.resetCreationState()
-                                        } else if let workout = activeProgramState.nextWorkout {
-                                            openedSession = sessionService.startProgramWorkout(program: activeProgram, workout: workout)
+                            CardRowContainer {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    HStack(alignment: .top, spacing: 12) {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(activeProgram.name)
+                                                .font(.body)
+                                                .fontWeight(.semibold)
+                                                .foregroundStyle(.primary)
+                                            Text(activeProgramState.blockLabel)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                            Text(activeProgramState.nextWorkoutLabel)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
                                         }
-                                        isPresented = false
-                                    } label: {
-                                        Text(activeProgramState.actionTitle)
-                                            .font(.caption)
-                                            .fontWeight(.semibold)
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 8)
-                                    }
-                                    .buttonStyle(.borderedProminent)
-                                    .disabled(activeProgramState.activeSession == nil && !activeProgramState.canStartNextWorkout)
-                                }
 
-                                HStack {
-                                    Text(activeProgramState.progressLabel)
-                                    Spacer()
-                                    Text(activeProgramState.scheduleLabel)
+                                        Spacer()
+
+                                        Button {
+                                            if let activeSession = activeProgramState.activeSession {
+                                                openedSession = activeSession
+                                                sessionService.resetCreationState()
+                                            } else if let workout = activeProgramState.nextWorkout {
+                                                openedSession = sessionService.startProgramWorkout(program: activeProgram, workout: workout)
+                                            }
+                                            isPresented = false
+                                        } label: {
+                                            Text(activeProgramState.actionTitle)
+                                                .font(.caption)
+                                                .fontWeight(.semibold)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 8)
+                                        }
+                                        .buttonStyle(.borderedProminent)
+                                        .disabled(activeProgramState.activeSession == nil && !activeProgramState.canStartNextWorkout)
+                                    }
+
+                                    HStack {
+                                        Text(activeProgramState.progressLabel)
+                                        Spacer()
+                                        Text(activeProgramState.scheduleLabel)
+                                    }
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                                 }
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
                             }
-                            .padding(12)
-                            .frame(maxWidth: .infinity)
-                            .adaptiveCardSurface(cornerRadius: 12)
-                            .padding(.horizontal, 16)
                         }
                     }
 
-                    // Split Day Selection
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Workout Split")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.primary)
-                            .padding(.horizontal, 16)
+                        SectionHeaderView(title: "Workout Split")
                         
                         VStack(spacing: 8) {
                             ForEach(splitDayService.routines, id: \.id) { routine in
@@ -350,38 +278,28 @@ struct CreateSessionSheetView: View {
                                         
                                         Spacer()
                                     }
-                                    .padding(12)
-                                    .frame(maxWidth: .infinity)
-                                    .adaptiveCardSurface(cornerRadius: 12)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                                 .buttonStyle(.plain)
+                                .cardRowContainerStyle()
                             }
                         }
-                        .padding(.horizontal, 16)
                     }
                     
-                    // Notes Section
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Notes")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.primary)
-                            .padding(.horizontal, 16)
+                        SectionHeaderView(title: "Notes")
                         
-                        TextField("e.g., Feeling strong today, focus on form.", text: $sessionService.create_notes)
-                            .padding(12)
-                            .font(.body)
-                            .frame(height: 80, alignment: .topLeading)
-                            .adaptiveCardSurface(cornerRadius: 12)
-                            .padding(.horizontal, 16)
+                        ConnectedCardSection {
+                            ConnectedCardRow {
+                                TextField("e.g., Feeling strong today, focus on form.", text: $sessionService.create_notes, axis: .vertical)
+                                    .lineLimit(3...5)
+                            }
+                        }
                     }
                 }
-                .padding(.vertical, 8)
+                .screenContentPadding()
             }
             
-            Spacer()
-            
-            // Start Session Button
             VStack(spacing: 10) {
                 Button {
                     openedSession = sessionService.addSession()
@@ -391,15 +309,11 @@ struct CreateSessionSheetView: View {
                         Image(systemName: "play.fill")
                         Text(sessionService.selected_splitDay == nil ? "Start Empty Session" : "Start Session")
                             .font(.headline)
-                            .fontWeight(.semibold)
                     }
-                    .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
-                    .padding(14)
-                    .background(Color.blue)
-                    .cornerRadius(12)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
                 
                 Button {
                     isPresented = false
@@ -410,16 +324,11 @@ struct CreateSessionSheetView: View {
                         .fontWeight(.medium)
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity)
-                        .padding(12)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderless)
             }
             .padding(16)
-//        .navigationTitle("New Session")
-
         }
-
-//        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-//        .glassEffect(in: .rect(cornerRadi´us: 20.0))
+        .appBackground()
     }
 }

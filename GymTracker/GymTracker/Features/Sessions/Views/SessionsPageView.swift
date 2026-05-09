@@ -11,6 +11,7 @@ struct SessionsPageView: View {
     @State private var showingCreateSession = false
 
     @State private var selectedRange: SessionTimeRange = .month
+    @State private var selectedReferenceDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var visibleSessions: [Session] = []
     @State private var summary = SessionPeriodSummary.empty
 
@@ -25,6 +26,9 @@ struct SessionsPageView: View {
                         )
                         .onTapGesture {
                             selectedRange = range
+                            if range != .all {
+                                selectedReferenceDate = Calendar.current.startOfDay(for: Date())
+                            }
                         }
                     }
                     Spacer()
@@ -126,6 +130,9 @@ struct SessionsPageView: View {
         .onChange(of: selectedRange) {
             refreshViewData()
         }
+        .onChange(of: selectedReferenceDate) {
+            refreshViewData()
+        }
         .sheet(isPresented: $showingCreateSession) {
             CreateSessionSheetView(
                 openedSession: $openedSession,
@@ -149,18 +156,10 @@ struct SessionsPageView: View {
 
     private var summaryRowContent: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("\(summary.sessionCount) Session\(summary.sessionCount == 1 ? "" : "s")")
-                        .font(.title3.weight(.semibold))
+            sessionSummaryHeader
 
-                    Text(summary.title)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-            }
+            Text("\(summary.sessionCount) Session\(summary.sessionCount == 1 ? "" : "s")")
+                .font(.title3.weight(.semibold))
 
             HStack(spacing: 10) {
                 SummaryMetricTile(
@@ -192,8 +191,89 @@ struct SessionsPageView: View {
         }
     }
 
+    private var sessionSummaryHeader: some View {
+        HStack(spacing: 10) {
+            if selectedRange != .all {
+                Button {
+                    shiftSelectedPeriod(by: -1)
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.headline)
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
+            }
+
+            Spacer()
+
+            VStack(alignment: .center, spacing: 3) {
+                Text(selectedRange == .all ? "All Sessions" : periodNavigationTitle)
+                    .font(.subheadline.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+
+                Text(selectedRange.displayName)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            if selectedRange != .all {
+                Button {
+                    shiftSelectedPeriod(by: 1)
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.headline)
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var periodNavigationTitle: String {
+        let calendar = Calendar.current
+
+        switch selectedRange {
+        case .week:
+            guard let interval = calendar.dateInterval(of: .weekOfYear, for: selectedReferenceDate) else {
+                return selectedReferenceDate.formatted(date: .abbreviated, time: .omitted)
+            }
+            let end = calendar.date(byAdding: .day, value: -1, to: interval.end) ?? interval.end
+            return "\(interval.start.formatted(.dateTime.month(.abbreviated).day())) - \(end.formatted(.dateTime.month(.abbreviated).day()))"
+        case .month:
+            return selectedReferenceDate.formatted(.dateTime.month(.wide).year())
+        case .year:
+            return selectedReferenceDate.formatted(.dateTime.year())
+        case .all:
+            return "All Sessions"
+        }
+    }
+
+    private func shiftSelectedPeriod(by value: Int) {
+        let calendar = Calendar.current
+        let component: Calendar.Component
+
+        switch selectedRange {
+        case .week:
+            component = .weekOfYear
+        case .month:
+            component = .month
+        case .year:
+            component = .year
+        case .all:
+            return
+        }
+
+        selectedReferenceDate = calendar.startOfDay(
+            for: calendar.date(byAdding: component, value: value, to: selectedReferenceDate) ?? selectedReferenceDate
+        )
+    }
+
     private func refreshViewData() {
-        let interval = selectedRange.dateInterval(referenceDate: Date(), calendar: .current)
+        let interval = selectedRange.dateInterval(referenceDate: selectedReferenceDate, calendar: .current)
         let sessions = sessionService.sessionsInRange(interval)
 
         var totalVolume: Double = 0
@@ -238,6 +318,19 @@ private enum SessionTimeRange: String, CaseIterable, Identifiable {
     case all = "All"
 
     var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .week:
+            return "Week"
+        case .month:
+            return "Month"
+        case .year:
+            return "Year"
+        case .all:
+            return "All"
+        }
+    }
 
     var summaryTitle: String {
         switch self {

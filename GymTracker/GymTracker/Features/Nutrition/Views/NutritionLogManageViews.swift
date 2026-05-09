@@ -74,6 +74,8 @@ private struct FoodPickerSections {
     let favorites: [FoodItem]
     let recent: [FoodItem]
     let all: [FoodItem]
+
+    static let empty = FoodPickerSections(favorites: [], recent: [], all: [])
 }
 
 struct NutritionLogSheet: View {
@@ -393,28 +395,12 @@ struct NutritionFoodPickerView: View {
     @State private var dismissAfterCreate = false
     @State private var showActionError = false
     @State private var actionErrorMessage = ""
+    @State private var sections: FoodPickerSections = .empty
     private let initialFilter: FoodFilterKind
 
     init(initialFilter: FoodFilterKind = .all, onSelect: @escaping (FoodItem) -> Void) {
         self.initialFilter = initialFilter
         self.onSelect = onSelect
-    }
-
-    private var sections: FoodPickerSections {
-        let favorites = nutritionService.fetchFavoriteFoods(includeArchived: showArchived, kind: filter.kind)
-            .filter(matchesSearch)
-        let favoriteIds = Set(favorites.map(\.id))
-        let recentWithoutFavorites = nutritionService.fetchRecentFoods(days: 14, includeArchived: showArchived, kind: filter.kind)
-            .filter(matchesSearch)
-            .filter { food in
-                !favoriteIds.contains(food.id)
-            }
-        let seenIds = favoriteIds.union(recentWithoutFavorites.map(\.id))
-        let allWithoutFavoritesAndRecent = nutritionService.fetchFoods(search: searchText, includeArchived: showArchived, kind: filter.kind)
-            .filter { food in
-                !seenIds.contains(food.id)
-            }
-        return FoodPickerSections(favorites: favorites, recent: recentWithoutFavorites, all: allWithoutFavoritesAndRecent)
     }
 
     private var pickerTitle: String {
@@ -450,6 +436,16 @@ struct NutritionFoodPickerView: View {
         .navigationTitle(pickerTitle)
         .onAppear {
             filter = initialFilter
+            refreshSections()
+        }
+        .onChange(of: searchText) {
+            refreshSections()
+        }
+        .onChange(of: filter) {
+            refreshSections()
+        }
+        .onChange(of: showArchived) {
+            refreshSections()
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -548,6 +544,7 @@ struct NutritionFoodPickerView: View {
                 Button {
                     do {
                         try nutritionService.unarchiveFood(food: food)
+                        refreshSections()
                     } catch {
                         actionErrorMessage = error.localizedDescription
                         showActionError = true
@@ -557,6 +554,28 @@ struct NutritionFoodPickerView: View {
                 }
             }
         }
+    }
+
+    private func refreshSections() {
+        let favorites = nutritionService.fetchFavoriteFoods(includeArchived: showArchived, kind: filter.kind)
+            .filter(matchesSearch)
+        let favoriteIds = Set(favorites.map(\.id))
+        let recentWithoutFavorites = nutritionService.fetchRecentFoods(days: 14, includeArchived: showArchived, kind: filter.kind)
+            .filter(matchesSearch)
+            .filter { food in
+                !favoriteIds.contains(food.id)
+            }
+        let seenIds = favoriteIds.union(recentWithoutFavorites.map(\.id))
+        let allWithoutFavoritesAndRecent = nutritionService.fetchFoods(search: searchText, includeArchived: showArchived, kind: filter.kind)
+            .filter { food in
+                !seenIds.contains(food.id)
+            }
+
+        sections = FoodPickerSections(
+            favorites: favorites,
+            recent: recentWithoutFavorites,
+            all: allWithoutFavoritesAndRecent
+        )
     }
 }
 
@@ -788,22 +807,46 @@ private struct ManageFoodsView: View {
     }
 
     private func managedFoodCard(_ food: FoodItem) -> some View {
-        Button {
-            editingFood = food
-        } label: {
-            CardRowContainer {
-                FoodRowView(food: food) {
-                    Button {
-                        nutritionService.toggleFavorite(food: food)
-                    } label: {
-                        Image(systemName: food.isFavorite ? "star.fill" : "star")
-                            .foregroundStyle(food.isFavorite ? .yellow : .secondary)
+        CardRowContainer {
+            HStack {
+                Button {
+                    editingFood = food
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(food.name)
+                            if food.isArchived {
+                                Text("Archived")
+                                    .font(.caption2)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color(.systemGray5))
+                                    .clipShape(Capsule())
+                            }
+                        }
+
+                        if let brand = food.brand {
+                            Text(brand)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                Button {
+                    nutritionService.toggleFavorite(food: food)
+                } label: {
+                    Image(systemName: food.isFavorite ? "star.fill" : "star")
+                        .foregroundStyle(food.isFavorite ? .yellow : .secondary)
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
             }
         }
-        .buttonStyle(.plain)
         .contextMenu {
             if food.isArchived {
                 Button {

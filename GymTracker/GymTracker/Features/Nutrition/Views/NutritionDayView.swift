@@ -149,16 +149,13 @@ struct NutritionDayView: View {
                 refreshPeriodSummaries()
             }
         }
-        .onReceive(nutritionService.$dayLogs) { _ in
-            if selectedRange != .today {
-                refreshPeriodSummaries()
-            }
-        }
         .sheet(isPresented: $showDatePickerSheet) {
             NutritionDatePickerSheet(selectedDate: $selectedDate)
                 .presentationDetents([.large])
         }
-        .sheet(isPresented: $showLogSheet) {
+        .sheet(isPresented: $showLogSheet, onDismiss: {
+            refreshPeriodSummaries()
+        }) {
             NutritionLogSheet(selectedDate: selectedDate)
                 .presentationDetents([.large])
         }

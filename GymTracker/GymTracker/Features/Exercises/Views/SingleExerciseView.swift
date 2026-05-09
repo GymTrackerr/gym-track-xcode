@@ -779,17 +779,7 @@ private struct ExerciseDetailView: View {
     }
 
     private var detailBackground: some View {
-        LinearGradient(
-            gradient: Gradient(colors: [
-                Color(red: 0.85, green: 0.1, blue: 0.1),
-                Color.clear
-            ]),
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        .frame(height: 400)
-        .frame(maxHeight: .infinity, alignment: .top)
-        .ignoresSafeArea(edges: .top)
+        AppBackgroundView()
     }
 
     @ToolbarContentBuilder

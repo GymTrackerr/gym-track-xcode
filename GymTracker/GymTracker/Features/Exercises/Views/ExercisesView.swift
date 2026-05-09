@@ -109,10 +109,10 @@ struct ExercisesView: View {
                         .font(.system(size: 40))
                         .foregroundColor(.secondary)
                     
-                    Text("No Results\(selectedMuscle != "" ? " in \(selectedMuscle)" : "")")
+                    Text(emptyFilteredTitle)
                         .font(.headline)
                     
-                    Text("No exercises match \"\(searchText)\"")
+                    Text(emptyFilteredMessage)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -337,6 +337,39 @@ struct ExercisesView: View {
         }
     }
 
+    private var emptyFilteredTitle: String {
+        if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return selectedMuscle.isEmpty ? "No Results" : "No Results in \(selectedMuscle)"
+        }
+
+        if showUserExercisesOnly {
+            return "No Custom Exercises"
+        }
+
+        if !selectedMuscle.isEmpty {
+            return "No \(selectedMuscle) Exercises"
+        }
+
+        return "No Results"
+    }
+
+    private var emptyFilteredMessage: String {
+        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedSearch.isEmpty {
+            return "No exercises match \"\(trimmedSearch)\"."
+        }
+
+        if showUserExercisesOnly {
+            return "Create an exercise to see it here."
+        }
+
+        if !selectedMuscle.isEmpty {
+            return "No exercises match this muscle filter."
+        }
+
+        return "Try adjusting your filters."
+    }
+
 }
 
 private struct ExerciseListRow: View {
@@ -378,21 +411,3 @@ private struct ExerciseListRow: View {
         .cornerRadius(12)
     }
 }
-//
-//// Filter Pill Component
-//struct FilterPill: View {
-//    let title: String
-//    let isSelected: Bool
-//
-//    var body: some View {
-//        Text(title)
-//            .font(.caption)
-//            .fontWeight(.semibold)
-//            .padding(.horizontal, 16)
-//            .padding(.vertical, 8)
-//            .background(isSelected ? Color.accentColor : Color.gray.opacity(0.2))
-//            .foregroundColor(isSelected ? .white : .primary)
-//            .cornerRadius(20)
-//    }
-//}
-//

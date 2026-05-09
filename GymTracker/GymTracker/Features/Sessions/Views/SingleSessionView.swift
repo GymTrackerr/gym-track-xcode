@@ -681,27 +681,31 @@ struct addingExerciseSessionView : View {
     @Bindable var session: Session
     
     var body: some View {
-        NavigationView {
-            VStack(spacing: 16) {
-                TextField("Search or Create Exercise", text: $exerciseService.editingContent)
-                    .textFieldStyle(.roundedBorder)
-                    .padding()
-                Button {
-                    let exerciseNew = exerciseService.addExercise()
-                    DispatchQueue.main.async {
-                        if let exercise = exerciseNew {
-                            addExerciseEditing(exercise: exercise)
+        NavigationStack {
+            VStack(spacing: 0) {
+                VStack(spacing: 12) {
+                    ConnectedCardSection {
+                        ConnectedCardRow {
+                            TextField("Search or create exercise", text: $exerciseService.editingContent)
+                                .textFieldStyle(.roundedBorder)
                         }
-                        
+
+                        ConnectedCardDivider()
+
+                        Button {
+                            createAndQueueExercise()
+                        } label: {
+                            ConnectedCardRow {
+                                Label("Add Exercise", systemImage: "plus.circle")
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(exerciseService.editingContent.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
-                } label: {
-                    Label("Add", systemImage: "plus.circle")
-                        .font(.title2)
-                        .padding()
                 }
-                .disabled(exerciseService.editingContent.trimmingCharacters(in: .whitespaces).isEmpty)
+                .screenContentPadding()
+
                 List {
-                    // TODO: ADD BUTTONS TO ADD/REMOVE EXERCISES?? -- make sure there are no sets/reps
                     ForEach(searchResults, id: \.id) { exercise in
                         Button(action: {
                             addExerciseEditing(exercise: exercise)
@@ -713,15 +717,19 @@ struct addingExerciseSessionView : View {
 
                                 Text(exercise.name)
                             }
+                            .cardListRowContentPadding()
                         }
+                        .buttonStyle(.plain)
+                        .cardListRowStyle()
                     }
                 }
-
                 .listStyle(.plain)
-                .screenContentPadding()
-                Spacer()
+                .scrollContentBackground(.hidden)
+                .screenListContentFrame()
             }
             .navigationTitle("Add Exercises")
+            .navigationBarTitleDisplayMode(.inline)
+            .appBackground()
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save") {
@@ -733,7 +741,6 @@ struct addingExerciseSessionView : View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         seService.endEditing()
-                        exerciseService.editingContent = ""
                         exerciseService.editingContent = ""
                     }
                 }
@@ -760,6 +767,15 @@ struct addingExerciseSessionView : View {
             seService.removingExercises.removeAll { $0.id == exercise.id }
         } else {
             seService.addingExercises.append(exercise)
+        }
+    }
+
+    func createAndQueueExercise() {
+        let exerciseNew = exerciseService.addExercise()
+        DispatchQueue.main.async {
+            if let exercise = exerciseNew {
+                addExerciseEditing(exercise: exercise)
+            }
         }
     }
     

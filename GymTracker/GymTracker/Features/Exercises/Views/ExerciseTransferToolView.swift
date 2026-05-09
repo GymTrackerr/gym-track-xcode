@@ -360,10 +360,16 @@ private struct ExerciseSinglePickerSheet: View {
                                     .foregroundStyle(.tint)
                             }
                         }
+                        .cardListRowContentPadding()
                     }
+                    .buttonStyle(.plain)
+                    .cardListRowStyle()
                 }
             }
-            .screenContentPadding()
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .screenListContentFrame()
+            .appBackground()
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: prompt)
@@ -429,12 +435,16 @@ private struct SessionMultiPickerSheet: View {
                         }
                     }
                     .fontWeight(.semibold)
+                    .cardListRowContentPadding()
+                    .cardListRowStyle()
                 }
 
                 Section {
                     if filteredSessions.isEmpty {
                         Text("No sessions found")
                             .foregroundStyle(.secondary)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                     } else {
                         ForEach(filteredSessions, id: \.id) { session in
                             Button {
@@ -459,12 +469,18 @@ private struct SessionMultiPickerSheet: View {
                                     Image(systemName: selectedSessionIds.contains(session.id) ? "checkmark.circle.fill" : "circle")
                                         .foregroundColor(selectedSessionIds.contains(session.id) ? .accentColor : .secondary)
                                 }
+                                .cardListRowContentPadding()
                             }
+                            .buttonStyle(.plain)
+                            .cardListRowStyle()
                         }
                     }
                 }
             }
-            .screenContentPadding()
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .screenListContentFrame()
+            .appBackground()
             .navigationTitle("Sessions")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Search sessions")
