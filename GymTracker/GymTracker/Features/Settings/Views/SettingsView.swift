@@ -259,6 +259,35 @@ struct SettingsView: View {
             SectionHeaderView(title: "Preferences")
             ConnectedCardSection {
                 ConnectedCardRow {
+                    HStack(spacing: 12) {
+                        settingsRowLabel(
+                            title: "Appearance",
+                            subtitle: "Use system, light, or dark mode",
+                            systemImage: "circle.lefthalf.filled",
+                            showsChevron: false
+                        )
+
+                        Spacer(minLength: 12)
+
+                        Picker(
+                            "Appearance",
+                            selection: Binding(
+                                get: { userService.currentAppearancePreference },
+                                set: { userService.setCurrentAppearancePreference($0) }
+                            )
+                        ) {
+                            ForEach(AppAppearancePreference.allCases) { preference in
+                                Text(preference.title).tag(preference)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                    }
+                }
+
+                ConnectedCardDivider(leadingInset: 56)
+
+                ConnectedCardRow {
                     Toggle(
                         isOn: Binding(
                             get: { userService.currentUser?.showNutritionTab ?? true },

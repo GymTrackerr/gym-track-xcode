@@ -423,8 +423,7 @@ private struct ExerciseDetailView: View {
                     .font(.headline)
             }
             .padding()
-            .background(Color(.systemGray6))
-            .cornerRadius(12)
+            .adaptiveCardSurface(cornerRadius: 12)
         }
     }
 
@@ -485,8 +484,7 @@ private struct ExerciseDetailView: View {
                     .font(.headline)
             }
             .padding()
-            .background(Color(.systemGray6))
-            .cornerRadius(12)
+            .adaptiveCardSurface(cornerRadius: 12)
         }
     }
 
@@ -518,8 +516,7 @@ private struct ExerciseDetailView: View {
                 .foregroundStyle(.tint)
         }
         .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .adaptiveCardSurface(cornerRadius: 12)
     }
 
     private var progressMetricSelector: some View {
@@ -1516,7 +1513,7 @@ struct LogExerciseSheetView: View {
                         }
                         .padding(12)
                         .frame(maxWidth: .infinity)
-                        .glassEffect(in: .rect(cornerRadius: 12.0))
+                        .adaptiveCardSurface(cornerRadius: 12)
                     }
                     .buttonStyle(.plain)
 
@@ -1532,7 +1529,7 @@ struct LogExerciseSheetView: View {
                                 .foregroundColor(.secondary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(12)
-                                .glassEffect(in: .rect(cornerRadius: 12.0))
+                                .adaptiveCardSurface(cornerRadius: 12)
                         } else {
                             ForEach(recentSessions.prefix(6), id: \.id) { session in
                                 Button {
@@ -1556,7 +1553,7 @@ struct LogExerciseSheetView: View {
                                     }
                                     .padding(12)
                                     .frame(maxWidth: .infinity)
-                                    .glassEffect(in: .rect(cornerRadius: 12.0))
+                                    .adaptiveCardSurface(cornerRadius: 12)
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -1636,7 +1633,7 @@ struct AddToRoutineSheetView: View {
                             .foregroundColor(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(12)
-                            .glassEffect(in: .rect(cornerRadius: 12.0))
+                            .adaptiveCardSurface(cornerRadius: 12)
                     } else {
                         ForEach(splitDayService.routines, id: \.id) { routine in
                             Button {
@@ -1652,7 +1649,7 @@ struct AddToRoutineSheetView: View {
                                 }
                                 .padding(12)
                                 .frame(maxWidth: .infinity)
-                                .glassEffect(in: .rect(cornerRadius: 12.0))
+                                .adaptiveCardSurface(cornerRadius: 12)
                             }
                             .buttonStyle(.plain)
                         }

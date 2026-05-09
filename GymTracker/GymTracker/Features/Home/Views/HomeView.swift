@@ -923,7 +923,7 @@ struct DashboardEditableModuleCard: View {
                 .font(.caption2.weight(.semibold))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
-                .background(.ultraThinMaterial, in: Capsule())
+                .adaptiveCapsuleSurface()
                 .padding(10)
         }
         .overlay(alignment: .topLeading) {
@@ -965,7 +965,7 @@ struct DashboardEditableModuleCard: View {
                 .symbolRenderingMode(.hierarchical)
                 .foregroundColor(.primary.opacity(0.9))
                 .padding(6)
-                .background(.ultraThinMaterial, in: Circle())
+                .adaptiveCapsuleSurface()
                 .overlay(
                     Circle()
                         .stroke(Color.white.opacity(0.28), lineWidth: 0.8)
@@ -996,7 +996,7 @@ struct DashboardModuleDragPreview: View {
         }
         .padding(14)
         .frame(width: 200, alignment: .leading)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .adaptiveCardSurface(cornerRadius: 16)
     }
 }
 
@@ -1089,12 +1089,6 @@ struct DashboardModuleCardChrome<Content: View>: View {
         let spec = DashboardModuleVisualSpec(module.size)
 
         ZStack {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(
-                    Color(.secondarySystemBackground)
-                        .opacity(isEditing ? 0.34 : 0.16)
-                )
-
             VStack(spacing: 0) {
                 HStack(spacing: 8) {
                     Image(systemName: module.type.iconName)
@@ -1123,16 +1117,15 @@ struct DashboardModuleCardChrome<Content: View>: View {
                 content
                     .allowsHitTesting(!isEditing)
             }
-            .glassEffect(in: .rect(cornerRadius: 12.0))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .background(CardRowBackground(cornerRadius: 12))
 
             if isEditing {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.black.opacity(0.02))
+                    .fill(Color.black.opacity(0.04))
                     .allowsHitTesting(false)
 
                 RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.white.opacity(0.35), lineWidth: 1.25)
+                    .stroke(Color.accentColor.opacity(0.35), lineWidth: 1.25)
                     .allowsHitTesting(false)
             }
         }

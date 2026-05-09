@@ -98,8 +98,7 @@ struct ExerciseProgressionCardView: View {
             }
         }
         .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .adaptiveCardSurface(cornerRadius: 12)
     }
 
     @ViewBuilder

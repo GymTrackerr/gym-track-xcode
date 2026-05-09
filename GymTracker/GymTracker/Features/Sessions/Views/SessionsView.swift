@@ -50,7 +50,7 @@ struct SessionsView: View {
 //                        .fill(Color(.systemBackground))
 //                        .shadow(color: .gray.opacity(0.2), radius: 4, y: 2)
 //                )
-                .glassEffect(in: .rect(cornerRadius: 16.0))
+                .adaptiveCardSurface(cornerRadius: 16)
 
 //                .padding()
             }
@@ -94,7 +94,7 @@ struct SessionsView: View {
                         .buttonStyle(.plain)
                         .padding()
                         .frame(maxWidth: .infinity)
-                        .glassEffect(in: .rect(cornerRadius: 16.0))
+                        .adaptiveCardSurface(cornerRadius: 16)
                     }
                 }
             }
@@ -314,7 +314,7 @@ struct CreateSessionSheetView: View {
                             }
                             .padding(12)
                             .frame(maxWidth: .infinity)
-                            .glassEffect(in: .rect(cornerRadius: 12.0))
+                            .adaptiveCardSurface(cornerRadius: 12)
                             .padding(.horizontal, 16)
                         }
                     }
@@ -352,7 +352,7 @@ struct CreateSessionSheetView: View {
                                     }
                                     .padding(12)
                                     .frame(maxWidth: .infinity)
-                                    .glassEffect(in: .rect(cornerRadius: 12.0))
+                                    .adaptiveCardSurface(cornerRadius: 12)
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -372,7 +372,7 @@ struct CreateSessionSheetView: View {
                             .padding(12)
                             .font(.body)
                             .frame(height: 80, alignment: .topLeading)
-                            .glassEffect(in: .rect(cornerRadius: 12.0))
+                            .adaptiveCardSurface(cornerRadius: 12)
                             .padding(.horizontal, 16)
                     }
                 }

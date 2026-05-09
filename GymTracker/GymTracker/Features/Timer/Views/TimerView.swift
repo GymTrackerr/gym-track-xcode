@@ -117,28 +117,54 @@ struct TimerView: View {
 
 
 struct MainTimerButton: ButtonStyle {
+    @Environment(\.colorScheme) private var colorScheme
     var color: Color
     
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 22, weight: .bold))
-            .foregroundColor(.black)
+            .foregroundColor(.white)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
             .background(color.opacity(configuration.isPressed ? 0.7 : 1))
             .cornerRadius(16)
+            .shadow(
+                color: colorScheme == .dark ? Color.clear : color.opacity(0.24),
+                radius: 10,
+                x: 0,
+                y: 5
+            )
             .padding(.horizontal)
     }
 }
 
 struct SecondaryTimerButton: ButtonStyle {
+    @Environment(\.colorScheme) private var colorScheme
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 18, weight: .semibold))
-            .foregroundColor(.white)
+            .foregroundColor(.primary)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(Color.black.opacity(0.35).opacity(configuration.isPressed ? 0.6 : 1))
-            .cornerRadius(14)
+            .background {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(colorScheme == .dark ? Color.white.opacity(0.08) : Color.white.opacity(0.62))
+                    .background {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(.regularMaterial)
+                    }
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(colorScheme == .dark ? Color.white.opacity(0.15) : Color.black.opacity(0.08), lineWidth: 1)
+            }
+            .shadow(
+                color: colorScheme == .dark ? Color.clear : Color.black.opacity(0.10),
+                radius: 10,
+                x: 0,
+                y: 4
+            )
+            .opacity(configuration.isPressed ? 0.74 : 1)
     }
 }

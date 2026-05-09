@@ -122,7 +122,7 @@ struct ExerciseTransferToolView: View {
                         .font(.caption.weight(.semibold))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .glassEffect(in: .capsule)
+                        .adaptiveCapsuleSurface()
                 }
                 .buttonStyle(.plain)
                 .disabled(!canSwapSelections)
@@ -310,7 +310,7 @@ private struct TransferSelectionCard: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .glassEffect(in: .rect(cornerRadius: 12.0))
+            .adaptiveCardSurface(cornerRadius: 12)
         }
         .buttonStyle(.plain)
     }

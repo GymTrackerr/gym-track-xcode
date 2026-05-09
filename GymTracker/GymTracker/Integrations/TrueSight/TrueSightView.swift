@@ -62,27 +62,26 @@ struct TrueSightView: View {
                 NavigationLink {
                     FitSightExercisePickerView(selectedExerciseId: $selectedExerciseId)
                 } label: {
-                    HStack(spacing: 12) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Exercise")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.secondary)
-                            Text(selectedExercise?.name ?? "Choose ExerciseDB-backed exercise")
-                                .font(.headline)
-                                .foregroundColor(.primary)
-                                .multilineTextAlignment(.leading)
-                            Text(selectedExercise?.npId ?? "Uses local exercises that have an npId")
-                                .font(.caption)
+                    CardRowContainer {
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Exercise")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.secondary)
+                                Text(selectedExercise?.name ?? "Choose ExerciseDB-backed exercise")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                                    .multilineTextAlignment(.leading)
+                                Text(selectedExercise?.npId ?? "Uses local exercises that have an npId")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
                                 .foregroundColor(.secondary)
                         }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.secondary)
                     }
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(12)
                 }
 
                 // Select video button (only show if not in webcam mode)
@@ -140,7 +139,8 @@ struct TrueSightView: View {
                 
                 // Processing status
                 if manager.isProcessing {
-                    VStack(spacing: 10) {
+                    CardRowContainer {
+                        VStack(spacing: 10) {
                         if manager.isUploading {
                             ProgressView(value: manager.uploadProgress) {
                                 Text("Uploading video…")
@@ -157,12 +157,8 @@ struct TrueSightView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
+                        }
                     }
-                    .padding(.vertical, 14)
-                    .padding(.horizontal, 16)
-                    .frame(maxWidth: .infinity)
-                    .background(Color(.systemGray6))
-                    .cornerRadius(12)
                 }
 
                 if let selectionErrorMessage {

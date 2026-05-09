@@ -281,8 +281,7 @@ struct HistoryChartView<FilterControls: View>: View {
                 }
                 .frame(height: 280)
                 .padding(12)
-                .background(Color(.systemGray6))
-                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .adaptiveCardSurface(cornerRadius: 14)
 
                 if isLoadingPoints {
                     Text("Loading...")
@@ -301,7 +300,7 @@ struct HistoryChartView<FilterControls: View>: View {
                         .padding(.horizontal, 4)
                 }
             }
-            .screenContentPadding()
+            .padding()
         }
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
@@ -432,8 +431,7 @@ struct HistoryChartView<FilterControls: View>: View {
                             }
                             .padding(.horizontal, 8)
                             .padding(.vertical, 6)
-                            .background(Color(.systemGray6))
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .adaptiveCardSurface(cornerRadius: 8)
                         }
                     }
                     .padding(.vertical, 4)

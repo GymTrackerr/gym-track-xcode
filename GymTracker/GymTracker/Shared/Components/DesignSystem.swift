@@ -8,22 +8,41 @@
 import SwiftUI
 
 struct AppBackgroundView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         ZStack(alignment: .top) {
-            Color(.systemBackground)
+            backgroundBase
 
             LinearGradient(
-                colors: [
-                    Color(red: 0.85, green: 0.1, blue: 0.1),
-                    Color.clear
-                ],
+                colors: gradientStops,
                 startPoint: .top,
                 endPoint: .bottom
             )
-            .frame(height: 400)
+            .frame(height: colorScheme == .dark ? 400 : 360)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .ignoresSafeArea()
+    }
+
+    private var backgroundBase: Color {
+        colorScheme == .dark ? Color(.systemBackground) : Color(.systemGroupedBackground)
+    }
+
+    private var gradientStops: [Color] {
+        if colorScheme == .dark {
+            return [
+                Color(red: 0.85, green: 0.1, blue: 0.1),
+                Color.clear
+            ]
+        }
+
+        return [
+            Color(red: 0.86, green: 0.05, blue: 0.06).opacity(0.52),
+            Color(red: 0.95, green: 0.18, blue: 0.16).opacity(0.24),
+            Color(red: 1.0, green: 0.52, blue: 0.48).opacity(0.10),
+            Color.clear
+        ]
     }
 }
 
@@ -45,11 +64,21 @@ struct CardRowContainer<Content: View>: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .stroke(
-                        isSelected ? Color.accentColor : Color.white.opacity(colorScheme == .dark ? 0.15 : 0.12),
+                        isSelected ? Color.accentColor : cardBorder,
                         lineWidth: isSelected ? 1.5 : 1
                     )
             )
+            .shadow(
+                color: colorScheme == .dark ? Color.clear : Color.black.opacity(0.10),
+                radius: 10,
+                x: 0,
+                y: 4
+            )
             .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private var cardBorder: Color {
+        colorScheme == .dark ? Color.white.opacity(0.15) : Color.black.opacity(0.10)
     }
 
     @ViewBuilder private var cardFill: some View {
@@ -58,10 +87,10 @@ struct CardRowContainer<Content: View>: View {
                 .fill(isSelected ? Color.accentColor.opacity(0.18) : Color.white.opacity(0.08))
         } else {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(isSelected ? Color.accentColor.opacity(0.12) : Color.clear)
+                .fill(isSelected ? Color.accentColor.opacity(0.14) : Color.white.opacity(0.50))
                 .background {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(.ultraThinMaterial)
+                        .fill(.regularMaterial)
                 }
         }
     }
@@ -77,22 +106,112 @@ private struct CardRowContainerModifier: ViewModifier {
 
 struct CardRowBackground: View {
     @Environment(\.colorScheme) private var colorScheme
+    var cornerRadius: CGFloat = 16
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 16, style: .continuous)
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             .fill(cardFill)
+            .overlay {
+                if colorScheme == .light {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(Color.black.opacity(0.025))
+                }
+            }
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.white.opacity(colorScheme == .dark ? 0.15 : 0.12), lineWidth: 1)
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(cardBorder, lineWidth: 1)
             )
+            .shadow(
+                color: colorScheme == .dark ? Color.clear : Color.black.opacity(0.10),
+                radius: 10,
+                x: 0,
+                y: 4
+            )
+    }
+
+    private var cardBorder: Color {
+        colorScheme == .dark ? Color.white.opacity(0.15) : Color.black.opacity(0.10)
     }
 
     private var cardFill: AnyShapeStyle {
         if colorScheme == .dark {
             return AnyShapeStyle(Color.white.opacity(0.08))
         } else {
-            return AnyShapeStyle(.ultraThinMaterial)
+            return AnyShapeStyle(.regularMaterial)
         }
+    }
+}
+
+private struct AdaptiveRoundedSurfaceModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+    let cornerRadius: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(surfaceFill)
+                    .overlay {
+                        if colorScheme == .light {
+                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                                .fill(Color.white.opacity(0.30))
+                        }
+                    }
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(surfaceBorder, lineWidth: 1)
+            }
+            .shadow(
+                color: colorScheme == .dark ? Color.clear : Color.black.opacity(0.10),
+                radius: 10,
+                x: 0,
+                y: 4
+            )
+    }
+
+    private var surfaceFill: AnyShapeStyle {
+        colorScheme == .dark ? AnyShapeStyle(Color.white.opacity(0.08)) : AnyShapeStyle(.regularMaterial)
+    }
+
+    private var surfaceBorder: Color {
+        colorScheme == .dark ? Color.white.opacity(0.15) : Color.black.opacity(0.10)
+    }
+}
+
+private struct AdaptiveCapsuleSurfaceModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                Capsule(style: .continuous)
+                    .fill(surfaceFill)
+                    .overlay {
+                        if colorScheme == .light {
+                            Capsule(style: .continuous)
+                                .fill(Color.white.opacity(0.30))
+                        }
+                    }
+            }
+            .overlay {
+                Capsule(style: .continuous)
+                    .stroke(surfaceBorder, lineWidth: 1)
+            }
+            .shadow(
+                color: colorScheme == .dark ? Color.clear : Color.black.opacity(0.10),
+                radius: 8,
+                x: 0,
+                y: 3
+            )
+    }
+
+    private var surfaceFill: AnyShapeStyle {
+        colorScheme == .dark ? AnyShapeStyle(Color.white.opacity(0.08)) : AnyShapeStyle(.regularMaterial)
+    }
+
+    private var surfaceBorder: Color {
+        colorScheme == .dark ? Color.white.opacity(0.15) : Color.black.opacity(0.10)
     }
 }
 
@@ -230,6 +349,14 @@ extension View {
 
     func cardRowContainerStyle() -> some View {
         modifier(CardRowContainerModifier())
+    }
+
+    func adaptiveCardSurface(cornerRadius: CGFloat = 16) -> some View {
+        modifier(AdaptiveRoundedSurfaceModifier(cornerRadius: cornerRadius))
+    }
+
+    func adaptiveCapsuleSurface() -> some View {
+        modifier(AdaptiveCapsuleSurfaceModifier())
     }
 
     func screenContentPadding() -> some View {

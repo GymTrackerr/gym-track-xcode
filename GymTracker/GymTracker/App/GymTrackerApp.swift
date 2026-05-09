@@ -267,8 +267,10 @@ struct RootView: View {
     var body: some View {
         if userService.onboardingState != nil {
             OnboardingRootView()
+                .preferredColorScheme(userService.currentAppearancePreference.colorScheme)
         } else {
             ContentView()
+                .preferredColorScheme(userService.currentAppearancePreference.colorScheme)
         }
     }
 }
