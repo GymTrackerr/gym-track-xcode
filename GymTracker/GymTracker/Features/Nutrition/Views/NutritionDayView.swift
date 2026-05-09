@@ -19,6 +19,13 @@ struct NutritionDayView: View {
     @State private var mealTemplateName = ""
     @State private var periodSummaries: [NutritionDailySummary] = []
     @State private var periodErrorMessage: String?
+    private let showsRangeControls: Bool
+
+    init(initialSelectedDate: Date = Date(), showsRangeControls: Bool = true) {
+        let normalizedDate = Calendar.current.startOfDay(for: initialSelectedDate)
+        _selectedDate = State(initialValue: normalizedDate)
+        self.showsRangeControls = showsRangeControls
+    }
 
     private var dayLogs: [NutritionLogEntry] {
         nutritionService.dayLogs.sorted { $0.timestamp < $1.timestamp }
@@ -70,7 +77,9 @@ struct NutritionDayView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            rangeControlRow
+            if showsRangeControls {
+                rangeControlRow
+            }
 
             if selectedRange == .today {
                 dayContent
@@ -206,74 +215,33 @@ struct NutritionDayView: View {
     }
 
     private var rangeControlRow: some View {
-        VStack(spacing: 10) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    Button {
-                        showDatePickerSheet = true
-                    } label: {
-                        Image(systemName: "calendar")
-                            .font(.caption.weight(.bold))
-                            .frame(width: 34, height: 34)
-                            .adaptiveCapsuleSurface()
-                    }
-                    .buttonStyle(.plain)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                Button {
+                    showDatePickerSheet = true
+                } label: {
+                    Image(systemName: "calendar")
+                        .font(.caption.weight(.bold))
+                        .frame(width: 34, height: 34)
+                        .adaptiveCapsuleSurface()
+                }
+                .buttonStyle(.plain)
 
-                    ForEach(NutritionRangeMode.allCases) { range in
-                        FilterPill(
-                            title: range.displayName,
-                            isSelected: selectedRange == range && (range != .today || isSelectedDateToday)
-                        )
-                        .onTapGesture {
-                            selectRange(range)
-                        }
+                ForEach(NutritionRangeMode.allCases) { range in
+                    FilterPill(
+                        title: range.displayName,
+                        isSelected: selectedRange == range && (range != .today || isSelectedDateToday)
+                    )
+                    .onTapGesture {
+                        selectRange(range)
                     }
                 }
-                .padding(.horizontal, 2)
             }
-            .scrollClipDisabled()
-
-            if selectedRange != .all {
-                periodNavigationRow
-            }
+            .padding(.horizontal, 2)
         }
+        .scrollClipDisabled()
         .padding(.vertical, 12)
         .screenContentPadding()
-    }
-
-    private var periodNavigationRow: some View {
-        ConnectedCardSection {
-            ConnectedCardRow {
-                HStack(spacing: 10) {
-                    Button {
-                        shiftSelectedPeriod(by: -1)
-                    } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.headline)
-                            .frame(width: 32, height: 32)
-                    }
-                    .buttonStyle(.plain)
-
-                    Spacer()
-
-                    Text(periodNavigationTitle)
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-
-                    Spacer()
-
-                    Button {
-                        shiftSelectedPeriod(by: 1)
-                    } label: {
-                        Image(systemName: "chevron.right")
-                            .font(.headline)
-                            .frame(width: 32, height: 32)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
     }
 
     private var dayContent: some View {
@@ -317,8 +285,12 @@ struct NutritionDayView: View {
                         SectionHeaderView(title: periodSectionTitle)
 
                         ForEach(periodSummaries) { summary in
-                            Button {
-                                selectSummaryDay(summary.date)
+                            NavigationLink {
+                                NutritionDayView(
+                                    initialSelectedDate: summary.date,
+                                    showsRangeControls: false
+                                )
+                                .appBackground()
                             } label: {
                                 NutritionDailySummaryRow(summary: summary)
                             }
@@ -334,14 +306,7 @@ struct NutritionDayView: View {
     private var periodSummaryCard: some View {
         CardRowContainer {
             VStack(alignment: .leading, spacing: 12) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(periodTitle)
-                        .font(.title3.weight(.semibold))
-
-                    Text(periodSubtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                periodSummaryHeader
 
                 Text("Daily averages")
                     .font(.caption.weight(.semibold))
@@ -373,16 +338,12 @@ struct NutritionDayView: View {
     private var dailySummary: some View {
         CardRowContainer {
             VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("\(Int(totalKcal.rounded())) kcal")
-                            .font(.title3)
-                            .fontWeight(.semibold)
+                daySummaryHeader
 
-                        Text(selectedDate, format: .dateTime.weekday(.wide).month(.abbreviated).day().year())
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                HStack {
+                    Text("\(Int(totalKcal.rounded())) kcal")
+                        .font(.title3)
+                        .fontWeight(.semibold)
 
                     Spacer()
 
@@ -436,6 +397,88 @@ struct NutritionDayView: View {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    private var daySummaryHeader: some View {
+        HStack(spacing: 10) {
+            Button {
+                shiftSelectedPeriod(by: -1)
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.headline)
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            VStack(alignment: .center, spacing: 3) {
+                Text(periodNavigationTitle)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+
+                Text("Day")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button {
+                shiftSelectedPeriod(by: 1)
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.headline)
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var periodSummaryHeader: some View {
+        HStack(spacing: 10) {
+            if selectedRange != .all {
+                Button {
+                    shiftSelectedPeriod(by: -1)
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.headline)
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
+            }
+
+            Spacer()
+
+            VStack(alignment: .center, spacing: 3) {
+                Text(selectedRange == .all ? periodTitle : periodNavigationTitle)
+                    .font(.title3.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+
+                Text(selectedRange == .all ? periodSubtitle : selectedRange.displayName)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+
+            Spacer()
+
+            if selectedRange != .all {
+                Button {
+                    shiftSelectedPeriod(by: 1)
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.headline)
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -528,11 +571,6 @@ struct NutritionDayView: View {
         if range == .today {
             selectedDate = Calendar.current.startOfDay(for: Date())
         }
-    }
-
-    private func selectSummaryDay(_ date: Date) {
-        selectedDate = Calendar.current.startOfDay(for: date)
-        selectedRange = .today
     }
 
     private func shiftSelectedPeriod(by value: Int) {
