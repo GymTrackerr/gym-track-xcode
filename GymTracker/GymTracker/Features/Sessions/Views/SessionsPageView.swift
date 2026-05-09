@@ -15,68 +15,79 @@ struct SessionsPageView: View {
     @State private var summary = SessionPeriodSummary.empty
 
     var body: some View {
-        List {
-            Group {
-                Picker("Range", selection: $selectedRange) {
+        VStack(spacing: 0) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
                     ForEach(SessionTimeRange.allCases) { range in
-                        Text(range.rawValue).tag(range)
+                        FilterPill(
+                            title: range.rawValue,
+                            isSelected: selectedRange == range
+                        )
+                        .onTapGesture {
+                            selectedRange = range
+                        }
                     }
+                    Spacer()
                 }
-                .pickerStyle(.segmented)
-                .padding(10)
+                .padding(.horizontal, 2)
             }
-            .cardListRowStyle()
+            .scrollClipDisabled()
+            .padding(.vertical, 12)
+            .screenContentPadding()
 
-            summaryRowContent
-                .padding(14)
-                .cardListRowStyle()
-
-            if visibleSessions.isEmpty {
-                ContentUnavailableView {
-                    Label("No sessions in this period", systemImage: "figure.strengthtraining.traditional")
-                } actions: {
-                    Button("Add Log") {
-                        showingCreateSession = true
-                    }
-                }
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-            } else {
-                ForEach(visibleSessions, id: \.id) { session in
-                    NavigationLink {
-                        SingleSessionView(session: session)
-                            .appBackground()
-                    } label: {
-                        SingleSessionLabelView(session: session)
-                        .foregroundColor(.primary)
-                    }
-                    .contextMenu {
-                        Button {
-                            openedSession = session
-                        } label: {
-                            Label("Edit", systemImage: "pencil")
-                        }
-
-                        Button(role: .destructive) {
-                            sessionService.removeSession(session: session)
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-                    }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                        Button(role: .destructive) {
-                            sessionService.removeSession(session: session)
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-                    }
+            List {
+                summaryRowContent
+                    .cardListRowContentPadding()
                     .cardListRowStyle()
+
+                if visibleSessions.isEmpty {
+                    ContentUnavailableView {
+                        Label("No sessions in this period", systemImage: "figure.strengthtraining.traditional")
+                    } actions: {
+                        Button("Add Log") {
+                            showingCreateSession = true
+                        }
+                    }
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                } else {
+                    ForEach(visibleSessions, id: \.id) { session in
+                        NavigationLink {
+                            SingleSessionView(session: session)
+                                .appBackground()
+                        } label: {
+                            SingleSessionLabelView(session: session)
+                            .foregroundColor(.primary)
+                        }
+                        .contextMenu {
+                            Button {
+                                openedSession = session
+                            } label: {
+                                Label("Edit", systemImage: "pencil")
+                            }
+
+                            Button(role: .destructive) {
+                                sessionService.removeSession(session: session)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                sessionService.removeSession(session: session)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                        .cardListRowStyle()
+                    }
                 }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .screenListContentFrame()
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .screenListContentFrame()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .appBackground()
         .navigationTitle("Sessions")
         .navigationBarTitleDisplayMode(.inline)

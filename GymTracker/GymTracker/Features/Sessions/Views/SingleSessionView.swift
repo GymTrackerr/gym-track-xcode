@@ -647,9 +647,7 @@ struct SingleSessionLabelView: View {
                         .minimumScaleFactor(0.9)
                 }
             }
-            .padding(.vertical, 8)
-            .padding(.leading, 12)
-            .padding(.trailing, 4)
+            .cardListRowContentPadding()
         }
     }
 

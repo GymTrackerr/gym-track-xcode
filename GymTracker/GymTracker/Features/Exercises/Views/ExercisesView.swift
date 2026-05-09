@@ -374,7 +374,7 @@ private struct ExerciseListRow: View {
                 }
             }
         }
-        .padding(8)
+        .cardListRowContentPadding()
         .cornerRadius(12)
     }
 }

@@ -401,4 +401,16 @@ extension View {
                     .padding(.horizontal, backgroundHorizontalPadding)
             )
     }
+
+    func cardListRowContentPadding() -> some View {
+        padding(.vertical, 8)
+            .padding(.leading, 14)
+            .padding(.trailing, 10)
+    }
+
+    func cardListRowCompactContentPadding() -> some View {
+        padding(.vertical, 4)
+            .padding(.leading, 14)
+            .padding(.trailing, 10)
+    }
 }
