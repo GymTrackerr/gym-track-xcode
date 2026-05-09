@@ -148,22 +148,46 @@ struct SessionsPageView: View {
     }
 
     private var summaryRowContent: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("\(summary.sessionCount) Session\(summary.sessionCount == 1 ? "" : "s")")
-                .font(.headline)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("\(summary.sessionCount) Session\(summary.sessionCount == 1 ? "" : "s")")
+                        .font(.title3.weight(.semibold))
 
-            Text("Total volume: \(SessionService.formattedPounds(summary.totalVolume))")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                    Text(summary.title)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
-            Text("Avg session volume: \(SessionService.formattedPounds(summary.averageSessionVolume))")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                Spacer()
+            }
 
-            if let averageDurationMinutes = summary.averageDurationMinutes {
-                Text("Avg duration: \(Int(averageDurationMinutes.rounded())) min")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            HStack(spacing: 10) {
+                SummaryMetricTile(
+                    title: "Volume",
+                    value: SessionService.formattedPounds(summary.totalVolume),
+                    systemImage: "scalemass"
+                )
+
+                SummaryMetricTile(
+                    title: "Avg Vol",
+                    value: SessionService.formattedPounds(summary.averageSessionVolume),
+                    systemImage: "chart.bar"
+                )
+
+                if let averageDurationMinutes = summary.averageDurationMinutes {
+                    SummaryMetricTile(
+                        title: "Avg Time",
+                        value: "\(Int(averageDurationMinutes.rounded())) min",
+                        systemImage: "clock"
+                    )
+                } else {
+                    SummaryMetricTile(
+                        title: "Avg Time",
+                        value: "-",
+                        systemImage: "clock"
+                    )
+                }
             }
         }
     }
