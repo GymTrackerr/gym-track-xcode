@@ -27,7 +27,7 @@ struct SessionsPageView: View {
                         .onTapGesture {
                             selectedRange = range
                             if range != .all {
-                                selectedReferenceDate = Calendar.current.startOfDay(for: Date())
+                                selectedReferenceDate = clampedReferenceDate(for: Date(), range: range)
                             }
                         }
                     }
@@ -202,6 +202,7 @@ struct SessionsPageView: View {
                         .frame(width: 32, height: 32)
                 }
                 .buttonStyle(.plain)
+                .disabled(!canShiftSelectedPeriod(by: -1))
             }
 
             Spacer()
@@ -229,6 +230,7 @@ struct SessionsPageView: View {
                         .frame(width: 32, height: 32)
                 }
                 .buttonStyle(.plain)
+                .disabled(!canShiftSelectedPeriod(by: 1))
             }
         }
     }
@@ -253,6 +255,20 @@ struct SessionsPageView: View {
     }
 
     private func shiftSelectedPeriod(by value: Int) {
+        guard canShiftSelectedPeriod(by: value) else { return }
+        guard let shiftedDate = shiftedReferenceDate(by: value) else { return }
+        selectedReferenceDate = shiftedDate
+    }
+
+    private func canShiftSelectedPeriod(by value: Int) -> Bool {
+        guard selectedRange != .all, let shiftedDate = shiftedReferenceDate(by: value) else {
+            return false
+        }
+
+        return isReferenceDateWithinNavigationBounds(shiftedDate, range: selectedRange)
+    }
+
+    private func shiftedReferenceDate(by value: Int) -> Date? {
         let calendar = Calendar.current
         let component: Calendar.Component
 
@@ -264,11 +280,64 @@ struct SessionsPageView: View {
         case .year:
             component = .year
         case .all:
-            return
+            return nil
         }
 
-        selectedReferenceDate = calendar.startOfDay(
-            for: calendar.date(byAdding: component, value: value, to: selectedReferenceDate) ?? selectedReferenceDate
+        guard let shiftedDate = calendar.date(byAdding: component, value: value, to: selectedReferenceDate) else {
+            return nil
+        }
+
+        return calendar.startOfDay(for: shiftedDate)
+    }
+
+    private func clampedReferenceDate(for date: Date, range: SessionTimeRange) -> Date {
+        let calendar = Calendar.current
+        let normalizedDate = calendar.startOfDay(for: date)
+        guard range != .all,
+              let bounds = navigationBounds(for: range),
+              let periodStart = range.periodStart(for: normalizedDate, calendar: calendar) else {
+            return normalizedDate
+        }
+
+        if periodStart < bounds.minimumAllowedStart {
+            return bounds.minimumAllowedStart
+        }
+
+        if periodStart > bounds.maximumAllowedStart {
+            return bounds.maximumAllowedStart
+        }
+
+        return normalizedDate
+    }
+
+    private func isReferenceDateWithinNavigationBounds(_ date: Date, range: SessionTimeRange) -> Bool {
+        let calendar = Calendar.current
+        guard let bounds = navigationBounds(for: range),
+              let periodStart = range.periodStart(for: date, calendar: calendar) else {
+            return true
+        }
+
+        return periodStart >= bounds.minimumAllowedStart && periodStart <= bounds.maximumAllowedStart
+    }
+
+    private func navigationBounds(for range: SessionTimeRange) -> PeriodNavigationBounds? {
+        guard range != .all else { return nil }
+
+        let calendar = Calendar.current
+        let sessions = sessionService.sessionsInRange(nil)
+        guard let oldestDate = sessions.map(\.timestamp).min(),
+              let oldestPeriodStart = range.periodStart(for: oldestDate, calendar: calendar),
+              let currentPeriodStart = range.periodStart(for: Date(), calendar: calendar) else {
+            return nil
+        }
+
+        let component = range.calendarComponent
+        let minimumAllowedStart = calendar.date(byAdding: component, value: -1, to: oldestPeriodStart) ?? oldestPeriodStart
+        let maximumAllowedStart = calendar.date(byAdding: component, value: 1, to: currentPeriodStart) ?? currentPeriodStart
+
+        return PeriodNavigationBounds(
+            minimumAllowedStart: minimumAllowedStart,
+            maximumAllowedStart: maximumAllowedStart
         )
     }
 
@@ -357,6 +426,23 @@ private enum SessionTimeRange: String, CaseIterable, Identifiable {
             return nil
         }
     }
+
+    var calendarComponent: Calendar.Component {
+        switch self {
+        case .week:
+            return .weekOfYear
+        case .month:
+            return .month
+        case .year:
+            return .year
+        case .all:
+            return .era
+        }
+    }
+
+    func periodStart(for date: Date, calendar: Calendar) -> Date? {
+        dateInterval(referenceDate: date, calendar: calendar)?.start
+    }
 }
 
 private struct SessionPeriodSummary {
@@ -373,4 +459,9 @@ private struct SessionPeriodSummary {
         averageSessionVolume: 0,
         averageDurationMinutes: nil
     )
+}
+
+private struct PeriodNavigationBounds {
+    let minimumAllowedStart: Date
+    let maximumAllowedStart: Date
 }

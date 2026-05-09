@@ -19,6 +19,7 @@ struct NutritionDayView: View {
     @State private var mealTemplateName = ""
     @State private var periodSummaries: [NutritionDailySummary] = []
     @State private var periodErrorMessage: String?
+    @State private var navigationBounds: NutritionNavigationBounds?
     private let showsRangeControls: Bool
 
     init(initialSelectedDate: Date = Date(), showsRangeControls: Bool = true) {
@@ -128,6 +129,7 @@ struct NutritionDayView: View {
                 showErrorAlert = true
             }
             refreshPeriodSummaries()
+            refreshNavigationBounds()
         }
         .onChange(of: selectedDate) {
             let normalizedDate = Calendar.current.startOfDay(for: selectedDate)
@@ -155,6 +157,7 @@ struct NutritionDayView: View {
         }
         .sheet(isPresented: $showLogSheet, onDismiss: {
             refreshPeriodSummaries()
+            refreshNavigationBounds()
         }) {
             NutritionLogSheet(selectedDate: selectedDate)
                 .presentationDetents([.large])
@@ -179,6 +182,7 @@ struct NutritionDayView: View {
                 do {
                     let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate
                     _ = try nutritionService.copyStandaloneLogs(from: yesterday, to: selectedDate)
+                    refreshNavigationBounds()
                 } catch {
                     errorMessage = error.localizedDescription
                     showErrorAlert = true
@@ -408,6 +412,7 @@ struct NutritionDayView: View {
                     .frame(width: 32, height: 32)
             }
             .buttonStyle(.plain)
+            .disabled(!canShiftSelectedPeriod(by: -1))
 
             Spacer()
 
@@ -432,6 +437,7 @@ struct NutritionDayView: View {
                     .frame(width: 32, height: 32)
             }
             .buttonStyle(.plain)
+            .disabled(!canShiftSelectedPeriod(by: 1))
         }
     }
 
@@ -446,13 +452,14 @@ struct NutritionDayView: View {
                         .frame(width: 32, height: 32)
                 }
                 .buttonStyle(.plain)
+                .disabled(!canShiftSelectedPeriod(by: -1))
             }
 
             Spacer()
 
             VStack(alignment: .center, spacing: 3) {
                 Text(selectedRange == .all ? periodTitle : periodNavigationTitle)
-                    .font(.title3.weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
                     .multilineTextAlignment(.center)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
@@ -476,6 +483,7 @@ struct NutritionDayView: View {
                         .frame(width: 32, height: 32)
                 }
                 .buttonStyle(.plain)
+                .disabled(!canShiftSelectedPeriod(by: 1))
             }
         }
     }
@@ -571,6 +579,20 @@ struct NutritionDayView: View {
     }
 
     private func shiftSelectedPeriod(by value: Int) {
+        guard canShiftSelectedPeriod(by: value) else { return }
+        guard let shiftedDate = shiftedSelectedDate(by: value) else { return }
+        selectedDate = shiftedDate
+    }
+
+    private func canShiftSelectedPeriod(by value: Int) -> Bool {
+        guard selectedRange != .all, let shiftedDate = shiftedSelectedDate(by: value) else {
+            return false
+        }
+
+        return isSelectedDateWithinNavigationBounds(shiftedDate, range: selectedRange)
+    }
+
+    private func shiftedSelectedDate(by value: Int) -> Date? {
         let calendar = Calendar.current
         let component: Calendar.Component
 
@@ -582,16 +604,48 @@ struct NutritionDayView: View {
         case .month:
             component = .month
         case .all:
-            return
+            return nil
         }
 
-        selectedDate = calendar.startOfDay(
-            for: calendar.date(byAdding: component, value: value, to: selectedDate) ?? selectedDate
-        )
+        guard let shiftedDate = calendar.date(byAdding: component, value: value, to: selectedDate) else {
+            return nil
+        }
+
+        return calendar.startOfDay(for: shiftedDate)
     }
 
     private func loadSelectedDay() {
         nutritionService.loadDayData(for: selectedDate)
+    }
+
+    private func refreshNavigationBounds() {
+        do {
+            let bounds = try nutritionService.nutritionBounds(for: .calories)
+            guard let oldest = bounds.oldest else {
+                navigationBounds = nil
+                return
+            }
+
+            navigationBounds = NutritionNavigationBounds(oldest: oldest)
+        } catch {
+            navigationBounds = nil
+        }
+    }
+
+    private func isSelectedDateWithinNavigationBounds(_ date: Date, range: NutritionRangeMode) -> Bool {
+        let calendar = Calendar.current
+        guard let bounds = navigationBounds,
+              let periodStart = range.periodStart(for: date, calendar: calendar),
+              let oldestPeriodStart = range.periodStart(for: bounds.oldest, calendar: calendar),
+              let currentPeriodStart = range.periodStart(for: Date(), calendar: calendar) else {
+            return true
+        }
+
+        let component = range.calendarComponent
+        let minimumAllowedStart = calendar.date(byAdding: component, value: -1, to: oldestPeriodStart) ?? oldestPeriodStart
+        let maximumAllowedStart = calendar.date(byAdding: component, value: 1, to: currentPeriodStart) ?? currentPeriodStart
+
+        return periodStart >= minimumAllowedStart && periodStart <= maximumAllowedStart
     }
 
     private func refreshPeriodSummaries() {
@@ -767,6 +821,7 @@ struct NutritionDayView: View {
 
             Button(role: .destructive) {
                 nutritionService.deleteFoodLog(log, selectedDate: selectedDate)
+                refreshNavigationBounds()
             } label: {
                 Label("Delete", systemImage: "trash")
             }
@@ -809,6 +864,7 @@ struct NutritionDayView: View {
             Button(role: .destructive) {
                 nutritionService.deleteMealEntry(log, selectedDate: selectedDate)
                 expandedMealLogIDs.remove(log.id)
+                refreshNavigationBounds()
             } label: {
                 Label("Delete", systemImage: "trash")
             }
@@ -902,6 +958,36 @@ private enum NutritionRangeMode: String, CaseIterable, Identifiable {
             return "All"
         }
     }
+
+    var calendarComponent: Calendar.Component {
+        switch self {
+        case .today:
+            return .day
+        case .week:
+            return .weekOfYear
+        case .month:
+            return .month
+        case .all:
+            return .era
+        }
+    }
+
+    func periodStart(for date: Date, calendar: Calendar) -> Date? {
+        switch self {
+        case .today:
+            return calendar.startOfDay(for: date)
+        case .week:
+            return calendar.dateInterval(of: .weekOfYear, for: date)?.start
+        case .month:
+            return calendar.dateInterval(of: .month, for: date)?.start
+        case .all:
+            return nil
+        }
+    }
+}
+
+private struct NutritionNavigationBounds {
+    let oldest: Date
 }
 
 private struct NutritionDailySummary: Identifiable {

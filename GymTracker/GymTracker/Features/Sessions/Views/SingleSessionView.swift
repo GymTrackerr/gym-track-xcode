@@ -252,7 +252,7 @@ struct SingleSessionView: View {
         HStack(spacing: 12) {
             Image(systemName: sessionEntry.isCompleted ? "checkmark.arrow.trianglehead.counterclockwise" : "square.and.pencil")
                 .foregroundColor(sessionEntry.isCompleted ? .green : .secondary)
-                .padding(.horizontal, 8)
+                .frame(width: 28)
 
             VStack(alignment: .leading, spacing: 4) {
                 SingleExerciseLabelView(
@@ -265,7 +265,7 @@ struct SingleSessionView: View {
 
             Spacer()
         }
-        .padding(.vertical, 8)
+        .cardListRowContentPadding()
     }
 
     private func autoOpenPreferredExerciseIfNeeded() {

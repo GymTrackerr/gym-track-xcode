@@ -124,6 +124,7 @@ struct SingleDayView: View {
                         } label: {
                             SingleExerciseLabelView(exercise: exerciseSplit.exercise, orderInSplit: exerciseSplit.order)
                                 .foregroundColor(.primary)
+                                .cardListRowContentPadding()
                         }
                         .cardListRowStyle()
                     }
@@ -140,6 +141,7 @@ struct SingleDayView: View {
                         } label: {
                             SingleSessionLabelView(session: session)
                                 .foregroundColor(.primary)
+                                .cardListRowContentPadding()
                         }
                         .cardListRowStyle()
                     }
