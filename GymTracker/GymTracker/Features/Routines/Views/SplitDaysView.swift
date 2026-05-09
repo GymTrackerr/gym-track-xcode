@@ -40,7 +40,7 @@ struct SplitDaysView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .screenContentPadding()
+        .screenListContentFrame()
         .appBackground()
         .navigationTitle("Routines")
         .toolbar {

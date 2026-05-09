@@ -366,6 +366,14 @@ extension View {
             .frame(maxWidth: .infinity, alignment: .center)
     }
 
+    func screenListContentFrame() -> some View {
+        frame(maxWidth: 620, alignment: .leading)
+            .padding(.horizontal, 6)
+            .contentMargins(.top, 12, for: .scrollContent)
+            .contentMargins(.bottom, 12, for: .scrollContent)
+            .frame(maxWidth: .infinity, alignment: .center)
+    }
+
     func dashboardContentPadding() -> some View {
         padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -383,7 +391,7 @@ extension View {
         bottom: CGFloat = 6,
         trailing: CGFloat = 16,
         backgroundVerticalPadding: CGFloat = 4,
-        backgroundHorizontalPadding: CGFloat = 4
+        backgroundHorizontalPadding: CGFloat = 10
     ) -> some View {
         listRowInsets(EdgeInsets(top: top, leading: leading, bottom: bottom, trailing: trailing))
             .listRowSeparator(.hidden)

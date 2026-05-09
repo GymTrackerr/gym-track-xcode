@@ -40,7 +40,7 @@ struct SingleSessionView: View {
     }
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 0) {
             VStack(spacing: 16) {
                 if editMode?.wrappedValue == .inactive {
                     sessionSummaryCard
@@ -49,23 +49,24 @@ struct SingleSessionView: View {
                 }
             }
             .padding(.top, 6)
+            .screenContentPadding()
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Today's Exercises")
-                    .font(.headline)
-
-                List {
+            List {
+                Section {
                     ForEach(sortedSessionEntries, id: \.id) { sessionEntry in
                         sessionEntryLink(for: sessionEntry)
                     }
                     .onDelete(perform: removeExercise)
                     .onMove(perform: moveExercise)
+                } header: {
+                    Text("Today's Exercises")
                 }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .screenListContentFrame()
         }
-        .screenContentPadding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .foregroundStyle(.primary)
         
         .navigationTitle(sessionTitle)

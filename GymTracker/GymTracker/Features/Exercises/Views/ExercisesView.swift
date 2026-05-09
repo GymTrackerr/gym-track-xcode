@@ -38,55 +38,53 @@ struct ExercisesView: View {
 
     var body : some View {
         VStack(spacing: 0) {
-            // Header
             VStack(alignment: .leading, spacing: 8) {
-//                Text("Exercises")
-//                    .font(.title2)
-//                    .fontWeight(.bold)
-                
                 Text("\(filteredRows.count) exercises")
                     .font(.caption)
                     .foregroundColor(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 4)
 
-            // Filter Pills
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    // All filter
-                    FilterPill(
-                        title: "All",
-                        isSelected: selectedMuscle.isEmpty && !showUserExercisesOnly
-                    )
-                    .onTapGesture {
-                        selectedMuscle = ""
-                        showUserExercisesOnly = false
-                    }
-
-                    FilterPill(
-                        title: "Mine",
-                        isSelected: showUserExercisesOnly
-                    )
-                    .onTapGesture {
-                        showUserExercisesOnly.toggle()
-                        selectedMuscle = ""
-                    }
-
-                    // Muscle filters
-                    ForEach(availableMuscles, id: \.self) { muscle in
+                // Filter Pills
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        // All filter
                         FilterPill(
-                            title: muscle,
-                            isSelected: selectedMuscle == muscle
+                            title: "All",
+                            isSelected: selectedMuscle.isEmpty && !showUserExercisesOnly
                         )
                         .onTapGesture {
-                            selectedMuscle = muscle
+                            selectedMuscle = ""
+                            showUserExercisesOnly = false
                         }
+
+                        FilterPill(
+                            title: "Mine",
+                            isSelected: showUserExercisesOnly
+                        )
+                        .onTapGesture {
+                            showUserExercisesOnly.toggle()
+                            selectedMuscle = ""
+                        }
+
+                        // Muscle filters
+                        ForEach(availableMuscles, id: \.self) { muscle in
+                            FilterPill(
+                                title: muscle,
+                                isSelected: selectedMuscle == muscle
+                            )
+                            .onTapGesture {
+                                selectedMuscle = muscle
+                            }
+                        }
+                        Spacer()
                     }
-                    Spacer()
+                    .padding(.horizontal, 2)
                 }
+                .scrollClipDisabled()
+                .padding(.vertical, 12)
             }
-            .padding(.vertical, 12)
+            .screenContentPadding()
 
             // Exercises List
             if exerciseRows.isEmpty {
@@ -104,6 +102,7 @@ struct ExercisesView: View {
                 }
                 .frame(maxHeight: .infinity)
                 .padding()
+                .screenContentPadding()
             } else if filteredRows.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "magnifyingglass")
@@ -119,6 +118,7 @@ struct ExercisesView: View {
                 }
                 .frame(maxHeight: .infinity)
                 .padding()
+                .screenContentPadding()
             } else {
                 List {
                     ForEach(filteredRows) { row in
@@ -138,9 +138,10 @@ struct ExercisesView: View {
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
+                .screenListContentFrame()
             }
         }
-        .screenContentPadding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .searchable(
             text: $searchText,
             placement: .navigationBarDrawer(displayMode: .automatic),

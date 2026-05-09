@@ -32,7 +32,7 @@ struct SingleDayView: View {
     }
 
     var body: some View {
-        VStack {
+        VStack(spacing: 0) {
             if (editMode?.wrappedValue == .inactive){
                 VStack(alignment: .leading) {
                     Text("Routine: \(routine.name)")
@@ -55,6 +55,7 @@ struct SingleDayView: View {
                         }
                     }
                 }
+                .screenContentPadding()
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Identity")
@@ -112,6 +113,7 @@ struct SingleDayView: View {
                     }
                     .buttonStyle(.plain)
                 }
+                .screenContentPadding()
             }
             
             List {
@@ -147,8 +149,9 @@ struct SingleDayView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+            .screenListContentFrame()
         }
-        .screenContentPadding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .navigationTitle(routine.name)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {

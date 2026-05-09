@@ -15,15 +15,21 @@ struct SessionsPageView: View {
     @State private var summary = SessionPeriodSummary.empty
 
     var body: some View {
-        VStack(spacing: 12) {
-            Picker("Range", selection: $selectedRange) {
-                ForEach(SessionTimeRange.allCases) { range in
-                    Text(range.rawValue).tag(range)
+        List {
+            Group {
+                Picker("Range", selection: $selectedRange) {
+                    ForEach(SessionTimeRange.allCases) { range in
+                        Text(range.rawValue).tag(range)
+                    }
                 }
+                .pickerStyle(.segmented)
+                .padding(10)
             }
-            .pickerStyle(.segmented)
+            .cardListRowStyle()
 
-            summaryCard
+            summaryRowContent
+                .padding(14)
+                .cardListRowStyle()
 
             if visibleSessions.isEmpty {
                 ContentUnavailableView {
@@ -33,45 +39,44 @@ struct SessionsPageView: View {
                         showingCreateSession = true
                     }
                 }
-                .frame(maxHeight: .infinity)
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
             } else {
-                List {
-                    ForEach(visibleSessions, id: \.id) { session in
-                        NavigationLink {
-                            SingleSessionView(session: session)
-                                .appBackground()
-                        } label: {
-                            SingleSessionLabelView(session: session)
-                            .foregroundColor(.primary)
-                        }
-                        .contextMenu {
-                            Button {
-                                openedSession = session
-                            } label: {
-                                Label("Edit", systemImage: "pencil")
-                            }
-
-                            Button(role: .destructive) {
-                                sessionService.removeSession(session: session)
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button(role: .destructive) {
-                                sessionService.removeSession(session: session)
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                        }
-                        .cardListRowStyle()
+                ForEach(visibleSessions, id: \.id) { session in
+                    NavigationLink {
+                        SingleSessionView(session: session)
+                            .appBackground()
+                    } label: {
+                        SingleSessionLabelView(session: session)
+                        .foregroundColor(.primary)
                     }
+                    .contextMenu {
+                        Button {
+                            openedSession = session
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+
+                        Button(role: .destructive) {
+                            sessionService.removeSession(session: session)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            sessionService.removeSession(session: session)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                    .cardListRowStyle()
                 }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
             }
         }
-        .screenContentPadding()
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .screenListContentFrame()
         .appBackground()
         .navigationTitle("Sessions")
         .navigationBarTitleDisplayMode(.inline)
@@ -131,29 +136,23 @@ struct SessionsPageView: View {
         }
     }
 
-    private var summaryCard: some View {
-        CardRowContainer {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(summary.title)
+    private var summaryRowContent: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("\(summary.sessionCount) Session\(summary.sessionCount == 1 ? "" : "s")")
+                .font(.headline)
+
+            Text("Total volume: \(SessionService.formattedPounds(summary.totalVolume))")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Text("Avg session volume: \(SessionService.formattedPounds(summary.averageSessionVolume))")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            if let averageDurationMinutes = summary.averageDurationMinutes {
+                Text("Avg duration: \(Int(averageDurationMinutes.rounded())) min")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-
-                Text("\(summary.sessionCount) Session\(summary.sessionCount == 1 ? "" : "s")")
-                    .font(.headline)
-
-                Text("Total volume: \(SessionService.formattedPounds(summary.totalVolume))")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                Text("Avg session volume: \(SessionService.formattedPounds(summary.averageSessionVolume))")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                if let averageDurationMinutes = summary.averageDurationMinutes {
-                    Text("Avg duration: \(Int(averageDurationMinutes.rounded())) min")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
             }
         }
     }
