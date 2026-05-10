@@ -122,7 +122,7 @@ struct ExerciseTransferToolView: View {
                         .font(.caption.weight(.semibold))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .adaptiveCapsuleSurface()
+                        .controlCapsuleSurface()
                 }
                 .buttonStyle(.plain)
                 .disabled(!canSwapSelections)
@@ -310,7 +310,7 @@ private struct TransferSelectionCard: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .adaptiveCardSurface(cornerRadius: 12)
+            .controlCardSurface(cornerRadius: 12)
         }
         .buttonStyle(.plain)
     }
@@ -366,10 +366,7 @@ private struct ExerciseSinglePickerSheet: View {
                     .cardListRowStyle()
                 }
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .screenListContentFrame()
-            .appBackground()
+            .cardListScreen()
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: prompt)
@@ -477,10 +474,7 @@ private struct SessionMultiPickerSheet: View {
                     }
                 }
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .screenListContentFrame()
-            .appBackground()
+            .cardListScreen()
             .navigationTitle("Sessions")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Search sessions")

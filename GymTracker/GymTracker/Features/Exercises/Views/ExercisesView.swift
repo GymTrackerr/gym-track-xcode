@@ -88,36 +88,18 @@ struct ExercisesView: View {
 
             // Exercises List
             if exerciseRows.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "dumbbell.fill")
-                        .font(.system(size: 40))
-                        .foregroundColor(.secondary)
-                    
-                    Text("No Exercises")
-                        .font(.headline)
-                    
-                    Text("Create your first exercise")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxHeight: .infinity)
-                .padding()
+                EmptyStateView(
+                    title: "No Exercises",
+                    systemImage: "dumbbell.fill",
+                    message: "Create your first exercise."
+                )
                 .screenContentPadding()
             } else if filteredRows.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 40))
-                        .foregroundColor(.secondary)
-                    
-                    Text(emptyFilteredTitle)
-                        .font(.headline)
-                    
-                    Text(emptyFilteredMessage)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxHeight: .infinity)
-                .padding()
+                EmptyStateView(
+                    title: emptyFilteredTitle,
+                    systemImage: "magnifyingglass",
+                    message: emptyFilteredMessage
+                )
                 .screenContentPadding()
             } else {
                 List {
@@ -136,9 +118,7 @@ struct ExercisesView: View {
                     }
                     .onDelete(perform: deleteFilteredExercises)
                 }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
-                .screenListContentFrame()
+                .cardListScreen()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

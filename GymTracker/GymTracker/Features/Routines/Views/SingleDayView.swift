@@ -34,22 +34,32 @@ struct SingleDayView: View {
     var body: some View {
         VStack(spacing: 0) {
             if (editMode?.wrappedValue == .inactive){
-                VStack(alignment: .leading) {
-                    Text("Routine: \(routine.name)")
-                    Text("Order: \(routine.order)")
-                    Text("Date: \(routine.timestamp.formatted(date: .numeric, time: .omitted))")
-                    Text("Progression: \(defaultProgressionName)")
+                CardRowContainer {
+                    VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(routine.name)
+                                .font(.title3.weight(.semibold))
+                            Text("\(routine.exerciseSplits.count) exercise\(routine.exerciseSplits.count == 1 ? "" : "s")")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
 
-                    if !routine.aliases.isEmpty {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(routine.aliases, id: \.self) { alias in
-                                    Text(alias)
-                                        .font(.caption)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
-                                        .background(Color(.systemGray5))
-                                        .clipShape(Capsule())
+                        VStack(spacing: 6) {
+                            detailRow(title: "Order", value: "\(routine.order)")
+                            detailRow(title: "Date", value: routine.timestamp.formatted(date: .abbreviated, time: .omitted))
+                            detailRow(title: "Progression", value: defaultProgressionName)
+                        }
+
+                        if !routine.aliases.isEmpty {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(routine.aliases, id: \.self) { alias in
+                                        Text(alias)
+                                            .font(.caption.weight(.semibold))
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 5)
+                                            .controlCapsuleSurface()
+                                    }
                                 }
                             }
                         }
@@ -92,8 +102,7 @@ struct SingleDayView: View {
                                     }
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 4)
-                                    .background(Color(.systemGray5))
-                                    .clipShape(Capsule())
+                                    .controlCapsuleSurface()
                                 }
                             }
                         }
@@ -121,6 +130,7 @@ struct SingleDayView: View {
                     ForEach(routine.exerciseSplits.sorted { $0.order < $1.order }, id: \.id) { exerciseSplit in
                         NavigationLink {
                             SingleExerciseView(exercise: exerciseSplit.exercise)
+                                .appBackground()
                         } label: {
                             SingleExerciseLabelView(exercise: exerciseSplit.exercise, orderInSplit: exerciseSplit.order)
                                 .foregroundColor(.primary)
@@ -138,10 +148,10 @@ struct SingleDayView: View {
                     ForEach(routine.sessions.sorted { $0.timestampDone > $1.timestampDone }, id: \.id) { session in
                         NavigationLink {
                             SingleSessionView(session: session)
+                                .appBackground()
                         } label: {
                             SingleSessionLabelView(session: session)
                                 .foregroundColor(.primary)
-                                .cardListRowContentPadding()
                         }
                         .cardListRowStyle()
                     }
@@ -149,11 +159,10 @@ struct SingleDayView: View {
                     Text("Session History")
                 }
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .screenListContentFrame()
+            .cardListScreen()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .appBackground()
         .navigationTitle(routine.name)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
@@ -275,6 +284,19 @@ struct SingleDayView: View {
     private func removeRoutineAlias(_ alias: String) {
         let updated = routine.aliases.filter { $0 != alias }
         _ = splitDayService.setAliases(for: routine, aliases: updated)
+    }
+
+    @ViewBuilder
+    private func detailRow(title: String, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(value)
+                .font(.caption.weight(.semibold))
+                .multilineTextAlignment(.trailing)
+        }
     }
 
     private func removeExerciseOptimistic(splitIds: [UUID]) {

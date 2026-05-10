@@ -89,8 +89,7 @@ struct RoutineExercisePickerSheet: View {
                             .cardListRowStyle()
                         }
                     }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
+                    .cardListScreen()
 
                     Spacer()
                 }

@@ -1810,8 +1810,7 @@ private struct OnboardingRoutinePreviewDetailView: View {
                     Text("Exercises")
                 }
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
+            .cardListScreen()
         }
         .navigationTitle(routine.name)
         .navigationBarTitleDisplayMode(.inline)

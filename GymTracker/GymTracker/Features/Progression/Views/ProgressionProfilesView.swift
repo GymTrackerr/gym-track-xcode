@@ -26,7 +26,7 @@ struct ProgressionProfilesView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                sectionHeader(
+                SectionHeaderView(
                     title: "Automatic Progression",
                     subtitle: "Enable this if you want every routine-less exercise to fall back to one default profile when no exercise, routine, or programme override is set."
                 )
@@ -48,7 +48,7 @@ struct ProgressionProfilesView: View {
                 }
                 .cardRowContainerStyle()
 
-                sectionHeader(
+                SectionHeaderView(
                     title: "Built-in Progressions",
                     subtitle: "These seed from JSON once, live in the database after that, and can be tuned for your defaults."
                 )
@@ -63,7 +63,7 @@ struct ProgressionProfilesView: View {
                     }
                 }
 
-                sectionHeader(
+                SectionHeaderView(
                     title: "Custom Profiles",
                     subtitle: "Create extra progression setups for exercises that need different targets or increments."
                 )
@@ -176,18 +176,6 @@ struct ProgressionProfilesView: View {
             }
         }
         .cardRowContainerStyle()
-    }
-
-    @ViewBuilder
-    private func sectionHeader(title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.title3)
-                .fontWeight(.semibold)
-            Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
     }
 
     @ViewBuilder

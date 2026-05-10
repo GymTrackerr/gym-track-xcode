@@ -141,23 +141,24 @@ struct TrueSightView: View {
                 if manager.isProcessing {
                     CardRowContainer {
                         VStack(spacing: 10) {
-                        if manager.isUploading {
-                            ProgressView(value: manager.uploadProgress) {
-                                Text("Uploading video…")
-                            } currentValueLabel: {
-                                Text("\(Int((manager.uploadProgress * 100).rounded()))%")
+                            if manager.isUploading {
+                                ProgressView(value: manager.uploadProgress) {
+                                    Text("Uploading video…")
+                                } currentValueLabel: {
+                                    Text("\(Int((manager.uploadProgress * 100).rounded()))%")
+                                }
+                                .progressViewStyle(.linear)
+                            } else {
+                                ProgressView("Processing video…")
+                                    .progressViewStyle(.circular)
                             }
-                            .progressViewStyle(.linear)
-                        } else {
-                            ProgressView("Processing video…")
-                                .progressViewStyle(.circular)
-                        }
 
-                        Text(manager.isUploading ? "Uploading the selected video to TrueSight." : "Upload finished. TrueSight is processing the video now.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
+                            Text(manager.isUploading ? "Uploading the selected video to TrueSight." : "Upload finished. TrueSight is processing the video now.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
                         }
+                        .frame(maxWidth: .infinity, alignment: .center)
                     }
                 }
 
@@ -339,14 +340,17 @@ struct FitSightExercisePickerView: View {
                                     .foregroundStyle(.green)
                             }
                         }
+                        .cardListRowContentPadding()
                     }
                     .buttonStyle(.plain)
+                    .cardListRowStyle()
                 }
             } footer: {
                 Text("Only exercises with a valid npId are shown here, so the selection stays aligned with the ExerciseDB-backed TrueSight flow.")
             }
         }
-        .screenContentPadding()
+        .cardListScreen()
+        .appBackground()
         .navigationTitle("Choose Exercise")
         .searchable(text: $searchText, prompt: "Search exercises or npId")
     }

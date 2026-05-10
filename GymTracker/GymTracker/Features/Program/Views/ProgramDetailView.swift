@@ -188,18 +188,10 @@ struct ProgramDetailView: View {
 
     private var previousSessionsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Previous Sessions")
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                    Text("Quickly jump back into your recent programme workouts.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-            }
+            SectionHeaderView(
+                title: "Previous Sessions",
+                subtitle: "Quickly jump back into your recent programme workouts."
+            )
 
             if previousSessions.isEmpty {
                 emptyCard(
@@ -216,6 +208,7 @@ struct ProgramDetailView: View {
                                 .foregroundStyle(.primary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .background(CardRowBackground())
+                                .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         }
                         .buttonStyle(.plain)
                     }
@@ -227,14 +220,10 @@ struct ProgramDetailView: View {
     private var directWorkoutsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Workouts")
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                    Text("This programme repeats the workout list forever. Use Edit to reorder workouts or switch the structure later.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                SectionHeaderView(
+                    title: "Workouts",
+                    subtitle: "This programme repeats the workout list forever. Use Edit to reorder workouts or switch the structure later."
+                )
 
                 Spacer()
 
@@ -269,14 +258,10 @@ struct ProgramDetailView: View {
     private var blocksSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Blocks")
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                    Text("Open a block to manage its workouts. Add the next block when you are ready to phase the programme forward.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                SectionHeaderView(
+                    title: "Blocks",
+                    subtitle: "Open a block to manage its workouts. Add the next block when you are ready to phase the programme forward."
+                )
 
                 Spacer()
 
@@ -712,7 +697,7 @@ private struct ProgramManagementSheet: View {
                 blocksSection
             }
         }
-        .screenContentPadding()
+        .cardListScreen()
         .environment(\.editMode, $editMode)
         .navigationTitle("Edit Programme")
         .navigationBarTitleDisplayMode(.inline)
@@ -767,27 +752,35 @@ private struct ProgramManagementSheet: View {
                 showingProgramEditor = true
             } label: {
                 Label("Edit Programme Details", systemImage: "pencil")
+                    .cardListRowContentPadding()
             }
+            .cardListRowStyle()
 
             if programService.isDirectWorkoutMode(program) {
                 Button {
                     programService.convertToBlocksMode(program)
                 } label: {
                     Label("Switch To Blocks", systemImage: "square.split.2x1")
+                        .cardListRowContentPadding()
                 }
+                .cardListRowStyle()
             } else if programService.canConvertToDirectWorkoutMode(program) {
                 Button {
                     programService.convertToDirectWorkoutMode(program)
                 } label: {
                     Label("Use Workout Rotation", systemImage: "repeat")
+                        .cardListRowContentPadding()
                 }
+                .cardListRowStyle()
             }
 
             Button(role: .destructive) {
                 showingDeleteConfirmation = true
             } label: {
                 Label(deletesAsArchive ? "Archive Programme" : "Delete Programme", systemImage: "trash")
+                    .cardListRowContentPadding()
             }
+            .cardListRowStyle()
         }
     }
 
@@ -797,9 +790,12 @@ private struct ProgramManagementSheet: View {
                 Text("Add workouts to get this programme moving.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                    .cardListRowContentPadding()
+                    .cardListRowStyle()
             } else {
                 ForEach(managedWorkouts, id: \.id) { workout in
                     ProgramWorkoutManageRow(workout: workout, showScheduleLabel: program.mode == .weekly)
+                        .cardListRowStyle()
                 }
                 .onMove { source, destination in
                     programService.moveWorkouts(in: block, from: source, to: destination)
@@ -832,7 +828,9 @@ private struct ProgramManagementSheet: View {
 
                         Spacer()
                     }
+                    .cardListRowContentPadding()
                 }
+                .cardListRowStyle()
             }
         } header: {
             Text("Blocks")
@@ -898,9 +896,13 @@ private struct ProgramBlockManagementSheet: View {
             Section {
                 Text(block.displayName)
                     .font(.body.weight(.semibold))
+                    .cardListRowContentPadding()
+                    .cardListRowStyle()
                 Text(blockDurationSummary)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                    .cardListRowContentPadding()
+                    .cardListRowStyle()
             } header: {
                 Text("Block")
             }
@@ -910,9 +912,12 @@ private struct ProgramBlockManagementSheet: View {
                     Text("Add workouts to start this block.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        .cardListRowContentPadding()
+                        .cardListRowStyle()
                 } else {
                     ForEach(sortedWorkouts, id: \.id) { workout in
                         ProgramWorkoutManageRow(workout: workout, showScheduleLabel: program.mode == .weekly)
+                            .cardListRowStyle()
                     }
                     .onMove { source, destination in
                         programService.moveWorkouts(in: block, from: source, to: destination)
@@ -932,10 +937,12 @@ private struct ProgramBlockManagementSheet: View {
                     showingDeleteConfirmation = true
                 } label: {
                     Label("Delete Block", systemImage: "trash")
+                        .cardListRowContentPadding()
                 }
+                .cardListRowStyle()
             }
         }
-        .screenContentPadding()
+        .cardListScreen()
         .environment(\.editMode, $editMode)
         .navigationTitle("Edit Block")
         .navigationBarTitleDisplayMode(.inline)
@@ -1012,7 +1019,7 @@ private struct ProgramWorkoutManageRow: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 4)
+        .cardListRowContentPadding()
     }
 }
 

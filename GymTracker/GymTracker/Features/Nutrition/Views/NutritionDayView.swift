@@ -224,7 +224,7 @@ struct NutritionDayView: View {
                     Image(systemName: "calendar")
                         .font(.caption.weight(.bold))
                         .frame(width: 34, height: 34)
-                        .adaptiveCapsuleSurface()
+                        .controlCapsuleSurface()
                 }
                 .buttonStyle(.plain)
 
@@ -1061,8 +1061,7 @@ private struct NutritionMealLogHeaderRow: View {
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .foregroundStyle(.secondary.opacity(0.75))
-                        .background(Color(.systemGray5).opacity(0.55))
-                        .clipShape(Capsule())
+                        .controlCapsuleSurface()
                 }
 
                 Text(log.timestamp, format: .dateTime.hour().minute())

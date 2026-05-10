@@ -62,9 +62,7 @@ struct SingleSessionView: View {
                     Text("Today's Exercises")
                 }
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .screenListContentFrame()
+            .cardListScreen()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .foregroundStyle(.primary)
@@ -723,9 +721,7 @@ struct addingExerciseSessionView : View {
                         .cardListRowStyle()
                     }
                 }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
-                .screenListContentFrame()
+                .cardListScreen()
             }
             .navigationTitle("Add Exercises")
             .navigationBarTitleDisplayMode(.inline)

@@ -45,15 +45,25 @@ struct SessionsPageView: View {
                     .cardListRowStyle()
 
                 if visibleSessions.isEmpty {
-                    ContentUnavailableView {
-                        Label("No sessions in this period", systemImage: "figure.strengthtraining.traditional")
-                    } actions: {
-                        Button("Add Log") {
-                            showingCreateSession = true
-                        }
-                    }
+                    EmptyStateView(
+                        title: "No sessions in this period",
+                        systemImage: "figure.strengthtraining.traditional",
+                        message: "Add a session log or choose another period."
+                    )
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+
+                    Button {
+                        showingCreateSession = true
+                    } label: {
+                        Label("Add Log", systemImage: "plus.circle")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 12, trailing: 16))
                 } else {
                     ForEach(visibleSessions, id: \.id) { session in
                         NavigationLink {
@@ -87,9 +97,7 @@ struct SessionsPageView: View {
                     }
                 }
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .screenListContentFrame()
+            .cardListScreen()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .appBackground()

@@ -281,7 +281,7 @@ struct HistoryChartView<FilterControls: View>: View {
                 }
                 .frame(height: 280)
                 .padding(12)
-                .adaptiveCardSurface(cornerRadius: 14)
+                .controlCardSurface(cornerRadius: 14)
 
                 if isLoadingPoints {
                     Text("Loading...")
@@ -431,7 +431,7 @@ struct HistoryChartView<FilterControls: View>: View {
                             }
                             .padding(.horizontal, 8)
                             .padding(.vertical, 6)
-                            .adaptiveCardSurface(cornerRadius: 8)
+                            .controlCardSurface(cornerRadius: 8)
                         }
                     }
                     .padding(.vertical, 4)

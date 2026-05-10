@@ -337,24 +337,22 @@ struct ExerciseCatalogPromptBanner: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Download ExerciseDB?")
-                .font(.headline)
-            Text("Enable optional ExerciseDB sync for faster exercise browsing and cached thumbnails.")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+        CardRowContainer {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Download ExerciseDB?")
+                    .font(.headline)
+                Text("Enable optional ExerciseDB sync for faster exercise browsing and cached thumbnails.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
 
-            HStack(spacing: 12) {
-                Button("Enable Sync", action: onEnable)
-                    .buttonStyle(.borderedProminent)
-                Button("Not Now", action: onDismiss)
-                    .buttonStyle(.bordered)
+                HStack(spacing: 12) {
+                    Button("Enable Sync", action: onEnable)
+                        .buttonStyle(.borderedProminent)
+                    Button("Not Now", action: onDismiss)
+                        .buttonStyle(.bordered)
+                }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }
 
@@ -374,18 +372,16 @@ struct ExerciseCatalogSyncProgressCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("ExerciseDB Sync")
-                .font(.headline)
-            ProgressView(value: progress)
-            Text(exerciseService.catalogSyncStatusText)
-                .font(.caption)
-                .foregroundColor(.secondary)
+        CardRowContainer {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("ExerciseDB Sync")
+                    .font(.headline)
+                ProgressView(value: progress)
+                Text(exerciseService.catalogSyncStatusText)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }
 
@@ -405,34 +401,30 @@ struct HealthBackfillProgressCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Health Sync")
-                .font(.headline)
-            ProgressView(value: progress)
-            Text(healthKitDailyStore.backfillStatusText)
-                .font(.caption)
-                .foregroundColor(.secondary)
+        CardRowContainer {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Health Sync")
+                    .font(.headline)
+                ProgressView(value: progress)
+                Text(healthKitDailyStore.backfillStatusText)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }
 
 struct HealthAccessBanner: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Connect Apple Health")
-                .font(.headline)
-            Text("Health-backed cards like weight, steps, sleep, activity rings, and imported workouts will stay visible here once access is enabled in Settings.")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+        CardRowContainer {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Connect Apple Health")
+                    .font(.headline)
+                Text("Health-backed cards like weight, steps, sleep, activity rings, and imported workouts will stay visible here once access is enabled in Settings.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }
 
@@ -807,15 +799,13 @@ struct DashboardGridLayout {
 
 struct DashboardInlineEditorBar: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Drag cards to reorder them, and use the menu on each card to resize or hide it.")
-                .font(.footnote)
-                .foregroundColor(.secondary)
+        CardRowContainer {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Drag cards to reorder them, and use the menu on each card to resize or hide it.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }
 
@@ -850,6 +840,7 @@ struct DashboardInlineAddModuleSheet: View {
                     }
                 }
             }
+            .cardListScreen()
             .navigationTitle("Add Module")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -890,8 +881,10 @@ struct DashboardInlineAddModuleSheet: View {
                 Image(systemName: "plus.circle.fill")
                     .foregroundColor(.blue)
             }
+            .cardListRowContentPadding()
         }
         .foregroundColor(.primary)
+        .cardListRowStyle()
     }
 }
 
@@ -923,7 +916,7 @@ struct DashboardEditableModuleCard: View {
                 .font(.caption2.weight(.semibold))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
-                .adaptiveCapsuleSurface()
+                .controlCapsuleSurface()
                 .padding(10)
         }
         .overlay(alignment: .topLeading) {
@@ -965,7 +958,7 @@ struct DashboardEditableModuleCard: View {
                 .symbolRenderingMode(.hierarchical)
                 .foregroundColor(.primary.opacity(0.9))
                 .padding(6)
-                .adaptiveCapsuleSurface()
+                .controlCapsuleSurface()
                 .overlay(
                     Circle()
                         .stroke(Color.white.opacity(0.28), lineWidth: 0.8)
@@ -996,7 +989,7 @@ struct DashboardModuleDragPreview: View {
         }
         .padding(14)
         .frame(width: 200, alignment: .leading)
-        .adaptiveCardSurface(cornerRadius: 16)
+        .controlCardSurface(cornerRadius: 16)
     }
 }
 
@@ -1626,7 +1619,7 @@ struct FitnessWorkoutsModuleView: View {
         if userService.currentUser?.isDemo == true {
             SessionsPageView()
         } else {
-            HealthWorkoutView().appBackground()
+            HealthWorkoutView()
         }
     }
 }

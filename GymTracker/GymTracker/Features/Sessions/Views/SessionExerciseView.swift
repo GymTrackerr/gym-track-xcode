@@ -1556,11 +1556,14 @@ private struct MoveSetExercisePickerView: View {
                                         .foregroundStyle(.tint)
                                 }
                             }
+                            .cardListRowContentPadding()
                         }
+                        .buttonStyle(.plain)
+                        .cardListRowStyle()
                     }
                 }
             }
-            .screenContentPadding()
+            .cardListScreen()
             .navigationTitle("Transfer Set")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Search exercise")
@@ -1592,6 +1595,8 @@ private struct MoveSetExercisePickerView: View {
                 .fontWeight(.semibold)
                 .multilineTextAlignment(.trailing)
         }
+        .cardListRowContentPadding()
+        .cardListRowStyle()
     }
 }
 
@@ -1672,7 +1677,7 @@ private struct DurationWheelPicker: View {
                 .pickerStyle(.wheel)
                 .frame(width: 66, height: 88)
                 .clipped()
-                .adaptiveCardSurface(cornerRadius: 10)
+                .controlCardSurface(cornerRadius: 10)
                 Text("HH")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -1691,7 +1696,7 @@ private struct DurationWheelPicker: View {
                 .pickerStyle(.wheel)
                 .frame(width: 66, height: 88)
                 .clipped()
-                .adaptiveCardSurface(cornerRadius: 10)
+                .controlCardSurface(cornerRadius: 10)
                 Text("MM")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -1710,7 +1715,7 @@ private struct DurationWheelPicker: View {
                 .pickerStyle(.wheel)
                 .frame(width: 66, height: 88)
                 .clipped()
-                .adaptiveCardSurface(cornerRadius: 10)
+                .controlCardSurface(cornerRadius: 10)
                 Text("SS")
                     .font(.caption2)
                     .foregroundStyle(.secondary)

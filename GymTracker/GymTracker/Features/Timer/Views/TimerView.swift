@@ -60,6 +60,7 @@ struct TimerView: View {
                 Button("Add 15s") { timerService.add(seconds: 15) }
                     .buttonStyle(SecondaryTimerButton())
             }
+            .padding(.horizontal)
             .padding(.bottom, 10)
             
             if timerService.timer == nil {

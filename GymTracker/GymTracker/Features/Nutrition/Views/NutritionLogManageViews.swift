@@ -820,8 +820,7 @@ private struct ManageFoodsView: View {
                                     .font(.caption2)
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 2)
-                                    .background(Color(.systemGray5))
-                                    .clipShape(Capsule())
+                                    .controlCapsuleSurface()
                             }
                         }
 

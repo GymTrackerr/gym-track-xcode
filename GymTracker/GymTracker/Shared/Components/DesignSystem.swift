@@ -142,7 +142,7 @@ struct CardRowBackground: View {
     }
 }
 
-private struct AdaptiveRoundedSurfaceModifier: ViewModifier {
+private struct ControlCardSurfaceModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
     let cornerRadius: CGFloat
 
@@ -179,7 +179,7 @@ private struct AdaptiveRoundedSurfaceModifier: ViewModifier {
     }
 }
 
-private struct AdaptiveCapsuleSurfaceModifier: ViewModifier {
+private struct ControlCapsuleSurfaceModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
 
     func body(content: Content) -> some View {
@@ -259,32 +259,44 @@ struct SummaryMetricTile: View {
     let title: String
     let value: String
     var systemImage: String?
+    var tint: Color?
+    var tintsBackground = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 4) {
-                if let systemImage {
-                    Image(systemName: systemImage)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
-
-                Text(title)
+        HStack(alignment: .top, spacing: 6) {
+            if let systemImage {
+                Image(systemName: systemImage)
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
+                    .foregroundStyle(tint ?? .secondary)
+                    .frame(width: 12, alignment: .center)
+                    .padding(.top, 1)
             }
 
-            Text(value)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(tint ?? .secondary)
+                    .textCase(.uppercase)
+
+                Text(value)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
-        .background(Color(.tertiarySystemBackground).opacity(0.72))
+        .background(tileBackground)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private var tileBackground: some ShapeStyle {
+        if tintsBackground, let tint {
+            return AnyShapeStyle(tint.opacity(0.12))
+        }
+        return AnyShapeStyle(Color(.tertiarySystemBackground).opacity(0.72))
     }
 }
 
@@ -321,11 +333,25 @@ struct NavigableCardRow<Content: View, Destination: View>: View {
 
 struct SectionHeaderView: View {
     let title: String
+    let subtitle: String?
+
+    init(title: String, subtitle: String? = nil) {
+        self.title = title
+        self.subtitle = subtitle
+    }
 
     var body: some View {
-        Text(title)
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            if let subtitle, !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 4)
             .accessibilityAddTraits(.isHeader)
@@ -384,12 +410,12 @@ extension View {
         modifier(CardRowContainerModifier())
     }
 
-    func adaptiveCardSurface(cornerRadius: CGFloat = 16) -> some View {
-        modifier(AdaptiveRoundedSurfaceModifier(cornerRadius: cornerRadius))
+    func controlCardSurface(cornerRadius: CGFloat = 16) -> some View {
+        modifier(ControlCardSurfaceModifier(cornerRadius: cornerRadius))
     }
 
-    func adaptiveCapsuleSurface() -> some View {
-        modifier(AdaptiveCapsuleSurfaceModifier())
+    func controlCapsuleSurface() -> some View {
+        modifier(ControlCapsuleSurfaceModifier())
     }
 
     func screenContentPadding() -> some View {
@@ -405,6 +431,12 @@ extension View {
             .contentMargins(.top, 12, for: .scrollContent)
             .contentMargins(.bottom, 12, for: .scrollContent)
             .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    func cardListScreen() -> some View {
+        listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .screenListContentFrame()
     }
 
     func dashboardContentPadding() -> some View {
