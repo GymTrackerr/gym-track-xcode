@@ -33,8 +33,7 @@ struct FoodRowView<Trailing: View>: View {
                             .font(.caption2)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Color(.systemGray5))
-                            .clipShape(Capsule())
+                            .controlCapsuleSurface()
                     }
                 }
                 if let brand = food.brand {

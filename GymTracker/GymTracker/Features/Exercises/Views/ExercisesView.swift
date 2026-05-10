@@ -38,102 +38,76 @@ struct ExercisesView: View {
 
     var body : some View {
         VStack(spacing: 0) {
-            // Header
             VStack(alignment: .leading, spacing: 8) {
-//                Text("Exercises")
-//                    .font(.title2)
-//                    .fontWeight(.bold)
-                
                 Text("\(filteredRows.count) exercises")
                     .font(.caption)
                     .foregroundColor(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 4)
 
-            // Filter Pills
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    // All filter
-                    FilterPill(
-                        title: "All",
-                        isSelected: selectedMuscle.isEmpty && !showUserExercisesOnly
-                    )
-                    .onTapGesture {
-                        selectedMuscle = ""
-                        showUserExercisesOnly = false
-                    }
-
-                    FilterPill(
-                        title: "Mine",
-                        isSelected: showUserExercisesOnly
-                    )
-                    .onTapGesture {
-                        showUserExercisesOnly.toggle()
-                        selectedMuscle = ""
-                    }
-
-                    // Muscle filters
-                    ForEach(availableMuscles, id: \.self) { muscle in
+                // Filter Pills
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        // All filter
                         FilterPill(
-                            title: muscle,
-                            isSelected: selectedMuscle == muscle
+                            title: "All",
+                            isSelected: selectedMuscle.isEmpty && !showUserExercisesOnly
                         )
                         .onTapGesture {
-                            selectedMuscle = muscle
+                            selectedMuscle = ""
+                            showUserExercisesOnly = false
                         }
+
+                        FilterPill(
+                            title: "Mine",
+                            isSelected: showUserExercisesOnly
+                        )
+                        .onTapGesture {
+                            showUserExercisesOnly.toggle()
+                            selectedMuscle = ""
+                        }
+
+                        // Muscle filters
+                        ForEach(availableMuscles, id: \.self) { muscle in
+                            FilterPill(
+                                title: muscle,
+                                isSelected: selectedMuscle == muscle
+                            )
+                            .onTapGesture {
+                                selectedMuscle = muscle
+                            }
+                        }
+                        Spacer()
                     }
-                    Spacer()
+                    .padding(.horizontal, 2)
                 }
-                .padding(.horizontal)
+                .scrollClipDisabled()
+                .padding(.vertical, 12)
             }
-            .padding(.vertical, 12)
+            .screenContentPadding()
 
             // Exercises List
             if exerciseRows.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "dumbbell.fill")
-                        .font(.system(size: 40))
-                        .foregroundColor(.secondary)
-                    
-                    Text("No Exercises")
-                        .font(.headline)
-                    
-                    Text("Create your first exercise")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxHeight: .infinity)
-                .padding()
+                EmptyStateView(
+                    title: "No Exercises",
+                    systemImage: "dumbbell.fill",
+                    message: "Create your first exercise."
+                )
+                .screenContentPadding()
             } else if filteredRows.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 40))
-                        .foregroundColor(.secondary)
-                    
-                    Text("No Results\(selectedMuscle != "" ? " in \(selectedMuscle)" : "")")
-                        .font(.headline)
-                    
-                    Text("No exercises match \"\(searchText)\"")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxHeight: .infinity)
-                .padding()
+                EmptyStateView(
+                    title: emptyFilteredTitle,
+                    systemImage: "magnifyingglass",
+                    message: emptyFilteredMessage
+                )
+                .screenContentPadding()
             } else {
                 List {
                     ForEach(filteredRows) { row in
                         NavigationLink(value: ExerciseNavigationTarget(exerciseId: row.id)) {
                             ExerciseListRow(snapshot: row)
                         }
-                        .listRowInsets(EdgeInsets(top: 6, leading: 4, bottom: 6, trailing: 16))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.gray.opacity(0.1))
-                                .padding(.vertical, 4)
-                                .padding(.horizontal, 4)
-                        )
+                        .cardListRowStyle()
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             Button(role: .destructive) {
                                 deleteExercise(id: row.id)
@@ -144,15 +118,16 @@ struct ExercisesView: View {
                     }
                     .onDelete(perform: deleteFilteredExercises)
                 }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
+                .cardListScreen()
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .searchable(
             text: $searchText,
             placement: .navigationBarDrawer(displayMode: .automatic),
             prompt: "Search exercises"
         )
+        .appBackground()
         .navigationTitle("Exercises")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: ExerciseNavigationTarget.self) { target in
@@ -342,6 +317,39 @@ struct ExercisesView: View {
         }
     }
 
+    private var emptyFilteredTitle: String {
+        if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return selectedMuscle.isEmpty ? "No Results" : "No Results in \(selectedMuscle)"
+        }
+
+        if showUserExercisesOnly {
+            return "No Custom Exercises"
+        }
+
+        if !selectedMuscle.isEmpty {
+            return "No \(selectedMuscle) Exercises"
+        }
+
+        return "No Results"
+    }
+
+    private var emptyFilteredMessage: String {
+        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedSearch.isEmpty {
+            return "No exercises match \"\(trimmedSearch)\"."
+        }
+
+        if showUserExercisesOnly {
+            return "Create an exercise to see it here."
+        }
+
+        if !selectedMuscle.isEmpty {
+            return "No exercises match this muscle filter."
+        }
+
+        return "Try adjusting your filters."
+    }
+
 }
 
 private struct ExerciseListRow: View {
@@ -379,25 +387,7 @@ private struct ExerciseListRow: View {
                 }
             }
         }
-        .padding(8)
+        .cardListRowContentPadding()
         .cornerRadius(12)
     }
 }
-//
-//// Filter Pill Component
-//struct FilterPill: View {
-//    let title: String
-//    let isSelected: Bool
-//
-//    var body: some View {
-//        Text(title)
-//            .font(.caption)
-//            .fontWeight(.semibold)
-//            .padding(.horizontal, 16)
-//            .padding(.vertical, 8)
-//            .background(isSelected ? Color.accentColor : Color.gray.opacity(0.2))
-//            .foregroundColor(isSelected ? .white : .primary)
-//            .cornerRadius(20)
-//    }
-//}
-//

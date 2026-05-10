@@ -122,7 +122,7 @@ struct ExerciseTransferToolView: View {
                         .font(.caption.weight(.semibold))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .glassEffect(in: .capsule)
+                        .controlCapsuleSurface()
                 }
                 .buttonStyle(.plain)
                 .disabled(!canSwapSelections)
@@ -310,7 +310,7 @@ private struct TransferSelectionCard: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .glassEffect(in: .rect(cornerRadius: 12.0))
+            .controlCardSurface(cornerRadius: 12)
         }
         .buttonStyle(.plain)
     }
@@ -360,9 +360,13 @@ private struct ExerciseSinglePickerSheet: View {
                                     .foregroundStyle(.tint)
                             }
                         }
+                        .cardListRowContentPadding()
                     }
+                    .buttonStyle(.plain)
+                    .cardListRowStyle()
                 }
             }
+            .cardListScreen()
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: prompt)
@@ -428,12 +432,16 @@ private struct SessionMultiPickerSheet: View {
                         }
                     }
                     .fontWeight(.semibold)
+                    .cardListRowContentPadding()
+                    .cardListRowStyle()
                 }
 
                 Section {
                     if filteredSessions.isEmpty {
                         Text("No sessions found")
                             .foregroundStyle(.secondary)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                     } else {
                         ForEach(filteredSessions, id: \.id) { session in
                             Button {
@@ -458,11 +466,15 @@ private struct SessionMultiPickerSheet: View {
                                     Image(systemName: selectedSessionIds.contains(session.id) ? "checkmark.circle.fill" : "circle")
                                         .foregroundColor(selectedSessionIds.contains(session.id) ? .accentColor : .secondary)
                                 }
+                                .cardListRowContentPadding()
                             }
+                            .buttonStyle(.plain)
+                            .cardListRowStyle()
                         }
                     }
                 }
             }
+            .cardListScreen()
             .navigationTitle("Sessions")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Search sessions")

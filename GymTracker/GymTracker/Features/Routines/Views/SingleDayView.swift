@@ -32,39 +32,47 @@ struct SingleDayView: View {
     }
 
     var body: some View {
-        VStack {
+        VStack(spacing: 0) {
             if (editMode?.wrappedValue == .inactive){
-                VStack(alignment: .leading) {
-                    Text("Routine: \(routine.name)")
-                    Text("Order: \(routine.order)")
-                    Text("Date: \(routine.timestamp.formatted(date: .numeric, time: .omitted))")
-                    Text("Progression: \(defaultProgressionName)")
+                CardRowContainer {
+                    VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(routine.name)
+                                .font(.title3.weight(.semibold))
+                            Text("\(routine.exerciseSplits.count) exercise\(routine.exerciseSplits.count == 1 ? "" : "s")")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
 
-                    if !routine.aliases.isEmpty {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(routine.aliases, id: \.self) { alias in
-                                    Text(alias)
-                                        .font(.caption)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
-                                        .background(Color(.systemGray5))
-                                        .clipShape(Capsule())
+                        VStack(spacing: 6) {
+                            detailRow(title: "Order", value: "\(routine.order)")
+                            detailRow(title: "Date", value: routine.timestamp.formatted(date: .abbreviated, time: .omitted))
+                            detailRow(title: "Progression", value: defaultProgressionName)
+                        }
+
+                        if !routine.aliases.isEmpty {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(routine.aliases, id: \.self) { alias in
+                                        Text(alias)
+                                            .font(.caption.weight(.semibold))
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 5)
+                                            .controlCapsuleSurface()
+                                    }
                                 }
                             }
                         }
                     }
                 }
-                .padding()
+                .screenContentPadding()
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Identity")
                         .font(.headline)
-                        .padding(.horizontal)
 
                     TextField("Routine Name", text: $routine.name)
                         .textFieldStyle(.roundedBorder)
-                        .padding(.horizontal)
 
                     HStack(spacing: 8) {
                         TextField("Add alias", text: $routineAliasDraft)
@@ -76,7 +84,6 @@ struct SingleDayView: View {
                         .buttonStyle(.bordered)
                         .disabled(routineAliasDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
-                    .padding(.horizontal)
 
                     if !routine.aliases.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -95,11 +102,9 @@ struct SingleDayView: View {
                                     }
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 4)
-                                    .background(Color(.systemGray5))
-                                    .clipShape(Capsule())
+                                    .controlCapsuleSurface()
                                 }
                             }
-                            .padding(.horizontal)
                         }
                     }
 
@@ -116,8 +121,8 @@ struct SingleDayView: View {
                         }
                     }
                     .buttonStyle(.plain)
-                    .padding(.horizontal)
                 }
+                .screenContentPadding()
             }
             
             List {
@@ -125,18 +130,13 @@ struct SingleDayView: View {
                     ForEach(routine.exerciseSplits.sorted { $0.order < $1.order }, id: \.id) { exerciseSplit in
                         NavigationLink {
                             SingleExerciseView(exercise: exerciseSplit.exercise)
+                                .appBackground()
                         } label: {
                             SingleExerciseLabelView(exercise: exerciseSplit.exercise, orderInSplit: exerciseSplit.order)
                                 .foregroundColor(.primary)
+                                .cardListRowContentPadding()
                         }
-                        .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 16))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.gray.opacity(0.1))
-                                .padding(.vertical, 6)
-                                .padding(.horizontal, 4)
-                        )
+                        .cardListRowStyle()
                     }
                     .onDelete(perform: removeExercise)
                     .onMove(perform: moveExercise)
@@ -148,26 +148,21 @@ struct SingleDayView: View {
                     ForEach(routine.sessions.sorted { $0.timestampDone > $1.timestampDone }, id: \.id) { session in
                         NavigationLink {
                             SingleSessionView(session: session)
+                                .appBackground()
                         } label: {
                             SingleSessionLabelView(session: session)
                                 .foregroundColor(.primary)
                         }
-                        .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 16))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.gray.opacity(0.1))
-                                .padding(.vertical, 6)
-                                .padding(.horizontal, 4)
-                        )
+                        .cardListRowStyle()
                     }
                 } header: {
                     Text("Session History")
                 }
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
+            .cardListScreen()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .appBackground()
         .navigationTitle(routine.name)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
@@ -291,6 +286,19 @@ struct SingleDayView: View {
         _ = splitDayService.setAliases(for: routine, aliases: updated)
     }
 
+    @ViewBuilder
+    private func detailRow(title: String, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(value)
+                .font(.caption.weight(.semibold))
+                .multilineTextAlignment(.trailing)
+        }
+    }
+
     private func removeExerciseOptimistic(splitIds: [UUID]) {
         let toRemove = routine.exerciseSplits.filter { split in
             splitIds.contains(split.id)
@@ -339,6 +347,7 @@ private struct RoutineProgressionSheet: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .screenContentPadding()
         .navigationTitle("Routine Progression")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

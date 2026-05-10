@@ -105,7 +105,7 @@ struct NotesImportView: View {
 
             Spacer()
         }
-        .padding()
+        .screenContentPadding()
     }
 
     private var previewScreen: some View {
@@ -122,7 +122,7 @@ struct NotesImportView: View {
                     actionsSection
                 }
             }
-            .padding()
+            .screenContentPadding()
         }
     }
 

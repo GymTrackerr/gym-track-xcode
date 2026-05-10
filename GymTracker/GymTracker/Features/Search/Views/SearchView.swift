@@ -15,12 +15,27 @@ struct SearchView : View {
 
     var body: some View {
         VStack{
-            List (results) { result in
-                switch result {
-                case .exercise(let e):
-                    SingleExerciseLabelView(exercise: e)
-                case .routine(let s):
-                    SingleDayLabelView(routine: s)
+            List {
+                if results.isEmpty {
+                    EmptyStateView(
+                        title: "No Results",
+                        systemImage: "magnifyingglass",
+                        message: "No exercises or routines match your search."
+                    )
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                } else {
+                    ForEach(results) { result in
+                        switch result {
+                        case .exercise(let e):
+                            SingleExerciseLabelView(exercise: e)
+                                .cardListRowContentPadding()
+                        case .routine(let s):
+                            SingleDayLabelView(routine: s)
+                                .cardListRowContentPadding()
+                        }
+                    }
                 }
             }
             .onAppear() {
@@ -30,10 +45,10 @@ struct SearchView : View {
             .onChange(of: query) {
                 performSearch()
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
+            .cardListScreen()
             .navigationTitle("Search")
         }
+        .appBackground()
     }
     
     func performSearch() {

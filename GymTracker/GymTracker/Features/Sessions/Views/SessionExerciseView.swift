@@ -120,7 +120,7 @@ struct SessionExerciseView: View {
                     }
                 }
             }
-            .screenContentPadding()
+            .sessionExerciseContentPadding()
         }
         .navigationTitle(sessionEntry.exercise.name)
         .navigationBarTitleDisplayMode(.inline)
@@ -180,18 +180,12 @@ struct SessionExerciseView: View {
 
     private func sectionCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.gray.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .cardRowContainerStyle()
     }
 
     private func insetCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
-            .padding(10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.gray.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .cardRowContainerStyle()
     }
 
     private func adjustmentControls(
@@ -216,7 +210,7 @@ struct SessionExerciseView: View {
 
     private var timerQuickCard: some View {
         NavigationLink {
-            TimerView().appBackground()
+            TimerView()
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: "timer")
@@ -602,10 +596,7 @@ struct SessionExerciseView: View {
                             }
                         }
                     }
-                    .padding(12)
-                    .background(Color.gray.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .contentShape(Rectangle())
+                    .cardRowContainerStyle()
                     .onTapGesture {
                         guard canEditSession else { return }
                         copySetIntoCurrentDraft(sessionSet)
@@ -655,10 +646,7 @@ struct SessionExerciseView: View {
 
                         Spacer()
                     }
-                    .padding(12)
-                    .background(Color.gray.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .contentShape(Rectangle())
+                    .cardRowContainerStyle()
                     .onTapGesture {
                         guard canEditSession else { return }
                         copySetIntoCurrentDraft(sessionSet)
@@ -873,9 +861,7 @@ struct SessionExerciseView: View {
                         }
                     }
                 }
-                .padding(12)
-                .background(Color.gray.opacity(0.06))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .cardRowContainerStyle()
             }
         }
     }
@@ -1570,10 +1556,14 @@ private struct MoveSetExercisePickerView: View {
                                         .foregroundStyle(.tint)
                                 }
                             }
+                            .cardListRowContentPadding()
                         }
+                        .buttonStyle(.plain)
+                        .cardListRowStyle()
                     }
                 }
             }
+            .cardListScreen()
             .navigationTitle("Transfer Set")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Search exercise")
@@ -1605,6 +1595,8 @@ private struct MoveSetExercisePickerView: View {
                 .fontWeight(.semibold)
                 .multilineTextAlignment(.trailing)
         }
+        .cardListRowContentPadding()
+        .cardListRowStyle()
     }
 }
 
@@ -1685,8 +1677,7 @@ private struct DurationWheelPicker: View {
                 .pickerStyle(.wheel)
                 .frame(width: 66, height: 88)
                 .clipped()
-                .background(Color(.systemGray6))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .controlCardSurface(cornerRadius: 10)
                 Text("HH")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -1705,8 +1696,7 @@ private struct DurationWheelPicker: View {
                 .pickerStyle(.wheel)
                 .frame(width: 66, height: 88)
                 .clipped()
-                .background(Color(.systemGray6))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .controlCardSurface(cornerRadius: 10)
                 Text("MM")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -1725,8 +1715,7 @@ private struct DurationWheelPicker: View {
                 .pickerStyle(.wheel)
                 .frame(width: 66, height: 88)
                 .clipped()
-                .background(Color(.systemGray6))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .controlCardSurface(cornerRadius: 10)
                 Text("SS")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -1738,11 +1727,13 @@ private struct DurationWheelPicker: View {
 }
 
 extension View {
-    func screenContentPadding() -> some View {
+    func sessionExerciseContentPadding() -> some View {
         self
-            .padding(.horizontal)
+            .frame(maxWidth: 600, alignment: .leading)
+            .padding(.horizontal, 16)
             .padding(.top, 8)
             .padding(.bottom, 96)
+            .frame(maxWidth: .infinity, alignment: .center)
     }
 }
 

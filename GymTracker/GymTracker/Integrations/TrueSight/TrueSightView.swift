@@ -58,45 +58,32 @@ struct TrueSightView: View {
                 Text("Exercise Video Analysis")
                     .font(.title2)
                     .fontWeight(.bold)
-                    .padding(.horizontal, 16)
                 
                 NavigationLink {
                     FitSightExercisePickerView(selectedExerciseId: $selectedExerciseId)
                 } label: {
-                    HStack(spacing: 12) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Exercise")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.secondary)
-                            Text(selectedExercise?.name ?? "Choose ExerciseDB-backed exercise")
-                                .font(.headline)
-                                .foregroundColor(.primary)
-                                .multilineTextAlignment(.leading)
-                            Text(selectedExercise?.npId ?? "Uses local exercises that have an npId")
-                                .font(.caption)
+                    CardRowContainer {
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Exercise")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.secondary)
+                                Text(selectedExercise?.name ?? "Choose ExerciseDB-backed exercise")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                                    .multilineTextAlignment(.leading)
+                                Text(selectedExercise?.npId ?? "Uses local exercises that have an npId")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
                                 .foregroundColor(.secondary)
                         }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.secondary)
                     }
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(12)
                 }
-                .padding(.horizontal, 16)
 
-                // Options
-                /*
-                Toggle("Draw Skeleton", isOn: $drawSkeleton)
-                    .padding(.horizontal, 16)
-                Toggle("Show Recommendations", isOn: $showRecommendations)
-                    .padding(.horizontal, 16)
-                Toggle("Webcam Mode", isOn: $isWebcamMode)
-                    .padding(.horizontal, 16)
-                */
-                
                 // Select video button (only show if not in webcam mode)
                 if !isWebcamMode {
                     Button(action: {
@@ -121,7 +108,6 @@ struct TrueSightView: View {
                         .background(Color.blue)
                         .cornerRadius(10)
                     }
-                    .padding(.horizontal, 16)
                     .disabled(manager.isProcessing || isPreparingVideo)
                 }
                 
@@ -138,7 +124,6 @@ struct TrueSightView: View {
                             .background(Color.green)
                             .cornerRadius(10)
                     }
-                    .padding(.horizontal, 16)
                     .disabled(manager.isProcessing || selectedExercise == nil || isPreparingVideo || isCheckingExercise)
                 }
 
@@ -150,35 +135,31 @@ struct TrueSightView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
-                    .padding(.horizontal, 16)
                 }
                 
                 // Processing status
                 if manager.isProcessing {
-                    VStack(spacing: 10) {
-                        if manager.isUploading {
-                            ProgressView(value: manager.uploadProgress) {
-                                Text("Uploading video…")
-                            } currentValueLabel: {
-                                Text("\(Int((manager.uploadProgress * 100).rounded()))%")
+                    CardRowContainer {
+                        VStack(spacing: 10) {
+                            if manager.isUploading {
+                                ProgressView(value: manager.uploadProgress) {
+                                    Text("Uploading video…")
+                                } currentValueLabel: {
+                                    Text("\(Int((manager.uploadProgress * 100).rounded()))%")
+                                }
+                                .progressViewStyle(.linear)
+                            } else {
+                                ProgressView("Processing video…")
+                                    .progressViewStyle(.circular)
                             }
-                            .progressViewStyle(.linear)
-                        } else {
-                            ProgressView("Processing video…")
-                                .progressViewStyle(.circular)
-                        }
 
-                        Text(manager.isUploading ? "Uploading the selected video to TrueSight." : "Upload finished. TrueSight is processing the video now.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
+                            Text(manager.isUploading ? "Uploading the selected video to TrueSight." : "Upload finished. TrueSight is processing the video now.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .center)
                     }
-                    .padding(.vertical, 14)
-                    .padding(.horizontal, 16)
-                    .frame(maxWidth: .infinity)
-                    .background(Color(.systemGray6))
-                    .cornerRadius(12)
-                    .padding(.horizontal, 16)
                 }
 
                 if let selectionErrorMessage {
@@ -187,7 +168,6 @@ struct TrueSightView: View {
                         .padding()
                         .background(Color.red.opacity(0.1))
                         .cornerRadius(8)
-                        .padding(.horizontal, 16)
                 }
                 
                 // Error message
@@ -197,7 +177,6 @@ struct TrueSightView: View {
                         .padding()
                         .background(Color.red.opacity(0.1))
                         .cornerRadius(8)
-                        .padding(.horizontal, 16)
                 }
                 
                 // Processed video
@@ -210,7 +189,6 @@ struct TrueSightView: View {
                         ProcessedVideoPlayer(url: processedURL)
                             .frame(height: 300)
                             .cornerRadius(10)
-                            .padding(.horizontal, 16)
                         
                         Button(action: {
                             downloadVideo(url: processedURL)
@@ -223,13 +201,13 @@ struct TrueSightView: View {
                                 .background(Color.purple)
                                 .cornerRadius(10)
                         }
-                        .padding(.horizontal, 16)
                     }
                 }
                 
                 Spacer(minLength: 8)
             }
             .padding(.vertical, 12)
+            .screenContentPadding()
         }
         .navigationTitle("TrueSight")
         .navigationBarTitleDisplayMode(.inline)
@@ -362,13 +340,17 @@ struct FitSightExercisePickerView: View {
                                     .foregroundStyle(.green)
                             }
                         }
+                        .cardListRowContentPadding()
                     }
                     .buttonStyle(.plain)
+                    .cardListRowStyle()
                 }
             } footer: {
                 Text("Only exercises with a valid npId are shown here, so the selection stays aligned with the ExerciseDB-backed TrueSight flow.")
             }
         }
+        .cardListScreen()
+        .appBackground()
         .navigationTitle("Choose Exercise")
         .searchable(text: $searchText, prompt: "Search exercises or npId")
     }

@@ -12,14 +12,9 @@ struct ContentView: View {
     @EnvironmentObject var timerService: TimerService
     @EnvironmentObject var userService: UserService
     
-    @State var query: String = ""
     @State var localSelected:Int = 0
     
     @State var linkActive = false
-    @State var selectedLink = -1
-#if DEBUG
-    @State private var showingDebugNotesImport = false
-#endif
 
     var body: some View {
         TabView (selection: $localSelected) {
@@ -30,7 +25,6 @@ struct ContentView: View {
                             .appBackground()
                             .navigationDestination(isPresented: $linkActive) {
                                 TimerView()
-                                    .appBackground()
                             }
                     }
                 }
@@ -39,7 +33,7 @@ struct ContentView: View {
             if userService.currentUser?.showNutritionTab ?? true {
                 Tab("Nutrition", systemImage: "fork.knife", value: 3) {
                     NavigationStack {
-                        NutritionDayView().appBackground()
+                        NutritionDayView()
                     }
                 }
             }
@@ -47,34 +41,20 @@ struct ContentView: View {
             Tab("Sessions", systemImage: "list.bullet.rectangle", value: 2) {
                 NavigationStack {
                     SessionsPageView()
-                        .appBackground()
                 }
             }
             
             Tab("Exercises", systemImage: "dumbbell", value: 1) {
                 NavigationStack {
                     ExercisesView()
-                        .appBackground()
                 }
             }
 
             Tab("Programme", systemImage: "figure.walk.motion", value: 4) {
                 NavigationStack {
                     ProgramsRootView()
-                        .appBackground()
                 }
             }
-            /*
-            if (localSelected == 1) {
-                Tab("Search", systemImage: "magnifyingglass", value: 3, role: .search) {
-                    NavigationStack {
-                        SearchView(query: $query)
-                            .searchable(text: $query)
-                        
-                    }
-                }
-            }
-             */
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
             timerService.appDidEnterBackground()
@@ -87,10 +67,7 @@ struct ContentView: View {
                 localSelected = 0
             }
         }
-
-        //.searchable(text: $query)
         .tabBarMinimizeIfAvailable()
-        //        }
         .onOpenURL { url in
             print("Received deep link: \(url)")
             linkActive = true
@@ -102,29 +79,6 @@ struct ContentView: View {
             }
 #endif
         }
-#if false
-        .safeAreaInset(edge: .bottom) {
-            HStack {
-                Spacer()
-                Button {
-                    showingDebugNotesImport = true
-                } label: {
-                    Label("Debug Notes Import", systemImage: "doc.text")
-                        .font(.caption)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                }
-                .buttonStyle(.borderedProminent)
-            }
-            .padding(.horizontal)
-            .padding(.bottom, 8)
-        }
-        .sheet(isPresented: $showingDebugNotesImport) {
-            NotesImportView(currentUserId: userService.currentUser?.id)
-        }
-#endif
-        // 4.
-
     }
 
 }
@@ -148,31 +102,5 @@ extension View {
         } else {
             self
         }
-    }
-}
-
-struct AppBackground: View {
-    var body: some View {
-        ZStack(alignment: .top) {
-            Color(.systemBackground)
-
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color(red: 0.85, green: 0.1, blue: 0.1),
-                    Color.clear
-                ]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: 400)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        }
-        .ignoresSafeArea()
-    }
-}
-
-extension View {
-    func appBackground() -> some View {
-        self.background(AppBackground())
     }
 }

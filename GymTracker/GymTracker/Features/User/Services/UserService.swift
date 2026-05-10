@@ -315,6 +315,18 @@ class UserService: ServiceBase, ObservableObject {
         }
     }
 
+    var currentAppearancePreference: AppAppearancePreference {
+        currentUser?.preferredAppearance ?? .system
+    }
+
+    func setCurrentAppearancePreference(_ preference: AppAppearancePreference) {
+        withAnimation {
+            currentUser?.preferredAppearance = preference
+            currentUser?.updatedAt = Date()
+            if let currentUser { try? repository.saveChanges(for: currentUser) }
+        }
+    }
+
     func setTimerNotificationsEnabled(_ isEnabled: Bool) {
         withAnimation {
             currentUser?.timerNotificationsEnabled = isEnabled

@@ -185,11 +185,9 @@ struct SessionProgressionTargetCardView: View {
 
             Spacer()
         }
-        .padding(12)
-        .background(Color.gray.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .cardRowContainerStyle()
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(
                     isMissed
                         ? Color.orange.opacity(0.45)
@@ -220,15 +218,15 @@ struct SessionProgressionTargetCardView: View {
                 Button {
                     onAutofill(summarySelection)
                 } label: {
-                    detailRow(title: "Next Target", value: targetRangeText)
-                        .padding(12)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.gray.opacity(0.08))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    CardRowContainer {
+                        detailRow(title: "Next Target", value: targetRangeText)
+                    }
                 }
                 .buttonStyle(.plain)
             } else {
-                detailRow(title: "Next Target", value: targetRangeText)
+                CardRowContainer {
+                    detailRow(title: "Next Target", value: targetRangeText)
+                }
             }
         }
     }

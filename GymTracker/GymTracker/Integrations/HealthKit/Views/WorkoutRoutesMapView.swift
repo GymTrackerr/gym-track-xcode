@@ -91,15 +91,6 @@ struct WorkoutRoutesMapView: View {
                     .foregroundColor(.white)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                 
-                /*
-                 Menu("Radius: \(Int(radiusMeters))m") {
-                     Button("500m")  { radiusMeters = 500 }
-                     Button("1km")   { radiusMeters = 1000 }
-                     Button("1.5km") { radiusMeters = 1500 }
-                     Button("3km")   { radiusMeters = 3000 }
-                     Button("5km")   { radiusMeters = 5000 }
-                 }
-                 */
                 if vm.isLoading {
                     ProgressView()
                         .padding(8)

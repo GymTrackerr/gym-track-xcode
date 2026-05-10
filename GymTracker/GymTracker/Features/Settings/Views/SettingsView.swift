@@ -45,346 +45,21 @@ struct SettingsView: View {
     @State private var exerciseDBBaseURLOverride: String = ""
 
     var body: some View {
-        VStack {
-            List {
-                HStack {
-                    Text("GymTracker Settings")
-//                    Spacer()
-                }
-                // Settings
-                // Show Account
-                Button {
-                    if let currentUserId = userService.currentUser?.id, userService.currentUser?.isDemo != true {
-                        userService.removeUser(id: currentUserId)
-                    }
-                } label: {
-                    Text(userService.currentUser?.isDemo == true ? "Delete Account Unavailable for Demo" : "Delete Account")
-                }
-                .disabled(userService.currentUser?.isDemo == true)
-
-                Section("Accounts") {
-                    Button {
-                        userService.startNewAccountOnboarding()
-                    } label: {
-                        HStack {
-                            Image(systemName: "plus.circle.fill")
-                            Text("New Account")
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    
-                    ForEach(userService.accounts, id: \.id) { account in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack(spacing: 8) {
-                                    Text(account.name)
-                                        .font(.body.weight(.semibold))
-
-                                    if account.isDemo {
-                                        AccountChip(title: "Demo", tint: .orange)
-                                    }
-
-                                    if userService.currentUser?.id == account.id {
-                                        AccountChip(title: "Current", tint: .blue)
-                                    }
-                                }
-                                Text("Last login: \(account.lastLogin, format: .dateTime.month().day().year().hour().minute())")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-
-                            if userService.currentUser?.id != account.id {
-                                Button("Sign In") {
-                                    userService.switchAccount(to: account.id)
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .controlSize(.small)
-                            }
-                        }
-                    }
-                }
-
-                Section("Account Sync (Optional)") {
-                    InteractAccountLinkCard()
-
-                    Toggle(
-                        "Enable Remote Sync For This Account",
-                        isOn: Binding(
-                            get: { userService.currentUser?.remoteSyncEnabled ?? false },
-                            set: { userService.setRemoteSyncEnabled($0) }
-                        )
-                    )
-                    .disabled(userService.currentUser?.isDemo == true)
-                }
-
-                NavigationLink {
-                    DemoSeedView()
-                } label: {
-                    HStack {
-                        Image(systemName: "sparkles.rectangle.stack")
-                        Text("Demo Mode")
-                    }
-                }
-
-                NavigationLink {
-                    AboutView()
-                } label: {
-                    HStack {
-                        Image(systemName: "info.circle")
-                        Text("About")
-                    }
-                }
-//                NavigationLink {
-//
-//                }
-
-                NavigationLink {
-                    TestDataShow()
-                } label: {
-                    HStack {
-                        Image(systemName: "swiftdata")
-                        Text("Debug Data")
-                    }
-                }
-
-                Section("Preferences") {
-                    Toggle("Show Nutrition Tab", isOn: Binding(
-                        get: { userService.currentUser?.showNutritionTab ?? true },
-                        set: { newValue in
-                            userService.setShowNutritionTab(newValue)
-                        }
-                    ))
-
-                    NavigationLink {
-                        TimerFeedbackSettingsView()
-                    } label: {
-                        HStack {
-                            Image(systemName: "bell.badge")
-                            Text("Timer Feedback")
-                        }
-                    }
-                }
-
-                Section("Nutrition") {
-                    Button {
-                        exportNutritionBackup()
-                    } label: {
-                        HStack {
-                            Image(systemName: "square.and.arrow.up")
-                            Text("Export Nutrition Backup")
-                        }
-                    }
-
-                    Button {
-                        importTarget = .nutrition
-                        showImportPicker = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "square.and.arrow.down")
-                            Text("Import Nutrition Backup")
-                        }
-                    }
-                }
-
-                Section("Exercises") {
-                    Toggle(
-                        "Enable ExerciseDB Catalog Sync",
-                        isOn: Binding(
-                            get: { exerciseService.catalogSyncEnabledForCurrentUser },
-                            set: { exerciseService.setCatalogSyncEnabled($0) }
-                        )
-                    )
-
-                    Button {
-                        Task {
-                            await exerciseService.syncCatalogNow(force: true)
-                        }
-                    } label: {
-                        HStack {
-                            Image(systemName: "arrow.clockwise")
-                            Text("Sync ExerciseDB Now")
-                        }
-                    }
-
-                    Button {
-                        exportExerciseBackup()
-                    } label: {
-                        HStack {
-                            Image(systemName: "square.and.arrow.up")
-                            Text("Export Exercise Backup")
-                        }
-                    }
-
-                    Button {
-                        exerciseImportMode = .merge
-                        importTarget = .exercise
-                        showImportPicker = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "square.and.arrow.down")
-                            Text("Import Exercise Backup (Merge)")
-                        }
-                    }
-
-                    Button {
-                        exerciseImportMode = .replace
-                        importTarget = .exercise
-                        showImportPicker = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "arrow.triangle.2.circlepath")
-                            Text("Import Exercise Backup (Replace)")
-                        }
-                    }
-
-                    Button {
-                        mergeExercisesWithSameNpId()
-                    } label: {
-                        HStack {
-                            Image(systemName: "arrow.merge")
-                            Text("Merge Exercises by npId")
-                        }
-                    }
-
-                    Button {
-                        showExerciseTransferTool = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "arrow.left.arrow.right")
-                            Text("Transfer History")
-                        }
-                    }
-
-                }
-
-                Section("Apple Health Access") {
-                    Text(healthAccessStatusText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    if userService.currentUser?.isDemo == true {
-                        Text("Apple Health access is disabled for demo accounts.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else if userService.currentUser?.allowHealthAccess == true {
-                        Button {
-                            disableHealthAccessForCurrentUser()
-                        } label: {
-                            HStack {
-                                Image(systemName: "xmark.circle")
-                                Text("Disable For This Account")
-                            }
-                        }
-                    } else {
-                        Button {
-                            Task(priority: .utility) {
-                                await enableHealthAccessFromSettings()
-                            }
-                        } label: {
-                            HStack {
-                                Image(systemName: "heart.circle")
-                                Text(isEnablingHealthAccess ? "Enabling Apple Health..." : "Enable Apple Health Access")
-                            }
-                        }
-                        .disabled(isEnablingHealthAccess)
-                    }
-                }
-
-                Section("Apple Health Summary") {
-                    Picker("History Range", selection: $selectedHealthHistoryRange) {
-                        ForEach(HealthHistorySyncRange.allCases) { range in
-                            Text(range.title).tag(range)
-                        }
-                    }
-
-                    Button {
-                        triggerSmartPullNow()
-                    } label: {
-                        HStack {
-                            Image(systemName: "bolt.fill")
-                            Text("Smart Pull Now")
-                        }
-                    }
-                    .disabled(
-                        healthKitDailyStore.isBackfillingHistory ||
-                        userService.currentUser?.allowHealthAccess != true ||
-                        userService.currentUser?.isDemo == true
-                    )
-
-                    Button {
-                        triggerFullHealthRefresh()
-                    } label: {
-                        HStack {
-                            Image(systemName: "arrow.clockwise.circle")
-                            Text("Full Refresh (\(selectedHealthHistoryRange.title))")
-                        }
-                    }
-                    .disabled(
-                        healthKitDailyStore.isBackfillingHistory ||
-                        userService.currentUser?.allowHealthAccess != true ||
-                        userService.currentUser?.isDemo == true
-                    )
-
-                    if userService.currentUser?.allowHealthAccess != true {
-                        Text("Enable Apple Health access first to use Smart Pull or Full Refresh.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    if healthKitDailyStore.isBackfillingHistory {
-                        VStack(alignment: .leading, spacing: 8) {
-                            ProgressView(value: healthProgressValue)
-                            Text(healthKitDailyStore.backfillStatusText)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    Button {
-                        exportAppleHealthSummaryBackup()
-                    } label: {
-                        HStack {
-                            Image(systemName: "square.and.arrow.up")
-                            Text("Export Apple Health Summary")
-                        }
-                    }
-
-                    Button {
-                        importTarget = .appleHealthSummary
-                        showImportPicker = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "square.and.arrow.down")
-                            Text("Import Apple Health Summary")
-                        }
-                    }
-                }
-
-                Section("Developer Networking") {
-                    TextField("Backend base URL override", text: $backendBaseURLOverride)
-                        .autocorrectionDisabled()
-                        .textFieldStyle(.roundedBorder)
-
-                    TextField("ExerciseDB base URL override", text: $exerciseDBBaseURLOverride)
-                        .autocorrectionDisabled()
-                        .textFieldStyle(.roundedBorder)
-
-                    Button("Apply URL Overrides") {
-                        applyNetworkingOverrides()
-                    }
-
-                    Button("Clear URL Overrides") {
-                        clearNetworkingOverrides()
-                    }
-
-                    Text("Leave a field empty to use the normal built-in URL.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                accountSection
+                accountSyncSection
+                generalSection
+                preferencesSection
+                nutritionSection
+                exercisesSection
+                appleHealthAccessSection
+                appleHealthSummarySection
+                developerNetworkingSection
             }
-            .scrollContentBackground(.hidden)
+            .screenContentPadding()
         }
+        .appBackground()
         .navigationTitle("Settings")
         .alert(backupAlertTitle, isPresented: $showExportErrorAlert) {
             Button("OK", role: .cancel) { }
@@ -442,18 +117,551 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showExerciseTransferTool) {
             ExerciseTransferToolView()
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
+                .appBackground()
+                .editorSheetPresentation()
         }
-//        .toolbar {
-//            ToolbarItem(placement: .navigationBarTrailing) {
-//                Button {
-////                    exerciseService.editingExercise = true
-//                } label: {
-////                    Label("Add Exercise", systemImage: "plus.circle")
-//                }
-//            }
-//        }
+    }
+
+    private var accountSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: "Accounts")
+            ConnectedCardSection {
+                ConnectedCardRow {
+                    Button {
+                        userService.startNewAccountOnboarding()
+                    } label: {
+                        Label("New Account", systemImage: "plus.circle.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+
+                if userService.accounts.isEmpty == false {
+                    ConnectedCardDivider()
+                }
+
+                ForEach(Array(userService.accounts.enumerated()), id: \.element.id) { index, account in
+                    accountRow(account)
+
+                    if index < userService.accounts.count - 1 {
+                        ConnectedCardDivider(leadingInset: 56)
+                    }
+                }
+
+                if let currentUserId = userService.currentUser?.id {
+                    ConnectedCardDivider()
+
+                    Button(role: .destructive) {
+                        if userService.currentUser?.isDemo != true {
+                            userService.removeUser(id: currentUserId)
+                        }
+                    } label: {
+                        ConnectedCardRow {
+                            settingsRowLabel(
+                                title: userService.currentUser?.isDemo == true ? "Delete Account Unavailable" : "Delete Account",
+                                subtitle: userService.currentUser?.isDemo == true ? "Demo accounts cannot be deleted" : "Remove the current local account",
+                                systemImage: "trash",
+                                showsChevron: false
+                            )
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(userService.currentUser?.isDemo == true)
+                }
+            }
+        }
+    }
+
+    private var accountSyncSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: "Account Sync")
+            ConnectedCardSection {
+                ConnectedCardRow {
+                    InteractAccountLinkCard()
+                }
+
+                ConnectedCardDivider()
+
+                ConnectedCardRow {
+                    Toggle(
+                        isOn: Binding(
+                            get: { userService.currentUser?.remoteSyncEnabled ?? false },
+                            set: { userService.setRemoteSyncEnabled($0) }
+                        )
+                    ) {
+                        settingsRowLabel(
+                            title: "Remote Sync",
+                            subtitle: "Enable optional cloud sync for this account",
+                            systemImage: "icloud",
+                            showsChevron: false
+                        )
+                    }
+                    .disabled(userService.currentUser?.isDemo == true)
+                }
+            }
+        }
+    }
+
+    private var generalSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: "General")
+            ConnectedCardSection {
+                NavigationLink {
+                    DemoSeedView()
+                } label: {
+                    ConnectedCardRow {
+                        settingsRowLabel(
+                            title: "Demo Mode",
+                            subtitle: "Seed sample data for trying the app",
+                            systemImage: "sparkles.rectangle.stack"
+                        )
+                    }
+                }
+                .buttonStyle(.plain)
+
+                ConnectedCardDivider(leadingInset: 56)
+
+                NavigationLink {
+                    AboutView()
+                        .appBackground()
+                } label: {
+                    ConnectedCardRow {
+                        settingsRowLabel(
+                            title: "About",
+                            subtitle: "Version, build, and project details",
+                            systemImage: "info.circle"
+                        )
+                    }
+                }
+                .buttonStyle(.plain)
+
+                ConnectedCardDivider(leadingInset: 56)
+
+                NavigationLink {
+                    TestDataShow()
+                        .appBackground()
+                } label: {
+                    ConnectedCardRow {
+                        settingsRowLabel(
+                            title: "Debug Data",
+                            subtitle: "Inspect local record counts",
+                            systemImage: "swiftdata"
+                        )
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var preferencesSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: "Preferences")
+            ConnectedCardSection {
+                ConnectedCardRow {
+                    HStack(spacing: 12) {
+                        settingsRowLabel(
+                            title: "Appearance",
+                            subtitle: "Use system, light, or dark mode",
+                            systemImage: "circle.lefthalf.filled",
+                            showsChevron: false
+                        )
+
+                        Spacer(minLength: 12)
+
+                        Picker(
+                            "Appearance",
+                            selection: Binding(
+                                get: { userService.currentAppearancePreference },
+                                set: { userService.setCurrentAppearancePreference($0) }
+                            )
+                        ) {
+                            ForEach(AppAppearancePreference.allCases) { preference in
+                                Text(preference.title).tag(preference)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                    }
+                }
+
+                ConnectedCardDivider(leadingInset: 56)
+
+                ConnectedCardRow {
+                    Toggle(
+                        isOn: Binding(
+                            get: { userService.currentUser?.showNutritionTab ?? true },
+                            set: { userService.setShowNutritionTab($0) }
+                        )
+                    ) {
+                        settingsRowLabel(
+                            title: "Show Nutrition Tab",
+                            subtitle: "Keep nutrition visible in the main tabs",
+                            systemImage: "fork.knife",
+                            showsChevron: false
+                        )
+                    }
+                }
+
+                ConnectedCardDivider(leadingInset: 56)
+
+                NavigationLink {
+                    TimerFeedbackSettingsView()
+                        .appBackground()
+                } label: {
+                    ConnectedCardRow {
+                        settingsRowLabel(
+                            title: "Timer Feedback",
+                            subtitle: "Notifications and haptics for rest timers",
+                            systemImage: "bell.badge"
+                        )
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var nutritionSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: "Nutrition")
+            ConnectedCardSection {
+                settingsActionRow(
+                    title: "Export Nutrition Backup",
+                    subtitle: "Save food, meals, targets, and logs to JSON",
+                    systemImage: "square.and.arrow.up"
+                ) {
+                    exportNutritionBackup()
+                }
+
+                ConnectedCardDivider(leadingInset: 56)
+
+                settingsActionRow(
+                    title: "Import Nutrition Backup",
+                    subtitle: "Restore nutrition data from JSON",
+                    systemImage: "square.and.arrow.down"
+                ) {
+                    importTarget = .nutrition
+                    showImportPicker = true
+                }
+            }
+        }
+    }
+
+    private var exercisesSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: "Exercises")
+            ConnectedCardSection {
+                ConnectedCardRow {
+                    Toggle(
+                        isOn: Binding(
+                            get: { exerciseService.catalogSyncEnabledForCurrentUser },
+                            set: { exerciseService.setCatalogSyncEnabled($0) }
+                        )
+                    ) {
+                        settingsRowLabel(
+                            title: "ExerciseDB Catalog Sync",
+                            subtitle: "Keep the external exercise catalog updated",
+                            systemImage: "arrow.triangle.2.circlepath",
+                            showsChevron: false
+                        )
+                    }
+                }
+
+                ConnectedCardDivider(leadingInset: 56)
+
+                settingsActionRow(title: "Sync ExerciseDB Now", subtitle: "Pull the latest catalog now", systemImage: "arrow.clockwise") {
+                    Task {
+                        await exerciseService.syncCatalogNow(force: true)
+                    }
+                }
+
+                ConnectedCardDivider(leadingInset: 56)
+
+                settingsActionRow(title: "Export Exercise Backup", subtitle: "Save exercises, routines, programmes, and sessions", systemImage: "square.and.arrow.up") {
+                    exportExerciseBackup()
+                }
+
+                ConnectedCardDivider(leadingInset: 56)
+
+                settingsActionRow(title: "Import Exercise Backup (Merge)", subtitle: "Merge exercise backup data into this account", systemImage: "square.and.arrow.down") {
+                    exerciseImportMode = .merge
+                    importTarget = .exercise
+                    showImportPicker = true
+                }
+
+                ConnectedCardDivider(leadingInset: 56)
+
+                settingsActionRow(title: "Import Exercise Backup (Replace)", subtitle: "Replace existing exercise data from backup", systemImage: "arrow.triangle.2.circlepath") {
+                    exerciseImportMode = .replace
+                    importTarget = .exercise
+                    showImportPicker = true
+                }
+
+                ConnectedCardDivider(leadingInset: 56)
+
+                settingsActionRow(title: "Merge Exercises by npId", subtitle: "Clean up duplicate catalog exercises", systemImage: "arrow.merge") {
+                    mergeExercisesWithSameNpId()
+                }
+
+                ConnectedCardDivider(leadingInset: 56)
+
+                settingsActionRow(title: "Transfer History", subtitle: "Move exercise history between records", systemImage: "arrow.left.arrow.right") {
+                    showExerciseTransferTool = true
+                }
+            }
+        }
+    }
+
+    private var appleHealthAccessSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: "Apple Health Access")
+            ConnectedCardSection {
+                ConnectedCardRow {
+                    Text(healthAccessStatusText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                ConnectedCardDivider()
+
+                if userService.currentUser?.isDemo == true {
+                    ConnectedCardRow {
+                        Text("Apple Health access is disabled for demo accounts.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else if userService.currentUser?.allowHealthAccess == true {
+                    Button {
+                        disableHealthAccessForCurrentUser()
+                    } label: {
+                        ConnectedCardRow {
+                            settingsRowLabel(
+                                title: "Disable For This Account",
+                                subtitle: "Stop syncing Apple Health for the current account",
+                                systemImage: "xmark.circle",
+                                showsChevron: false
+                            )
+                        }
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Button {
+                        Task(priority: .utility) {
+                            await enableHealthAccessFromSettings()
+                        }
+                    } label: {
+                        ConnectedCardRow {
+                            settingsRowLabel(
+                                title: isEnablingHealthAccess ? "Enabling Apple Health..." : "Enable Apple Health Access",
+                                subtitle: "Allow this account to use Apple Health data",
+                                systemImage: "heart.circle",
+                                showsChevron: false
+                            )
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isEnablingHealthAccess)
+                }
+            }
+        }
+    }
+
+    private var appleHealthSummarySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: "Apple Health Summary")
+            ConnectedCardSection {
+                ConnectedCardRow {
+                    Picker("History Range", selection: $selectedHealthHistoryRange) {
+                        ForEach(HealthHistorySyncRange.allCases) { range in
+                            Text(range.title).tag(range)
+                        }
+                    }
+                }
+
+                ConnectedCardDivider()
+
+                settingsActionRow(title: "Smart Pull Now", subtitle: "Sync the most useful recent health data", systemImage: "bolt.fill") {
+                    triggerSmartPullNow()
+                }
+                .disabled(
+                    healthKitDailyStore.isBackfillingHistory ||
+                    userService.currentUser?.allowHealthAccess != true ||
+                    userService.currentUser?.isDemo == true
+                )
+
+                ConnectedCardDivider(leadingInset: 56)
+
+                settingsActionRow(title: "Full Refresh (\(selectedHealthHistoryRange.title))", subtitle: "Refresh the selected health history range", systemImage: "arrow.clockwise.circle") {
+                    triggerFullHealthRefresh()
+                }
+                .disabled(
+                    healthKitDailyStore.isBackfillingHistory ||
+                    userService.currentUser?.allowHealthAccess != true ||
+                    userService.currentUser?.isDemo == true
+                )
+
+                if userService.currentUser?.allowHealthAccess != true {
+                    ConnectedCardDivider()
+                    ConnectedCardRow {
+                        Text("Enable Apple Health access first to use Smart Pull or Full Refresh.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if healthKitDailyStore.isBackfillingHistory {
+                    ConnectedCardDivider()
+                    ConnectedCardRow {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ProgressView(value: healthProgressValue)
+                            Text(healthKitDailyStore.backfillStatusText)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                ConnectedCardDivider(leadingInset: 56)
+
+                settingsActionRow(title: "Export Apple Health Summary", subtitle: "Save synced daily health summaries", systemImage: "square.and.arrow.up") {
+                    exportAppleHealthSummaryBackup()
+                }
+
+                ConnectedCardDivider(leadingInset: 56)
+
+                settingsActionRow(title: "Import Apple Health Summary", subtitle: "Restore daily health summaries from JSON", systemImage: "square.and.arrow.down") {
+                    importTarget = .appleHealthSummary
+                    showImportPicker = true
+                }
+            }
+        }
+    }
+
+    private var developerNetworkingSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: "Developer Networking")
+            ConnectedCardSection {
+                ConnectedCardRow {
+                    TextField("Backend base URL override", text: $backendBaseURLOverride)
+                        .autocorrectionDisabled()
+                        .textFieldStyle(.roundedBorder)
+                }
+
+                ConnectedCardDivider()
+
+                ConnectedCardRow {
+                    TextField("ExerciseDB base URL override", text: $exerciseDBBaseURLOverride)
+                        .autocorrectionDisabled()
+                        .textFieldStyle(.roundedBorder)
+                }
+
+                ConnectedCardDivider()
+
+                settingsActionRow(title: "Apply URL Overrides", subtitle: "Use these URLs for development requests", systemImage: "checkmark.circle") {
+                    applyNetworkingOverrides()
+                }
+
+                ConnectedCardDivider(leadingInset: 56)
+
+                settingsActionRow(title: "Clear URL Overrides", subtitle: "Return networking to the built-in URLs", systemImage: "xmark.circle") {
+                    clearNetworkingOverrides()
+                }
+
+                ConnectedCardDivider()
+
+                ConnectedCardRow {
+                    Text("Leave a field empty to use the normal built-in URL.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func accountRow(_ account: User) -> some View {
+        ConnectedCardRow {
+            HStack(spacing: 12) {
+                Image(systemName: "person.crop.circle")
+                    .font(.title3.weight(.semibold))
+                    .frame(width: 28, height: 28)
+                    .foregroundStyle(.secondary)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Text(account.name)
+                            .font(.headline)
+
+                        if account.isDemo {
+                            AccountChip(title: "Demo", tint: .orange)
+                        }
+
+                        if userService.currentUser?.id == account.id {
+                            AccountChip(title: "Current", tint: .blue)
+                        }
+                    }
+
+                    Text("Last login: \(account.lastLogin, format: .dateTime.month().day().year().hour().minute())")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 8)
+
+                if userService.currentUser?.id != account.id {
+                    Button("Sign In") {
+                        userService.switchAccount(to: account.id)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+            }
+        }
+    }
+
+    private func settingsActionRow(
+        title: String,
+        subtitle: String,
+        systemImage: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            ConnectedCardRow {
+                settingsRowLabel(title: title, subtitle: subtitle, systemImage: systemImage)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func settingsRowLabel(
+        title: String,
+        subtitle: String,
+        systemImage: String,
+        showsChevron: Bool = true
+    ) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.title3.weight(.semibold))
+                .frame(width: 28, height: 28)
+                .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 8)
+
+            if showsChevron {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 
     private func exportNutritionBackup() {

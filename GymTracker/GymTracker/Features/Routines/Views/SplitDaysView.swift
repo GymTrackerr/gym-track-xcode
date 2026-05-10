@@ -20,7 +20,9 @@ struct SplitDaysView: View {
                     SingleDayView(routine: routine)
                 } label: {
                     SingleDayLabelView(routine: routine)
+                        .cardListRowContentPadding()
                 }
+                .cardListRowStyle()
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     Button(role: .destructive) {
                         deleteRoutine(routine)
@@ -34,10 +36,18 @@ struct SplitDaysView: View {
             .onMove(perform: splitDayService.moveSplitDay)
 
             if splitDayService.routines.isEmpty {
-                ContentUnavailableView("No routines yet", systemImage: "figure.walk.motion")
+                EmptyStateView(
+                    title: "No routines yet",
+                    systemImage: "figure.walk.motion",
+                    message: "Create a routine to see it here."
+                )
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
             }
         }
-        .scrollContentBackground(.hidden)
+        .cardListScreen()
+        .appBackground()
         .navigationTitle("Routines")
         .toolbar {
 #if os(iOS)
@@ -55,27 +65,32 @@ struct SplitDaysView: View {
         }
         .sheet(isPresented: $splitDayService.editingSplit) {
             NavigationView {
-                VStack(spacing: 16) {
-                    Text("Name your new routine")
-                        .font(.headline)
-                    
-                    TextField("Name", text: $splitDayService.editingContent)
-                        .textFieldStyle(.roundedBorder)
-                        .padding(.horizontal)
-                    
-                    Button {
-                        _ = splitDayService.addSplitDay()
-                    } label: {
-                        Label("Save", systemImage: "plus.circle")
-                            .font(.title2)
-                            .padding()
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 12) {
+                        SectionHeaderView(title: "Routine")
+
+                        ConnectedCardSection {
+                            ConnectedCardRow {
+                                LabeledContent("Name") {
+                                    TextField("Required", text: $splitDayService.editingContent)
+                                        .multilineTextAlignment(.trailing)
+                                }
+                            }
+                        }
+
+                        Button {
+                            _ = splitDayService.addSplitDay()
+                        } label: {
+                            Label("Save", systemImage: "plus.circle")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(splitDayService.editingContent.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
-                    .disabled(splitDayService.editingContent.trimmingCharacters(in: .whitespaces).isEmpty)
-                    
-                    Spacer()
+                    .screenContentPadding()
                 }
-                .padding()
                 .navigationTitle("Create New Routine")
+                .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") {
@@ -85,6 +100,7 @@ struct SplitDaysView: View {
                     }
                 }
             }
+            .appBackground()
         }
     }
 

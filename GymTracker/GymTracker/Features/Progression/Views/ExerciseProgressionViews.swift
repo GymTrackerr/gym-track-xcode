@@ -15,43 +15,56 @@ struct ExerciseProgressionCardView: View {
     let onEdit: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Exercise Override")
-                        .font(.headline)
+        CardRowContainer {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Exercise Override")
+                            .font(.headline)
 
-                    if let progressionExercise {
-                        Text(profile?.miniDescription ?? progressionExercise.progressionMiniDescriptionSnapshot ?? "Saved target guidance for this exercise.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text("Set an exercise-only override. If you leave this empty, routine, programme, or global defaults can still apply automatically.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        if let progressionExercise {
+                            Text(profile?.miniDescription ?? progressionExercise.progressionMiniDescriptionSnapshot ?? "Saved target guidance for this exercise.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("Set an exercise-only override. If you leave this empty, routine, programme, or global defaults can still apply automatically.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
+
+                    Spacer()
+
+                    Button {
+                        onEdit()
+                    } label: {
+                        Label(progressionExercise == nil ? "Set" : "Edit", systemImage: progressionExercise == nil ? "plus.circle" : "pencil")
+                    }
+                    .buttonStyle(.bordered)
                 }
 
-                Spacer()
+                if let progressionExercise {
+                    detailRow(
+                        title: "Profile",
+                        value: profile?.name ?? progressionExercise.progressionNameSnapshot ?? "Custom"
+                    )
+                    detailRow(
+                        title: "Target",
+                        value: ProgressionDisplayFormatter.targetSummary(
+                            setCount: progressionExercise.targetSetCount,
+                            targetReps: progressionExercise.targetReps,
+                            targetRepsLow: progressionExercise.targetRepsLow,
+                            targetRepsHigh: progressionExercise.targetRepsHigh,
+                            weight: progressionExercise.workingWeight,
+                            weightLow: progressionExercise.suggestedWeightLow,
+                            weightHigh: progressionExercise.suggestedWeightHigh,
+                            unit: progressionExercise.workingWeightUnit
+                        )
+                    )
 
-                Button {
-                    onEdit()
-                } label: {
-                    Label(progressionExercise == nil ? "Set" : "Edit", systemImage: progressionExercise == nil ? "plus.circle" : "pencil")
-                }
-                .buttonStyle(.bordered)
-            }
-
-            if let progressionExercise {
-                detailRow(
-                    title: "Profile",
-                    value: profile?.name ?? progressionExercise.progressionNameSnapshot ?? "Custom"
-                )
-                detailRow(
-                    title: "Target",
-                    value: ProgressionDisplayFormatter.targetSummary(
+                    let cycleSummary = ProgressionDisplayFormatter.targetSummary(
                         setCount: progressionExercise.targetSetCount,
-                        targetReps: progressionExercise.targetReps,
+                        targetReps: nil,
                         targetRepsLow: progressionExercise.targetRepsLow,
                         targetRepsHigh: progressionExercise.targetRepsHigh,
                         weight: progressionExercise.workingWeight,
@@ -59,47 +72,33 @@ struct ExerciseProgressionCardView: View {
                         weightHigh: progressionExercise.suggestedWeightHigh,
                         unit: progressionExercise.workingWeightUnit
                     )
-                )
+                    detailRow(title: "Cycle", value: cycleSummary)
 
-                let cycleSummary = ProgressionDisplayFormatter.targetSummary(
-                    setCount: progressionExercise.targetSetCount,
-                    targetReps: nil,
-                    targetRepsLow: progressionExercise.targetRepsLow,
-                    targetRepsHigh: progressionExercise.targetRepsHigh,
-                    weight: progressionExercise.workingWeight,
-                    weightLow: progressionExercise.suggestedWeightLow,
-                    weightHigh: progressionExercise.suggestedWeightHigh,
-                    unit: progressionExercise.workingWeightUnit
-                )
-                detailRow(title: "Cycle", value: cycleSummary)
-
-                if let completedWeightText = ProgressionDisplayFormatter.weightSummary(
-                    weight: progressionExercise.lastCompletedCycleWeight,
-                    unit: progressionExercise.lastCompletedCycleUnit
-                ) {
+                    if let completedWeightText = ProgressionDisplayFormatter.weightSummary(
+                        weight: progressionExercise.lastCompletedCycleWeight,
+                        unit: progressionExercise.lastCompletedCycleUnit
+                    ) {
+                        detailRow(
+                            title: "Last Top Set",
+                            value: "\(completedWeightText) x \(progressionExercise.lastCompletedCycleReps ?? progressionExercise.targetRepsHigh ?? progressionExercise.targetReps ?? 0)"
+                        )
+                    }
+                } else if let inheritedProgressionExercise {
                     detailRow(
-                        title: "Last Top Set",
-                        value: "\(completedWeightText) x \(progressionExercise.lastCompletedCycleReps ?? progressionExercise.targetRepsHigh ?? progressionExercise.targetReps ?? 0)"
+                        title: "Following",
+                        value: inheritedProfile?.name ?? inheritedProgressionExercise.progressionNameSnapshot ?? "Automatic progression"
                     )
+                    detailRow(
+                        title: "Source",
+                        value: inheritedProgressionExercise.assignmentSource.title
+                    )
+                } else {
+                    Text("No exercise override yet. Routine, programme, or global defaults can still apply automatically when you start logging.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
-            } else if let inheritedProgressionExercise {
-                detailRow(
-                    title: "Following",
-                    value: inheritedProfile?.name ?? inheritedProgressionExercise.progressionNameSnapshot ?? "Automatic progression"
-                )
-                detailRow(
-                    title: "Source",
-                    value: inheritedProgressionExercise.assignmentSource.title
-                )
-            } else {
-                Text("No exercise override yet. Routine, programme, or global defaults can still apply automatically when you start logging.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
             }
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
     }
 
     @ViewBuilder

@@ -26,7 +26,7 @@ struct ProgressionProfilesView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                sectionHeader(
+                SectionHeaderView(
                     title: "Automatic Progression",
                     subtitle: "Enable this if you want every routine-less exercise to fall back to one default profile when no exercise, routine, or programme override is set."
                 )
@@ -46,12 +46,9 @@ struct ProgressionProfilesView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.gray.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .cardRowContainerStyle()
 
-                sectionHeader(
+                SectionHeaderView(
                     title: "Built-in Progressions",
                     subtitle: "These seed from JSON once, live in the database after that, and can be tuned for your defaults."
                 )
@@ -66,7 +63,7 @@ struct ProgressionProfilesView: View {
                     }
                 }
 
-                sectionHeader(
+                SectionHeaderView(
                     title: "Custom Profiles",
                     subtitle: "Create extra progression setups for exercises that need different targets or increments."
                 )
@@ -97,11 +94,13 @@ struct ProgressionProfilesView: View {
             NavigationStack {
                 ProgressionProfileEditorSheet(profile: nil)
             }
+            .editorSheetPresentation()
         }
         .sheet(item: $editingProfile) { profile in
             NavigationStack {
                 ProgressionProfileEditorSheet(profile: profile)
             }
+            .editorSheetPresentation()
         }
         .onAppear {
             progressionService.ensureBuiltInProfiles()
@@ -176,22 +175,7 @@ struct ProgressionProfilesView: View {
                 }
             }
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.gray.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-    }
-
-    @ViewBuilder
-    private func sectionHeader(title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.title3)
-                .fontWeight(.semibold)
-            Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
+        .cardRowContainerStyle()
     }
 
     @ViewBuilder
@@ -199,10 +183,7 @@ struct ProgressionProfilesView: View {
         Text(text)
             .font(.caption)
             .foregroundStyle(.secondary)
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.gray.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .cardRowContainerStyle()
     }
 
     @ViewBuilder
@@ -274,53 +255,15 @@ private struct ProgressionProfileEditorSheet: View {
     }
 
     var body: some View {
-        Form {
-            Section("Profile") {
-                TextField("Name", text: $name)
-                    .disabled(profile?.isBuiltIn == true)
-
-                TextField("Mini Description", text: $miniDescription, axis: .vertical)
-                    .lineLimit(3, reservesSpace: true)
-
-                Picker("Type", selection: $type) {
-                    ForEach(ProgressionType.allCases) { type in
-                        Text(type.title).tag(type)
-                    }
-                }
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                profileSection
+                targetsSection
+                advancementSection
             }
-
-            Section("Targets") {
-                Stepper("Default Sets: \(defaultSetsTarget)", value: $defaultSetsTarget, in: 1...12)
-
-                if type == .doubleProgression {
-                    Stepper("Rep Range Low: \(defaultRepsLow)", value: $defaultRepsLow, in: 1...30)
-                    Stepper("Rep Range High: \(defaultRepsHigh)", value: $defaultRepsHigh, in: 1...30)
-                } else {
-                    Stepper("Target Reps: \(defaultRepsTarget)", value: $defaultRepsTarget, in: 1...30)
-                }
-            }
-
-            Section("Advancement") {
-                TextField("Weight Increment", value: $incrementValue, format: .number)
-                    .keyboardType(.decimalPad)
-
-                TextField("Percentage Increase", value: $percentageIncrease, format: .number)
-                    .keyboardType(.decimalPad)
-
-                Picker("Increment Unit", selection: $incrementUnit) {
-                    ForEach(WeightUnit.allCases) { unit in
-                        Text(unit.name).tag(unit)
-                    }
-                }
-                .pickerStyle(.segmented)
-
-                Stepper("Success Threshold: \(successThreshold)", value: $successThreshold, in: 1...10)
-
-                if type == .volume {
-                    Stepper("Set Increment: \(setIncrement)", value: $setIncrement, in: 1...5)
-                }
-            }
+            .screenContentPadding()
         }
+        .appBackground()
         .navigationTitle(profile == nil ? "New Profile" : "Edit Profile")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -343,6 +286,104 @@ private struct ProgressionProfileEditorSheet: View {
         .onChange(of: defaultRepsHigh) { _, newValue in
             if defaultRepsLow > newValue {
                 defaultRepsLow = newValue
+            }
+        }
+    }
+
+    private var profileSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: "Profile")
+            ConnectedCardSection {
+                ConnectedCardRow {
+                    LabeledContent("Name") {
+                        TextField("Required", text: $name)
+                            .multilineTextAlignment(.trailing)
+                            .disabled(profile?.isBuiltIn == true)
+                    }
+                }
+                ConnectedCardDivider()
+                ConnectedCardRow {
+                    LabeledContent("Description") {
+                        TextField("Mini Description", text: $miniDescription, axis: .vertical)
+                            .lineLimit(3, reservesSpace: true)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+                ConnectedCardDivider()
+                ConnectedCardRow {
+                    Picker("Type", selection: $type) {
+                        ForEach(ProgressionType.allCases) { type in
+                            Text(type.title).tag(type)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var targetsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: "Targets")
+            ConnectedCardSection {
+                ConnectedCardRow {
+                    Stepper("Default Sets: \(defaultSetsTarget)", value: $defaultSetsTarget, in: 1...12)
+                }
+                ConnectedCardDivider()
+                if type == .doubleProgression {
+                    ConnectedCardRow {
+                        Stepper("Rep Range Low: \(defaultRepsLow)", value: $defaultRepsLow, in: 1...30)
+                    }
+                    ConnectedCardDivider()
+                    ConnectedCardRow {
+                        Stepper("Rep Range High: \(defaultRepsHigh)", value: $defaultRepsHigh, in: 1...30)
+                    }
+                } else {
+                    ConnectedCardRow {
+                        Stepper("Target Reps: \(defaultRepsTarget)", value: $defaultRepsTarget, in: 1...30)
+                    }
+                }
+            }
+        }
+    }
+
+    private var advancementSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: "Advancement")
+            ConnectedCardSection {
+                ConnectedCardRow {
+                    LabeledContent("Weight Increment") {
+                        TextField("Weight Increment", value: $incrementValue, format: .number)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+                ConnectedCardDivider()
+                ConnectedCardRow {
+                    LabeledContent("Percentage Increase") {
+                        TextField("Percentage Increase", value: $percentageIncrease, format: .number)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+                ConnectedCardDivider()
+                ConnectedCardRow {
+                    Picker("Increment Unit", selection: $incrementUnit) {
+                        ForEach(WeightUnit.allCases) { unit in
+                            Text(unit.name).tag(unit)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                ConnectedCardDivider()
+                ConnectedCardRow {
+                    Stepper("Success Threshold: \(successThreshold)", value: $successThreshold, in: 1...10)
+                }
+                if type == .volume {
+                    ConnectedCardDivider()
+                    ConnectedCardRow {
+                        Stepper("Set Increment: \(setIncrement)", value: $setIncrement, in: 1...5)
+                    }
+                }
             }
         }
     }

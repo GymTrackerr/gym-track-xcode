@@ -359,6 +359,7 @@ private struct ExerciseDetailView: View {
                 previousLogsSection
                 transferHistoryButton
             }
+            .screenContentPadding()
         }
         .toolbar {
             detailToolbar(proxy: proxy)
@@ -377,7 +378,6 @@ private struct ExerciseDetailView: View {
             CachedMediaView(url: gifURL)
                 .frame(height: 240)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
-                .padding(.horizontal)
         }
     }
 
@@ -423,9 +423,7 @@ private struct ExerciseDetailView: View {
                     .font(.headline)
             }
             .padding()
-            .background(Color(.systemGray6))
-            .cornerRadius(12)
-            .padding(.horizontal)
+            .controlCardSurface(cornerRadius: 12)
         }
     }
 
@@ -486,9 +484,7 @@ private struct ExerciseDetailView: View {
                     .font(.headline)
             }
             .padding()
-            .background(Color(.systemGray6))
-            .cornerRadius(12)
-            .padding(.horizontal)
+            .controlCardSurface(cornerRadius: 12)
         }
     }
 
@@ -502,7 +498,6 @@ private struct ExerciseDetailView: View {
                 showingProgressionSheet = true
             }
         )
-        .padding(.horizontal)
     }
 
     private var progressSection: some View {
@@ -521,9 +516,7 @@ private struct ExerciseDetailView: View {
                 .foregroundStyle(.tint)
         }
         .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
-        .padding(.horizontal)
+        .controlCardSurface(cornerRadius: 12)
     }
 
     private var progressMetricSelector: some View {
@@ -662,7 +655,6 @@ private struct ExerciseDetailView: View {
             .background(Color.accentColor)
             .cornerRadius(14)
         }
-        .padding(.horizontal)
         .padding(.bottom, 10)
     }
 
@@ -681,7 +673,6 @@ private struct ExerciseDetailView: View {
             .background(Color.accentColor)
             .cornerRadius(14)
         }
-        .padding(.horizontal)
         .padding(.bottom, 12)
     }
 
@@ -701,7 +692,6 @@ private struct ExerciseDetailView: View {
             .background(canOpenTrueSight ? Color.accentColor : Color.gray.opacity(0.3))
             .cornerRadius(14)
         }
-        .padding(.horizontal)
         .padding(.bottom, 12)
         .disabled(!canOpenTrueSight)
     }
@@ -714,20 +704,14 @@ private struct ExerciseDetailView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Previous Logs")
                 .font(.headline)
-                .padding(.horizontal)
                 .id(previousLogsSectionID)
 
             if previousSessions.isEmpty {
-                Text("No previous logs yet.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.gray.opacity(0.1))
-                    )
-                    .padding(.horizontal)
+                EmptyStateView(
+                    title: "No Previous Logs",
+                    systemImage: "clock.arrow.circlepath",
+                message: "Completed sessions for this exercise will appear here."
+            )
             } else {
                 VStack(spacing: 8) {
                     ForEach(previousSessions) { item in
@@ -752,28 +736,23 @@ private struct ExerciseDetailView: View {
                 .appBackground()
             }
         } label: {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(item.timestamp.formatted(date: .abbreviated, time: .omitted))
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                    Text(item.subtitle)
-                        .font(.caption)
+            CardRowContainer {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(item.timestamp.formatted(date: .abbreviated, time: .omitted))
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        Text(item.subtitle)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
                         .foregroundColor(.secondary)
                 }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .foregroundColor(.secondary)
             }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.gray.opacity(0.1))
-            )
         }
         .buttonStyle(.plain)
-        .padding(.horizontal)
     }
 
     private var transferHistoryButton: some View {
@@ -800,17 +779,7 @@ private struct ExerciseDetailView: View {
     }
 
     private var detailBackground: some View {
-        LinearGradient(
-            gradient: Gradient(colors: [
-                Color(red: 0.85, green: 0.1, blue: 0.1),
-                Color.clear
-            ]),
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        .frame(height: 400)
-        .frame(maxHeight: .infinity, alignment: .top)
-        .ignoresSafeArea(edges: .top)
+        AppBackgroundView()
     }
 
     @ToolbarContentBuilder
@@ -905,8 +874,7 @@ private struct ExerciseDetailView: View {
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(Color(.systemGray5))
-                    .clipShape(Capsule())
+                    .controlCapsuleSurface()
                 }
             }
             .padding(.vertical, 2)
@@ -1402,30 +1370,6 @@ private struct ExerciseDetailView: View {
         .opacity(0.45)
     }
 
-    /*
-#if DEBUG
-    private var debugIdentityCard: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Debug Identity")
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundColor(.secondary)
-            Text("Exercise ID: \(exercise.id.uuidString)")
-                .font(.caption2)
-                .textSelection(.enabled)
-            Text("npId: \(exercise.npId ?? "nil")")
-                .font(.caption2)
-                .textSelection(.enabled)
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.yellow.opacity(0.12))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .padding(.horizontal)
-    }
-#endif
-     */
-
     private var previousSessions: [PreviousSessionItem] {
         previousSessionsCache
     }
@@ -1454,8 +1398,7 @@ private struct ExerciseDetailNavigationModifier: ViewModifier {
             }
             .sheet(isPresented: $showingTransferExerciseSheet) {
                 ExerciseTransferToolView(initialSourceExerciseId: exerciseId)
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
+                    .editorSheetPresentation()
             }
             .sheet(isPresented: $showingProgressionSheet) {
                 progressionSheetContent
@@ -1501,8 +1444,7 @@ private struct ExerciseDetailNavigationModifier: ViewModifier {
             NavigationStack {
                 ExerciseProgressionSheetView(exercise: liveExercise)
             }
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
+            .editorSheetPresentation()
         }
     }
 }
@@ -1560,7 +1502,7 @@ struct LogExerciseSheetView: View {
                         }
                         .padding(12)
                         .frame(maxWidth: .infinity)
-                        .glassEffect(in: .rect(cornerRadius: 12.0))
+                        .controlCardSurface(cornerRadius: 12)
                     }
                     .buttonStyle(.plain)
 
@@ -1576,7 +1518,7 @@ struct LogExerciseSheetView: View {
                                 .foregroundColor(.secondary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(12)
-                                .glassEffect(in: .rect(cornerRadius: 12.0))
+                                .controlCardSurface(cornerRadius: 12)
                         } else {
                             ForEach(recentSessions.prefix(6), id: \.id) { session in
                                 Button {
@@ -1600,7 +1542,7 @@ struct LogExerciseSheetView: View {
                                     }
                                     .padding(12)
                                     .frame(maxWidth: .infinity)
-                                    .glassEffect(in: .rect(cornerRadius: 12.0))
+                                    .controlCardSurface(cornerRadius: 12)
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -1680,7 +1622,7 @@ struct AddToRoutineSheetView: View {
                             .foregroundColor(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(12)
-                            .glassEffect(in: .rect(cornerRadius: 12.0))
+                            .controlCardSurface(cornerRadius: 12)
                     } else {
                         ForEach(splitDayService.routines, id: \.id) { routine in
                             Button {
@@ -1696,7 +1638,7 @@ struct AddToRoutineSheetView: View {
                                 }
                                 .padding(12)
                                 .frame(maxWidth: .infinity)
-                                .glassEffect(in: .rect(cornerRadius: 12.0))
+                                .controlCardSurface(cornerRadius: 12)
                             }
                             .buttonStyle(.plain)
                         }
@@ -1769,13 +1711,8 @@ struct SingleExerciseLabelView: View {
                 }
             }
         }
-
-
         .padding(8)
-//        .background/*(*/Color.gray.opacity(0.1))
         .cornerRadius(12)
-//        .padding(.vertical, 4)
-//        .padding(.horizontal, 8)
     }
 }
 

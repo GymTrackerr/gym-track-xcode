@@ -31,7 +31,6 @@ struct SingleSessionView: View {
     @State private var openedSessionEntryTarget: OpenedSessionEntryTarget?
     @State private var hasAutoOpenedPreferredExercise = false
 
-    private let cardCornerRadius: CGFloat = 16
     private let accentGreen = Color.green
     private let softGreen = Color.green.opacity(0.12)
 
@@ -41,7 +40,7 @@ struct SingleSessionView: View {
     }
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 0) {
             VStack(spacing: 16) {
                 if editMode?.wrappedValue == .inactive {
                     sessionSummaryCard
@@ -49,25 +48,23 @@ struct SingleSessionView: View {
                     sessionEditCard
                 }
             }
-            .padding(.horizontal)
             .padding(.top, 6)
+            .screenContentPadding()
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Today's Exercises")
-                    .font(.headline)
-                    .padding(.horizontal)
-
-                List {
+            List {
+                Section {
                     ForEach(sortedSessionEntries, id: \.id) { sessionEntry in
                         sessionEntryLink(for: sessionEntry)
                     }
                     .onDelete(perform: removeExercise)
                     .onMove(perform: moveExercise)
+                } header: {
+                    Text("Today's Exercises")
                 }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
             }
+            .cardListScreen()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .foregroundStyle(.primary)
         
         .navigationTitle(sessionTitle)
@@ -86,7 +83,7 @@ struct SingleSessionView: View {
         #endif
             ToolbarItem(placement: .navigationBarTrailing) {
                 NavigationLink {
-                    TimerView().appBackground()
+                    TimerView()
                 } label: {
                     Label(timerButtonTitle, systemImage: "timer")
                 }
@@ -226,9 +223,7 @@ struct SingleSessionView: View {
         } label: {
             sessionEntryLabel(for: sessionEntry)
         }
-        .listRowInsets(EdgeInsets(top: 6, leading: 4, bottom: 6, trailing: 16))
-        .listRowSeparator(.hidden)
-        .listRowBackground(sessionEntryRowBackground)
+        .cardListRowStyle()
         .swipeActions(edge: completionEdge, allowsFullSwipe: allowsFullSwipe) {
             if canModifySessionExercises {
                 Button {
@@ -255,7 +250,7 @@ struct SingleSessionView: View {
         HStack(spacing: 12) {
             Image(systemName: sessionEntry.isCompleted ? "checkmark.arrow.trianglehead.counterclockwise" : "square.and.pencil")
                 .foregroundColor(sessionEntry.isCompleted ? .green : .secondary)
-                .padding(.horizontal, 8)
+                .frame(width: 28)
 
             VStack(alignment: .leading, spacing: 4) {
                 SingleExerciseLabelView(
@@ -268,14 +263,7 @@ struct SingleSessionView: View {
 
             Spacer()
         }
-        .padding(.vertical, 8)
-    }
-
-    private var sessionEntryRowBackground: some View {
-        RoundedRectangle(cornerRadius: 12)
-            .fill(Color.gray.opacity(0.1))
-            .padding(.vertical, 4)
-            .padding(.horizontal, 4)
+        .cardListRowContentPadding()
     }
 
     private func autoOpenPreferredExerciseIfNeeded() {
@@ -451,11 +439,7 @@ struct SingleSessionView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 10))
             }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius))
-        .shadow(color: Color.black.opacity(0.05), radius: 12, x: 0, y: 6)
+        .cardRowContainerStyle()
     }
 
     private var sessionEditCard: some View {
@@ -498,11 +482,7 @@ struct SingleSessionView: View {
 
             sessionEditActionSection
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius))
-        .shadow(color: Color.black.opacity(0.05), radius: 12, x: 0, y: 6)
+        .cardRowContainerStyle()
     }
 
     private var sessionEditActionSection: some View {
@@ -665,9 +645,7 @@ struct SingleSessionLabelView: View {
                         .minimumScaleFactor(0.9)
                 }
             }
-            .padding(.vertical, 8)
-            .padding(.leading, 12)
-            .padding(.trailing, 4)
+            .cardListRowContentPadding()
         }
     }
 
@@ -701,27 +679,31 @@ struct addingExerciseSessionView : View {
     @Bindable var session: Session
     
     var body: some View {
-        NavigationView {
-            VStack(spacing: 16) {
-                TextField("Search or Create Exercise", text: $exerciseService.editingContent)
-                    .textFieldStyle(.roundedBorder)
-                    .padding()
-                Button {
-                    let exerciseNew = exerciseService.addExercise()
-                    DispatchQueue.main.async {
-                        if let exercise = exerciseNew {
-                            addExerciseEditing(exercise: exercise)
+        NavigationStack {
+            VStack(spacing: 0) {
+                VStack(spacing: 12) {
+                    ConnectedCardSection {
+                        ConnectedCardRow {
+                            TextField("Search or create exercise", text: $exerciseService.editingContent)
+                                .textFieldStyle(.roundedBorder)
                         }
-                        
+
+                        ConnectedCardDivider()
+
+                        Button {
+                            createAndQueueExercise()
+                        } label: {
+                            ConnectedCardRow {
+                                Label("Add Exercise", systemImage: "plus.circle")
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(exerciseService.editingContent.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
-                } label: {
-                    Label("Add", systemImage: "plus.circle")
-                        .font(.title2)
-                        .padding()
                 }
-                .disabled(exerciseService.editingContent.trimmingCharacters(in: .whitespaces).isEmpty)
+                .screenContentPadding()
+
                 List {
-                    // TODO: ADD BUTTONS TO ADD/REMOVE EXERCISES?? -- make sure there are no sets/reps
                     ForEach(searchResults, id: \.id) { exercise in
                         Button(action: {
                             addExerciseEditing(exercise: exercise)
@@ -733,15 +715,17 @@ struct addingExerciseSessionView : View {
 
                                 Text(exercise.name)
                             }
+                            .cardListRowContentPadding()
                         }
+                        .buttonStyle(.plain)
+                        .cardListRowStyle()
                     }
                 }
-
-                .listStyle(.plain)
-                Spacer()
+                .cardListScreen()
             }
-            .padding()
             .navigationTitle("Add Exercises")
+            .navigationBarTitleDisplayMode(.inline)
+            .appBackground()
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save") {
@@ -753,7 +737,6 @@ struct addingExerciseSessionView : View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         seService.endEditing()
-                        exerciseService.editingContent = ""
                         exerciseService.editingContent = ""
                     }
                 }
@@ -780,6 +763,15 @@ struct addingExerciseSessionView : View {
             seService.removingExercises.removeAll { $0.id == exercise.id }
         } else {
             seService.addingExercises.append(exercise)
+        }
+    }
+
+    func createAndQueueExercise() {
+        let exerciseNew = exerciseService.addExercise()
+        DispatchQueue.main.async {
+            if let exercise = exerciseNew {
+                addExerciseEditing(exercise: exercise)
+            }
         }
     }
     

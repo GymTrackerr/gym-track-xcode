@@ -83,17 +83,18 @@ struct RoutineExercisePickerSheet: View {
                                     Image(systemName: showsMinusIcon(exercise) ? "minus" : "plus")
                                     Text(exercise.name)
                                 }
+                                .cardListRowContentPadding()
                             }
-                            .listRowBackground(Color.clear)
+                            .buttonStyle(.plain)
+                            .cardListRowStyle()
                         }
                     }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
+                    .cardListScreen()
 
                     Spacer()
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .padding()
+                .screenContentPadding()
                 .navigationTitle(title)
                 .toolbar {
                     ToolbarItem(placement: .navigationBarTrailing) {

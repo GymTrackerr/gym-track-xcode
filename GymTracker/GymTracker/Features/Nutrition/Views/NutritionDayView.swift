@@ -3,6 +3,7 @@ import SwiftUI
 struct NutritionDayView: View {
     @EnvironmentObject var nutritionService: NutritionService
 
+    @State private var selectedRange: NutritionRangeMode = .today
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var showDatePickerSheet = false
     @State private var showLogSheet = false
@@ -16,6 +17,16 @@ struct NutritionDayView: View {
     @State private var showSaveTemplateAlert = false
     @State private var mealLogToSaveTemplate: NutritionLogEntry?
     @State private var mealTemplateName = ""
+    @State private var periodSummaries: [NutritionDailySummary] = []
+    @State private var periodErrorMessage: String?
+    @State private var navigationBounds: NutritionNavigationBounds?
+    private let showsRangeControls: Bool
+
+    init(initialSelectedDate: Date = Date(), showsRangeControls: Bool = true) {
+        let normalizedDate = Calendar.current.startOfDay(for: initialSelectedDate)
+        _selectedDate = State(initialValue: normalizedDate)
+        self.showsRangeControls = showsRangeControls
+    }
 
     private var dayLogs: [NutritionLogEntry] {
         nutritionService.dayLogs.sorted { $0.timestamp < $1.timestamp }
@@ -66,102 +77,19 @@ struct NutritionDayView: View {
     }
 
     var body: some View {
-        VStack(spacing: 12) {
-            dayHeader
-            dailySummary
+        VStack(spacing: 0) {
+            if showsRangeControls {
+                rangeControlRow
+            }
 
-            if dayLogs.isEmpty {
-                ContentUnavailableView("No logs for this day", systemImage: "fork.knife")
-                    .frame(maxHeight: .infinity)
+            if selectedRange == .today {
+                dayContent
             } else {
-                List {
-                    ForEach(FoodLogCategory.displayOrder) { category in
-                        let standalone = standaloneLogs(for: category)
-                        let meals = mealLogs(for: category)
-
-                        if !standalone.isEmpty || !meals.isEmpty {
-                            Section {
-                                ForEach(standalone, id: \.id) { log in
-                                    NutritionLogRow(log: log)
-                                        .contentShape(Rectangle())
-                                        .onTapGesture {
-                                            editingLog = log
-                                        }
-                                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                            Button(role: .destructive) {
-                                                nutritionService.deleteFoodLog(log, selectedDate: selectedDate)
-                                            } label: {
-                                                Label("Delete", systemImage: "trash")
-                                            }
-                                        }
-                                }
-
-                                ForEach(meals, id: \.id) { log in
-                                    let isExpanded = expandedMealLogIDs.contains(log.id)
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        NutritionMealLogHeaderRow(
-                                            log: log,
-                                            isExpanded: isExpanded,
-                                            onSaveAsTemplate: {
-                                                mealLogToSaveTemplate = log
-                                                mealTemplateName = log.nameSnapshot
-                                                showSaveTemplateAlert = true
-                                            }
-                                        )
-                                        .contentShape(Rectangle())
-                                        .onTapGesture {
-                                            toggleMealLog(log.id)
-                                        }
-                                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                            Button(role: .destructive) {
-                                                nutritionService.deleteMealEntry(log, selectedDate: selectedDate)
-                                                expandedMealLogIDs.remove(log.id)
-                                            } label: {
-                                                Label("Delete", systemImage: "trash")
-                                            }
-                                        }
-
-                                        if isExpanded {
-                                            let items = log.recipeItemsSnapshot ?? []
-                                            if items.isEmpty {
-                                                Text("No meal item snapshot available")
-                                                    .font(.caption)
-                                                    .foregroundStyle(.secondary)
-                                                    .padding(.leading, 24)
-                                            } else {
-                                                let displayScale = recipeItemDisplayScale(for: log, items: items)
-                                                Divider()
-                                                    .padding(.leading, 12)
-                                                    .padding(.bottom, 4)
-
-                                                VStack(spacing: 8) {
-                                                    ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                                                        RecipeItemSnapshotRow(item: item, scale: displayScale)
-                                                    }
-                                                }
-                                                .padding(.top, 3)
-                                                .padding(.leading, 24)
-                                            }
-                                        }
-                                    }
-                                    .padding(.vertical, 2)
-                                }
-                            } header: {
-                                Text(category.displayName)
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(.primary)
-                                    .textCase(nil)
-                                    .padding(.top, 14)
-                            }
-                            .listRowBackground(Color(.secondarySystemBackground).opacity(0.74))
-                        }
-                    }
-                }
-                .listStyle(.insetGrouped)
-                .scrollContentBackground(.hidden)
+                periodContent
             }
         }
-        .padding(.top, 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .appBackground()
         .navigationTitle("Nutrition")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -193,23 +121,44 @@ struct NutritionDayView: View {
         .onAppear {
             nutritionService.loadFoods()
             nutritionService.loadMeals()
-            nutritionService.loadDayData(for: selectedDate)
+            loadSelectedDay()
             do {
                 _ = try nutritionService.getOrCreateTarget()
             } catch {
                 errorMessage = error.localizedDescription
                 showErrorAlert = true
             }
+            refreshPeriodSummaries()
+            refreshNavigationBounds()
         }
         .onChange(of: selectedDate) {
-            selectedDate = Calendar.current.startOfDay(for: selectedDate)
-            nutritionService.loadDayData(for: selectedDate)
+            let normalizedDate = Calendar.current.startOfDay(for: selectedDate)
+            if normalizedDate != selectedDate {
+                selectedDate = normalizedDate
+                return
+            }
+
+            if showDatePickerSheet {
+                selectedRange = .today
+            }
+            loadSelectedDay()
+            refreshPeriodSummaries()
+        }
+        .onChange(of: selectedRange) {
+            if selectedRange == .today {
+                loadSelectedDay()
+            } else {
+                refreshPeriodSummaries()
+            }
         }
         .sheet(isPresented: $showDatePickerSheet) {
             NutritionDatePickerSheet(selectedDate: $selectedDate)
-                .presentationDetents([.medium])
+                .presentationDetents([.large])
         }
-        .sheet(isPresented: $showLogSheet) {
+        .sheet(isPresented: $showLogSheet, onDismiss: {
+            refreshPeriodSummaries()
+            refreshNavigationBounds()
+        }) {
             NutritionLogSheet(selectedDate: selectedDate)
                 .presentationDetents([.large])
         }
@@ -218,11 +167,11 @@ struct NutritionDayView: View {
         }
         .sheet(isPresented: $showTargetsSheet) {
             NutritionTargetsView()
-                .presentationDetents([.medium, .large])
+                .editorSheetPresentation()
         }
         .sheet(item: $editingLog) { log in
             EditNutritionLogView(log: log, selectedDate: selectedDate)
-                .presentationDetents([.medium, .large])
+                .editorSheetPresentation()
         }
         .confirmationDialog(
             "Copy yesterday's standalone items into this day?",
@@ -233,6 +182,7 @@ struct NutritionDayView: View {
                 do {
                     let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate
                     _ = try nutritionService.copyStandaloneLogs(from: yesterday, to: selectedDate)
+                    refreshNavigationBounds()
                 } catch {
                     errorMessage = error.localizedDescription
                     showErrorAlert = true
@@ -265,106 +215,687 @@ struct NutritionDayView: View {
         }
     }
 
-    private var dayHeader: some View {
-        HStack(spacing: 12) {
-            Button {
-                selectedDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.headline)
-                    .frame(width: 32, height: 32)
+    private var rangeControlRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                Button {
+                    showDatePickerSheet = true
+                } label: {
+                    Image(systemName: "calendar")
+                        .font(.caption.weight(.bold))
+                        .frame(width: 34, height: 34)
+                        .controlCapsuleSurface()
+                }
+                .buttonStyle(.plain)
+
+                ForEach(NutritionRangeMode.allCases) { range in
+                    FilterPill(
+                        title: range.displayName,
+                        isSelected: selectedRange == range && (range != .today || isSelectedDateToday)
+                    )
+                    .onTapGesture {
+                        selectRange(range)
+                    }
+                }
             }
+            .padding(.horizontal, 2)
+        }
+        .scrollClipDisabled()
+        .padding(.vertical, 12)
+        .screenContentPadding()
+    }
 
-            Spacer()
+    private var dayContent: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                dailySummary
 
-            Text(selectedDate, format: .dateTime.month(.abbreviated).day().year())
-                .font(.headline)
-
-            Spacer()
-
-            Button {
-                selectedDate = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate) ?? selectedDate
-            } label: {
-                Image(systemName: "chevron.right")
-                    .font(.headline)
-                    .frame(width: 32, height: 32)
+                if dayLogs.isEmpty {
+                    EmptyStateView(
+                        title: "No logs for this day",
+                        systemImage: "fork.knife",
+                        message: "Add food, quick calories, or a meal to start tracking this day."
+                    )
+                } else {
+                    logSections
+                }
             }
+            .screenContentPadding()
+        }
+    }
 
-            Button {
-                showDatePickerSheet = true
-            } label: {
-                Image(systemName: "calendar")
-                    .font(.headline)
-                    .frame(width: 32, height: 32)
+    private var periodContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                periodSummaryCard
+
+                if let periodErrorMessage {
+                    EmptyStateView(
+                        title: "Couldn't load nutrition summaries",
+                        systemImage: "exclamationmark.triangle",
+                        message: periodErrorMessage
+                    )
+                } else if periodSummaries.isEmpty {
+                    EmptyStateView(
+                        title: "No nutrition logs",
+                        systemImage: "fork.knife",
+                        message: "Log a meal or food item to see summaries here."
+                    )
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        SectionHeaderView(title: periodSectionTitle)
+
+                        ForEach(periodSummaries) { summary in
+                            NavigationLink {
+                                NutritionDayView(
+                                    initialSelectedDate: summary.date,
+                                    showsRangeControls: false
+                                )
+                                .appBackground()
+                            } label: {
+                                NutritionDailySummaryRow(summary: summary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
             }
+            .screenContentPadding()
+        }
+    }
 
-            Button {
-                showCopyYesterdayConfirmation = true
-            } label: {
-                Image(systemName: "doc.on.doc")
-                    .font(.headline)
-                    .frame(width: 32, height: 32)
+    private var periodSummaryCard: some View {
+        CardRowContainer {
+            VStack(alignment: .leading, spacing: 12) {
+                periodSummaryHeader
+
+                Text("Daily averages")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: 10) {
+                    SummaryMetricTile(
+                        title: "Calories",
+                        value: "\(Int(periodAverageCalories.rounded())) kcal",
+                        systemImage: "flame",
+                        tint: .orange
+                    )
+
+                    SummaryMetricTile(
+                        title: "Protein",
+                        value: "\(Int(periodAverageProtein.rounded())) g",
+                        systemImage: "bolt",
+                        tint: .yellow
+                    )
+
+                    SummaryMetricTile(
+                        title: "Logs",
+                        value: formattedAverageLogs,
+                        systemImage: "list.bullet",
+                        tint: .blue
+                    )
+                }
             }
         }
-        .padding(.horizontal)
     }
 
     private var dailySummary: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("\(Int(totalKcal.rounded())) kcal")
-                    .font(.title3)
-                    .fontWeight(.semibold)
+        CardRowContainer {
+            VStack(alignment: .leading, spacing: 12) {
+                daySummaryHeader
 
-                Spacer()
+                HStack {
+                    Text("\(Int(totalKcal.rounded())) kcal")
+                        .font(.title3)
+                        .fontWeight(.semibold)
 
-                Button {
-                    showTargetsSheet = true
-                } label: {
-                    Label("Target", systemImage: "scope")
-                        .font(.caption)
+                    Spacer()
+
+                    HStack(spacing: 8) {
+                        Button {
+                            showTargetsSheet = true
+                        } label: {
+                            Label("Target", systemImage: "scope")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button {
+                            showCopyYesterdayConfirmation = true
+                        } label: {
+                            Image(systemName: "doc.on.doc")
+                                .font(.caption.weight(.semibold))
+                        }
+                        .buttonStyle(.bordered)
+                    }
                 }
-                .buttonStyle(.bordered)
-            }
 
-            HStack(spacing: 12) {
-                NutritionMacroChip(title: "Protein", value: totalProtein)
-                NutritionMacroChip(title: "Carbs", value: totalCarbs)
-                NutritionMacroChip(title: "Fat", value: totalFat)
-            }
+                HStack(spacing: 12) {
+                    SummaryMetricTile(title: "Protein", value: "\(Int(totalProtein.rounded())) g")
+                    SummaryMetricTile(title: "Carbs", value: "\(Int(totalCarbs.rounded())) g")
+                    SummaryMetricTile(title: "Fat", value: "\(Int(totalFat.rounded())) g")
+                }
 
-            if isTargetEnabled {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Remaining: \(Int(remainingCalories.rounded())) kcal")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                if isTargetEnabled {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Remaining: \(Int(remainingCalories.rounded())) kcal")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
 
-                    HStack(spacing: 12) {
-                        if let remainingProtein {
-                            Text("P \(Int(remainingProtein.rounded()))g")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        if let remainingCarbs {
-                            Text("C \(Int(remainingCarbs.rounded()))g")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        if let remainingFat {
-                            Text("F \(Int(remainingFat.rounded()))g")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                        HStack(spacing: 12) {
+                            if let remainingProtein {
+                                Text("P \(Int(remainingProtein.rounded()))g")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            if let remainingCarbs {
+                                Text("C \(Int(remainingCarbs.rounded()))g")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            if let remainingFat {
+                                Text("F \(Int(remainingFat.rounded()))g")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .shadow(color: Color.black.opacity(0.07), radius: 10, x: 0, y: 3)
-        .padding(.horizontal)
+    }
+
+    private var daySummaryHeader: some View {
+        HStack(spacing: 10) {
+            Button {
+                shiftSelectedPeriod(by: -1)
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.headline)
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain)
+            .disabled(!canShiftSelectedPeriod(by: -1))
+
+            Spacer()
+
+            VStack(alignment: .center, spacing: 3) {
+                Text(periodNavigationTitle)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+
+                Text("Day")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button {
+                shiftSelectedPeriod(by: 1)
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.headline)
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain)
+            .disabled(!canShiftSelectedPeriod(by: 1))
+        }
+    }
+
+    private var periodSummaryHeader: some View {
+        HStack(spacing: 10) {
+            if selectedRange != .all {
+                Button {
+                    shiftSelectedPeriod(by: -1)
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.headline)
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
+                .disabled(!canShiftSelectedPeriod(by: -1))
+            }
+
+            Spacer()
+
+            VStack(alignment: .center, spacing: 3) {
+                Text(selectedRange == .all ? periodTitle : periodNavigationTitle)
+                    .font(.subheadline.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+
+                Text(selectedRange == .all ? periodSubtitle : selectedRange.displayName)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+
+            Spacer()
+
+            if selectedRange != .all {
+                Button {
+                    shiftSelectedPeriod(by: 1)
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.headline)
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
+                .disabled(!canShiftSelectedPeriod(by: 1))
+            }
+        }
+    }
+
+    private var isSelectedDateToday: Bool {
+        Calendar.current.isDateInToday(selectedDate)
+    }
+
+    private var periodTitle: String {
+        switch selectedRange {
+        case .today:
+            return "Today"
+        case .week:
+            return "Week"
+        case .month:
+            return "Month"
+        case .all:
+            return "All Nutrition"
+        }
+    }
+
+    private var periodSubtitle: String {
+        switch selectedRange {
+        case .today:
+            return selectedDate.formatted(date: .abbreviated, time: .omitted)
+        case .week:
+            guard let interval = Calendar.current.dateInterval(of: .weekOfYear, for: selectedDate) else {
+                return selectedDate.formatted(date: .abbreviated, time: .omitted)
+            }
+            let end = Calendar.current.date(byAdding: .day, value: -1, to: interval.end) ?? interval.end
+            return "\(interval.start.formatted(date: .abbreviated, time: .omitted)) - \(end.formatted(date: .abbreviated, time: .omitted))"
+        case .month:
+            return selectedDate.formatted(.dateTime.month(.wide).year())
+        case .all:
+            return periodSummaries.isEmpty ? "No logged days yet" : "\(periodSummaries.count) logged day\(periodSummaries.count == 1 ? "" : "s")"
+        }
+    }
+
+    private var periodNavigationTitle: String {
+        switch selectedRange {
+        case .today:
+            return selectedDate.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().year())
+        case .week:
+            guard let interval = Calendar.current.dateInterval(of: .weekOfYear, for: selectedDate) else {
+                return selectedDate.formatted(date: .abbreviated, time: .omitted)
+            }
+            let end = Calendar.current.date(byAdding: .day, value: -1, to: interval.end) ?? interval.end
+            return "\(interval.start.formatted(.dateTime.month(.abbreviated).day())) - \(end.formatted(.dateTime.month(.abbreviated).day()))"
+        case .month:
+            return selectedDate.formatted(.dateTime.month(.wide).year())
+        case .all:
+            return "All"
+        }
+    }
+
+    private var periodSectionTitle: String {
+        selectedRange == .all ? "Logged Days" : "Days"
+    }
+
+    private var periodAverageCalories: Double {
+        guard periodAverageDenominator > 0 else { return 0 }
+        return periodSummaries.reduce(0) { $0 + $1.calories } / Double(periodAverageDenominator)
+    }
+
+    private var periodAverageProtein: Double {
+        guard periodAverageDenominator > 0 else { return 0 }
+        return periodSummaries.reduce(0) { $0 + $1.protein } / Double(periodAverageDenominator)
+    }
+
+    private var periodAverageLogs: Double {
+        guard periodAverageDenominator > 0 else { return 0 }
+        return Double(periodSummaries.reduce(0) { $0 + $1.logCount }) / Double(periodAverageDenominator)
+    }
+
+    private var periodAverageDenominator: Int {
+        periodSummaries.count
+    }
+
+    private var formattedAverageLogs: String {
+        if periodAverageLogs.truncatingRemainder(dividingBy: 1) == 0 {
+            return String(Int(periodAverageLogs))
+        }
+
+        return String(format: "%.1f", periodAverageLogs)
+    }
+
+    private func selectRange(_ range: NutritionRangeMode) {
+        selectedRange = range
+
+        if range == .today {
+            selectedDate = Calendar.current.startOfDay(for: Date())
+        }
+    }
+
+    private func shiftSelectedPeriod(by value: Int) {
+        guard canShiftSelectedPeriod(by: value) else { return }
+        guard let shiftedDate = shiftedSelectedDate(by: value) else { return }
+        selectedDate = shiftedDate
+    }
+
+    private func canShiftSelectedPeriod(by value: Int) -> Bool {
+        guard selectedRange != .all, let shiftedDate = shiftedSelectedDate(by: value) else {
+            return false
+        }
+
+        return isSelectedDateWithinNavigationBounds(shiftedDate, range: selectedRange)
+    }
+
+    private func shiftedSelectedDate(by value: Int) -> Date? {
+        let calendar = Calendar.current
+        let component: Calendar.Component
+
+        switch selectedRange {
+        case .today:
+            component = .day
+        case .week:
+            component = .weekOfYear
+        case .month:
+            component = .month
+        case .all:
+            return nil
+        }
+
+        guard let shiftedDate = calendar.date(byAdding: component, value: value, to: selectedDate) else {
+            return nil
+        }
+
+        return calendar.startOfDay(for: shiftedDate)
+    }
+
+    private func loadSelectedDay() {
+        nutritionService.loadDayData(for: selectedDate)
+    }
+
+    private func refreshNavigationBounds() {
+        do {
+            let bounds = try nutritionService.nutritionBounds(for: .calories)
+            guard let oldest = bounds.oldest else {
+                navigationBounds = nil
+                return
+            }
+
+            navigationBounds = NutritionNavigationBounds(oldest: oldest)
+        } catch {
+            navigationBounds = nil
+        }
+    }
+
+    private func isSelectedDateWithinNavigationBounds(_ date: Date, range: NutritionRangeMode) -> Bool {
+        let calendar = Calendar.current
+        guard let bounds = navigationBounds,
+              let periodStart = range.periodStart(for: date, calendar: calendar),
+              let oldestPeriodStart = range.periodStart(for: bounds.oldest, calendar: calendar),
+              let currentPeriodStart = range.periodStart(for: Date(), calendar: calendar) else {
+            return true
+        }
+
+        let component = range.calendarComponent
+        let minimumAllowedStart = calendar.date(byAdding: component, value: -1, to: oldestPeriodStart) ?? oldestPeriodStart
+        let maximumAllowedStart = calendar.date(byAdding: component, value: 1, to: currentPeriodStart) ?? currentPeriodStart
+
+        return periodStart >= minimumAllowedStart && periodStart <= maximumAllowedStart
+    }
+
+    private func refreshPeriodSummaries() {
+        guard selectedRange != .today else {
+            periodSummaries = []
+            periodErrorMessage = nil
+            return
+        }
+
+        let calendar = Calendar.current
+
+        do {
+            switch selectedRange {
+            case .today:
+                periodSummaries = []
+            case .week:
+                guard let interval = calendar.dateInterval(of: .weekOfYear, for: selectedDate) else {
+                    periodSummaries = []
+                    return
+                }
+
+                let logs = try nutritionService.logsInDateInterval(interval)
+                periodSummaries = dailySummaries(
+                    from: logs,
+                    interval: interval,
+                    includeEmptyDays: false,
+                    newestFirst: true
+                )
+            case .month:
+                guard let interval = calendar.dateInterval(of: .month, for: selectedDate) else {
+                    periodSummaries = []
+                    return
+                }
+
+                let logs = try nutritionService.logsInDateInterval(interval)
+                periodSummaries = dailySummaries(
+                    from: logs,
+                    interval: interval,
+                    includeEmptyDays: false,
+                    newestFirst: true
+                )
+            case .all:
+                let bounds = try nutritionService.nutritionBounds(for: .calories)
+                guard let oldest = bounds.oldest, let newest = bounds.newest else {
+                    periodSummaries = []
+                    periodErrorMessage = nil
+                    return
+                }
+
+                let start = calendar.startOfDay(for: oldest)
+                let newestDay = calendar.startOfDay(for: newest)
+                let end = calendar.date(byAdding: .day, value: 1, to: newestDay) ?? newestDay
+                let interval = DateInterval(start: start, end: end)
+                let logs = try nutritionService.logsInDateInterval(interval)
+                periodSummaries = dailySummaries(
+                    from: logs,
+                    interval: interval,
+                    includeEmptyDays: false,
+                    newestFirst: true
+                )
+            }
+
+            periodErrorMessage = nil
+        } catch {
+            periodSummaries = []
+            periodErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func dailySummaries(
+        from logs: [NutritionLogEntry],
+        interval: DateInterval,
+        includeEmptyDays: Bool,
+        newestFirst: Bool
+    ) -> [NutritionDailySummary] {
+        let calendar = Calendar.current
+        let groupedLogs = Dictionary(grouping: logs) { log in
+            calendar.startOfDay(for: log.timestamp)
+        }
+
+        if includeEmptyDays {
+            let start = calendar.startOfDay(for: interval.start)
+            let end = calendar.startOfDay(for: interval.end)
+            let dayCount = max(calendar.dateComponents([.day], from: start, to: end).day ?? 0, 0)
+
+            return (0..<dayCount).compactMap { offset in
+                guard let date = calendar.date(byAdding: .day, value: offset, to: start) else {
+                    return nil
+                }
+
+                return dailySummary(for: date, logs: groupedLogs[date] ?? [])
+            }
+        }
+
+        return groupedLogs.keys
+            .sorted { newestFirst ? $0 > $1 : $0 < $1 }
+            .map { date in
+                dailySummary(for: date, logs: groupedLogs[date] ?? [])
+            }
+    }
+
+    private func dailySummary(for date: Date, logs: [NutritionLogEntry]) -> NutritionDailySummary {
+        NutritionDailySummary(
+            date: date,
+            calories: nutritionService.totalKcal(for: logs),
+            protein: nutritionService.totalProtein(for: logs),
+            carbs: nutritionService.totalCarbs(for: logs),
+            fat: nutritionService.totalFat(for: logs),
+            logCount: logs.count
+        )
+    }
+
+    private var logSections: some View {
+        ForEach(FoodLogCategory.displayOrder) { category in
+            let standalone = standaloneLogs(for: category)
+            let meals = mealLogs(for: category)
+
+            if !standalone.isEmpty || !meals.isEmpty {
+                nutritionCategorySection(
+                    category: category,
+                    standalone: standalone,
+                    meals: meals
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func nutritionCategorySection(
+        category: FoodLogCategory,
+        standalone: [NutritionLogEntry],
+        meals: [NutritionLogEntry]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: category.displayName)
+
+            ConnectedCardSection {
+                let combinedCount = standalone.count + meals.count
+
+                ForEach(Array(standalone.enumerated()), id: \.element.id) { index, log in
+                    foodLogRow(log)
+
+                    if index < combinedCount - 1 {
+                        ConnectedCardDivider(leadingInset: 14)
+                    }
+                }
+
+                ForEach(Array(meals.enumerated()), id: \.element.id) { index, log in
+                    mealLogRow(log)
+
+                    if standalone.count + index < combinedCount - 1 {
+                        ConnectedCardDivider(leadingInset: 14)
+                    }
+                }
+            }
+        }
+    }
+
+    private func foodLogRow(_ log: NutritionLogEntry) -> some View {
+        ConnectedCardRow {
+            NutritionLogRow(log: log)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            editingLog = log
+        }
+        .contextMenu {
+            Button {
+                editingLog = log
+            } label: {
+                Label("Edit", systemImage: "pencil")
+            }
+
+            Button(role: .destructive) {
+                nutritionService.deleteFoodLog(log, selectedDate: selectedDate)
+                refreshNavigationBounds()
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+    }
+
+    private func mealLogRow(_ log: NutritionLogEntry) -> some View {
+        let isExpanded = expandedMealLogIDs.contains(log.id)
+
+        return ConnectedCardRow {
+            VStack(alignment: .leading, spacing: 10) {
+                NutritionMealLogHeaderRow(
+                    log: log,
+                    isExpanded: isExpanded,
+                    onSaveAsTemplate: {
+                        mealLogToSaveTemplate = log
+                        mealTemplateName = log.nameSnapshot
+                        showSaveTemplateAlert = true
+                    }
+                )
+
+                if isExpanded {
+                    mealSnapshotRows(for: log)
+                }
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            toggleMealLog(log.id)
+        }
+        .contextMenu {
+            Button {
+                mealLogToSaveTemplate = log
+                mealTemplateName = log.nameSnapshot
+                showSaveTemplateAlert = true
+            } label: {
+                Label("Save as Template", systemImage: "tray.and.arrow.down")
+            }
+
+            Button(role: .destructive) {
+                nutritionService.deleteMealEntry(log, selectedDate: selectedDate)
+                expandedMealLogIDs.remove(log.id)
+                refreshNavigationBounds()
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func mealSnapshotRows(for log: NutritionLogEntry) -> some View {
+        let items = log.recipeItemsSnapshot ?? []
+
+        if items.isEmpty {
+            Text("No meal item snapshot available")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.leading, 24)
+        } else {
+            let displayScale = recipeItemDisplayScale(for: log, items: items)
+
+            Divider()
+                .padding(.leading, 24)
+
+            VStack(spacing: 8) {
+                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                    RecipeItemSnapshotRow(item: item, scale: displayScale)
+                }
+            }
+            .padding(.leading, 24)
+        }
     }
 
     private func standaloneLogs(for category: FoodLogCategory) -> [NutritionLogEntry] {
@@ -410,24 +941,104 @@ struct NutritionDayView: View {
     }
 }
 
-private struct NutritionMacroChip: View {
-    let title: String
-    let value: Double
+private enum NutritionRangeMode: String, CaseIterable, Identifiable {
+    case today
+    case week
+    case month
+    case all
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .today:
+            return "Today"
+        case .week:
+            return "Week"
+        case .month:
+            return "Month"
+        case .all:
+            return "All"
+        }
+    }
+
+    var calendarComponent: Calendar.Component {
+        switch self {
+        case .today:
+            return .day
+        case .week:
+            return .weekOfYear
+        case .month:
+            return .month
+        case .all:
+            return .era
+        }
+    }
+
+    func periodStart(for date: Date, calendar: Calendar) -> Date? {
+        switch self {
+        case .today:
+            return calendar.startOfDay(for: date)
+        case .week:
+            return calendar.dateInterval(of: .weekOfYear, for: date)?.start
+        case .month:
+            return calendar.dateInterval(of: .month, for: date)?.start
+        case .all:
+            return nil
+        }
+    }
+}
+
+private struct NutritionNavigationBounds {
+    let oldest: Date
+}
+
+private struct NutritionDailySummary: Identifiable {
+    let date: Date
+    let calories: Double
+    let protein: Double
+    let carbs: Double
+    let fat: Double
+    let logCount: Int
+
+    var id: Date { date }
+}
+
+private struct NutritionDailySummaryRow: View {
+    let summary: NutritionDailySummary
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        CardRowContainer {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(summary.date, format: .dateTime.weekday(.wide))
+                            .font(.headline)
 
-            Text("\(Int(value.rounded())) g")
-                .font(.subheadline)
-                .fontWeight(.medium)
+                        Text(summary.date, format: .dateTime.month(.abbreviated).day().year())
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    VStack(alignment: .trailing, spacing: 3) {
+                        Text("\(Int(summary.calories.rounded())) kcal")
+                            .font(.subheadline.weight(.semibold))
+
+                        Text("\(summary.logCount) log\(summary.logCount == 1 ? "" : "s")")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                HStack(spacing: 10) {
+                    SummaryMetricTile(title: "Protein", value: "\(Int(summary.protein.rounded())) g")
+                    SummaryMetricTile(title: "Carbs", value: "\(Int(summary.carbs.rounded())) g")
+                    SummaryMetricTile(title: "Fat", value: "\(Int(summary.fat.rounded())) g")
+                }
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(Color(.tertiarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 
@@ -453,8 +1064,7 @@ private struct NutritionMealLogHeaderRow: View {
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .foregroundStyle(.secondary.opacity(0.75))
-                        .background(Color(.systemGray5).opacity(0.55))
-                        .clipShape(Capsule())
+                        .controlCapsuleSurface()
                 }
 
                 Text(log.timestamp, format: .dateTime.hour().minute())
@@ -490,7 +1100,6 @@ private struct NutritionMealLogHeaderRow: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 4)
     }
 
     private func displayAmount(_ value: Double) -> String {
@@ -545,7 +1154,6 @@ private struct NutritionLogRow: View {
                 }
             }
         }
-        .padding(.vertical, 2)
     }
 
     private func displayAmount(_ value: Double) -> String {
@@ -597,16 +1205,24 @@ private struct NutritionDatePickerSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack {
-                DatePicker("Date", selection: $selectedDate, displayedComponents: .date)
-                    .datePickerStyle(.graphical)
-                    .labelsHidden()
-                    .padding()
-
-                Spacer()
+            ScrollView {
+                CardRowContainer {
+                    DatePicker("Date", selection: $selectedDate, displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                        .labelsHidden()
+                }
+                .screenContentPadding()
             }
             .navigationTitle("Select Date")
+            .navigationBarTitleDisplayMode(.inline)
+            .appBackground()
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Today") {
+                        selectedDate = Calendar.current.startOfDay(for: Date())
+                    }
+                }
+
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                 }

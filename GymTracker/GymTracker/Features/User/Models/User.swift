@@ -33,6 +33,7 @@ final class User {
     var defaultTimer: Int = 90
     var showNutritionTab: Bool = true
     var preferredHealthHistorySyncRangeRaw: String?
+    var preferredAppearanceRaw: String?
 
     // Phase 9 optional timer feedback settings (non-destructive)
     var timerNotificationsEnabled: Bool?
@@ -80,5 +81,15 @@ final class User {
 
     var needsOnboarding: Bool {
         !isDemo && onboardingStatus != .completed
+    }
+
+    var preferredAppearance: AppAppearancePreference {
+        get {
+            guard let preferredAppearanceRaw else { return .system }
+            return AppAppearancePreference(rawValue: preferredAppearanceRaw) ?? .system
+        }
+        set {
+            preferredAppearanceRaw = newValue == .system ? nil : newValue.rawValue
+        }
     }
 }

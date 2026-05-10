@@ -42,6 +42,7 @@ struct ProgramsRootView: View {
             }
             .screenContentPadding()
         }
+        .appBackground()
         .navigationTitle("Programme")
         .navigationDestination(item: $openedSession) { session in
             SingleSessionView(session: session)
@@ -82,11 +83,13 @@ struct ProgramsRootView: View {
                     }
                 }
             }
+            .editorSheetPresentation()
         }
         .sheet(isPresented: $routineService.editingSplit) {
             NavigationStack {
                 RoutineCreateSheetView()
             }
+            .editorSheetPresentation()
         }
         .onAppear {
             programService.loadPrograms()
@@ -121,32 +124,30 @@ struct ProgramsRootView: View {
                         )
 
                         if program.isActive {
-                            VStack(alignment: .leading, spacing: 12) {
-                                NavigationLink {
-                                    ProgramDetailView(program: program)
-                                        .appBackground()
-                                } label: {
-                                    ActiveProgrammeCard(
-                                        program: program,
-                                        state: state,
-                                        nextDueSummary: nextDueSummary
-                                    )
-                                }
-                                .buttonStyle(.plain)
+                            CardRowContainer {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    NavigationLink {
+                                        ProgramDetailView(program: program)
+                                            .appBackground()
+                                    } label: {
+                                        ActiveProgrammeCard(
+                                            program: program,
+                                            state: state,
+                                            nextDueSummary: nextDueSummary
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
 
-                                Button {
-                                    openSession(for: program, state: state)
-                                } label: {
-                                    Label(state.actionTitle, systemImage: state.activeSession == nil ? "play.fill" : "arrow.clockwise")
-                                        .frame(maxWidth: .infinity)
+                                    Button {
+                                        openSession(for: program, state: state)
+                                    } label: {
+                                        Label(state.actionTitle, systemImage: state.activeSession == nil ? "play.fill" : "arrow.clockwise")
+                                            .frame(maxWidth: .infinity)
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .disabled(!canLaunchWorkout(from: state))
                                 }
-                                .buttonStyle(.borderedProminent)
-                                .disabled(!canLaunchWorkout(from: state))
                             }
-                            .padding(14)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.gray.opacity(0.08))
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
                         } else {
                             NavigationLink {
                                 ProgramDetailView(program: program)
@@ -200,27 +201,25 @@ struct ProgramsRootView: View {
                             SingleDayView(routine: routine)
                                 .appBackground()
                         } label: {
-                            HStack(spacing: 12) {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text(routine.name)
-                                        .font(.headline)
-                                        .foregroundStyle(.primary)
+                            CardRowContainer {
+                                HStack(spacing: 12) {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text(routine.name)
+                                            .font(.headline)
+                                            .foregroundStyle(.primary)
 
-                                    Text("\(routine.exerciseSplits.count) exercise\(routine.exerciseSplits.count == 1 ? "" : "s")")
+                                        Text("\(routine.exerciseSplits.count) exercise\(routine.exerciseSplits.count == 1 ? "" : "s")")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+
+                                    Spacer()
+
+                                    Image(systemName: "chevron.right")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
-
-                                Spacer()
-
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
                             }
-                            .padding(14)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.gray.opacity(0.08))
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
                         }
                         .buttonStyle(.plain)
                     }
@@ -243,17 +242,15 @@ struct ProgramsRootView: View {
 
     @ViewBuilder
     private func emptyCard(title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.headline)
-            Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        CardRowContainer {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.headline)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.gray.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     private func canLaunchWorkout(from state: ProgramResolvedState) -> Bool {
@@ -329,28 +326,25 @@ private struct InactiveProgrammePreviewCard: View {
     let workoutCount: Int
 
     var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(program.name)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
+        CardRowContainer {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(program.name)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
 
-                Text("\(workoutCount) workout\(workoutCount == 1 ? "" : "s")")
+                    Text("\(workoutCount) workout\(workoutCount == 1 ? "" : "s")")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-
-            Spacer()
-
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.gray.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 }
 
@@ -359,11 +353,21 @@ private struct RoutineCreateSheetView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        Form {
-            Section("Routine") {
-                TextField("Name", text: $routineService.editingContent)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                SectionHeaderView(title: "Routine")
+                ConnectedCardSection {
+                    ConnectedCardRow {
+                        LabeledContent("Name") {
+                            TextField("Required", text: $routineService.editingContent)
+                                .multilineTextAlignment(.trailing)
+                        }
+                    }
+                }
             }
+            .screenContentPadding()
         }
+        .appBackground()
         .navigationTitle("New Routine")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
