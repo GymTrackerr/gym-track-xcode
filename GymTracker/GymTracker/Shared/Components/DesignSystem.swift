@@ -467,6 +467,17 @@ extension View {
             )
     }
 
+    func cardListSummaryRowStyle() -> some View {
+        cardListRowStyle(
+            top: 4,
+            leading: 10,
+            bottom: 4,
+            trailing: 10,
+            backgroundVerticalPadding: 4,
+            backgroundHorizontalPadding: 10
+        )
+    }
+
     func cardListRowContentPadding() -> some View {
         padding(.vertical, 8)
             .padding(.leading, 14)

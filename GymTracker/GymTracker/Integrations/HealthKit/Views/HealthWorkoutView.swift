@@ -106,7 +106,7 @@ struct HealthWorkoutView: View {
                         ForEach(filteredWorkouts) { workout in
                             WorkoutRow(workout: workout)
                                 .cardListSummaryContentPadding()
-                                .cardListRowStyle()
+                                .cardListSummaryRowStyle()
                         }
                     }
                     .cardListScreen()

@@ -42,7 +42,7 @@ struct SessionsPageView: View {
             List {
                 summaryRowContent
                     .cardListSummaryContentPadding()
-                    .cardListRowStyle()
+                    .cardListSummaryRowStyle()
 
                 if visibleSessions.isEmpty {
                     EmptyStateView(
