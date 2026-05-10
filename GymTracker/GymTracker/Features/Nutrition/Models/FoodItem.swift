@@ -94,8 +94,7 @@ final class FoodItem {
 
     var labelProfile: NutritionLabelProfile? {
         get {
-            guard let labelProfileRaw else { return nil }
-            return NutritionLabelProfile(rawValue: labelProfileRaw)
+            NutritionLabelProfile.storedValue(labelProfileRaw)
         }
         set {
             labelProfileRaw = newValue?.rawValue

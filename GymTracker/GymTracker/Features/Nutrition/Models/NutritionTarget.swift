@@ -23,7 +23,7 @@ final class NutritionTarget {
         carbTarget: Double = 0,
         fatTarget: Double = 0,
         isEnabled: Bool = false,
-        labelProfile: NutritionLabelProfile = .hybrid
+        labelProfile: NutritionLabelProfile = .defaultProfile
     ) {
         let timestamp = Date()
         self.userId = userId
@@ -41,8 +41,7 @@ final class NutritionTarget {
 
     var labelProfile: NutritionLabelProfile {
         get {
-            guard let labelProfileRaw else { return .hybrid }
-            return NutritionLabelProfile(rawValue: labelProfileRaw) ?? .hybrid
+            NutritionLabelProfile.storedValue(labelProfileRaw) ?? .defaultProfile
         }
         set { labelProfileRaw = newValue.rawValue }
     }

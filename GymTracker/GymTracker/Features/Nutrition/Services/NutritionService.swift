@@ -224,6 +224,7 @@ class NutritionService: ServiceBase, ObservableObject {
         proteinPerReference: Double,
         carbPerReference: Double,
         fatPerReference: Double,
+        extraNutrients: [String: Double]? = nil,
         providedNutrientKeys: Set<String>? = nil,
         servingQuantity: Double? = nil,
         servingUnitLabel: String? = nil,
@@ -253,7 +254,7 @@ class NutritionService: ServiceBase, ObservableObject {
             proteinPerReference: proteinPerReference,
             carbsPerReference: carbPerReference,
             fatPerReference: fatPerReference,
-            extraNutrients: nil,
+            extraNutrients: normalizedExtraNutrients(extraNutrients),
             providedNutrientKeys: providedNutrientKeys,
             kind: kind,
             unit: unit
@@ -279,6 +280,7 @@ class NutritionService: ServiceBase, ObservableObject {
         proteinPerReference: Double,
         carbPerReference: Double,
         fatPerReference: Double,
+        extraNutrients: [String: Double]? = nil,
         providedNutrientKeys: Set<String>? = nil,
         servingQuantity: Double? = nil,
         servingUnitLabel: String? = nil,
@@ -307,6 +309,7 @@ class NutritionService: ServiceBase, ObservableObject {
         food.proteinPerReference = proteinPerReference
         food.carbsPerReference = carbPerReference
         food.fatPerReference = fatPerReference
+        food.extraNutrients = normalizedExtraNutrients(extraNutrients)
         if let providedNutrientKeys {
             food.providedNutrientKeys = providedNutrientKeys
         }
@@ -531,6 +534,7 @@ class NutritionService: ServiceBase, ObservableObject {
         protein: Double?,
         carbs: Double?,
         fat: Double?,
+        extraNutrients: [String: Double]? = nil,
         timestamp: Date,
         category: FoodLogCategory,
         note: String?
@@ -540,6 +544,7 @@ class NutritionService: ServiceBase, ObservableObject {
             protein: protein,
             carbs: carbs,
             fat: fat,
+            extraNutrients: extraNutrients,
             timestamp: timestamp,
             category: category,
             note: note
@@ -919,6 +924,19 @@ class NutritionService: ServiceBase, ObservableObject {
         }
     }
 
+    func updateLabelProfile(_ profile: NutritionLabelProfile) throws {
+        let target = try getOrCreateTarget()
+        target.labelProfile = profile
+        target.updatedAt = Date()
+
+        do {
+            try repository.saveNutritionTarget(target)
+            nutritionTarget = target
+        } catch {
+            throw NutritionError.persistence("Could not save nutrition label style. Please try again.")
+        }
+    }
+
     func buildFoodLogDraft(
         food: FoodItem,
         amount: Double,
@@ -1014,6 +1032,7 @@ class NutritionService: ServiceBase, ObservableObject {
         protein: Double?,
         carbs: Double?,
         fat: Double?,
+        extraNutrients: [String: Double]? = nil,
         timestamp: Date,
         category: FoodLogCategory,
         note: String?
@@ -1022,7 +1041,8 @@ class NutritionService: ServiceBase, ObservableObject {
             calories: calories,
             protein: protein,
             carbs: carbs,
-            fat: fat
+            fat: fat,
+            extraNutrients: extraNutrients
         )
         guard !provided.isEmpty else {
             throw NutritionError.validation("Add at least one nutrition value before saving.")
@@ -1048,7 +1068,7 @@ class NutritionService: ServiceBase, ObservableObject {
             proteinSnapshot: max(0, protein ?? 0),
             carbsSnapshot: max(0, carbs ?? 0),
             fatSnapshot: max(0, fat ?? 0),
-            extraNutrientsSnapshot: nil,
+            extraNutrientsSnapshot: normalizedExtraNutrients(extraNutrients),
             recipeItemsSnapshot: nil,
             providedNutrientKeys: provided,
             timestamp: timestamp,
@@ -1145,7 +1165,9 @@ class NutritionService: ServiceBase, ObservableObject {
 
             if let foodExtra = food.extraNutrients {
                 for (key, value) in foodExtra {
-                    extraNutrients[key, default: 0] += max(0, value * factor)
+                    let normalizedKey = NutritionNutrientKey.normalized(key)
+                    guard !normalizedKey.isEmpty else { continue }
+                    extraNutrients[normalizedKey, default: 0] += max(0, value * factor)
                 }
             }
         }
@@ -1224,7 +1246,9 @@ class NutritionService: ServiceBase, ObservableObject {
         guard let input else { return nil }
         if input.isEmpty { return nil }
         return input.reduce(into: [String: Double]()) { partial, pair in
-            partial[pair.key] = max(0, pair.value * factor)
+            let key = NutritionNutrientKey.normalized(pair.key)
+            guard !key.isEmpty else { return }
+            partial[key] = max(0, pair.value * factor)
         }
     }
 
@@ -1232,14 +1256,28 @@ class NutritionService: ServiceBase, ObservableObject {
         calories: Double?,
         protein: Double?,
         carbs: Double?,
-        fat: Double?
+        fat: Double?,
+        extraNutrients: [String: Double]? = nil
     ) -> Set<String> {
         var keys: Set<String> = []
         if calories != nil { keys.insert(NutritionNutrientKey.calories) }
         if protein != nil { keys.insert(NutritionNutrientKey.protein) }
         if carbs != nil { keys.insert(NutritionNutrientKey.carbs) }
         if fat != nil { keys.insert(NutritionNutrientKey.fat) }
+        for key in (extraNutrients ?? [:]).keys {
+            keys.insert(NutritionNutrientKey.normalized(key))
+        }
         return keys
+    }
+
+    private func normalizedExtraNutrients(_ values: [String: Double]?) -> [String: Double]? {
+        guard let values else { return nil }
+        let normalized = values.reduce(into: [String: Double]()) { partial, pair in
+            let key = NutritionNutrientKey.normalized(pair.key)
+            guard !key.isEmpty else { return }
+            partial[key] = max(0, pair.value)
+        }
+        return normalized.isEmpty ? nil : normalized
     }
 
     private func sanitizedPositive(_ value: Double?) -> Double? {

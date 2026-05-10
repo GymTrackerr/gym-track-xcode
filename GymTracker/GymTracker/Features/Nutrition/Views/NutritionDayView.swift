@@ -401,7 +401,32 @@ struct NutritionDayView: View {
                         }
                     }
                 }
+
+                if !dailyExtraRows.isEmpty {
+                    Divider()
+                    VStack(spacing: 8) {
+                        ForEach(dailyExtraRows, id: \.key) { row in
+                            HStack {
+                                Text(row.name)
+                                Spacer()
+                                Text(row.value)
+                                    .fontWeight(.semibold)
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        }
+                    }
+                }
             }
+        }
+    }
+
+    private var dailyExtraRows: [(key: String, name: String, value: String)] {
+        nutritionService.visibleNutrientDefinitions().compactMap { definition in
+            let key = NutritionNutrientKey.normalized(definition.key)
+            let value = nutritionService.totalOptionalNutrient(name: key, for: dayLogs)
+            guard value > 0 else { return nil }
+            return (key, definition.displayName, "\(displayAmount(value)) \(definition.unitLabel)")
         }
     }
 
@@ -916,6 +941,13 @@ struct NutritionDayView: View {
         }
     }
 
+    private func displayAmount(_ value: Double) -> String {
+        if value.truncatingRemainder(dividingBy: 1) == 0 {
+            return String(Int(value))
+        }
+        return SetDisplayFormatter.formatDecimal(value)
+    }
+
     private func recipeItemDisplayScale(for log: NutritionLogEntry, items: [RecipeItemSnapshot]) -> Double {
         let snapshotCaloriesTotal = items.reduce(0) { $0 + $1.caloriesSnapshot }
         if snapshotCaloriesTotal > 0 {
@@ -1111,6 +1143,8 @@ private struct NutritionMealLogHeaderRow: View {
 }
 
 private struct NutritionLogRow: View {
+    @EnvironmentObject var nutritionService: NutritionService
+
     let log: NutritionLogEntry
 
     private var isQuickAdd: Bool {
@@ -1131,6 +1165,13 @@ private struct NutritionLogRow: View {
                 if let note = log.note, !note.isEmpty {
                     Text(note)
                         .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+
+                if !extraDescription.isEmpty {
+                    Text(extraDescription)
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
@@ -1180,6 +1221,16 @@ private struct NutritionLogRow: View {
         ].compactMap { $0 }
 
         return parts.isEmpty ? "Quick Add" : parts.joined(separator: "  ")
+    }
+
+    private var extraDescription: String {
+        let extras = log.extraNutrientsSnapshot ?? [:]
+        let parts = nutritionService.visibleNutrientDefinitions().compactMap { definition -> String? in
+            let key = NutritionNutrientKey.normalized(definition.key)
+            guard log.hasProvidedNutrient(key), let value = extras[key] else { return nil }
+            return "\(definition.displayName) \(displayAmount(value))\(definition.unitLabel)"
+        }
+        return parts.joined(separator: "  ")
     }
 
     private func displayAmount(_ value: Double) -> String {

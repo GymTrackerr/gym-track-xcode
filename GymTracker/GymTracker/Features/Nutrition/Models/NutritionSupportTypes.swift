@@ -61,7 +61,7 @@ enum FoodItemUnit: Int, Codable, CaseIterable, Identifiable {
 }
 
 enum NutritionLabelProfile: String, Codable, CaseIterable, Identifiable {
-    case hybrid
+    case defaultProfile = "default"
     case ukEU
     case us
 
@@ -69,12 +69,33 @@ enum NutritionLabelProfile: String, Codable, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .hybrid:
-            return "Hybrid"
+        case .defaultProfile:
+            return "Default"
         case .ukEU:
             return "UK/EU"
         case .us:
             return "US"
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        self = Self.storedValue(rawValue) ?? .defaultProfile
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+
+    static func storedValue(_ rawValue: String?) -> NutritionLabelProfile? {
+        guard let rawValue else { return nil }
+        switch rawValue {
+        case "hybrid":
+            return .defaultProfile
+        default:
+            return NutritionLabelProfile(rawValue: rawValue)
         }
     }
 }
@@ -157,29 +178,42 @@ enum NutritionNutrientGroup: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-struct NutritionNutrientPreset: Hashable {
+struct NutritionNutrientPreset: Decodable, Hashable {
     let key: String
     let displayName: String
     let unitLabel: String
     let group: NutritionNutrientGroup
     let sortOrder: Int
 
-    static let defaultPresets: [NutritionNutrientPreset] = [
-        NutritionNutrientPreset(key: "saturated-fat", displayName: "Saturated Fat", unitLabel: "g", group: .fat, sortOrder: 40),
-        NutritionNutrientPreset(key: "trans-fat", displayName: "Trans Fat", unitLabel: "g", group: .fat, sortOrder: 50),
-        NutritionNutrientPreset(key: "cholesterol", displayName: "Cholesterol", unitLabel: "mg", group: .fat, sortOrder: 60),
-        NutritionNutrientPreset(key: "sodium", displayName: "Sodium", unitLabel: "mg", group: .mineral, sortOrder: 70),
-        NutritionNutrientPreset(key: "salt", displayName: "Salt", unitLabel: "g", group: .mineral, sortOrder: 75),
-        NutritionNutrientPreset(key: "fiber", displayName: "Fiber", unitLabel: "g", group: .carbohydrate, sortOrder: 90),
-        NutritionNutrientPreset(key: "total-sugars", displayName: "Total Sugars", unitLabel: "g", group: .carbohydrate, sortOrder: 100),
-        NutritionNutrientPreset(key: "added-sugars", displayName: "Added Sugars", unitLabel: "g", group: .carbohydrate, sortOrder: 110),
-        NutritionNutrientPreset(key: "vitamin-d", displayName: "Vitamin D", unitLabel: "mcg", group: .vitamin, sortOrder: 120),
-        NutritionNutrientPreset(key: "calcium", displayName: "Calcium", unitLabel: "mg", group: .mineral, sortOrder: 130),
-        NutritionNutrientPreset(key: "iron", displayName: "Iron", unitLabel: "mg", group: .mineral, sortOrder: 140),
-        NutritionNutrientPreset(key: "potassium", displayName: "Potassium", unitLabel: "mg", group: .mineral, sortOrder: 150),
-        NutritionNutrientPreset(key: "caffeine", displayName: "Caffeine", unitLabel: "mg", group: .other, sortOrder: 180),
-        NutritionNutrientPreset(key: "alcohol", displayName: "Alcohol", unitLabel: "g", group: .other, sortOrder: 190)
-    ]
+    static func defaultPresets() -> [NutritionNutrientPreset] {
+        NutritionNutrientPresetLoader.loadDefaultPresets()
+    }
+}
+
+private enum NutritionNutrientPresetLoader {
+    static func loadDefaultPresets() -> [NutritionNutrientPreset] {
+        let candidateURLs: [URL?] = [
+            Bundle.main.url(
+                forResource: "nutrition_nutrient_presets",
+                withExtension: "json",
+                subdirectory: "Features/Nutrition"
+            ),
+            Bundle.main.url(forResource: "nutrition_nutrient_presets", withExtension: "json")
+        ]
+
+        guard let url = candidateURLs.compactMap({ $0 }).first else {
+            print("Missing bundled nutrition nutrient presets JSON.")
+            return []
+        }
+
+        do {
+            let data = try Data(contentsOf: url)
+            return try JSONDecoder().decode([NutritionNutrientPreset].self, from: data)
+        } catch {
+            print("Failed to load bundled nutrition nutrient presets: \(error)")
+            return []
+        }
+    }
 }
 
 struct NutritionFacts: Codable, Hashable {

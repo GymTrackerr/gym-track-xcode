@@ -107,11 +107,40 @@ private struct CoreNutritionDraftValues {
     private static func parseOptional(_ text: String) -> Double? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
-        guard let value = Double(trimmed.replacingOccurrences(of: ",", with: ".")) else {
-            return nil
-        }
-        return max(0, value)
+        return parseOptionalNutritionValue(trimmed)
     }
+}
+
+private func parseOptionalNutritionValue(_ text: String) -> Double? {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return nil }
+    guard let value = Double(trimmed.replacingOccurrences(of: ",", with: ".")) else {
+        return nil
+    }
+    return max(0, value)
+}
+
+private func parsedExtraNutrients(_ values: [String: String]) -> [String: Double]? {
+    let parsed = values.reduce(into: [String: Double]()) { partial, pair in
+        let key = NutritionNutrientKey.normalized(pair.key)
+        guard !key.isEmpty, let value = parseOptionalNutritionValue(pair.value) else { return }
+        partial[key] = value
+    }
+    return parsed.isEmpty ? nil : parsed
+}
+
+private func providedExtraNutrientKeys(_ values: [String: String]) -> Set<String> {
+    Set((parsedExtraNutrients(values) ?? [:]).keys)
+}
+
+private func binding(for key: String, in values: Binding<[String: String]>) -> Binding<String> {
+    let normalizedKey = NutritionNutrientKey.normalized(key)
+    return Binding<String>(
+        get: { values.wrappedValue[normalizedKey] ?? "" },
+        set: { newValue in
+            values.wrappedValue[normalizedKey] = newValue
+        }
+    )
 }
 
 struct NutritionLogSheet: View {
@@ -131,6 +160,7 @@ struct NutritionLogSheet: View {
     @State private var quickProtein: String = ""
     @State private var quickCarbs: String = ""
     @State private var quickFat: String = ""
+    @State private var quickExtraNutrientValues: [String: String] = [:]
     @State private var category: FoodLogCategory = .other
     @State private var selectedTime: Date = Date()
     @State private var note: String = ""
@@ -166,7 +196,7 @@ struct NutritionLogSheet: View {
         case .meal:
             return selectedMeal != nil && mealServings > 0
         case .quickAdd:
-            return quickNutritionValues.hasAnyProvidedValue
+            return quickNutritionValues.hasAnyProvidedValue || quickExtraNutrients != nil
         }
     }
 
@@ -177,6 +207,10 @@ struct NutritionLogSheet: View {
             carbs: quickCarbs,
             fat: quickFat
         )
+    }
+
+    private var quickExtraNutrients: [String: Double]? {
+        parsedExtraNutrients(quickExtraNutrientValues)
     }
 
     var body: some View {
@@ -214,6 +248,7 @@ struct NutritionLogSheet: View {
             .onAppear {
                 nutritionService.loadFoods()
                 nutritionService.loadMeals()
+                nutritionService.loadNutrientDefinitions()
                 selectedTime = Date()
                 category = nutritionService.defaultCategory(for: Date())
                 mealServings = 1
@@ -361,47 +396,23 @@ struct NutritionLogSheet: View {
         case .quickAdd:
             VStack(alignment: .leading, spacing: 8) {
                 SectionHeaderView(title: "Quick Add")
-                ConnectedCardSection {
-                    ConnectedCardRow {
-                        LabeledContent("Calories") {
-                            TextField("Optional", text: $quickCalories)
-                                .keyboardType(.decimalPad)
-                                .multilineTextAlignment(.trailing)
-                        }
-                    }
-
-                    ConnectedCardDivider()
-
-                    ConnectedCardRow {
-                        LabeledContent("Protein") {
-                            TextField("Optional", text: $quickProtein)
-                                .keyboardType(.decimalPad)
-                                .multilineTextAlignment(.trailing)
-                        }
-                    }
-
-                    ConnectedCardDivider()
-
-                    ConnectedCardRow {
-                        LabeledContent("Carbs") {
-                            TextField("Optional", text: $quickCarbs)
-                                .keyboardType(.decimalPad)
-                                .multilineTextAlignment(.trailing)
-                        }
-                    }
-
-                    ConnectedCardDivider()
-
-                    ConnectedCardRow {
-                        LabeledContent("Fat") {
-                            TextField("Optional", text: $quickFat)
-                                .keyboardType(.decimalPad)
-                                .multilineTextAlignment(.trailing)
-                        }
-                    }
-                }
+                NutritionLabelEditorCard(
+                    referenceSummary: "entry",
+                    calories: $quickCalories,
+                    fat: $quickFat,
+                    carbs: $quickCarbs,
+                    protein: $quickProtein,
+                    extraNutrientValues: $quickExtraNutrientValues,
+                    definitions: nutritionService.visibleNutrientDefinitions(),
+                    profile: quickAddLabelProfile,
+                    amountTextOverride: "Total for this entry"
+                )
             }
         }
+    }
+
+    private var quickAddLabelProfile: NutritionLabelProfile {
+        nutritionService.nutritionTarget?.labelProfile ?? .defaultProfile
     }
 
     private var detailsSection: some View {
@@ -511,6 +522,7 @@ struct NutritionLogSheet: View {
                 protein: values.protein,
                 carbs: values.carbs,
                 fat: values.fat,
+                extraNutrients: quickExtraNutrients,
                 timestamp: timestamp,
                 category: category,
                 note: trimmedNote
@@ -1188,8 +1200,33 @@ private struct NutritionFoodDetailView: View {
                         NutritionValueTile(title: "Carbs", value: displayedCoreValue(NutritionNutrientKey.carbs, amount: food.carbsPerReference, unit: "g"))
                         NutritionValueTile(title: "Fat", value: displayedCoreValue(NutritionNutrientKey.fat, amount: food.fatPerReference, unit: "g"))
                     }
+
+                    if !foodExtraRows.isEmpty {
+                        Divider()
+                        VStack(spacing: 8) {
+                            ForEach(foodExtraRows, id: \.key) { row in
+                                HStack {
+                                    Text(row.name)
+                                    Spacer()
+                                    Text(row.value)
+                                        .font(.subheadline.weight(.semibold))
+                                }
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                 }
             }
+        }
+    }
+
+    private var foodExtraRows: [(key: String, name: String, value: String)] {
+        let extras = food.extraNutrients ?? [:]
+        return nutritionService.visibleNutrientDefinitions().compactMap { definition in
+            let key = NutritionNutrientKey.normalized(definition.key)
+            guard food.hasProvidedNutrient(key), let amount = extras[key] else { return nil }
+            return (key, definition.displayName, "\(displayAmount(amount)) \(definition.unitLabel)")
         }
     }
 
@@ -1240,8 +1277,7 @@ private struct NutritionFoodDetailView: View {
     }
 
     private var referenceDescription: String {
-        let label = food.referenceLabel ?? food.unit.shortLabel
-        return "\(displayAmount(food.referenceQuantity)) \(food.unit.shortLabel) \(label.isEmpty ? "" : "(\(label))")"
+        "\(displayAmount(food.referenceQuantity)) \(food.unit.shortLabel)"
     }
 
     private var servingDescription: String {
@@ -1334,8 +1370,33 @@ private struct NutritionMealDetailView: View {
                         NutritionValueTile(title: "Carbs", value: "\(displayAmount(perServing.carbs)) g")
                         NutritionValueTile(title: "Fat", value: "\(displayAmount(perServing.fat)) g")
                     }
+
+                    if !mealExtraRows.isEmpty {
+                        Divider()
+                        VStack(spacing: 8) {
+                            ForEach(mealExtraRows, id: \.key) { row in
+                                HStack {
+                                    Text(row.name)
+                                    Spacer()
+                                    Text(row.value)
+                                        .font(.subheadline.weight(.semibold))
+                                }
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                 }
             }
+        }
+    }
+
+    private var mealExtraRows: [(key: String, name: String, value: String)] {
+        let extras = perServing.extraNutrients ?? [:]
+        return nutritionService.visibleNutrientDefinitions().compactMap { definition in
+            let key = NutritionNutrientKey.normalized(definition.key)
+            guard let amount = extras[key] else { return nil }
+            return (key, definition.displayName, "\(displayAmount(amount)) \(definition.unitLabel)")
         }
     }
 
@@ -1420,6 +1481,8 @@ private struct NutritionValueTile: View {
 }
 
 private struct NutritionSnapshotHistoryRow: View {
+    @EnvironmentObject var nutritionService: NutritionService
+
     let log: NutritionLogEntry
 
     var body: some View {
@@ -1443,6 +1506,13 @@ private struct NutritionSnapshotHistoryRow: View {
                     Text(macroDescription)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+
+                    if !extraDescription.isEmpty {
+                        Text(extraDescription)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
                 }
             }
         }
@@ -1471,6 +1541,324 @@ private struct NutritionSnapshotHistoryRow: View {
         }
         return parts.isEmpty ? "Macros unknown" : parts.joined(separator: "  ")
     }
+
+    private var extraDescription: String {
+        let extras = log.extraNutrientsSnapshot ?? [:]
+        let parts = nutritionService.visibleNutrientDefinitions().compactMap { definition -> String? in
+            let key = NutritionNutrientKey.normalized(definition.key)
+            guard log.hasProvidedNutrient(key), let value = extras[key] else { return nil }
+            return "\(definition.displayName) \(displayAmount(value))\(definition.unitLabel)"
+        }
+        return parts.joined(separator: "  ")
+    }
+}
+
+private struct NutritionLabelEditorCard: View {
+    let referenceSummary: String
+    @Binding var calories: String
+    @Binding var fat: String
+    @Binding var carbs: String
+    @Binding var protein: String
+    @Binding var extraNutrientValues: [String: String]
+    let definitions: [NutritionNutrientDefinition]
+    let profile: NutritionLabelProfile
+    var amountTextOverride: String? = nil
+
+    @State private var showsAdditionalNutrients = false
+
+    var body: some View {
+        CardRowContainer {
+            VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(titleText)
+                        .font(.system(.title2, design: .rounded).weight(.black))
+                        .foregroundStyle(.primary)
+
+                    Text(amountTextOverride ?? amountText)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.bottom, 8)
+
+                NutritionLabelRule(height: 6)
+
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text(energyTitle)
+                        .font(.title3.weight(.black))
+                        .foregroundStyle(.primary)
+
+                    Spacer(minLength: 8)
+
+                    NutritionLabelValueField(
+                        placeholder: "Optional",
+                        text: $calories,
+                        unit: "kcal",
+                        isProminent: true
+                    )
+                }
+                .padding(.vertical, 9)
+
+                NutritionLabelRule(height: 4)
+
+                NutritionLabelInputRow(
+                    title: fatTitle,
+                    text: $fat,
+                    unit: "g",
+                    isStrong: true
+                )
+
+                definitionRows(fatChildRows)
+                definitionRows(afterFatRows)
+
+                NutritionLabelRule(height: 1)
+
+                NutritionLabelInputRow(
+                    title: carbohydrateTitle,
+                    text: $carbs,
+                    unit: "g",
+                    isStrong: true
+                )
+
+                definitionRows(carbohydrateChildRows)
+                definitionRows(afterCarbohydrateRows)
+
+                NutritionLabelRule(height: 1)
+
+                NutritionLabelInputRow(
+                    title: "Protein",
+                    text: $protein,
+                    unit: "g",
+                    isStrong: true
+                )
+
+                definitionRows(afterProteinRows)
+
+                if !additionalRows.isEmpty {
+                    NutritionLabelRule(height: 4)
+
+                    DisclosureGroup(isExpanded: $showsAdditionalNutrients) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            definitionRows(additionalRows)
+                        }
+                    } label: {
+                        Text("Additional nutrients")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                    }
+                    .padding(.top, 8)
+                }
+            }
+        }
+    }
+
+    private var titleText: String {
+        switch profile {
+        case .ukEU:
+            return "Nutrition Declaration"
+        case .us:
+            return "Nutrition Facts"
+        case .defaultProfile:
+            return "Nutrition Label"
+        }
+    }
+
+    private var amountText: String {
+        switch profile {
+        case .ukEU:
+            return "Typical values per \(referenceSummary)"
+        case .us, .defaultProfile:
+            return "Amount per \(referenceSummary)"
+        }
+    }
+
+    private var energyTitle: String {
+        profile == .ukEU ? "Energy" : "Calories"
+    }
+
+    private var fatTitle: String {
+        profile == .us ? "Total Fat" : "Fat"
+    }
+
+    private var carbohydrateTitle: String {
+        profile == .us ? "Total Carbohydrate" : "Carbohydrate"
+    }
+
+    private var primaryKeys: Set<String> {
+        switch profile {
+        case .us:
+            return ["saturated-fat", "trans-fat", "cholesterol", "sodium", "fiber", "total-sugars", "added-sugars"]
+        case .ukEU, .defaultProfile:
+            return ["saturated-fat", "total-sugars", "fiber", "salt"]
+        }
+    }
+
+    private var primaryRows: [NutritionNutrientDefinition] {
+        definitions.filter { primaryKeys.contains(normalizedKey($0)) }
+    }
+
+    private var fatChildRows: [NutritionNutrientDefinition] {
+        let keys: Set<String> = profile == .us ? ["saturated-fat", "trans-fat"] : ["saturated-fat"]
+        return rows(matching: keys, in: primaryRows)
+    }
+
+    private var afterFatRows: [NutritionNutrientDefinition] {
+        let keys: Set<String> = profile == .us ? ["cholesterol", "sodium"] : []
+        return rows(matching: keys, in: primaryRows)
+    }
+
+    private var carbohydrateChildRows: [NutritionNutrientDefinition] {
+        let keys: Set<String> = profile == .us
+            ? ["fiber", "total-sugars", "added-sugars"]
+            : ["total-sugars"]
+        return rows(matching: keys, in: primaryRows)
+    }
+
+    private var afterCarbohydrateRows: [NutritionNutrientDefinition] {
+        let keys: Set<String> = profile == .us ? [] : ["fiber"]
+        return rows(matching: keys, in: primaryRows)
+    }
+
+    private var afterProteinRows: [NutritionNutrientDefinition] {
+        let keys: Set<String> = profile == .us ? [] : ["salt"]
+        return rows(matching: keys, in: primaryRows)
+    }
+
+    private var additionalRows: [NutritionNutrientDefinition] {
+        definitions.filter { !primaryKeys.contains(normalizedKey($0)) }
+    }
+
+    @ViewBuilder
+    private func definitionRows(_ rows: [NutritionNutrientDefinition]) -> some View {
+        ForEach(rows, id: \.id) { definition in
+            let indentLevel = indentLevel(for: definition)
+            NutritionLabelRule(height: 1, leadingInset: CGFloat(indentLevel) * 18)
+            NutritionLabelInputRow(
+                title: displayName(for: definition),
+                text: binding(for: definition.key, in: $extraNutrientValues),
+                unit: definition.unitLabel,
+                indentLevel: indentLevel
+            )
+        }
+    }
+
+    private func rows(
+        matching keys: Set<String>,
+        in source: [NutritionNutrientDefinition]
+    ) -> [NutritionNutrientDefinition] {
+        source.filter { keys.contains(normalizedKey($0)) }
+    }
+
+    private func normalizedKey(_ definition: NutritionNutrientDefinition) -> String {
+        NutritionNutrientKey.normalized(definition.key)
+    }
+
+    private func displayName(for definition: NutritionNutrientDefinition) -> String {
+        switch normalizedKey(definition) {
+        case "saturated-fat":
+            return profile == .us ? "Saturated Fat" : "of which saturates"
+        case "trans-fat":
+            return "Trans Fat"
+        case "fiber":
+            return profile == .ukEU ? "Fibre" : (profile == .us ? "Dietary Fiber" : "Fiber")
+        case "total-sugars":
+            return profile == .us ? "Total Sugars" : "of which sugars"
+        case "added-sugars":
+            return profile == .us ? "Includes Added Sugars" : "of which added sugars"
+        default:
+            return definition.displayName
+        }
+    }
+
+    private func indentLevel(for definition: NutritionNutrientDefinition) -> Int {
+        switch normalizedKey(definition) {
+        case "saturated-fat", "trans-fat", "total-sugars":
+            return 1
+        case "fiber":
+            return profile == .us ? 1 : 0
+        case "added-sugars":
+            return 2
+        default:
+            return 0
+        }
+    }
+}
+
+private struct NutritionLabelInputRow: View {
+    let title: String
+    @Binding var text: String
+    let unit: String
+    var isStrong = false
+    var indentLevel = 0
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Text(title)
+                .font(.subheadline.weight(isStrong ? .semibold : .regular))
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+                .padding(.leading, CGFloat(indentLevel) * 18)
+
+            Spacer(minLength: 8)
+
+            NutritionLabelValueField(
+                placeholder: "Optional",
+                text: $text,
+                unit: unit,
+                isProminent: false
+            )
+        }
+        .padding(.vertical, 7)
+    }
+}
+
+private struct NutritionLabelValueField: View {
+    let placeholder: String
+    @Binding var text: String
+    let unit: String
+    let isProminent: Bool
+
+    var body: some View {
+        HStack(spacing: 4) {
+            TextField(placeholder, text: $text)
+                .keyboardType(.decimalPad)
+                .multilineTextAlignment(.trailing)
+                .font(fieldFont)
+                .textFieldStyle(.plain)
+                .frame(width: isProminent ? 88 : 74)
+
+            Text(unit)
+                .font(unitFont)
+                .foregroundStyle(.secondary)
+                .frame(minWidth: isProminent ? 30 : 24, alignment: .leading)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, isProminent ? 6 : 5)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(.tertiarySystemBackground).opacity(0.72))
+        )
+    }
+
+    private var fieldFont: Font {
+        isProminent ? .title3.weight(.bold) : .subheadline.weight(.semibold)
+    }
+
+    private var unitFont: Font {
+        isProminent ? .caption.weight(.semibold) : .caption
+    }
+}
+
+private struct NutritionLabelRule: View {
+    let height: CGFloat
+    var leadingInset: CGFloat = 0
+
+    var body: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(height > 1 ? 0.82 : 0.22))
+            .frame(height: height)
+            .padding(.leading, leadingInset)
+            .accessibilityHidden(true)
+    }
 }
 
 private func displayAmount(_ value: Double) -> String {
@@ -1496,16 +1884,16 @@ struct NutritionFoodEditorView: View {
 
     @State private var name = ""
     @State private var brand = ""
-    @State private var referenceLabel = ""
     @State private var gramsPerReference = ""
     @State private var servingQuantity = ""
     @State private var servingUnitLabel = ""
-    @State private var labelProfile: NutritionLabelProfile = .hybrid
+    @State private var labelProfile: NutritionLabelProfile = .defaultProfile
     @State private var usesFoodLabelProfile = false
     @State private var kcalPerReference = ""
     @State private var proteinPerReference = ""
     @State private var carbPerReference = ""
     @State private var fatPerReference = ""
+    @State private var extraNutrientValues: [String: String] = [:]
     @State private var kind: FoodItemKind = .food
     @State private var unit: FoodItemUnit = .grams
     @State private var errorText: String?
@@ -1539,6 +1927,7 @@ struct NutritionFoodEditorView: View {
             }
         }
         .onAppear {
+            nutritionService.loadNutrientDefinitions()
             loadInitialValues()
         }
     }
@@ -1559,15 +1948,6 @@ struct NutritionFoodEditorView: View {
                 ConnectedCardRow {
                     LabeledContent("Brand") {
                         TextField("Optional", text: $brand)
-                            .multilineTextAlignment(.trailing)
-                    }
-                }
-
-                ConnectedCardDivider()
-
-                ConnectedCardRow {
-                    LabeledContent("Reference Label") {
-                        TextField("Optional", text: $referenceLabel)
                             .multilineTextAlignment(.trailing)
                     }
                 }
@@ -1655,46 +2035,31 @@ struct NutritionFoodEditorView: View {
     private var nutritionValuesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionHeaderView(title: "Nutrition Per Reference")
-            ConnectedCardSection {
-                ConnectedCardRow {
-                    LabeledContent("Calories") {
-                        TextField("Optional", text: $kcalPerReference)
-                            .keyboardType(.decimalPad)
-                            .multilineTextAlignment(.trailing)
-                    }
-                }
-
-                ConnectedCardDivider()
-
-                ConnectedCardRow {
-                    LabeledContent("Protein") {
-                        TextField("Optional", text: $proteinPerReference)
-                            .keyboardType(.decimalPad)
-                            .multilineTextAlignment(.trailing)
-                    }
-                }
-
-                ConnectedCardDivider()
-
-                ConnectedCardRow {
-                    LabeledContent("Carbs") {
-                        TextField("Optional", text: $carbPerReference)
-                            .keyboardType(.decimalPad)
-                            .multilineTextAlignment(.trailing)
-                    }
-                }
-
-                ConnectedCardDivider()
-
-                ConnectedCardRow {
-                    LabeledContent("Fat") {
-                        TextField("Optional", text: $fatPerReference)
-                            .keyboardType(.decimalPad)
-                            .multilineTextAlignment(.trailing)
-                    }
-                }
-            }
+            NutritionLabelEditorCard(
+                referenceSummary: nutritionReferenceSummary,
+                calories: $kcalPerReference,
+                fat: $fatPerReference,
+                carbs: $carbPerReference,
+                protein: $proteinPerReference,
+                extraNutrientValues: $extraNutrientValues,
+                definitions: nutritionService.visibleNutrientDefinitions(),
+                profile: effectiveLabelProfile
+            )
         }
+    }
+
+    private var effectiveLabelProfile: NutritionLabelProfile {
+        usesFoodLabelProfile ? labelProfile : (nutritionService.nutritionTarget?.labelProfile ?? .defaultProfile)
+    }
+
+    private var nutritionReferenceSummary: String {
+        let amount = Double(gramsPerReference.replacingOccurrences(of: ",", with: "."))
+
+        if let amount, amount > 0 {
+            return "\(displayAmount(amount)) \(unit.shortLabel)"
+        }
+
+        return "reference"
     }
 
     private func loadInitialValues() {
@@ -1710,16 +2075,19 @@ struct NutritionFoodEditorView: View {
 
         name = food.name
         brand = food.brand ?? ""
-        referenceLabel = food.referenceLabel ?? ""
         gramsPerReference = String(format: "%.0f", food.referenceQuantity)
         servingQuantity = food.servingQuantity.map { String(format: "%.0f", $0) } ?? ""
-        servingUnitLabel = food.servingUnitLabel ?? ""
+        servingUnitLabel = food.servingUnitLabel ?? food.referenceLabel ?? ""
         usesFoodLabelProfile = food.labelProfile != nil
-        labelProfile = food.labelProfile ?? .hybrid
+        labelProfile = food.labelProfile ?? .defaultProfile
         kcalPerReference = food.hasProvidedNutrient(NutritionNutrientKey.calories) ? String(format: "%.0f", food.caloriesPerReference) : ""
         proteinPerReference = food.hasProvidedNutrient(NutritionNutrientKey.protein) ? String(format: "%.0f", food.proteinPerReference) : ""
         carbPerReference = food.hasProvidedNutrient(NutritionNutrientKey.carbs) ? String(format: "%.0f", food.carbsPerReference) : ""
         fatPerReference = food.hasProvidedNutrient(NutritionNutrientKey.fat) ? String(format: "%.0f", food.fatPerReference) : ""
+        extraNutrientValues = (food.extraNutrients ?? [:]).reduce(into: [String: String]()) { partial, pair in
+            guard food.hasProvidedNutrient(pair.key) else { return }
+            partial[NutritionNutrientKey.normalized(pair.key)] = String(format: "%.0f", pair.value)
+        }
         kind = food.kind
         unit = food.unit
     }
@@ -1736,6 +2104,8 @@ struct NutritionFoodEditorView: View {
         let protein = nutritionValues.protein ?? 0
         let carbs = nutritionValues.carbs ?? 0
         let fat = nutritionValues.fat ?? 0
+        let extraNutrients = parsedExtraNutrients(extraNutrientValues)
+        let providedKeys = nutritionValues.providedKeys.union(providedExtraNutrientKeys(extraNutrientValues))
         let servingQuantityValue = Double(servingQuantity.replacingOccurrences(of: ",", with: "."))
         let foodLabelProfile = usesFoodLabelProfile ? labelProfile : nil
 
@@ -1757,13 +2127,14 @@ struct NutritionFoodEditorView: View {
                 food,
                 name: name,
                 brand: brand,
-                referenceLabel: referenceLabel,
+                referenceLabel: food.referenceLabel,
                 gramsPerReference: reference,
                 kcalPerReference: kcal,
                 proteinPerReference: protein,
                 carbPerReference: carbs,
                 fatPerReference: fat,
-                providedNutrientKeys: nutritionValues.providedKeys,
+                extraNutrients: extraNutrients,
+                providedNutrientKeys: providedKeys,
                 servingQuantity: servingQuantityValue,
                 servingUnitLabel: servingUnitLabel,
                 labelProfile: foodLabelProfile,
@@ -1781,13 +2152,14 @@ struct NutritionFoodEditorView: View {
             let created = nutritionService.createFood(
                 name: name,
                 brand: brand,
-                referenceLabel: referenceLabel,
+                referenceLabel: nil,
                 gramsPerReference: reference,
                 kcalPerReference: kcal,
                 proteinPerReference: protein,
                 carbPerReference: carbs,
                 fatPerReference: fat,
-                providedNutrientKeys: nutritionValues.providedKeys,
+                extraNutrients: extraNutrients,
+                providedNutrientKeys: providedKeys,
                 servingQuantity: servingQuantityValue,
                 servingUnitLabel: servingUnitLabel,
                 labelProfile: foodLabelProfile,

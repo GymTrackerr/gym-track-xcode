@@ -181,14 +181,16 @@ final class NutritionBackupService {
 
         var foodItemsById: [UUID: FoodItem] = existingFoodItems
         for dto in payload.foodItems {
+            let importedServingUnitLabel = normalizedOptionalText(dto.servingUnitLabel) ?? normalizedOptionalText(dto.referenceLabel)
+            let importedServingQuantity = dto.servingQuantity ?? (importedServingUnitLabel == nil ? nil : dto.referenceQuantity)
             let item = foodItemsById[dto.id] ?? FoodItem(
                 userId: userId,
                 name: dto.name,
                 brand: dto.brand,
                 referenceLabel: dto.referenceLabel,
                 referenceQuantity: dto.referenceQuantity,
-                servingQuantity: dto.servingQuantity,
-                servingUnitLabel: dto.servingUnitLabel,
+                servingQuantity: importedServingQuantity,
+                servingUnitLabel: importedServingUnitLabel,
                 labelProfile: dto.labelProfile,
                 caloriesPerReference: dto.caloriesPerReference,
                 proteinPerReference: dto.proteinPerReference,
@@ -210,8 +212,8 @@ final class NutritionBackupService {
             item.brand = dto.brand
             item.referenceLabel = dto.referenceLabel
             item.referenceQuantity = max(0.0001, dto.referenceQuantity)
-            item.servingQuantity = dto.servingQuantity.map { max(0.0001, $0) }
-            item.servingUnitLabel = dto.servingUnitLabel
+            item.servingQuantity = importedServingQuantity.map { max(0.0001, $0) }
+            item.servingUnitLabel = importedServingUnitLabel
             item.labelProfile = dto.labelProfile
             item.caloriesPerReference = max(0, dto.caloriesPerReference)
             item.proteinPerReference = max(0, dto.proteinPerReference)
@@ -330,7 +332,7 @@ final class NutritionBackupService {
                 carbTarget: dto.carbTarget,
                 fatTarget: dto.fatTarget,
                 isEnabled: dto.isEnabled,
-                labelProfile: dto.labelProfile ?? .hybrid
+                labelProfile: dto.labelProfile ?? .defaultProfile
             )
             if existingTargets[dto.id] == nil {
                 target.id = dto.id
@@ -344,7 +346,7 @@ final class NutritionBackupService {
             target.carbTarget = dto.carbTarget
             target.fatTarget = dto.fatTarget
             target.isEnabled = dto.isEnabled
-            target.labelProfile = dto.labelProfile ?? .hybrid
+            target.labelProfile = dto.labelProfile ?? .defaultProfile
         }
 
         return ImportResult(

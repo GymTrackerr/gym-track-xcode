@@ -36,11 +36,22 @@ final class NutritionDataBackfillService {
                 changed = true
             }
 
-            if food.servingQuantity == nil,
-               let referenceLabel = food.referenceLabel?.trimmingCharacters(in: .whitespacesAndNewlines),
+            if let referenceLabel = food.referenceLabel?.trimmingCharacters(in: .whitespacesAndNewlines),
                !referenceLabel.isEmpty {
-                food.servingQuantity = food.referenceQuantity
-                food.servingUnitLabel = referenceLabel
+                let servingLabel = food.servingUnitLabel?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                if servingLabel.isEmpty {
+                    food.servingUnitLabel = referenceLabel
+                    changed = true
+                }
+
+                if food.servingQuantity == nil {
+                    food.servingQuantity = food.referenceQuantity
+                    changed = true
+                }
+            }
+
+            if food.labelProfileRaw == "hybrid" {
+                food.labelProfile = .defaultProfile
                 changed = true
             }
         }
@@ -96,9 +107,11 @@ final class NutritionDataBackfillService {
         let targets = try modelContext.fetch(descriptor)
         var changed = false
 
-        for target in targets where target.labelProfileRaw == nil {
-            target.labelProfile = .hybrid
-            changed = true
+        for target in targets {
+            if target.labelProfileRaw == nil || target.labelProfileRaw == "hybrid" {
+                target.labelProfile = .defaultProfile
+                changed = true
+            }
         }
 
         return changed
@@ -114,7 +127,7 @@ final class NutritionDataBackfillService {
         let existingKeys = Set(existing.map { NutritionNutrientKey.normalized($0.key) })
         var changed = false
 
-        for preset in NutritionNutrientPreset.defaultPresets {
+        for preset in NutritionNutrientPreset.defaultPresets() {
             let key = NutritionNutrientKey.normalized(preset.key)
             guard !existingKeys.contains(key) else { continue }
 
