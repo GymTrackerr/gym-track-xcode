@@ -266,7 +266,7 @@ struct NutritionDayView: View {
 
     private var periodContent: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 12) {
                 periodSummaryCard
 
                 if let periodErrorMessage {
@@ -317,19 +317,22 @@ struct NutritionDayView: View {
                     SummaryMetricTile(
                         title: "Calories",
                         value: "\(Int(periodAverageCalories.rounded())) kcal",
-                        systemImage: "flame"
+                        systemImage: "flame",
+                        tint: .orange
                     )
 
                     SummaryMetricTile(
                         title: "Protein",
                         value: "\(Int(periodAverageProtein.rounded())) g",
-                        systemImage: "bolt"
+                        systemImage: "bolt",
+                        tint: .yellow
                     )
 
                     SummaryMetricTile(
                         title: "Logs",
                         value: formattedAverageLogs,
-                        systemImage: "list.bullet"
+                        systemImage: "list.bullet",
+                        tint: .blue
                     )
                 }
             }

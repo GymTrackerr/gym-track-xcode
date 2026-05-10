@@ -263,15 +263,7 @@ struct SummaryMetricTile: View {
     var tintsBackground = false
 
     var body: some View {
-        HStack(alignment: .top, spacing: 6) {
-            if let systemImage {
-                Image(systemName: systemImage)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(tint ?? .secondary)
-                    .frame(width: 12, alignment: .center)
-                    .padding(.top, 1)
-            }
-
+        ZStack(alignment: .topTrailing) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.caption2.weight(.semibold))
@@ -285,6 +277,14 @@ struct SummaryMetricTile: View {
                     .minimumScaleFactor(0.75)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.trailing, systemImage == nil ? 0 : 14)
+
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(tint ?? .secondary)
+                    .opacity(0.78)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
@@ -471,6 +471,10 @@ extension View {
         padding(.vertical, 8)
             .padding(.leading, 14)
             .padding(.trailing, 10)
+    }
+
+    func cardListSummaryContentPadding() -> some View {
+        padding(14)
     }
 
     func cardListRowCompactContentPadding() -> some View {

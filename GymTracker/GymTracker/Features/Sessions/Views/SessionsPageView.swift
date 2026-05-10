@@ -41,7 +41,7 @@ struct SessionsPageView: View {
 
             List {
                 summaryRowContent
-                    .cardListRowContentPadding()
+                    .cardListSummaryContentPadding()
                     .cardListRowStyle()
 
                 if visibleSessions.isEmpty {
@@ -173,26 +173,30 @@ struct SessionsPageView: View {
                 SummaryMetricTile(
                     title: "Volume",
                     value: SessionService.formattedPounds(summary.totalVolume),
-                    systemImage: "scalemass"
+                    systemImage: "scalemass",
+                    tint: .purple
                 )
 
                 SummaryMetricTile(
                     title: "Avg Vol",
                     value: SessionService.formattedPounds(summary.averageSessionVolume),
-                    systemImage: "chart.bar"
+                    systemImage: "chart.bar",
+                    tint: .green
                 )
 
                 if let averageDurationMinutes = summary.averageDurationMinutes {
                     SummaryMetricTile(
                         title: "Avg Time",
                         value: "\(Int(averageDurationMinutes.rounded())) min",
-                        systemImage: "clock"
+                        systemImage: "clock",
+                        tint: .blue
                     )
                 } else {
                     SummaryMetricTile(
                         title: "Avg Time",
                         value: "-",
-                        systemImage: "clock"
+                        systemImage: "clock",
+                        tint: .blue
                     )
                 }
             }
