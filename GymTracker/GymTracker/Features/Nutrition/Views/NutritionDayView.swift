@@ -1139,12 +1139,12 @@ private struct NutritionLogRow: View {
             Spacer()
 
             VStack(alignment: .trailing, spacing: 2) {
-                Text("\(Int(log.caloriesSnapshot.rounded())) kcal")
+                Text(primaryValueText)
                     .font(.subheadline)
                     .fontWeight(.semibold)
 
                 if isQuickAdd {
-                    Text("Quick Add")
+                    Text(secondaryValueText)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
@@ -1154,6 +1154,32 @@ private struct NutritionLogRow: View {
                 }
             }
         }
+    }
+
+    private var primaryValueText: String {
+        if log.hasProvidedNutrient(NutritionNutrientKey.calories) {
+            return "\(Int(log.caloriesSnapshot.rounded())) kcal"
+        }
+        if log.hasProvidedNutrient(NutritionNutrientKey.protein) {
+            return "P \(displayAmount(log.proteinSnapshot)) g"
+        }
+        if log.hasProvidedNutrient(NutritionNutrientKey.carbs) {
+            return "C \(displayAmount(log.carbsSnapshot)) g"
+        }
+        if log.hasProvidedNutrient(NutritionNutrientKey.fat) {
+            return "F \(displayAmount(log.fatSnapshot)) g"
+        }
+        return "Unknown"
+    }
+
+    private var secondaryValueText: String {
+        let parts = [
+            log.hasProvidedNutrient(NutritionNutrientKey.protein) ? "P \(displayAmount(log.proteinSnapshot))g" : nil,
+            log.hasProvidedNutrient(NutritionNutrientKey.carbs) ? "C \(displayAmount(log.carbsSnapshot))g" : nil,
+            log.hasProvidedNutrient(NutritionNutrientKey.fat) ? "F \(displayAmount(log.fatSnapshot))g" : nil
+        ].compactMap { $0 }
+
+        return parts.isEmpty ? "Quick Add" : parts.joined(separator: "  ")
     }
 
     private func displayAmount(_ value: Double) -> String {
@@ -1369,7 +1395,10 @@ private struct EditNutritionLogView: View {
     }
 
     private var canSave: Bool {
-        (Double(amount.replacingOccurrences(of: ",", with: ".")) ?? 0) > 0
+        if log.logType == .quickCalories {
+            return true
+        }
+        return (Double(amount.replacingOccurrences(of: ",", with: ".")) ?? 0) > 0
     }
 
     private func save() {

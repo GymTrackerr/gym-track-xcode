@@ -25,6 +25,7 @@ final class NutritionBackupService {
 
     struct ImportResult {
         let targets: Int
+        let nutrientDefinitions: Int
         let foodItems: Int
         let mealRecipes: Int
         let mealRecipeItems: Int
@@ -125,11 +126,13 @@ final class NutritionBackupService {
             }
         let nutritionLogs = try fetchNutritionLogEntries(userId: userId)
         let targets = try fetchTargets(userId: userId)
+        let nutrientDefinitions = try fetchNutrientDefinitions(userId: userId)
 
         return NutritionBackupPayloadV2(
             schemaVersion: 2,
             exportedAt: Date(),
             userId: userId,
+            nutrientDefinitions: nutrientDefinitions.map(NutritionNutrientDefinitionBackupDTO.init),
             foodItems: foodItems.map(FoodItemBackupDTO.init),
             mealRecipes: mealRecipes.map(MealRecipeBackupDTO.init),
             mealRecipeItems: mealRecipeItems.map(MealRecipeItemBackupDTO.init),
@@ -144,6 +147,37 @@ final class NutritionBackupService {
         let existingMealRecipeItems = Dictionary(uniqueKeysWithValues: try fetchMealRecipeItems(userId: userId).map { ($0.id, $0) })
         let existingLogs = Dictionary(uniqueKeysWithValues: try fetchNutritionLogEntries(userId: userId).map { ($0.id, $0) })
         let existingTargets = Dictionary(uniqueKeysWithValues: try fetchTargets(userId: userId).map { ($0.id, $0) })
+        let existingDefinitions = Dictionary(uniqueKeysWithValues: try fetchNutrientDefinitions(userId: userId).map { ($0.id, $0) })
+
+        for dto in payload.nutrientDefinitions ?? [] {
+            let definition = existingDefinitions[dto.id] ?? NutritionNutrientDefinition(
+                userId: userId,
+                key: dto.key,
+                displayName: dto.displayName,
+                unitLabel: dto.unitLabel,
+                group: dto.group,
+                sortOrder: dto.sortOrder,
+                dailyGoal: dto.dailyGoal,
+                isVisible: dto.isVisible,
+                isArchived: dto.isArchived
+            )
+            if existingDefinitions[dto.id] == nil {
+                definition.id = dto.id
+                modelContext.insert(definition)
+            }
+            definition.userId = userId
+            definition.key = NutritionNutrientKey.normalized(dto.key)
+            definition.displayName = dto.displayName
+            definition.unitLabel = dto.unitLabel
+            definition.group = dto.group
+            definition.sortOrder = dto.sortOrder
+            definition.dailyGoal = dto.dailyGoal
+            definition.isVisible = dto.isVisible
+            definition.isArchived = dto.isArchived
+            definition.soft_deleted = dto.softDeleted
+            definition.createdAt = dto.createdAt
+            definition.updatedAt = dto.updatedAt
+        }
 
         var foodItemsById: [UUID: FoodItem] = existingFoodItems
         for dto in payload.foodItems {
@@ -153,11 +187,15 @@ final class NutritionBackupService {
                 brand: dto.brand,
                 referenceLabel: dto.referenceLabel,
                 referenceQuantity: dto.referenceQuantity,
+                servingQuantity: dto.servingQuantity,
+                servingUnitLabel: dto.servingUnitLabel,
+                labelProfile: dto.labelProfile,
                 caloriesPerReference: dto.caloriesPerReference,
                 proteinPerReference: dto.proteinPerReference,
                 carbsPerReference: dto.carbsPerReference,
                 fatPerReference: dto.fatPerReference,
                 extraNutrients: dto.extraNutrients,
+                providedNutrientKeys: dto.providedNutrientKeys,
                 isArchived: dto.isArchived,
                 isFavorite: dto.isFavorite,
                 kind: FoodItemKind(rawValue: dto.kindRaw) ?? .food,
@@ -172,11 +210,15 @@ final class NutritionBackupService {
             item.brand = dto.brand
             item.referenceLabel = dto.referenceLabel
             item.referenceQuantity = max(0.0001, dto.referenceQuantity)
+            item.servingQuantity = dto.servingQuantity.map { max(0.0001, $0) }
+            item.servingUnitLabel = dto.servingUnitLabel
+            item.labelProfile = dto.labelProfile
             item.caloriesPerReference = max(0, dto.caloriesPerReference)
             item.proteinPerReference = max(0, dto.proteinPerReference)
             item.carbsPerReference = max(0, dto.carbsPerReference)
             item.fatPerReference = max(0, dto.fatPerReference)
             item.extraNutrients = dto.extraNutrients
+            item.providedNutrientKeys = dto.providedNutrientKeys ?? NutritionNutrientKey.coreKeySet
             item.isArchived = dto.isArchived
             item.isFavorite = dto.isFavorite
             item.kind = FoodItemKind(rawValue: dto.kindRaw) ?? .food
@@ -249,12 +291,16 @@ final class NutritionBackupService {
                 amount: dto.amount,
                 amountUnitSnapshot: dto.amountUnitSnapshot,
                 servingUnitLabelSnapshot: dto.servingUnitLabelSnapshot,
+                amountMode: dto.amountMode ?? defaultAmountMode(for: NutritionLogType(rawValue: dto.logTypeRaw) ?? .food),
+                servingQuantitySnapshot: dto.servingQuantitySnapshot,
+                servingCountSnapshot: dto.servingCountSnapshot,
                 caloriesSnapshot: dto.caloriesSnapshot,
                 proteinSnapshot: dto.proteinSnapshot,
                 carbsSnapshot: dto.carbsSnapshot,
                 fatSnapshot: dto.fatSnapshot,
                 extraNutrientsSnapshot: dto.extraNutrientsSnapshot,
                 recipeItemsSnapshot: dto.recipeItemsSnapshot,
+                providedNutrientKeys: dto.providedNutrientKeys ?? defaultProvidedKeys(for: NutritionLogType(rawValue: dto.logTypeRaw) ?? .food),
                 timestamp: dto.timestamp,
                 category: FoodLogCategory(rawValue: dto.categoryRaw) ?? .other,
                 note: dto.note
@@ -283,7 +329,8 @@ final class NutritionBackupService {
                 proteinTarget: dto.proteinTarget,
                 carbTarget: dto.carbTarget,
                 fatTarget: dto.fatTarget,
-                isEnabled: dto.isEnabled
+                isEnabled: dto.isEnabled,
+                labelProfile: dto.labelProfile ?? .hybrid
             )
             if existingTargets[dto.id] == nil {
                 target.id = dto.id
@@ -297,10 +344,12 @@ final class NutritionBackupService {
             target.carbTarget = dto.carbTarget
             target.fatTarget = dto.fatTarget
             target.isEnabled = dto.isEnabled
+            target.labelProfile = dto.labelProfile ?? .hybrid
         }
 
         return ImportResult(
             targets: payload.nutritionTargets.count,
+            nutrientDefinitions: payload.nutrientDefinitions?.count ?? 0,
             foodItems: payload.foodItems.count,
             mealRecipes: payload.mealRecipes.count,
             mealRecipeItems: payload.mealRecipeItems.count,
@@ -314,6 +363,9 @@ final class NutritionBackupService {
         }
         if draft.amountUnitSnapshot.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             throw BackupError.invalidBackup("Nutrition log entry is missing amount unit snapshot.")
+        }
+        if draft.logType == .quickCalories && draft.providedNutrientKeys.isEmpty {
+            throw BackupError.invalidBackup("Quick nutrition log entry has no provided values.")
         }
         if draft.caloriesSnapshot < 0 || draft.proteinSnapshot < 0 || draft.carbsSnapshot < 0 || draft.fatSnapshot < 0 {
             throw BackupError.invalidBackup("Nutrition log entry has invalid negative macro snapshots.")
@@ -342,12 +394,16 @@ final class NutritionBackupService {
             nameSnapshot: draft.nameSnapshot,
             brandSnapshot: normalizedOptionalText(draft.brandSnapshot),
             servingUnitLabelSnapshot: normalizedOptionalText(draft.servingUnitLabelSnapshot),
+            amountMode: draft.amountMode,
+            servingQuantitySnapshot: draft.servingQuantitySnapshot,
+            servingCountSnapshot: draft.servingCountSnapshot,
             caloriesSnapshot: max(0, draft.caloriesSnapshot),
             proteinSnapshot: max(0, draft.proteinSnapshot),
             carbsSnapshot: max(0, draft.carbsSnapshot),
             fatSnapshot: max(0, draft.fatSnapshot),
             extraNutrientsSnapshot: draft.extraNutrientsSnapshot,
-            recipeItemsSnapshot: draft.recipeItemsSnapshot
+            recipeItemsSnapshot: draft.recipeItemsSnapshot,
+            providedNutrientKeys: draft.providedNutrientKeys
         )
     }
 
@@ -367,12 +423,16 @@ final class NutritionBackupService {
         log.nameSnapshot = draft.nameSnapshot
         log.brandSnapshot = normalizedOptionalText(draft.brandSnapshot)
         log.servingUnitLabelSnapshot = normalizedOptionalText(draft.servingUnitLabelSnapshot)
+        log.amountMode = draft.amountMode
+        log.servingQuantitySnapshot = draft.servingQuantitySnapshot
+        log.servingCountSnapshot = draft.servingCountSnapshot
         log.caloriesSnapshot = max(0, draft.caloriesSnapshot)
         log.proteinSnapshot = max(0, draft.proteinSnapshot)
         log.carbsSnapshot = max(0, draft.carbsSnapshot)
         log.fatSnapshot = max(0, draft.fatSnapshot)
         log.extraNutrientsSnapshot = draft.extraNutrientsSnapshot
         log.recipeItemsSnapshot = draft.recipeItemsSnapshot
+        log.providedNutrientKeys = draft.providedNutrientKeys
         log.updatedAt = Date()
     }
 
@@ -398,11 +458,41 @@ final class NutritionBackupService {
         return trimmed.isEmpty ? nil : trimmed
     }
 
+    private func defaultAmountMode(for logType: NutritionLogType) -> NutritionLogAmountMode {
+        switch logType {
+        case .food:
+            return .baseUnit
+        case .meal:
+            return .serving
+        case .quickCalories:
+            return .quickAdd
+        }
+    }
+
+    private func defaultProvidedKeys(for logType: NutritionLogType) -> Set<String> {
+        switch logType {
+        case .quickCalories:
+            return [NutritionNutrientKey.calories]
+        case .food, .meal:
+            return NutritionNutrientKey.coreKeySet
+        }
+    }
+
     private func fetchTargets(userId: UUID) throws -> [NutritionTarget] {
         let descriptor = FetchDescriptor<NutritionTarget>(
             sortBy: [SortDescriptor(\.createdAt)]
         )
         return try modelContext.fetch(descriptor).filter { $0.userId == userId || $0.userId == nil }
+    }
+
+    private func fetchNutrientDefinitions(userId: UUID) throws -> [NutritionNutrientDefinition] {
+        let descriptor = FetchDescriptor<NutritionNutrientDefinition>(
+            predicate: #Predicate<NutritionNutrientDefinition> { definition in
+                definition.userId == userId
+            },
+            sortBy: [SortDescriptor(\.sortOrder), SortDescriptor(\.displayName)]
+        )
+        return try modelContext.fetch(descriptor)
     }
 
     private func fetchFoodItems(userId: UUID) throws -> [FoodItem] {
@@ -457,11 +547,44 @@ private struct NutritionBackupPayloadV2: Codable {
     let schemaVersion: Int
     let exportedAt: Date
     let userId: UUID
+    let nutrientDefinitions: [NutritionNutrientDefinitionBackupDTO]?
     let foodItems: [FoodItemBackupDTO]
     let mealRecipes: [MealRecipeBackupDTO]
     let mealRecipeItems: [MealRecipeItemBackupDTO]
     let nutritionLogEntries: [NutritionLogEntryBackupDTO]
     let nutritionTargets: [NutritionTargetBackupDTO]
+}
+
+private struct NutritionNutrientDefinitionBackupDTO: Codable {
+    let id: UUID
+    let userId: UUID
+    let key: String
+    let displayName: String
+    let unitLabel: String
+    let group: NutritionNutrientGroup?
+    let sortOrder: Int
+    let dailyGoal: Double?
+    let isVisible: Bool
+    let isArchived: Bool
+    let softDeleted: Bool
+    let createdAt: Date
+    let updatedAt: Date
+
+    init(_ definition: NutritionNutrientDefinition) {
+        id = definition.id
+        userId = definition.userId
+        key = definition.key
+        displayName = definition.displayName
+        unitLabel = definition.unitLabel
+        group = definition.group
+        sortOrder = definition.sortOrder
+        dailyGoal = definition.dailyGoal
+        isVisible = definition.isVisible
+        isArchived = definition.isArchived
+        softDeleted = definition.soft_deleted
+        createdAt = definition.createdAt
+        updatedAt = definition.updatedAt
+    }
 }
 
 private struct FoodItemBackupDTO: Codable {
@@ -471,11 +594,15 @@ private struct FoodItemBackupDTO: Codable {
     let brand: String?
     let referenceLabel: String?
     let referenceQuantity: Double
+    let servingQuantity: Double?
+    let servingUnitLabel: String?
+    let labelProfile: NutritionLabelProfile?
     let caloriesPerReference: Double
     let proteinPerReference: Double
     let carbsPerReference: Double
     let fatPerReference: Double
     let extraNutrients: [String: Double]?
+    let providedNutrientKeys: Set<String>?
     let isArchived: Bool
     let isFavorite: Bool
     let kindRaw: Int
@@ -490,11 +617,15 @@ private struct FoodItemBackupDTO: Codable {
         brand = item.brand
         referenceLabel = item.referenceLabel
         referenceQuantity = item.referenceQuantity
+        servingQuantity = item.servingQuantity
+        servingUnitLabel = item.servingUnitLabel
+        labelProfile = item.labelProfile
         caloriesPerReference = item.caloriesPerReference
         proteinPerReference = item.proteinPerReference
         carbsPerReference = item.carbsPerReference
         fatPerReference = item.fatPerReference
         extraNutrients = item.extraNutrients
+        providedNutrientKeys = item.providedNutrientKeys
         isArchived = item.isArchived
         isFavorite = item.isFavorite
         kindRaw = item.kindRaw
@@ -565,12 +696,16 @@ private struct NutritionLogEntryBackupDTO: Codable {
     let nameSnapshot: String
     let brandSnapshot: String?
     let servingUnitLabelSnapshot: String?
+    let amountMode: NutritionLogAmountMode?
+    let servingQuantitySnapshot: Double?
+    let servingCountSnapshot: Double?
     let caloriesSnapshot: Double
     let proteinSnapshot: Double
     let carbsSnapshot: Double
     let fatSnapshot: Double
     let extraNutrientsSnapshot: [String: Double]?
     let recipeItemsSnapshot: [RecipeItemSnapshot]?
+    let providedNutrientKeys: Set<String>?
     let createdAt: Date
     let updatedAt: Date
 
@@ -591,12 +726,16 @@ private struct NutritionLogEntryBackupDTO: Codable {
         nameSnapshot = log.nameSnapshot
         brandSnapshot = log.brandSnapshot
         servingUnitLabelSnapshot = log.servingUnitLabelSnapshot
+        amountMode = log.amountMode
+        servingQuantitySnapshot = log.servingQuantitySnapshot
+        servingCountSnapshot = log.servingCountSnapshot
         caloriesSnapshot = log.caloriesSnapshot
         proteinSnapshot = log.proteinSnapshot
         carbsSnapshot = log.carbsSnapshot
         fatSnapshot = log.fatSnapshot
         extraNutrientsSnapshot = log.extraNutrientsSnapshot
         recipeItemsSnapshot = log.recipeItemsSnapshot
+        providedNutrientKeys = log.providedNutrientKeys
         createdAt = log.createdAt
         updatedAt = log.updatedAt
     }
@@ -611,6 +750,7 @@ private struct NutritionTargetBackupDTO: Codable {
     let carbTarget: Double
     let fatTarget: Double
     let isEnabled: Bool
+    let labelProfile: NutritionLabelProfile?
 
     init(_ target: NutritionTarget) {
         id = target.id
@@ -621,5 +761,6 @@ private struct NutritionTargetBackupDTO: Codable {
         carbTarget = target.carbTarget
         fatTarget = target.fatTarget
         isEnabled = target.isEnabled
+        labelProfile = target.labelProfile
     }
 }

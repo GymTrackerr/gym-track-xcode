@@ -27,6 +27,7 @@ struct SyncFeatureRegistry {
             LocalOnlySyncHandler(modelType: .mealRecipe),
             LocalOnlySyncHandler(modelType: .nutritionLogEntry),
             LocalOnlySyncHandler(modelType: .nutritionTarget),
+            LocalOnlySyncHandler(modelType: .nutritionNutrientDefinition),
             LocalOnlySyncHandler(modelType: .healthDailySummary),
             LocalOnlySyncHandler(modelType: .userProfile),
             LocalOnlySyncHandler(modelType: .program),

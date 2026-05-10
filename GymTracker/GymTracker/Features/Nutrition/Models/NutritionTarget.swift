@@ -14,6 +14,7 @@ final class NutritionTarget {
     var carbTarget: Double
     var fatTarget: Double
     var isEnabled: Bool
+    var labelProfileRaw: String?
 
     init(
         userId: UUID? = nil,
@@ -21,7 +22,8 @@ final class NutritionTarget {
         proteinTarget: Double = 0,
         carbTarget: Double = 0,
         fatTarget: Double = 0,
-        isEnabled: Bool = false
+        isEnabled: Bool = false,
+        labelProfile: NutritionLabelProfile = .hybrid
     ) {
         let timestamp = Date()
         self.userId = userId
@@ -34,6 +36,15 @@ final class NutritionTarget {
         self.carbTarget = max(0, carbTarget)
         self.fatTarget = max(0, fatTarget)
         self.isEnabled = isEnabled
+        self.labelProfileRaw = labelProfile.rawValue
+    }
+
+    var labelProfile: NutritionLabelProfile {
+        get {
+            guard let labelProfileRaw else { return .hybrid }
+            return NutritionLabelProfile(rawValue: labelProfileRaw) ?? .hybrid
+        }
+        set { labelProfileRaw = newValue.rawValue }
     }
 }
 

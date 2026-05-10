@@ -827,7 +827,7 @@ struct SettingsView: View {
                 nutritionService.loadFeature()
                 backupAlertTitle = "Import Complete"
                 exportErrorMessage = """
-                Imported \(imported.foodItems) food items, \(imported.mealRecipes) meal recipes, \(imported.mealRecipeItems) recipe items, and \(imported.nutritionLogEntries) nutrition logs.
+                Imported \(imported.foodItems) food items, \(imported.mealRecipes) meal recipes, \(imported.mealRecipeItems) recipe items, \(imported.nutritionLogEntries) nutrition logs, and \(imported.nutrientDefinitions) nutrient definitions.
                 Updated \(imported.targets) nutrition targets.
                 """
                 showExportErrorAlert = true
