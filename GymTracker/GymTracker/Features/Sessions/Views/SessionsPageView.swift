@@ -9,11 +9,18 @@ struct SessionsPageView: View {
     @State private var openedSession: Session?
     @State private var showingNotesImport = false
     @State private var showingCreateSession = false
+    @State private var handledOpenCreateSessionRequestID: UUID?
 
     @State private var selectedRange: SessionTimeRange = .month
     @State private var selectedReferenceDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var visibleSessions: [Session] = []
     @State private var summary = SessionPeriodSummary.empty
+
+    private let openCreateSessionRequestID: UUID?
+
+    init(openCreateSessionRequestID: UUID? = nil) {
+        self.openCreateSessionRequestID = openCreateSessionRequestID
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -131,9 +138,13 @@ struct SessionsPageView: View {
         .onAppear {
             sessionService.loadSessions()
             refreshViewData()
+            presentRequestedCreateSessionIfNeeded()
         }
         .onReceive(sessionService.$sessions) { _ in
             refreshViewData()
+        }
+        .onChange(of: openCreateSessionRequestID) {
+            presentRequestedCreateSessionIfNeeded()
         }
         .onChange(of: selectedRange) {
             refreshViewData()
@@ -382,6 +393,16 @@ struct SessionsPageView: View {
                 ? nil
                 : Double(totalDurationMinutes) / Double(sessionsWithDuration)
         )
+    }
+
+    private func presentRequestedCreateSessionIfNeeded() {
+        guard let openCreateSessionRequestID,
+              handledOpenCreateSessionRequestID != openCreateSessionRequestID else {
+            return
+        }
+
+        handledOpenCreateSessionRequestID = openCreateSessionRequestID
+        showingCreateSession = true
     }
 
     private func sessionDurationMinutes(for session: Session) -> Int? {

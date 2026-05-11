@@ -100,7 +100,7 @@ struct HomeScreenEntryView: View {
         }
         .padding()
         .containerBackground(.fill.tertiary, for: .widget)
-        .widgetURL(URL(string: "gymtracker//TrackerTimer"))
+        .widgetURL(URL(string: "gymtracker://timer"))
         // Force re-renders every 0.5 seconds by updating state
         .onReceive(Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()) { _ in
             updateTrigger = UUID()
@@ -118,7 +118,7 @@ struct HomeScreenWidget: Widget {
             HomeScreenEntryView(entry: entry)
         }
         .supportedFamilies([.systemSmall, .systemMedium])
-        .configurationDisplayName("Gym Timer")
+        .configurationDisplayName("Timer")
         .description("Shows your current rest timer")
     }
 }

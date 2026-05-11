@@ -13,11 +13,14 @@ struct ContentView: View {
     @EnvironmentObject var userService: UserService
     @EnvironmentObject var nutritionService: NutritionService
     @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
+    @EnvironmentObject var programService: ProgramService
+    @EnvironmentObject var sessionService: SessionService
     
     @State var localSelected:Int = 0
     
     @State var linkActive = false
     @State private var nutritionLogRequestID: UUID?
+    @State private var sessionLogRequestID: UUID?
 
     var body: some View {
         TabView (selection: $localSelected) {
@@ -43,7 +46,7 @@ struct ContentView: View {
             
             Tab("Sessions", systemImage: "list.bullet.rectangle", value: 2) {
                 NavigationStack {
-                    SessionsPageView()
+                    SessionsPageView(openCreateSessionRequestID: sessionLogRequestID)
                 }
             }
             
@@ -65,11 +68,21 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             timerService.appDidBecomeActive()
             nutritionService.refreshWidgetSnapshot()
+            refreshProgrammeWidgetSnapshot()
+        }
+        .onReceive(programService.$programs) { _ in
+            refreshProgrammeWidgetSnapshot()
+        }
+        .onReceive(sessionService.$sessions) { _ in
+            refreshProgrammeWidgetSnapshot()
         }
         .onChange(of: userService.currentUser?.showNutritionTab ?? true) {
             if !(userService.currentUser?.showNutritionTab ?? true), localSelected == 3 {
                 localSelected = 0
             }
+        }
+        .onChange(of: userService.currentUser?.id) {
+            refreshProgrammeWidgetSnapshot()
         }
         .onChange(of: healthKitDailyStore.refreshToken) {
             nutritionService.refreshWidgetSnapshot()
@@ -80,6 +93,7 @@ struct ContentView: View {
             handleDeepLink(url)
         }
         .onAppear {
+            refreshProgrammeWidgetSnapshot()
 #if DEBUG
             Task.detached(priority: .background) {
                 DebugHarness.runAll()
@@ -106,6 +120,16 @@ struct ContentView: View {
                 localSelected = 3
                 nutritionLogRequestID = UUID()
             }
+        case "sessions", "session":
+            linkActive = false
+            localSelected = 2
+        case "sessions/log", "session/log":
+            linkActive = false
+            localSelected = 2
+            sessionLogRequestID = UUID()
+        case "programme", "program":
+            linkActive = false
+            localSelected = 4
         case "trackertimer", "timer":
             localSelected = 0
             linkActive = true
@@ -113,6 +137,10 @@ struct ContentView: View {
             localSelected = 0
             linkActive = true
         }
+    }
+
+    private func refreshProgrammeWidgetSnapshot() {
+        programService.refreshWidgetSnapshot(sessions: sessionService.sessions)
     }
 
 }

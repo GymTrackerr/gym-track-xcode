@@ -2,7 +2,7 @@ import AppIntents
 import Foundation
 
 struct LogNutritionQuickAddIntent: AppIntent {
-    static var title: LocalizedStringResource = "Log Nutrition"
+    static var title: LocalizedStringResource = "Create Log"
     static var description = IntentDescription("Quick add consumed nutrition values.")
     static var openAppWhenRun = false
 
@@ -125,11 +125,12 @@ struct NutritionAppShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: LogNutritionQuickAddIntent(),
             phrases: [
+                "Create nutrition log in \(.applicationName)",
                 "Log nutrition in \(.applicationName)",
                 "Quick add nutrition in \(.applicationName)",
                 "Add calories to \(.applicationName)"
             ],
-            shortTitle: "Log Nutrition",
+            shortTitle: "Create Log",
             systemImageName: "fork.knife"
         )
 
