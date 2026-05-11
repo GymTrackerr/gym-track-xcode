@@ -90,6 +90,7 @@ class NutritionService: ServiceBase, ObservableObject {
         } catch {
             nutritionTarget = nil
         }
+        refreshWidgetSnapshot(reloadTimelines: false)
     }
 
     func requireUserId() throws -> UUID {
@@ -596,6 +597,7 @@ class NutritionService: ServiceBase, ObservableObject {
         do {
             try repository.saveNutritionLogEntry(log)
             loadDayData(for: timestamp)
+            refreshWidgetSnapshot()
             return true
         } catch {
             print("Failed to update food log: \(error)")
@@ -608,6 +610,7 @@ class NutritionService: ServiceBase, ObservableObject {
             try repository.softDeleteNutritionLogEntry(log)
             loadDayData(for: selectedDate)
             loadFoods()
+            refreshWidgetSnapshot()
         } catch {
             print("Failed to delete food log: \(error)")
         }
@@ -618,6 +621,7 @@ class NutritionService: ServiceBase, ObservableObject {
             try repository.softDeleteNutritionLogEntry(entry)
             loadDayData(for: selectedDate)
             loadFoods()
+            refreshWidgetSnapshot()
         } catch {
             print("Failed to delete meal entry: \(error)")
         }
@@ -919,6 +923,7 @@ class NutritionService: ServiceBase, ObservableObject {
         do {
             try repository.saveNutritionTarget(target)
             nutritionTarget = target
+            refreshWidgetSnapshot()
         } catch {
             throw NutritionError.persistence("Could not save nutrition targets. Please try again.")
         }
@@ -932,8 +937,25 @@ class NutritionService: ServiceBase, ObservableObject {
         do {
             try repository.saveNutritionTarget(target)
             nutritionTarget = target
+            refreshWidgetSnapshot()
         } catch {
             throw NutritionError.persistence("Could not save nutrition label style. Please try again.")
+        }
+    }
+
+    func refreshWidgetSnapshot(reloadTimelines: Bool = true) {
+        guard let currentUser else {
+            NutritionWidgetSnapshotService(context: modelContext).clear(reloadTimelines: reloadTimelines)
+            return
+        }
+
+        do {
+            try NutritionWidgetSnapshotService(context: modelContext).refresh(
+                for: currentUser,
+                reloadTimelines: reloadTimelines
+            )
+        } catch {
+            print("Failed to refresh nutrition widget snapshot: \(error)")
         }
     }
 
@@ -1139,6 +1161,7 @@ class NutritionService: ServiceBase, ObservableObject {
             loadDayData(for: draft.timestamp)
             loadFoods()
             loadMeals()
+            refreshWidgetSnapshot()
             return entry
         } catch {
             throw NutritionError.persistence("Could not save nutrition log entry. Please try again.")

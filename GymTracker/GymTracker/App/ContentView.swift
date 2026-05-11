@@ -11,6 +11,8 @@ import SwiftData
 struct ContentView: View {
     @EnvironmentObject var timerService: TimerService
     @EnvironmentObject var userService: UserService
+    @EnvironmentObject var nutritionService: NutritionService
+    @EnvironmentObject var healthKitDailyStore: HealthKitDailyStore
     
     @State var localSelected:Int = 0
     
@@ -61,16 +63,20 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             timerService.appDidBecomeActive()
+            nutritionService.refreshWidgetSnapshot()
         }
         .onChange(of: userService.currentUser?.showNutritionTab ?? true) {
             if !(userService.currentUser?.showNutritionTab ?? true), localSelected == 3 {
                 localSelected = 0
             }
         }
+        .onChange(of: healthKitDailyStore.refreshToken) {
+            nutritionService.refreshWidgetSnapshot()
+        }
         .tabBarMinimizeIfAvailable()
         .onOpenURL { url in
             print("Received deep link: \(url)")
-            linkActive = true
+            handleDeepLink(url)
         }
         .onAppear {
 #if DEBUG
@@ -78,6 +84,26 @@ struct ContentView: View {
                 DebugHarness.runAll()
             }
 #endif
+        }
+    }
+
+    private func handleDeepLink(_ url: URL) {
+        let destination = (url.host ?? url.path)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            .lowercased()
+
+        switch destination {
+        case "nutrition":
+            if userService.currentUser?.showNutritionTab ?? true {
+                linkActive = false
+                localSelected = 3
+            }
+        case "trackertimer", "timer":
+            localSelected = 0
+            linkActive = true
+        default:
+            localSelected = 0
+            linkActive = true
         }
     }
 
