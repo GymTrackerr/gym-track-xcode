@@ -65,6 +65,7 @@ class NutritionService: ServiceBase, ObservableObject {
     @Published var dayLogs: [NutritionLogEntry] = []
     @Published var dayMealEntries: [NutritionLogEntry] = []
     @Published var nutritionTarget: NutritionTarget?
+    @Published var nutrientDefinitions: [NutritionNutrientDefinition] = []
     private let repository: NutritionRepositoryProtocol
 
     init(context: ModelContext, repository: NutritionRepositoryProtocol) {
@@ -73,14 +74,23 @@ class NutritionService: ServiceBase, ObservableObject {
     }
 
     override func loadFeature() {
+        if let userId = currentUser?.id {
+            do {
+                try NutritionDataBackfillService(context: modelContext).backfill(userId: userId)
+            } catch {
+                print("Failed to backfill nutrition data: \(error)")
+            }
+        }
         loadFoods()
         loadMeals()
+        loadNutrientDefinitions()
         loadDayData(for: Date())
         do {
             nutritionTarget = try getOrCreateTarget()
         } catch {
             nutritionTarget = nil
         }
+        refreshWidgetSnapshot(reloadTimelines: false)
     }
 
     func requireUserId() throws -> UUID {
@@ -116,6 +126,37 @@ class NutritionService: ServiceBase, ObservableObject {
             meals = []
             print("Failed to fetch meals: \(error)")
         }
+    }
+
+    func loadNutrientDefinitions() {
+        guard let userId = currentUser?.id else {
+            nutrientDefinitions = []
+            return
+        }
+
+        do {
+            let descriptor = FetchDescriptor<NutritionNutrientDefinition>(
+                predicate: #Predicate<NutritionNutrientDefinition> { definition in
+                    definition.userId == userId && definition.soft_deleted == false && definition.isArchived == false
+                },
+                sortBy: [SortDescriptor(\.sortOrder), SortDescriptor(\.displayName)]
+            )
+            nutrientDefinitions = try modelContext.fetch(descriptor)
+        } catch {
+            nutrientDefinitions = []
+            print("Failed to fetch nutrient definitions: \(error)")
+        }
+    }
+
+    func visibleNutrientDefinitions() -> [NutritionNutrientDefinition] {
+        nutrientDefinitions
+            .filter { $0.isVisible && !$0.isArchived && !$0.soft_deleted }
+            .sorted {
+                if $0.sortOrder == $1.sortOrder {
+                    return $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+                }
+                return $0.sortOrder < $1.sortOrder
+            }
     }
 
     func fetchFoods(search: String? = nil, includeArchived: Bool = false, kind: FoodItemKind? = nil) -> [FoodItem] {
@@ -184,6 +225,11 @@ class NutritionService: ServiceBase, ObservableObject {
         proteinPerReference: Double,
         carbPerReference: Double,
         fatPerReference: Double,
+        extraNutrients: [String: Double]? = nil,
+        providedNutrientKeys: Set<String>? = nil,
+        servingQuantity: Double? = nil,
+        servingUnitLabel: String? = nil,
+        labelProfile: NutritionLabelProfile? = nil,
         kind: FoodItemKind = .food,
         unit: FoodItemUnit = .grams
     ) -> FoodItem? {
@@ -202,11 +248,15 @@ class NutritionService: ServiceBase, ObservableObject {
             brand: normalizedOptionalText(brand),
             referenceLabel: normalizedOptionalText(referenceLabel),
             referenceQuantity: gramsPerReference,
+            servingQuantity: sanitizedPositive(servingQuantity),
+            servingUnitLabel: normalizedOptionalText(servingUnitLabel),
+            labelProfile: labelProfile,
             caloriesPerReference: kcalPerReference,
             proteinPerReference: proteinPerReference,
             carbsPerReference: carbPerReference,
             fatPerReference: fatPerReference,
-            extraNutrients: nil,
+            extraNutrients: normalizedExtraNutrients(extraNutrients),
+            providedNutrientKeys: providedNutrientKeys,
             kind: kind,
             unit: unit
         )
@@ -231,6 +281,11 @@ class NutritionService: ServiceBase, ObservableObject {
         proteinPerReference: Double,
         carbPerReference: Double,
         fatPerReference: Double,
+        extraNutrients: [String: Double]? = nil,
+        providedNutrientKeys: Set<String>? = nil,
+        servingQuantity: Double? = nil,
+        servingUnitLabel: String? = nil,
+        labelProfile: NutritionLabelProfile? = nil,
         kind: FoodItemKind? = nil,
         unit: FoodItemUnit? = nil
     ) -> Bool {
@@ -248,10 +303,17 @@ class NutritionService: ServiceBase, ObservableObject {
         food.brand = normalizedOptionalText(brand)
         food.referenceLabel = normalizedOptionalText(referenceLabel)
         food.referenceQuantity = gramsPerReference
+        food.servingQuantity = sanitizedPositive(servingQuantity)
+        food.servingUnitLabel = normalizedOptionalText(servingUnitLabel)
+        food.labelProfile = labelProfile
         food.caloriesPerReference = kcalPerReference
         food.proteinPerReference = proteinPerReference
         food.carbsPerReference = carbPerReference
         food.fatPerReference = fatPerReference
+        food.extraNutrients = normalizedExtraNutrients(extraNutrients)
+        if let providedNutrientKeys {
+            food.providedNutrientKeys = providedNutrientKeys
+        }
         if let kind { food.kind = kind }
         if let unit { food.unit = unit }
         food.updatedAt = Date()
@@ -415,14 +477,18 @@ class NutritionService: ServiceBase, ObservableObject {
         grams: Double,
         timestamp: Date,
         category: FoodLogCategory,
-        note: String?
+        note: String?,
+        amountMode: NutritionLogAmountMode = .baseUnit,
+        servingCount: Double? = nil
     ) throws -> NutritionLogEntry {
         let draft = try buildFoodLogDraft(
             food: food,
             amount: grams,
             timestamp: timestamp,
             category: category,
-            note: note
+            note: note,
+            amountMode: amountMode,
+            servingCount: servingCount
         )
         return try createNutritionLogEntry(from: draft)
     }
@@ -452,8 +518,34 @@ class NutritionService: ServiceBase, ObservableObject {
         category: FoodLogCategory,
         note: String?
     ) throws -> NutritionLogEntry {
+        try addQuickNutritionLog(
+            calories: calories,
+            protein: nil,
+            carbs: nil,
+            fat: nil,
+            timestamp: timestamp,
+            category: category,
+            note: note
+        )
+    }
+
+    @discardableResult
+    func addQuickNutritionLog(
+        calories: Double?,
+        protein: Double?,
+        carbs: Double?,
+        fat: Double?,
+        extraNutrients: [String: Double]? = nil,
+        timestamp: Date,
+        category: FoodLogCategory,
+        note: String?
+    ) throws -> NutritionLogEntry {
         let draft = try buildQuickEntryDraft(
             calories: calories,
+            protein: protein,
+            carbs: carbs,
+            fat: fat,
+            extraNutrients: extraNutrients,
             timestamp: timestamp,
             category: category,
             note: note
@@ -468,7 +560,7 @@ class NutritionService: ServiceBase, ObservableObject {
         category: FoodLogCategory,
         note: String?
     ) -> Bool {
-        guard amount > 0 else { return false }
+        guard log.logType == .quickCalories || amount > 0 else { return false }
         let previousAmount = log.amount
 
         log.amount = amount
@@ -477,11 +569,9 @@ class NutritionService: ServiceBase, ObservableObject {
         log.note = normalizedOptionalText(note)
         switch log.logType {
         case .quickCalories:
-            // Quick entries are calorie-only by definition.
-            log.caloriesSnapshot = max(0, amount)
-            log.proteinSnapshot = 0
-            log.carbsSnapshot = 0
-            log.fatSnapshot = 0
+            if log.hasProvidedNutrient(NutritionNutrientKey.calories) {
+                log.caloriesSnapshot = max(0, amount)
+            }
         case .food, .meal:
             let ratio: Double
             if previousAmount > 0 {
@@ -494,6 +584,12 @@ class NutritionService: ServiceBase, ObservableObject {
             log.proteinSnapshot = max(0, log.proteinSnapshot * ratio)
             log.carbsSnapshot = max(0, log.carbsSnapshot * ratio)
             log.fatSnapshot = max(0, log.fatSnapshot * ratio)
+            if let extraNutrients = log.extraNutrientsSnapshot {
+                log.extraNutrientsSnapshot = extraNutrients.mapValues { max(0, $0 * ratio) }
+            }
+            if log.amountMode == .serving, let previousServingCount = log.servingCountSnapshot, previousServingCount > 0 {
+                log.servingCountSnapshot = max(0, previousServingCount * ratio)
+            }
         }
         updateLogDateMetadata(log)
         log.updatedAt = Date()
@@ -501,6 +597,7 @@ class NutritionService: ServiceBase, ObservableObject {
         do {
             try repository.saveNutritionLogEntry(log)
             loadDayData(for: timestamp)
+            refreshWidgetSnapshot()
             return true
         } catch {
             print("Failed to update food log: \(error)")
@@ -513,6 +610,7 @@ class NutritionService: ServiceBase, ObservableObject {
             try repository.softDeleteNutritionLogEntry(log)
             loadDayData(for: selectedDate)
             loadFoods()
+            refreshWidgetSnapshot()
         } catch {
             print("Failed to delete food log: \(error)")
         }
@@ -523,6 +621,7 @@ class NutritionService: ServiceBase, ObservableObject {
             try repository.softDeleteNutritionLogEntry(entry)
             loadDayData(for: selectedDate)
             loadFoods()
+            refreshWidgetSnapshot()
         } catch {
             print("Failed to delete meal entry: \(error)")
         }
@@ -570,12 +669,16 @@ class NutritionService: ServiceBase, ObservableObject {
                     amount: sourceLog.amount,
                     amountUnitSnapshot: sourceLog.amountUnitSnapshot,
                     servingUnitLabelSnapshot: sourceLog.servingUnitLabelSnapshot,
+                    amountMode: sourceLog.amountMode,
+                    servingQuantitySnapshot: sourceLog.servingQuantitySnapshot,
+                    servingCountSnapshot: sourceLog.servingCountSnapshot,
                     caloriesSnapshot: sourceLog.caloriesSnapshot,
                     proteinSnapshot: sourceLog.proteinSnapshot,
                     carbsSnapshot: sourceLog.carbsSnapshot,
                     fatSnapshot: sourceLog.fatSnapshot,
                     extraNutrientsSnapshot: sourceLog.extraNutrientsSnapshot,
                     recipeItemsSnapshot: sourceLog.recipeItemsSnapshot,
+                    providedNutrientKeys: sourceLog.providedNutrientKeys,
                     timestamp: targetTimestamp,
                     category: sourceLog.category,
                     note: sourceLog.note
@@ -621,24 +724,33 @@ class NutritionService: ServiceBase, ObservableObject {
     }
 
     func totalKcal(for logs: [NutritionLogEntry]) -> Double {
-        logs.reduce(0) { $0 + $1.caloriesSnapshot }
+        logs.reduce(0) { partial, log in
+            partial + (log.hasProvidedNutrient(NutritionNutrientKey.calories) ? log.caloriesSnapshot : 0)
+        }
     }
 
     func totalProtein(for logs: [NutritionLogEntry]) -> Double {
-        logs.reduce(0) { $0 + $1.proteinSnapshot }
+        logs.reduce(0) { partial, log in
+            partial + (log.hasProvidedNutrient(NutritionNutrientKey.protein) ? log.proteinSnapshot : 0)
+        }
     }
 
     func totalCarbs(for logs: [NutritionLogEntry]) -> Double {
-        logs.reduce(0) { $0 + $1.carbsSnapshot }
+        logs.reduce(0) { partial, log in
+            partial + (log.hasProvidedNutrient(NutritionNutrientKey.carbs) ? log.carbsSnapshot : 0)
+        }
     }
 
     func totalFat(for logs: [NutritionLogEntry]) -> Double {
-        logs.reduce(0) { $0 + $1.fatSnapshot }
+        logs.reduce(0) { partial, log in
+            partial + (log.hasProvidedNutrient(NutritionNutrientKey.fat) ? log.fatSnapshot : 0)
+        }
     }
 
     func totalOptionalNutrient(name: String, for logs: [NutritionLogEntry]) -> Double {
         logs.reduce(0) { partial, log in
-            partial + (log.extraNutrientsSnapshot?[name] ?? 0)
+            let key = NutritionNutrientKey.normalized(name)
+            return partial + (log.hasProvidedNutrient(key) ? (log.extraNutrientsSnapshot?[key] ?? 0) : 0)
         }
     }
 
@@ -695,6 +807,40 @@ class NutritionService: ServiceBase, ObservableObject {
             return try repository.fetchNutritionLogs(for: userId, in: interval)
         } catch {
             throw NutritionError.persistence("Could not load nutrition logs for this timeframe.")
+        }
+    }
+
+    func snapshotHistory(for food: FoodItem, limit: Int = 20) -> [NutritionLogEntry] {
+        guard let userId = currentUser?.id else { return [] }
+        do {
+            let bounds = try repository.fetchNutritionLogBounds(for: userId)
+            guard let oldest = bounds.oldest, let newest = bounds.newest else { return [] }
+            let end = newest.addingTimeInterval(1)
+            return try repository.fetchNutritionLogs(for: userId, between: oldest, and: end)
+                .filter { $0.sourceItemId == food.id }
+                .sorted { $0.timestamp > $1.timestamp }
+                .prefix(max(limit, 1))
+                .map { $0 }
+        } catch {
+            print("Failed to load food snapshot history: \(error)")
+            return []
+        }
+    }
+
+    func snapshotHistory(for meal: MealRecipe, limit: Int = 20) -> [NutritionLogEntry] {
+        guard let userId = currentUser?.id else { return [] }
+        do {
+            let bounds = try repository.fetchNutritionLogBounds(for: userId)
+            guard let oldest = bounds.oldest, let newest = bounds.newest else { return [] }
+            let end = newest.addingTimeInterval(1)
+            return try repository.fetchNutritionLogs(for: userId, between: oldest, and: end)
+                .filter { $0.sourceMealId == meal.id }
+                .sorted { $0.timestamp > $1.timestamp }
+                .prefix(max(limit, 1))
+                .map { $0 }
+        } catch {
+            print("Failed to load meal snapshot history: \(error)")
+            return []
         }
     }
 
@@ -777,8 +923,39 @@ class NutritionService: ServiceBase, ObservableObject {
         do {
             try repository.saveNutritionTarget(target)
             nutritionTarget = target
+            refreshWidgetSnapshot()
         } catch {
             throw NutritionError.persistence("Could not save nutrition targets. Please try again.")
+        }
+    }
+
+    func updateLabelProfile(_ profile: NutritionLabelProfile) throws {
+        let target = try getOrCreateTarget()
+        target.labelProfile = profile
+        target.updatedAt = Date()
+
+        do {
+            try repository.saveNutritionTarget(target)
+            nutritionTarget = target
+            refreshWidgetSnapshot()
+        } catch {
+            throw NutritionError.persistence("Could not save nutrition label style. Please try again.")
+        }
+    }
+
+    func refreshWidgetSnapshot(reloadTimelines: Bool = true) {
+        guard let currentUser else {
+            NutritionWidgetSnapshotService(context: modelContext).clear(reloadTimelines: reloadTimelines)
+            return
+        }
+
+        do {
+            try NutritionWidgetSnapshotService(context: modelContext).refresh(
+                for: currentUser,
+                reloadTimelines: reloadTimelines
+            )
+        } catch {
+            print("Failed to refresh nutrition widget snapshot: \(error)")
         }
     }
 
@@ -787,7 +964,9 @@ class NutritionService: ServiceBase, ObservableObject {
         amount: Double,
         timestamp: Date,
         category: FoodLogCategory,
-        note: String?
+        note: String?,
+        amountMode: NutritionLogAmountMode = .baseUnit,
+        servingCount: Double? = nil
     ) throws -> NutritionLogDraft {
         let userId = try requireUserId()
         guard food.userId == userId else {
@@ -798,6 +977,8 @@ class NutritionService: ServiceBase, ObservableObject {
         }
 
         let factor = amount / max(food.referenceQuantity, 0.0001)
+        let servingQuantitySnapshot = amountMode == .serving ? food.servingQuantity : nil
+        let servingUnitLabelSnapshot = amountMode == .serving ? normalizedOptionalText(food.servingUnitLabel) : nil
         return NutritionLogDraft(
             logType: .food,
             creationMethod: .foodItem,
@@ -807,13 +988,17 @@ class NutritionService: ServiceBase, ObservableObject {
             brandSnapshot: food.brand,
             amount: amount,
             amountUnitSnapshot: food.unit.shortLabel,
-            servingUnitLabelSnapshot: nil,
+            servingUnitLabelSnapshot: servingUnitLabelSnapshot,
+            amountMode: amountMode,
+            servingQuantitySnapshot: servingQuantitySnapshot,
+            servingCountSnapshot: amountMode == .serving ? sanitizedPositive(servingCount) : nil,
             caloriesSnapshot: max(0, food.caloriesPerReference * factor),
             proteinSnapshot: max(0, food.proteinPerReference * factor),
             carbsSnapshot: max(0, food.carbsPerReference * factor),
             fatSnapshot: max(0, food.fatPerReference * factor),
             extraNutrientsSnapshot: scaledExtraNutrients(food.extraNutrients, by: factor),
             recipeItemsSnapshot: nil,
+            providedNutrientKeys: food.providedNutrientKeys,
             timestamp: timestamp,
             category: category,
             note: note
@@ -848,12 +1033,16 @@ class NutritionService: ServiceBase, ObservableObject {
             amount: amount,
             amountUnitSnapshot: normalizedOptionalText(meal.servingUnitLabel) ?? "serving",
             servingUnitLabelSnapshot: normalizedOptionalText(meal.servingUnitLabel),
+            amountMode: .serving,
+            servingQuantitySnapshot: nil,
+            servingCountSnapshot: amount,
             caloriesSnapshot: max(0, perServing.calories * amount),
             proteinSnapshot: max(0, perServing.protein * amount),
             carbsSnapshot: max(0, perServing.carbs * amount),
             fatSnapshot: max(0, perServing.fat * amount),
             extraNutrientsSnapshot: scaledExtraNutrients(perServing.extraNutrients, by: amount),
             recipeItemsSnapshot: recipeItems,
+            providedNutrientKeys: NutritionNutrientKey.coreKeySet,
             timestamp: timestamp,
             category: category,
             note: note
@@ -861,13 +1050,27 @@ class NutritionService: ServiceBase, ObservableObject {
     }
 
     func buildQuickEntryDraft(
-        calories: Double,
+        calories: Double?,
+        protein: Double?,
+        carbs: Double?,
+        fat: Double?,
+        extraNutrients: [String: Double]? = nil,
         timestamp: Date,
         category: FoodLogCategory,
         note: String?
     ) throws -> NutritionLogDraft {
-        guard calories > 0 else {
-            throw NutritionError.validation("Calories must be greater than 0.")
+        let provided = providedKeys(
+            calories: calories,
+            protein: protein,
+            carbs: carbs,
+            fat: fat,
+            extraNutrients: extraNutrients
+        )
+        guard !provided.isEmpty else {
+            throw NutritionError.validation("Add at least one nutrition value before saving.")
+        }
+        guard [calories, protein, carbs, fat].allSatisfy({ ($0 ?? 0) >= 0 }) else {
+            throw NutritionError.validation("Nutrition values cannot be negative.")
         }
 
         return NutritionLogDraft(
@@ -877,15 +1080,19 @@ class NutritionService: ServiceBase, ObservableObject {
             sourceMealId: nil,
             nameSnapshot: "Quick Entry",
             brandSnapshot: nil,
-            amount: calories,
-            amountUnitSnapshot: "kcal",
+            amount: max(0, calories ?? 0),
+            amountUnitSnapshot: "entry",
             servingUnitLabelSnapshot: nil,
-            caloriesSnapshot: calories,
-            proteinSnapshot: 0,
-            carbsSnapshot: 0,
-            fatSnapshot: 0,
-            extraNutrientsSnapshot: nil,
+            amountMode: .quickAdd,
+            servingQuantitySnapshot: nil,
+            servingCountSnapshot: nil,
+            caloriesSnapshot: max(0, calories ?? 0),
+            proteinSnapshot: max(0, protein ?? 0),
+            carbsSnapshot: max(0, carbs ?? 0),
+            fatSnapshot: max(0, fat ?? 0),
+            extraNutrientsSnapshot: normalizedExtraNutrients(extraNutrients),
             recipeItemsSnapshot: nil,
+            providedNutrientKeys: provided,
             timestamp: timestamp,
             category: category,
             note: note
@@ -901,12 +1108,16 @@ class NutritionService: ServiceBase, ObservableObject {
         amount: Double,
         amountUnitSnapshot: String,
         servingUnitLabelSnapshot: String?,
+        amountMode: NutritionLogAmountMode? = nil,
+        servingQuantitySnapshot: Double? = nil,
+        servingCountSnapshot: Double? = nil,
         caloriesSnapshot: Double,
         proteinSnapshot: Double,
         carbsSnapshot: Double,
         fatSnapshot: Double,
         extraNutrientsSnapshot: [String: Double]?,
         recipeItemsSnapshot: [RecipeItemSnapshot]?,
+        providedNutrientKeys: Set<String>? = nil,
         timestamp: Date,
         category: FoodLogCategory,
         note: String?,
@@ -922,12 +1133,16 @@ class NutritionService: ServiceBase, ObservableObject {
             amount: amount,
             amountUnitSnapshot: amountUnitSnapshot,
             servingUnitLabelSnapshot: servingUnitLabelSnapshot,
+            amountMode: amountMode ?? defaultAmountMode(for: logType),
+            servingQuantitySnapshot: servingQuantitySnapshot,
+            servingCountSnapshot: servingCountSnapshot,
             caloriesSnapshot: max(0, caloriesSnapshot),
             proteinSnapshot: max(0, proteinSnapshot),
             carbsSnapshot: max(0, carbsSnapshot),
             fatSnapshot: max(0, fatSnapshot),
             extraNutrientsSnapshot: extraNutrientsSnapshot,
             recipeItemsSnapshot: recipeItemsSnapshot,
+            providedNutrientKeys: providedNutrientKeys ?? NutritionNutrientKey.coreKeySet,
             timestamp: timestamp,
             category: category,
             note: note
@@ -946,6 +1161,7 @@ class NutritionService: ServiceBase, ObservableObject {
             loadDayData(for: draft.timestamp)
             loadFoods()
             loadMeals()
+            refreshWidgetSnapshot()
             return entry
         } catch {
             throw NutritionError.persistence("Could not save nutrition log entry. Please try again.")
@@ -972,7 +1188,9 @@ class NutritionService: ServiceBase, ObservableObject {
 
             if let foodExtra = food.extraNutrients {
                 for (key, value) in foodExtra {
-                    extraNutrients[key, default: 0] += max(0, value * factor)
+                    let normalizedKey = NutritionNutrientKey.normalized(key)
+                    guard !normalizedKey.isEmpty else { continue }
+                    extraNutrients[normalizedKey, default: 0] += max(0, value * factor)
                 }
             }
         }
@@ -1037,13 +1255,13 @@ class NutritionService: ServiceBase, ObservableObject {
     private func metricValue(for log: NutritionLogEntry, metric: NutritionSeriesMetric) -> Double {
         switch metric {
         case .calories:
-            return log.caloriesSnapshot
+            return log.hasProvidedNutrient(NutritionNutrientKey.calories) ? log.caloriesSnapshot : 0
         case .protein:
-            return log.proteinSnapshot
+            return log.hasProvidedNutrient(NutritionNutrientKey.protein) ? log.proteinSnapshot : 0
         case .carbs:
-            return log.carbsSnapshot
+            return log.hasProvidedNutrient(NutritionNutrientKey.carbs) ? log.carbsSnapshot : 0
         case .fat:
-            return log.fatSnapshot
+            return log.hasProvidedNutrient(NutritionNutrientKey.fat) ? log.fatSnapshot : 0
         }
     }
 
@@ -1051,7 +1269,53 @@ class NutritionService: ServiceBase, ObservableObject {
         guard let input else { return nil }
         if input.isEmpty { return nil }
         return input.reduce(into: [String: Double]()) { partial, pair in
-            partial[pair.key] = max(0, pair.value * factor)
+            let key = NutritionNutrientKey.normalized(pair.key)
+            guard !key.isEmpty else { return }
+            partial[key] = max(0, pair.value * factor)
+        }
+    }
+
+    private func providedKeys(
+        calories: Double?,
+        protein: Double?,
+        carbs: Double?,
+        fat: Double?,
+        extraNutrients: [String: Double]? = nil
+    ) -> Set<String> {
+        var keys: Set<String> = []
+        if calories != nil { keys.insert(NutritionNutrientKey.calories) }
+        if protein != nil { keys.insert(NutritionNutrientKey.protein) }
+        if carbs != nil { keys.insert(NutritionNutrientKey.carbs) }
+        if fat != nil { keys.insert(NutritionNutrientKey.fat) }
+        for key in (extraNutrients ?? [:]).keys {
+            keys.insert(NutritionNutrientKey.normalized(key))
+        }
+        return keys
+    }
+
+    private func normalizedExtraNutrients(_ values: [String: Double]?) -> [String: Double]? {
+        guard let values else { return nil }
+        let normalized = values.reduce(into: [String: Double]()) { partial, pair in
+            let key = NutritionNutrientKey.normalized(pair.key)
+            guard !key.isEmpty else { return }
+            partial[key] = max(0, pair.value)
+        }
+        return normalized.isEmpty ? nil : normalized
+    }
+
+    private func sanitizedPositive(_ value: Double?) -> Double? {
+        guard let value, value > 0 else { return nil }
+        return value
+    }
+
+    private func defaultAmountMode(for logType: NutritionLogType) -> NutritionLogAmountMode {
+        switch logType {
+        case .food:
+            return .baseUnit
+        case .meal:
+            return .serving
+        case .quickCalories:
+            return .quickAdd
         }
     }
 
@@ -1065,8 +1329,11 @@ class NutritionService: ServiceBase, ObservableObject {
         if draft.nameSnapshot.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             throw NutritionError.validation("Log name is required.")
         }
-        if draft.amount <= 0 {
+        if draft.logType != .quickCalories && draft.amount <= 0 {
             throw NutritionError.validation("Amount must be greater than 0.")
+        }
+        if draft.logType == .quickCalories && draft.providedNutrientKeys.isEmpty {
+            throw NutritionError.validation("Add at least one nutrition value before saving.")
         }
         if draft.amountUnitSnapshot.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             throw NutritionError.validation("Amount unit is required.")
@@ -1096,12 +1363,16 @@ class NutritionService: ServiceBase, ObservableObject {
             nameSnapshot: draft.nameSnapshot,
             brandSnapshot: normalizedOptionalText(draft.brandSnapshot),
             servingUnitLabelSnapshot: normalizedOptionalText(draft.servingUnitLabelSnapshot),
+            amountMode: draft.amountMode,
+            servingQuantitySnapshot: draft.servingQuantitySnapshot,
+            servingCountSnapshot: draft.servingCountSnapshot,
             caloriesSnapshot: max(0, draft.caloriesSnapshot),
             proteinSnapshot: max(0, draft.proteinSnapshot),
             carbsSnapshot: max(0, draft.carbsSnapshot),
             fatSnapshot: max(0, draft.fatSnapshot),
             extraNutrientsSnapshot: draft.extraNutrientsSnapshot,
-            recipeItemsSnapshot: draft.recipeItemsSnapshot
+            recipeItemsSnapshot: draft.recipeItemsSnapshot,
+            providedNutrientKeys: draft.providedNutrientKeys
         )
         return entry
     }

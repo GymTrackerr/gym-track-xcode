@@ -12,6 +12,8 @@ import SwiftUI
 struct TrackerWidgetBundle: WidgetBundle {
     var body: some Widget {
         HomeScreenWidget()
+        NutritionWidget()
+        NutritionLogWidget()
         TrackerWidgetControl()
 
         TrackerWidgetLiveActivity()

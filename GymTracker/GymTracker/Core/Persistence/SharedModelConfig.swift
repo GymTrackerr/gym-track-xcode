@@ -28,6 +28,7 @@ struct SharedModelConfig {
         ProgressionExercise.self,
         TrackerTimer.self,
         NutritionTarget.self,
+        NutritionNutrientDefinition.self,
         FoodItem.self,
         MealRecipe.self,
         MealRecipeItem.self,

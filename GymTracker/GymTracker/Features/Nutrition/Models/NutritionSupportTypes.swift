@@ -60,10 +60,58 @@ enum FoodItemUnit: Int, Codable, CaseIterable, Identifiable {
     }
 }
 
+enum NutritionLabelProfile: String, Codable, CaseIterable, Identifiable {
+    case defaultProfile = "default"
+    case ukEU
+    case us
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .defaultProfile:
+            return "Default"
+        case .ukEU:
+            return "UK/EU"
+        case .us:
+            return "US"
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        self = Self.storedValue(rawValue) ?? .defaultProfile
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+
+    static func storedValue(_ rawValue: String?) -> NutritionLabelProfile? {
+        guard let rawValue else { return nil }
+        switch rawValue {
+        case "hybrid":
+            return .defaultProfile
+        default:
+            return NutritionLabelProfile(rawValue: rawValue)
+        }
+    }
+}
+
 enum NutritionLogType: Int, Codable, CaseIterable, Identifiable {
     case food = 0
     case meal = 1
     case quickCalories = 2
+
+    var id: Int { rawValue }
+}
+
+enum NutritionLogAmountMode: Int, Codable, CaseIterable, Identifiable {
+    case baseUnit = 0
+    case serving = 1
+    case quickAdd = 2
 
     var id: Int { rawValue }
 }
@@ -76,6 +124,96 @@ enum LogCreationMethod: Int, Codable, CaseIterable, Identifiable {
     case importedBackup = 4
 
     var id: Int { rawValue }
+}
+
+enum NutritionNutrientKey {
+    static let calories = "calories"
+    static let protein = "protein"
+    static let carbs = "carbs"
+    static let fat = "fat"
+
+    static let coreKeys: [String] = [calories, protein, carbs, fat]
+    static let coreKeySet = Set(coreKeys)
+
+    static func normalized(_ value: String) -> String {
+        let trimmed = value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        let pieces = trimmed.unicodeScalars.map { scalar in
+            CharacterSet.alphanumerics.contains(scalar) ? String(scalar) : "-"
+        }
+
+        return pieces.joined()
+            .split(separator: "-")
+            .joined(separator: "-")
+    }
+}
+
+enum NutritionNutrientGroup: String, Codable, CaseIterable, Identifiable {
+    case fat
+    case carbohydrate
+    case mineral
+    case vitamin
+    case energy
+    case other
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .fat:
+            return "Fat"
+        case .carbohydrate:
+            return "Carbohydrate"
+        case .mineral:
+            return "Mineral"
+        case .vitamin:
+            return "Vitamin"
+        case .energy:
+            return "Energy"
+        case .other:
+            return "Other"
+        }
+    }
+}
+
+struct NutritionNutrientPreset: Decodable, Hashable {
+    let key: String
+    let displayName: String
+    let unitLabel: String
+    let group: NutritionNutrientGroup
+    let sortOrder: Int
+
+    static func defaultPresets() -> [NutritionNutrientPreset] {
+        NutritionNutrientPresetLoader.loadDefaultPresets()
+    }
+}
+
+private enum NutritionNutrientPresetLoader {
+    static func loadDefaultPresets() -> [NutritionNutrientPreset] {
+        let candidateURLs: [URL?] = [
+            Bundle.main.url(
+                forResource: "nutrition_nutrient_presets",
+                withExtension: "json",
+                subdirectory: "Features/Nutrition"
+            ),
+            Bundle.main.url(forResource: "nutrition_nutrient_presets", withExtension: "json")
+        ]
+
+        guard let url = candidateURLs.compactMap({ $0 }).first else {
+            print("Missing bundled nutrition nutrient presets JSON.")
+            return []
+        }
+
+        do {
+            let data = try Data(contentsOf: url)
+            return try JSONDecoder().decode([NutritionNutrientPreset].self, from: data)
+        } catch {
+            print("Failed to load bundled nutrition nutrient presets: \(error)")
+            return []
+        }
+    }
 }
 
 struct NutritionFacts: Codable, Hashable {
@@ -121,12 +259,16 @@ struct NutritionLogDraft {
     var amount: Double
     var amountUnitSnapshot: String
     var servingUnitLabelSnapshot: String?
+    var amountMode: NutritionLogAmountMode
+    var servingQuantitySnapshot: Double?
+    var servingCountSnapshot: Double?
     var caloriesSnapshot: Double
     var proteinSnapshot: Double
     var carbsSnapshot: Double
     var fatSnapshot: Double
     var extraNutrientsSnapshot: [String: Double]?
     var recipeItemsSnapshot: [RecipeItemSnapshot]?
+    var providedNutrientKeys: Set<String>
     var timestamp: Date
     var category: FoodLogCategory
     var note: String?

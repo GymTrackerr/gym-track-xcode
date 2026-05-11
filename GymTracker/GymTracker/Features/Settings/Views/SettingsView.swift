@@ -39,6 +39,7 @@ struct SettingsView: View {
     @State private var exportErrorMessage = ""
     @State private var showExerciseTransferTool = false
     @State private var selectedHealthHistoryRange: HealthHistorySyncRange = .defaultSelection
+    @State private var nutritionLabelProfile: NutritionLabelProfile = .defaultProfile
     @State private var isEnablingHealthAccess = false
     @State private var showHealthBackfillPrompt = false
     @State private var backendBaseURLOverride: String = ""
@@ -83,6 +84,7 @@ struct SettingsView: View {
         }
         .onAppear {
             loadSelectedHealthHistoryRangeFromUser()
+            loadNutritionLabelProfile()
             loadNetworkingOverrides()
             guard userService.currentUser?.isDemo != true else { return }
             Task(priority: .utility) {
@@ -91,10 +93,14 @@ struct SettingsView: View {
         }
         .onChange(of: userService.currentUser?.id) { _, _ in
             loadSelectedHealthHistoryRangeFromUser()
+            loadNutritionLabelProfile()
         }
         .onChange(of: selectedHealthHistoryRange) { _, newValue in
             guard userService.currentUser?.isDemo != true else { return }
             userService.setCurrentHealthHistorySyncRange(newValue)
+        }
+        .onChange(of: nutritionLabelProfile) { _, newValue in
+            saveNutritionLabelProfile(newValue)
         }
 #if os(iOS)
         .sheet(item: $shareItem) { item in
@@ -326,6 +332,12 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 8) {
             SectionHeaderView(title: "Nutrition")
             ConnectedCardSection {
+                ConnectedCardRow {
+                    nutritionLabelStyleRow
+                }
+
+                ConnectedCardDivider(leadingInset: 56)
+
                 settingsActionRow(
                     title: "Export Nutrition Backup",
                     subtitle: "Save food, meals, targets, and logs to JSON",
@@ -345,6 +357,34 @@ struct SettingsView: View {
                     showImportPicker = true
                 }
             }
+        }
+    }
+
+    private var nutritionLabelStyleRow: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "list.clipboard")
+                .font(.title3.weight(.semibold))
+                .frame(width: 28, height: 28)
+                .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Nutrition Label Style")
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                Text("Used by food labels and Quick Add")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 8)
+
+            Picker("Nutrition Label Style", selection: $nutritionLabelProfile) {
+                ForEach(NutritionLabelProfile.allCases) { profile in
+                    Text(profile.displayName).tag(profile)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
         }
     }
 
@@ -686,6 +726,25 @@ struct SettingsView: View {
         }
     }
 
+    private func loadNutritionLabelProfile() {
+        do {
+            nutritionLabelProfile = try nutritionService.getOrCreateTarget().labelProfile
+        } catch {
+            nutritionLabelProfile = nutritionService.nutritionTarget?.labelProfile ?? .defaultProfile
+        }
+    }
+
+    private func saveNutritionLabelProfile(_ profile: NutritionLabelProfile) {
+        do {
+            try nutritionService.updateLabelProfile(profile)
+        } catch {
+            backupAlertTitle = "Couldn’t Save Nutrition Setting"
+            exportErrorMessage = error.localizedDescription
+            showExportErrorAlert = true
+            loadNutritionLabelProfile()
+        }
+    }
+
     private var healthProgressValue: Double {
         guard healthKitDailyStore.backfillProgressTotal > 0 else { return 0 }
         return min(
@@ -827,7 +886,7 @@ struct SettingsView: View {
                 nutritionService.loadFeature()
                 backupAlertTitle = "Import Complete"
                 exportErrorMessage = """
-                Imported \(imported.foodItems) food items, \(imported.mealRecipes) meal recipes, \(imported.mealRecipeItems) recipe items, and \(imported.nutritionLogEntries) nutrition logs.
+                Imported \(imported.foodItems) food items, \(imported.mealRecipes) meal recipes, \(imported.mealRecipeItems) recipe items, \(imported.nutritionLogEntries) nutrition logs, and \(imported.nutrientDefinitions) nutrient definitions.
                 Updated \(imported.targets) nutrition targets.
                 """
                 showExportErrorAlert = true

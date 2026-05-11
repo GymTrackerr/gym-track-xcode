@@ -1,0 +1,100 @@
+[
+  {
+    "key": "saturated-fat",
+    "displayName": "Saturated Fat",
+    "unitLabel": "g",
+    "group": "fat",
+    "sortOrder": 40
+  },
+  {
+    "key": "trans-fat",
+    "displayName": "Trans Fat",
+    "unitLabel": "g",
+    "group": "fat",
+    "sortOrder": 50
+  },
+  {
+    "key": "cholesterol",
+    "displayName": "Cholesterol",
+    "unitLabel": "mg",
+    "group": "fat",
+    "sortOrder": 60
+  },
+  {
+    "key": "sodium",
+    "displayName": "Sodium",
+    "unitLabel": "mg",
+    "group": "mineral",
+    "sortOrder": 70
+  },
+  {
+    "key": "salt",
+    "displayName": "Salt",
+    "unitLabel": "g",
+    "group": "mineral",
+    "sortOrder": 75
+  },
+  {
+    "key": "fiber",
+    "displayName": "Fiber",
+    "unitLabel": "g",
+    "group": "carbohydrate",
+    "sortOrder": 90
+  },
+  {
+    "key": "total-sugars",
+    "displayName": "Total Sugars",
+    "unitLabel": "g",
+    "group": "carbohydrate",
+    "sortOrder": 100
+  },
+  {
+    "key": "added-sugars",
+    "displayName": "Added Sugars",
+    "unitLabel": "g",
+    "group": "carbohydrate",
+    "sortOrder": 110
+  },
+  {
+    "key": "vitamin-d",
+    "displayName": "Vitamin D",
+    "unitLabel": "mcg",
+    "group": "vitamin",
+    "sortOrder": 120
+  },
+  {
+    "key": "calcium",
+    "displayName": "Calcium",
+    "unitLabel": "mg",
+    "group": "mineral",
+    "sortOrder": 130
+  },
+  {
+    "key": "iron",
+    "displayName": "Iron",
+    "unitLabel": "mg",
+    "group": "mineral",
+    "sortOrder": 140
+  },
+  {
+    "key": "potassium",
+    "displayName": "Potassium",
+    "unitLabel": "mg",
+    "group": "mineral",
+    "sortOrder": 150
+  },
+  {
+    "key": "caffeine",
+    "displayName": "Caffeine",
+    "unitLabel": "mg",
+    "group": "other",
+    "sortOrder": 180
+  },
+  {
+    "key": "alcohol",
+    "displayName": "Alcohol",
+    "unitLabel": "g",
+    "group": "other",
+    "sortOrder": 190
+  }
+]
