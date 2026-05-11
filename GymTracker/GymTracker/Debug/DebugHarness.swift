@@ -23,6 +23,7 @@ final class DebugHarness {
         print("=== NotesImportDebugHarness done ===")
         ExerciseMergeDebug.runSamples()
         ExerciseBackupDebug.runSamples()
+        NutritionBackupDebug.runSamples()
         DashboardFeatureDebug.runSamples()
         OnboardingFeatureDebug.runSamples()
         HealthKitSmartPullDebug.runSamples()

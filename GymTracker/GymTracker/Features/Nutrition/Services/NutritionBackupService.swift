@@ -148,6 +148,7 @@ final class NutritionBackupService {
         let existingLogs = Dictionary(uniqueKeysWithValues: try fetchNutritionLogEntries(userId: userId).map { ($0.id, $0) })
         let existingTargets = Dictionary(uniqueKeysWithValues: try fetchTargets(userId: userId).map { ($0.id, $0) })
         let existingDefinitions = Dictionary(uniqueKeysWithValues: try fetchNutrientDefinitions(userId: userId).map { ($0.id, $0) })
+        let importedDefinitionCount = payload.nutrientDefinitions?.count ?? 0
 
         for dto in payload.nutrientDefinitions ?? [] {
             let definition = existingDefinitions[dto.id] ?? NutritionNutrientDefinition(
@@ -179,10 +180,18 @@ final class NutritionBackupService {
             definition.updatedAt = dto.updatedAt
         }
 
+        let seededDefinitionCount = try seedMissingBundledNutrientDefinitions(userId: userId)
+
         var foodItemsById: [UUID: FoodItem] = existingFoodItems
         for dto in payload.foodItems {
             let importedServingUnitLabel = normalizedOptionalText(dto.servingUnitLabel) ?? normalizedOptionalText(dto.referenceLabel)
             let importedServingQuantity = dto.servingQuantity ?? (importedServingUnitLabel == nil ? nil : dto.referenceQuantity)
+            let importedExtraNutrients = normalizedExtraNutrients(dto.extraNutrients)
+            let importedProvidedKeys = normalizedProvidedKeys(
+                dto.providedNutrientKeys,
+                fallback: NutritionNutrientKey.coreKeySet,
+                extras: importedExtraNutrients
+            )
             let item = foodItemsById[dto.id] ?? FoodItem(
                 userId: userId,
                 name: dto.name,
@@ -196,8 +205,8 @@ final class NutritionBackupService {
                 proteinPerReference: dto.proteinPerReference,
                 carbsPerReference: dto.carbsPerReference,
                 fatPerReference: dto.fatPerReference,
-                extraNutrients: dto.extraNutrients,
-                providedNutrientKeys: dto.providedNutrientKeys,
+                extraNutrients: importedExtraNutrients,
+                providedNutrientKeys: importedProvidedKeys,
                 isArchived: dto.isArchived,
                 isFavorite: dto.isFavorite,
                 kind: FoodItemKind(rawValue: dto.kindRaw) ?? .food,
@@ -219,8 +228,8 @@ final class NutritionBackupService {
             item.proteinPerReference = max(0, dto.proteinPerReference)
             item.carbsPerReference = max(0, dto.carbsPerReference)
             item.fatPerReference = max(0, dto.fatPerReference)
-            item.extraNutrients = dto.extraNutrients
-            item.providedNutrientKeys = dto.providedNutrientKeys ?? NutritionNutrientKey.coreKeySet
+            item.extraNutrients = importedExtraNutrients
+            item.providedNutrientKeys = importedProvidedKeys
             item.isArchived = dto.isArchived
             item.isFavorite = dto.isFavorite
             item.kind = FoodItemKind(rawValue: dto.kindRaw) ?? .food
@@ -232,13 +241,14 @@ final class NutritionBackupService {
 
         var mealRecipesById: [UUID: MealRecipe] = existingMealRecipes
         for dto in payload.mealRecipes {
+            let importedCachedExtraNutrients = normalizedExtraNutrients(dto.cachedExtraNutrients)
             let recipe = mealRecipesById[dto.id] ?? MealRecipe(
                 userId: userId,
                 name: dto.name,
                 batchSize: dto.batchSize,
                 servingUnitLabel: dto.servingUnitLabel,
                 defaultCategory: FoodLogCategory(rawValue: dto.defaultCategoryRaw) ?? .other,
-                cachedExtraNutrients: dto.cachedExtraNutrients,
+                cachedExtraNutrients: importedCachedExtraNutrients,
                 isArchived: dto.isArchived
             )
             if mealRecipesById[dto.id] == nil {
@@ -250,7 +260,7 @@ final class NutritionBackupService {
             recipe.batchSize = max(0.0001, dto.batchSize)
             recipe.servingUnitLabel = dto.servingUnitLabel
             recipe.defaultCategory = FoodLogCategory(rawValue: dto.defaultCategoryRaw) ?? .other
-            recipe.cachedExtraNutrients = dto.cachedExtraNutrients
+            recipe.cachedExtraNutrients = importedCachedExtraNutrients
             recipe.isArchived = dto.isArchived
             recipe.createdAt = dto.createdAt
             recipe.updatedAt = dto.updatedAt
@@ -283,8 +293,22 @@ final class NutritionBackupService {
         }
 
         for dto in payload.nutritionLogEntries {
+            let logType = NutritionLogType(rawValue: dto.logTypeRaw) ?? .food
+            let importedExtraNutrients = normalizedExtraNutrients(dto.extraNutrientsSnapshot)
+            let importedRecipeItems = normalizedRecipeItemSnapshots(dto.recipeItemsSnapshot)
+            let importedProvidedKeys = normalizedProvidedKeys(
+                dto.providedNutrientKeys,
+                fallback: defaultProvidedKeys(
+                    for: logType,
+                    calories: dto.caloriesSnapshot,
+                    protein: dto.proteinSnapshot,
+                    carbs: dto.carbsSnapshot,
+                    fat: dto.fatSnapshot
+                ),
+                extras: importedExtraNutrients
+            )
             let draft = NutritionLogDraft(
-                logType: NutritionLogType(rawValue: dto.logTypeRaw) ?? .food,
+                logType: logType,
                 creationMethod: LogCreationMethod(rawValue: dto.creationMethodRaw) ?? .importedBackup,
                 sourceItemId: dto.sourceItemId,
                 sourceMealId: dto.sourceMealId,
@@ -293,16 +317,16 @@ final class NutritionBackupService {
                 amount: dto.amount,
                 amountUnitSnapshot: dto.amountUnitSnapshot,
                 servingUnitLabelSnapshot: dto.servingUnitLabelSnapshot,
-                amountMode: dto.amountMode ?? defaultAmountMode(for: NutritionLogType(rawValue: dto.logTypeRaw) ?? .food),
+                amountMode: dto.amountMode ?? defaultAmountMode(for: logType),
                 servingQuantitySnapshot: dto.servingQuantitySnapshot,
                 servingCountSnapshot: dto.servingCountSnapshot,
                 caloriesSnapshot: dto.caloriesSnapshot,
                 proteinSnapshot: dto.proteinSnapshot,
                 carbsSnapshot: dto.carbsSnapshot,
                 fatSnapshot: dto.fatSnapshot,
-                extraNutrientsSnapshot: dto.extraNutrientsSnapshot,
-                recipeItemsSnapshot: dto.recipeItemsSnapshot,
-                providedNutrientKeys: dto.providedNutrientKeys ?? defaultProvidedKeys(for: NutritionLogType(rawValue: dto.logTypeRaw) ?? .food),
+                extraNutrientsSnapshot: importedExtraNutrients,
+                recipeItemsSnapshot: importedRecipeItems,
+                providedNutrientKeys: importedProvidedKeys,
                 timestamp: dto.timestamp,
                 category: FoodLogCategory(rawValue: dto.categoryRaw) ?? .other,
                 note: dto.note
@@ -351,7 +375,7 @@ final class NutritionBackupService {
 
         return ImportResult(
             targets: payload.nutritionTargets.count,
-            nutrientDefinitions: payload.nutrientDefinitions?.count ?? 0,
+            nutrientDefinitions: importedDefinitionCount + seededDefinitionCount,
             foodItems: payload.foodItems.count,
             mealRecipes: payload.mealRecipes.count,
             mealRecipeItems: payload.mealRecipeItems.count,
@@ -460,6 +484,47 @@ final class NutritionBackupService {
         return trimmed.isEmpty ? nil : trimmed
     }
 
+    private func normalizedExtraNutrients(_ values: [String: Double]?) -> [String: Double]? {
+        guard let values else { return nil }
+        let normalized = values.reduce(into: [String: Double]()) { partial, pair in
+            let key = NutritionNutrientKey.normalized(pair.key)
+            guard !key.isEmpty else { return }
+            partial[key] = max(0, pair.value)
+        }
+        return normalized.isEmpty ? nil : normalized
+    }
+
+    private func normalizedProvidedKeys(
+        _ keys: Set<String>?,
+        fallback: Set<String>,
+        extras: [String: Double]?
+    ) -> Set<String> {
+        var normalized = Set((keys ?? fallback).map(NutritionNutrientKey.normalized).filter { !$0.isEmpty })
+        for key in (extras ?? [:]).keys {
+            let normalizedKey = NutritionNutrientKey.normalized(key)
+            guard !normalizedKey.isEmpty else { continue }
+            normalized.insert(normalizedKey)
+        }
+        return normalized
+    }
+
+    private func normalizedRecipeItemSnapshots(_ snapshots: [RecipeItemSnapshot]?) -> [RecipeItemSnapshot]? {
+        guard let snapshots else { return nil }
+        guard !snapshots.isEmpty else { return nil }
+        return snapshots.map { snapshot in
+            RecipeItemSnapshot(
+                name: snapshot.name,
+                amount: snapshot.amount,
+                amountUnit: snapshot.amountUnit,
+                caloriesSnapshot: max(0, snapshot.caloriesSnapshot),
+                proteinSnapshot: max(0, snapshot.proteinSnapshot),
+                carbsSnapshot: max(0, snapshot.carbsSnapshot),
+                fatSnapshot: max(0, snapshot.fatSnapshot),
+                extraNutrientsSnapshot: normalizedExtraNutrients(snapshot.extraNutrientsSnapshot)
+            )
+        }
+    }
+
     private func defaultAmountMode(for logType: NutritionLogType) -> NutritionLogAmountMode {
         switch logType {
         case .food:
@@ -471,13 +536,52 @@ final class NutritionBackupService {
         }
     }
 
-    private func defaultProvidedKeys(for logType: NutritionLogType) -> Set<String> {
+    private func defaultProvidedKeys(
+        for logType: NutritionLogType,
+        calories: Double,
+        protein: Double,
+        carbs: Double,
+        fat: Double
+    ) -> Set<String> {
         switch logType {
         case .quickCalories:
-            return [NutritionNutrientKey.calories]
+            var keys: Set<String> = []
+            if calories > 0 { keys.insert(NutritionNutrientKey.calories) }
+            if protein > 0 { keys.insert(NutritionNutrientKey.protein) }
+            if carbs > 0 { keys.insert(NutritionNutrientKey.carbs) }
+            if fat > 0 { keys.insert(NutritionNutrientKey.fat) }
+            return keys.isEmpty ? [NutritionNutrientKey.calories] : keys
         case .food, .meal:
             return NutritionNutrientKey.coreKeySet
         }
+    }
+
+    private func seedMissingBundledNutrientDefinitions(userId: UUID) throws -> Int {
+        let existing = try fetchNutrientDefinitions(userId: userId)
+        var existingKeys = Set(existing.map { NutritionNutrientKey.normalized($0.key) })
+        var insertedCount = 0
+
+        for preset in NutritionNutrientPreset.defaultPresets() {
+            let key = NutritionNutrientKey.normalized(preset.key)
+            guard !key.isEmpty, !existingKeys.contains(key) else { continue }
+
+            let definition = NutritionNutrientDefinition(
+                userId: userId,
+                key: key,
+                displayName: preset.displayName,
+                unitLabel: preset.unitLabel,
+                group: preset.group,
+                sortOrder: preset.sortOrder,
+                dailyGoal: nil,
+                isVisible: true,
+                isArchived: false
+            )
+            modelContext.insert(definition)
+            existingKeys.insert(key)
+            insertedCount += 1
+        }
+
+        return insertedCount
     }
 
     private func fetchTargets(userId: UUID) throws -> [NutritionTarget] {
