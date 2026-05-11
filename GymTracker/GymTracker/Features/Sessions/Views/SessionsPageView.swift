@@ -9,11 +9,21 @@ struct SessionsPageView: View {
     @State private var openedSession: Session?
     @State private var showingNotesImport = false
     @State private var showingCreateSession = false
+    @State private var handledOpenCreateSessionRequestID: UUID?
+    @State private var handledOpenActiveSessionRequestID: UUID?
 
     @State private var selectedRange: SessionTimeRange = .month
     @State private var selectedReferenceDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var visibleSessions: [Session] = []
     @State private var summary = SessionPeriodSummary.empty
+
+    private let openCreateSessionRequestID: UUID?
+    private let openActiveSessionRequestID: UUID?
+
+    init(openCreateSessionRequestID: UUID? = nil, openActiveSessionRequestID: UUID? = nil) {
+        self.openCreateSessionRequestID = openCreateSessionRequestID
+        self.openActiveSessionRequestID = openActiveSessionRequestID
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -45,25 +55,20 @@ struct SessionsPageView: View {
                     .cardListSummaryRowStyle()
 
                 if visibleSessions.isEmpty {
-                    EmptyStateView(
-                        title: "No sessions in this period",
-                        systemImage: "figure.strengthtraining.traditional",
-                        message: "Add a session log or choose another period."
-                    )
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                    emptySessionsContent
+                        .cardListSummaryContentPadding()
+                        .cardListSummaryRowStyle()
 
                     Button {
                         showingCreateSession = true
                     } label: {
-                        Label("Add Log", systemImage: "plus.circle")
+                        Text("Add Log")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 12, trailing: 16))
+                    .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 12, trailing: 20))
                 } else {
                     ForEach(visibleSessions, id: \.id) { session in
                         NavigationLink {
@@ -131,9 +136,18 @@ struct SessionsPageView: View {
         .onAppear {
             sessionService.loadSessions()
             refreshViewData()
+            presentRequestedCreateSessionIfNeeded()
+            presentRequestedActiveSessionIfNeeded()
         }
         .onReceive(sessionService.$sessions) { _ in
             refreshViewData()
+            presentRequestedActiveSessionIfNeeded()
+        }
+        .onChange(of: openCreateSessionRequestID) {
+            presentRequestedCreateSessionIfNeeded()
+        }
+        .onChange(of: openActiveSessionRequestID) {
+            presentRequestedActiveSessionIfNeeded()
         }
         .onChange(of: selectedRange) {
             refreshViewData()
@@ -201,6 +215,23 @@ struct SessionsPageView: View {
                 }
             }
         }
+    }
+
+    private var emptySessionsContent: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "figure.strengthtraining.traditional")
+                .font(.title2)
+                .foregroundStyle(.secondary)
+            Text("No sessions in this period")
+                .font(.headline)
+            Text("Add a session log or choose another period.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .accessibilityElement(children: .combine)
     }
 
     private var sessionSummaryHeader: some View {
@@ -382,6 +413,39 @@ struct SessionsPageView: View {
                 ? nil
                 : Double(totalDurationMinutes) / Double(sessionsWithDuration)
         )
+    }
+
+    private func presentRequestedCreateSessionIfNeeded() {
+        guard let openCreateSessionRequestID,
+              handledOpenCreateSessionRequestID != openCreateSessionRequestID else {
+            return
+        }
+
+        handledOpenCreateSessionRequestID = openCreateSessionRequestID
+        showingCreateSession = true
+    }
+
+    private func presentRequestedActiveSessionIfNeeded() {
+        guard let openActiveSessionRequestID,
+              handledOpenActiveSessionRequestID != openActiveSessionRequestID else {
+            return
+        }
+
+        guard let activeSession = sessionService.sessions
+            .filter({ !$0.soft_deleted && $0.timestampDone == $0.timestamp })
+            .sorted(by: { lhs, rhs in
+                if lhs.timestamp != rhs.timestamp {
+                    return lhs.timestamp > rhs.timestamp
+                }
+                return lhs.id.uuidString < rhs.id.uuidString
+            })
+            .first else {
+            return
+        }
+
+        handledOpenActiveSessionRequestID = openActiveSessionRequestID
+        showingCreateSession = false
+        openedSession = activeSession
     }
 
     private func sessionDurationMinutes(for session: Session) -> Int? {

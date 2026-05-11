@@ -109,6 +109,7 @@
 			membershipExceptions = (
 				Core/Networking/API_Data.swift,
 				Features/Nutrition/Shared/NutritionWidgetSnapshot.swift,
+				Features/Program/Shared/ProgrammeWidgetSnapshot.swift,
 				Features/Timer/Models/TrackerTimer.swift,
 				Features/Timer/Shared/ExtensionTimerService.swift,
 				Features/Timer/Shared/SharedTimerController.swift,

@@ -59,6 +59,35 @@ final class ProgramService: ServiceBase, ObservableObject {
         programs.first(where: { $0.isActive })
     }
 
+    func refreshWidgetSnapshot(sessions: [Session], reloadTimelines: Bool = true) {
+        guard let currentUser else {
+            ProgrammeWidgetSnapshotService().clear(reloadTimelines: reloadTimelines)
+            return
+        }
+
+        let userSessions = sessions
+            .filter { !$0.soft_deleted && $0.user_id == currentUser.id }
+        let activeSession = userSessions
+            .filter { $0.timestampDone == $0.timestamp }
+            .sorted { lhs, rhs in
+                if lhs.timestamp != rhs.timestamp {
+                    return lhs.timestamp > rhs.timestamp
+                }
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+            .first
+        let program = activeProgram
+        let state = program.map { resolvedState(for: $0, sessions: userSessions) }
+
+        ProgrammeWidgetSnapshotService().refresh(
+            user: currentUser,
+            activeProgram: program,
+            state: state,
+            activeSession: activeSession ?? state?.activeSession,
+            reloadTimelines: reloadTimelines
+        )
+    }
+
     func workoutCount(for program: Program) -> Int {
         sortedBlocks(for: program).reduce(0) { partialResult, block in
             partialResult + block.workouts.count
