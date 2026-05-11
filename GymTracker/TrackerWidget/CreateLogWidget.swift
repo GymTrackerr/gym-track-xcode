@@ -34,51 +34,42 @@ struct CreateLogWidgetEntryView: View {
             }
         }
         .containerBackground(.fill.tertiary, for: .widget)
-        .widgetURL(URL(string: "gymtracker://nutrition/log"))
     }
 
     private var smallLayout: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Image(systemName: "plus.circle.fill")
-                .font(.system(size: 32, weight: .semibold))
-                .foregroundStyle(.green, .blue)
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Create Log")
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
 
-            Spacer(minLength: 0)
+            HStack(spacing: 8) {
+                smallActionButton(
+                    title: "Nutrition",
+                    systemImage: "fork.knife",
+                    tint: .green,
+                    destination: "gymtracker://nutrition/log"
+                )
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Create")
-                    .font(.title3.bold())
-                    .lineLimit(1)
-                Text("Log")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                Text("Nutrition / Session")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
+                smallActionButton(
+                    title: "Session",
+                    systemImage: "figure.strengthtraining.traditional",
+                    tint: .blue,
+                    destination: "gymtracker://sessions/log"
+                )
             }
+            .frame(maxWidth: .infinity)
         }
-        .padding(16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(13)
+        .widgetURL(URL(string: "gymtracker://home"))
     }
 
     private var mediumLayout: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("Create Log")
-                    .font(.headline.weight(.semibold))
-                    .lineLimit(1)
-                Text("Choose what to add")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-            .frame(width: 96, alignment: .leading)
-
+        VStack(alignment: .leading, spacing: 7) {
             Link(destination: URL(string: "gymtracker://nutrition/log")!) {
-                actionTile(
+                actionRow(
                     title: "Nutrition",
-                    subtitle: "Food or quick add",
+                    subtitle: "Food, meal, or quick add",
                     systemImage: "fork.knife",
                     tint: .green
                 )
@@ -86,7 +77,7 @@ struct CreateLogWidgetEntryView: View {
             .buttonStyle(.plain)
 
             Link(destination: URL(string: "gymtracker://sessions/log")!) {
-                actionTile(
+                actionRow(
                     title: "Session",
                     subtitle: "Workout log",
                     systemImage: "figure.strengthtraining.traditional",
@@ -95,39 +86,75 @@ struct CreateLogWidgetEntryView: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(16)
+        .padding(12)
+        .widgetURL(URL(string: "gymtracker://home"))
     }
 
-    private func actionTile(title: String, subtitle: String, systemImage: String, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
+    private func actionRow(title: String, subtitle: String, systemImage: String, tint: Color) -> some View {
+        HStack(spacing: 10) {
             ZStack {
                 Circle()
-                    .fill(tint.opacity(0.16))
+                    .fill(tint.opacity(0.18))
                 Image(systemName: systemImage)
-                    .font(.headline.weight(.semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(tint)
             }
-            .frame(width: 34, height: 34)
+            .frame(width: 30, height: 30)
 
-            Spacer(minLength: 0)
-
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.caption.weight(.bold))
+                    .font(.footnote.weight(.semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+
                 Text(subtitle)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.75)
+                    .minimumScaleFactor(0.8)
             }
+
+            Spacer(minLength: 0)
+
+            ZStack {
+                Circle()
+                    .fill(tint)
+                Image(systemName: "plus")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white)
+            }
+            .frame(width: 24, height: 24)
         }
-        .frame(maxWidth: .infinity, minHeight: 94, alignment: .leading)
-        .padding(10)
+        .frame(maxWidth: .infinity, minHeight: 43, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
         .background(tint.opacity(0.11))
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func smallActionButton(title: String, systemImage: String, tint: Color, destination: String) -> some View {
+        Link(destination: URL(string: destination)!) {
+            VStack(spacing: 6) {
+                ZStack {
+                    Circle()
+                        .fill(tint.opacity(0.16))
+                    Image(systemName: systemImage)
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(tint)
+                }
+                .frame(width: 38, height: 38)
+
+                HStack(spacing: 3) {
+                    Text(title)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
     }
 }
 

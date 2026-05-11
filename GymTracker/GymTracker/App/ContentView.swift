@@ -21,6 +21,7 @@ struct ContentView: View {
     @State var linkActive = false
     @State private var nutritionLogRequestID: UUID?
     @State private var sessionLogRequestID: UUID?
+    @State private var activeSessionRequestID: UUID?
 
     var body: some View {
         TabView (selection: $localSelected) {
@@ -46,7 +47,10 @@ struct ContentView: View {
             
             Tab("Sessions", systemImage: "list.bullet.rectangle", value: 2) {
                 NavigationStack {
-                    SessionsPageView(openCreateSessionRequestID: sessionLogRequestID)
+                    SessionsPageView(
+                        openCreateSessionRequestID: sessionLogRequestID,
+                        openActiveSessionRequestID: activeSessionRequestID
+                    )
                 }
             }
             
@@ -109,6 +113,9 @@ struct ContentView: View {
             .lowercased()
 
         switch destination {
+        case "", "home", "app":
+            linkActive = false
+            localSelected = 0
         case "nutrition":
             if userService.currentUser?.showNutritionTab ?? true {
                 linkActive = false
@@ -123,6 +130,10 @@ struct ContentView: View {
         case "sessions", "session":
             linkActive = false
             localSelected = 2
+        case "sessions/active", "session/active":
+            linkActive = false
+            localSelected = 2
+            activeSessionRequestID = UUID()
         case "sessions/log", "session/log":
             linkActive = false
             localSelected = 2
