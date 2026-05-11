@@ -4,7 +4,7 @@ import Foundation
 struct LogNutritionQuickAddIntent: AppIntent {
     static var title: LocalizedStringResource = "Create Log"
     static var description = IntentDescription("Quick add consumed nutrition values.")
-    static var openAppWhenRun = false
+    static var supportedModes: IntentModes { .background }
 
     @Parameter(title: "Calories")
     var calories: Double?
@@ -61,7 +61,7 @@ struct LogNutritionQuickAddIntent: AppIntent {
 struct LogFoodIntent: AppIntent {
     static var title: LocalizedStringResource = "Log Food"
     static var description = IntentDescription("Log one of your saved foods.")
-    static var openAppWhenRun = false
+    static var supportedModes: IntentModes { .background }
 
     @Parameter(title: "Food")
     var food: NutritionFoodEntity
@@ -94,7 +94,7 @@ struct LogFoodIntent: AppIntent {
 struct LogMealIntent: AppIntent {
     static var title: LocalizedStringResource = "Log Meal"
     static var description = IntentDescription("Log one of your saved meals.")
-    static var openAppWhenRun = false
+    static var supportedModes: IntentModes { .background }
 
     @Parameter(title: "Meal")
     var meal: NutritionMealEntity
@@ -120,7 +120,7 @@ struct LogMealIntent: AppIntent {
     }
 }
 
-struct NutritionAppShortcuts: AppShortcutsProvider {
+struct GymTrackerAppShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
             intent: LogNutritionQuickAddIntent(),
@@ -154,6 +154,18 @@ struct NutritionAppShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Log Meal",
             systemImageName: "takeoutbag.and.cup.and.straw"
+        )
+
+        AppShortcut(
+            intent: StartSessionIntent(),
+            phrases: [
+                "Start a session in \(.applicationName)",
+                "Start \(\.$sessionType) session in \(.applicationName)",
+                "Start session from \(\.$routine) in \(.applicationName)",
+                "Start programme session from \(\.$programme) in \(.applicationName)"
+            ],
+            shortTitle: "Start Session",
+            systemImageName: "figure.strengthtraining.traditional"
         )
     }
 }

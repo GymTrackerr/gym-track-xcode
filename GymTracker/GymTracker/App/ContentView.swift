@@ -73,6 +73,10 @@ struct ContentView: View {
             timerService.appDidBecomeActive()
             nutritionService.refreshWidgetSnapshot()
             refreshProgrammeWidgetSnapshot()
+            consumePendingSessionIntentIfNeeded()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: SessionIntentHandoff.didRequestActiveSession)) { notification in
+            routeToIntentSession(notification.object as? UUID)
         }
         .onReceive(programService.$programs) { _ in
             refreshProgrammeWidgetSnapshot()
@@ -98,6 +102,7 @@ struct ContentView: View {
         }
         .onAppear {
             refreshProgrammeWidgetSnapshot()
+            consumePendingSessionIntentIfNeeded()
 #if DEBUG
             Task.detached(priority: .background) {
                 DebugHarness.runAll()
@@ -152,6 +157,19 @@ struct ContentView: View {
 
     private func refreshProgrammeWidgetSnapshot() {
         programService.refreshWidgetSnapshot(sessions: sessionService.sessions)
+    }
+
+    private func consumePendingSessionIntentIfNeeded() {
+        guard let sessionId = SessionIntentHandoff.consumePendingActiveSessionId() else { return }
+        routeToIntentSession(sessionId)
+    }
+
+    private func routeToIntentSession(_ _: UUID? = nil) {
+        _ = SessionIntentHandoff.consumePendingActiveSessionId()
+        linkActive = false
+        localSelected = 2
+        sessionService.loadSessions()
+        activeSessionRequestID = UUID()
     }
 
 }
