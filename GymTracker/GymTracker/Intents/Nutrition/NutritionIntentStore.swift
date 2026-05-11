@@ -1,287 +1,15 @@
-import AppIntents
 import Foundation
 import SwiftData
-import WidgetKit
-
-enum NutritionIntentCategory: String, AppEnum, CaseIterable {
-    case breakfast
-    case lunch
-    case dinner
-    case snack
-    case other
-
-    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Nutrition Category")
-    static var caseDisplayRepresentations: [NutritionIntentCategory: DisplayRepresentation] = [
-        .breakfast: "Breakfast",
-        .lunch: "Lunch",
-        .dinner: "Dinner",
-        .snack: "Snack",
-        .other: "Other"
-    ]
-
-    var foodLogCategory: FoodLogCategory {
-        switch self {
-        case .breakfast:
-            return .breakfast
-        case .lunch:
-            return .lunch
-        case .dinner:
-            return .dinner
-        case .snack:
-            return .snack
-        case .other:
-            return .other
-        }
-    }
-}
-
-enum NutritionFoodAmountType: String, AppEnum, CaseIterable {
-    case serving
-    case foodUnit
-
-    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Food Amount Type")
-    static var caseDisplayRepresentations: [NutritionFoodAmountType: DisplayRepresentation] = [
-        .serving: "Serving",
-        .foodUnit: "Food Unit"
-    ]
-}
-
-struct NutritionFoodEntity: AppEntity {
-    static let defaultQuery = NutritionFoodEntityQuery()
-    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Food")
-
-    var id: UUID
-    var name: String
-    var subtitle: String
-
-    var displayRepresentation: DisplayRepresentation {
-        DisplayRepresentation(title: "\(name)", subtitle: "\(subtitle)")
-    }
-}
-
-struct NutritionFoodEntityQuery: EntityStringQuery {
-    func entities(for identifiers: [NutritionFoodEntity.ID]) async throws -> [NutritionFoodEntity] {
-        try await MainActor.run {
-            try NutritionIntentStore.foodEntities(identifiers: identifiers)
-        }
-    }
-
-    func entities(matching string: String) async throws -> [NutritionFoodEntity] {
-        try await MainActor.run {
-            try NutritionIntentStore.foodEntities(matching: string)
-        }
-    }
-
-    func suggestedEntities() async throws -> [NutritionFoodEntity] {
-        try await MainActor.run {
-            try NutritionIntentStore.suggestedFoodEntities()
-        }
-    }
-}
-
-struct NutritionMealEntity: AppEntity {
-    static let defaultQuery = NutritionMealEntityQuery()
-    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Meal")
-
-    var id: UUID
-    var name: String
-    var subtitle: String
-
-    var displayRepresentation: DisplayRepresentation {
-        DisplayRepresentation(title: "\(name)", subtitle: "\(subtitle)")
-    }
-}
-
-struct NutritionMealEntityQuery: EntityStringQuery {
-    func entities(for identifiers: [NutritionMealEntity.ID]) async throws -> [NutritionMealEntity] {
-        try await MainActor.run {
-            try NutritionIntentStore.mealEntities(identifiers: identifiers)
-        }
-    }
-
-    func entities(matching string: String) async throws -> [NutritionMealEntity] {
-        try await MainActor.run {
-            try NutritionIntentStore.mealEntities(matching: string)
-        }
-    }
-
-    func suggestedEntities() async throws -> [NutritionMealEntity] {
-        try await MainActor.run {
-            try NutritionIntentStore.suggestedMealEntities()
-        }
-    }
-}
-
-struct LogNutritionQuickAddIntent: AppIntent {
-    static var title: LocalizedStringResource = "Log Nutrition"
-    static var description = IntentDescription("Quick add consumed nutrition values.")
-    static var openAppWhenRun = false
-
-    @Parameter(title: "Calories")
-    var calories: Double?
-
-    @Parameter(title: "Protein")
-    var protein: Double?
-
-    @Parameter(title: "Carbohydrates")
-    var carbs: Double?
-
-    @Parameter(title: "Fat")
-    var fat: Double?
-
-    @Parameter(title: "Fiber")
-    var fiber: Double?
-
-    @Parameter(title: "Sodium")
-    var sodium: Double?
-
-    @Parameter(title: "Total Sugars")
-    var totalSugars: Double?
-
-    @Parameter(title: "Custom Nutrient")
-    var customNutrientName: String?
-
-    @Parameter(title: "Custom Nutrient Amount")
-    var customNutrientAmount: Double?
-
-    @Parameter(title: "Category", default: .other)
-    var category: NutritionIntentCategory
-
-    @Parameter(title: "Note")
-    var note: String?
-
-    @MainActor
-    func perform() async throws -> some IntentResult & ProvidesDialog {
-        let result = try NutritionIntentStore.logQuickAdd(
-            calories: calories,
-            protein: protein,
-            carbs: carbs,
-            fat: fat,
-            fiber: fiber,
-            sodium: sodium,
-            totalSugars: totalSugars,
-            customNutrientName: customNutrientName,
-            customNutrientAmount: customNutrientAmount,
-            category: category.foodLogCategory,
-            note: note
-        )
-        WidgetCenter.shared.reloadAllTimelines()
-        return .result(dialog: "Logged \(result.summary).")
-    }
-}
-
-struct LogFoodIntent: AppIntent {
-    static var title: LocalizedStringResource = "Log Food"
-    static var description = IntentDescription("Log one of your saved foods.")
-    static var openAppWhenRun = false
-
-    @Parameter(title: "Food")
-    var food: NutritionFoodEntity
-
-    @Parameter(title: "Amount", default: 1)
-    var amount: Double
-
-    @Parameter(title: "Amount Type", default: .serving)
-    var amountType: NutritionFoodAmountType
-
-    @Parameter(title: "Category", default: .other)
-    var category: NutritionIntentCategory
-
-    @Parameter(title: "Note")
-    var note: String?
-
-    @MainActor
-    func perform() async throws -> some IntentResult & ProvidesDialog {
-        let result = try NutritionIntentStore.logFood(
-            food: food,
-            amount: amount,
-            amountType: amountType,
-            category: category.foodLogCategory,
-            note: note
-        )
-        WidgetCenter.shared.reloadAllTimelines()
-        return .result(dialog: "Logged \(result.summary).")
-    }
-}
-
-struct LogMealIntent: AppIntent {
-    static var title: LocalizedStringResource = "Log Meal"
-    static var description = IntentDescription("Log one of your saved meals.")
-    static var openAppWhenRun = false
-
-    @Parameter(title: "Meal")
-    var meal: NutritionMealEntity
-
-    @Parameter(title: "Servings", default: 1)
-    var servings: Double
-
-    @Parameter(title: "Category", default: .other)
-    var category: NutritionIntentCategory
-
-    @Parameter(title: "Note")
-    var note: String?
-
-    @MainActor
-    func perform() async throws -> some IntentResult & ProvidesDialog {
-        let result = try NutritionIntentStore.logMeal(
-            meal: meal,
-            servings: servings,
-            category: category.foodLogCategory,
-            note: note
-        )
-        WidgetCenter.shared.reloadAllTimelines()
-        return .result(dialog: "Logged \(result.summary).")
-    }
-}
-
-struct NutritionAppShortcuts: AppShortcutsProvider {
-    static var appShortcuts: [AppShortcut] {
-        AppShortcut(
-            intent: LogNutritionQuickAddIntent(),
-            phrases: [
-                "Log nutrition in \(.applicationName)",
-                "Quick add nutrition in \(.applicationName)",
-                "Add calories to \(.applicationName)"
-            ],
-            shortTitle: "Log Nutrition",
-            systemImageName: "fork.knife"
-        )
-
-        AppShortcut(
-            intent: LogFoodIntent(),
-            phrases: [
-                "Log \(\.$food) in \(.applicationName)",
-                "Add \(\.$food) to \(.applicationName)",
-                "Log food in \(.applicationName)"
-            ],
-            shortTitle: "Log Food",
-            systemImageName: "carrot"
-        )
-
-        AppShortcut(
-            intent: LogMealIntent(),
-            phrases: [
-                "Log \(\.$meal) in \(.applicationName)",
-                "Add \(\.$meal) to \(.applicationName)",
-                "Log meal in \(.applicationName)"
-            ],
-            shortTitle: "Log Meal",
-            systemImageName: "takeoutbag.and.cup.and.straw"
-        )
-    }
-}
 
 @MainActor
-private enum NutritionIntentStore {
+enum NutritionIntentStore {
     struct LogResult {
         let summary: String
     }
 
-    struct IntentEnvironment {
+    private struct IntentEnvironment {
         let container: ModelContainer
         let context: ModelContext
-        let user: User
-        let repository: LocalNutritionRepository
         let service: NutritionService
     }
 
@@ -357,7 +85,6 @@ private enum NutritionIntentStore {
         }
 
         let environment = try makeEnvironment()
-
         _ = try environment.service.addQuickNutritionLog(
             calories: calories,
             protein: protein,
@@ -431,44 +158,45 @@ private enum NutritionIntentStore {
 
     static func foodEntities(identifiers: [UUID]) throws -> [NutritionFoodEntity] {
         let environment = try makeEnvironment()
-        let order = Dictionary(uniqueKeysWithValues: identifiers.enumerated().map { ($1, $0) })
-        return environment.service.foods
-            .filter { order[$0.id] != nil }
-            .sorted { (order[$0.id] ?? 0) < (order[$1.id] ?? 0) }
-            .map(foodEntity)
+        return orderedMatches(
+            identifiers: identifiers,
+            items: environment.service.foods,
+            id: \.id
+        )
+        .map(foodEntity)
     }
 
     static func foodEntities(matching string: String) throws -> [NutritionFoodEntity] {
         let environment = try makeEnvironment()
         let query = normalizedOptionalText(string)
-        let foods = environment.service.fetchFoods(search: query)
-        return Array(foods.prefix(20)).map(foodEntity)
+        return Array(environment.service.fetchFoods(search: query).prefix(20)).map(foodEntity)
     }
 
     static func suggestedFoodEntities() throws -> [NutritionFoodEntity] {
         let environment = try makeEnvironment()
-        let suggestedFoods = orderedUniqueFoods(
+        let suggestedFoods = orderedUnique(
             environment.service.fetchFavoriteFoods()
                 + environment.service.fetchRecentFoods(days: 30)
-                + environment.service.fetchFoods()
+                + environment.service.fetchFoods(),
+            id: \.id
         )
         return Array(suggestedFoods.prefix(20)).map(foodEntity)
     }
 
     static func mealEntities(identifiers: [UUID]) throws -> [NutritionMealEntity] {
         let environment = try makeEnvironment()
-        let order = Dictionary(uniqueKeysWithValues: identifiers.enumerated().map { ($1, $0) })
-        return environment.service.meals
-            .filter { order[$0.id] != nil }
-            .sorted { (order[$0.id] ?? 0) < (order[$1.id] ?? 0) }
-            .map(mealEntity)
+        return orderedMatches(
+            identifiers: identifiers,
+            items: environment.service.meals,
+            id: \.id
+        )
+        .map(mealEntity)
     }
 
     static func mealEntities(matching string: String) throws -> [NutritionMealEntity] {
         let environment = try makeEnvironment()
         let query = normalizedOptionalText(string)
-        let meals = environment.service.fetchMeals(search: query)
-        return Array(meals.prefix(20)).map(mealEntity)
+        return Array(environment.service.fetchMeals(search: query).prefix(20)).map(mealEntity)
     }
 
     static func suggestedMealEntities() throws -> [NutritionMealEntity] {
@@ -492,8 +220,6 @@ private enum NutritionIntentStore {
         return IntentEnvironment(
             container: container,
             context: context,
-            user: user,
-            repository: repository,
             service: service
         )
     }
@@ -536,7 +262,7 @@ private enum NutritionIntentStore {
         } else {
             parts.append("\(displayAmount(food.referenceQuantity))\(food.unit.shortLabel)")
         }
-        return parts.joined(separator: " · ")
+        return parts.joined(separator: " - ")
     }
 
     private static func mealSubtitle(_ meal: MealRecipe) -> String {
@@ -544,12 +270,25 @@ private enum NutritionIntentStore {
         return "\(displayAmount(meal.batchSize)) \(unit)"
     }
 
-    private static func orderedUniqueFoods(_ foods: [FoodItem]) -> [FoodItem] {
+    private static func orderedMatches<Item>(
+        identifiers: [UUID],
+        items: [Item],
+        id: KeyPath<Item, UUID>
+    ) -> [Item] {
+        let order = Dictionary(uniqueKeysWithValues: identifiers.enumerated().map { ($1, $0) })
+        return items
+            .filter { order[$0[keyPath: id]] != nil }
+            .sorted { (order[$0[keyPath: id]] ?? 0) < (order[$1[keyPath: id]] ?? 0) }
+    }
+
+    private static func orderedUnique<Item>(_ items: [Item], id: KeyPath<Item, UUID>) -> [Item] {
         var seen: Set<UUID> = []
-        var ordered: [FoodItem] = []
-        for food in foods where !seen.contains(food.id) {
-            seen.insert(food.id)
-            ordered.append(food)
+        var ordered: [Item] = []
+        for item in items {
+            let itemId = item[keyPath: id]
+            guard !seen.contains(itemId) else { continue }
+            seen.insert(itemId)
+            ordered.append(item)
         }
         return ordered
     }

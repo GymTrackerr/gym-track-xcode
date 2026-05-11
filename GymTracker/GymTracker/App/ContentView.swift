@@ -17,6 +17,7 @@ struct ContentView: View {
     @State var localSelected:Int = 0
     
     @State var linkActive = false
+    @State private var nutritionLogRequestID: UUID?
 
     var body: some View {
         TabView (selection: $localSelected) {
@@ -35,7 +36,7 @@ struct ContentView: View {
             if userService.currentUser?.showNutritionTab ?? true {
                 Tab("Nutrition", systemImage: "fork.knife", value: 3) {
                     NavigationStack {
-                        NutritionDayView()
+                        NutritionDayView(openLogRequestID: nutritionLogRequestID)
                     }
                 }
             }
@@ -88,8 +89,9 @@ struct ContentView: View {
     }
 
     private func handleDeepLink(_ url: URL) {
-        let destination = (url.host ?? url.path)
-            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let host = url.host ?? ""
+        let path = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let destination = ([host, path].filter { !$0.isEmpty }.joined(separator: "/"))
             .lowercased()
 
         switch destination {
@@ -97,6 +99,12 @@ struct ContentView: View {
             if userService.currentUser?.showNutritionTab ?? true {
                 linkActive = false
                 localSelected = 3
+            }
+        case "nutrition/log":
+            if userService.currentUser?.showNutritionTab ?? true {
+                linkActive = false
+                localSelected = 3
+                nutritionLogRequestID = UUID()
             }
         case "trackertimer", "timer":
             localSelected = 0

@@ -20,12 +20,19 @@ struct NutritionDayView: View {
     @State private var periodSummaries: [NutritionDailySummary] = []
     @State private var periodErrorMessage: String?
     @State private var navigationBounds: NutritionNavigationBounds?
+    @State private var handledOpenLogRequestID: UUID?
     private let showsRangeControls: Bool
+    private let openLogRequestID: UUID?
 
-    init(initialSelectedDate: Date = Date(), showsRangeControls: Bool = true) {
+    init(
+        initialSelectedDate: Date = Date(),
+        showsRangeControls: Bool = true,
+        openLogRequestID: UUID? = nil
+    ) {
         let normalizedDate = Calendar.current.startOfDay(for: initialSelectedDate)
         _selectedDate = State(initialValue: normalizedDate)
         self.showsRangeControls = showsRangeControls
+        self.openLogRequestID = openLogRequestID
     }
 
     private var dayLogs: [NutritionLogEntry] {
@@ -130,6 +137,7 @@ struct NutritionDayView: View {
             }
             refreshPeriodSummaries()
             refreshNavigationBounds()
+            presentRequestedLogSheetIfNeeded()
         }
         .onChange(of: selectedDate) {
             let normalizedDate = Calendar.current.startOfDay(for: selectedDate)
@@ -150,6 +158,9 @@ struct NutritionDayView: View {
             } else {
                 refreshPeriodSummaries()
             }
+        }
+        .onChange(of: openLogRequestID) {
+            presentRequestedLogSheetIfNeeded()
         }
         .sheet(isPresented: $showDatePickerSheet) {
             NutritionDatePickerSheet(selectedDate: $selectedDate)
@@ -213,6 +224,14 @@ struct NutritionDayView: View {
         } message: {
             Text(errorMessage)
         }
+    }
+
+    private func presentRequestedLogSheetIfNeeded() {
+        guard let openLogRequestID, handledOpenLogRequestID != openLogRequestID else { return }
+        handledOpenLogRequestID = openLogRequestID
+        selectedRange = .today
+        selectedDate = Calendar.current.startOfDay(for: Date())
+        showLogSheet = true
     }
 
     private var rangeControlRow: some View {
