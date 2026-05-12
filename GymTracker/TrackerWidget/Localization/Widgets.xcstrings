@@ -1,0 +1,42 @@
+{
+  "sourceLanguage" : "en-GB",
+  "strings" : {
+    "widget.configuration.description" : {
+      "comment" : "Description for the widget configuration intent.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "This is an example widget." } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "This is an example widget." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Este es un widget de ejemplo." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ceci est un widget d'exemple." } }
+      }
+    },
+    "widget.configuration.title" : {
+      "comment" : "Title for the widget configuration intent.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Configuration" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Configuration" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Configuración" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Configuration" } }
+      }
+    },
+    "widget.timer.configuration.title" : {
+      "comment" : "Title for the timer control configuration intent.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Timer Name Configuration" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Timer Name Configuration" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Configuración del nombre del temporizador" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Configuration du nom du minuteur" } }
+      }
+    },
+    "widget.timer.start.title" : {
+      "comment" : "Title for the timer control App Intent.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Start a timer" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Start a timer" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Iniciar un temporizador" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Démarrer un minuteur" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

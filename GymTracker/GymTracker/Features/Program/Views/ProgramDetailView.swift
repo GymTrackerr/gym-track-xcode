@@ -130,7 +130,7 @@ struct ProgramDetailView: View {
                             .font(.title3)
                             .fontWeight(.semibold)
 
-                        Text(program.mode.title)
+                        Text(program.mode.titleResource)
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
@@ -1077,7 +1077,7 @@ struct ProgramEditorSheet: View {
                         ConnectedCardRow {
                             Picker("Schedule", selection: $mode) {
                                 ForEach(ProgramMode.allCases) { mode in
-                                    Text(mode.title).tag(mode)
+                                    Text(mode.titleResource).tag(mode)
                                 }
                             }
                         }

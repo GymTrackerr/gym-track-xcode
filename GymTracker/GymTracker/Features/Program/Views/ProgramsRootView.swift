@@ -43,7 +43,7 @@ struct ProgramsRootView: View {
             .screenContentPadding()
         }
         .appBackground()
-        .navigationTitle("Programme")
+        .navigationTitle(Text(ProgrammeL10n.programme))
         .navigationDestination(item: $openedSession) { session in
             SingleSessionView(session: session)
                 .appBackground()

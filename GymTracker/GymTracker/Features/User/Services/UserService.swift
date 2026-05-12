@@ -327,6 +327,19 @@ class UserService: ServiceBase, ObservableObject {
         }
     }
 
+    var currentLanguagePreference: AppLanguagePreference {
+        currentUser?.preferredLanguage ?? .system
+    }
+
+    func setCurrentLanguagePreference(_ preference: AppLanguagePreference) {
+        objectWillChange.send()
+        withAnimation {
+            currentUser?.preferredLanguage = preference
+            currentUser?.updatedAt = Date()
+            if let currentUser { try? repository.saveChanges(for: currentUser) }
+        }
+    }
+
     func setTimerNotificationsEnabled(_ isEnabled: Bool) {
         withAnimation {
             currentUser?.timerNotificationsEnabled = isEnabled

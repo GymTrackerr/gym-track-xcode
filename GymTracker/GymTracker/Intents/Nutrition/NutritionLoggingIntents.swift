@@ -2,8 +2,18 @@ import AppIntents
 import Foundation
 
 struct LogNutritionQuickAddIntent: AppIntent {
-    static var title: LocalizedStringResource = "Create Log"
-    static var description = IntentDescription("Quick add consumed nutrition values.")
+    static var title = LocalizedStringResource(
+        "nutrition.intent.quickAdd.title",
+        defaultValue: "Create Log",
+        table: "Nutrition",
+        comment: "Title for the App Intent that quickly logs nutrition values."
+    )
+    static var description = IntentDescription(LocalizedStringResource(
+        "nutrition.intent.quickAdd.description",
+        defaultValue: "Quick add consumed nutrition values.",
+        table: "Nutrition",
+        comment: "Description for the App Intent that quickly logs nutrition values."
+    ))
     static var supportedModes: IntentModes { .background }
 
     @Parameter(title: "Calories")
@@ -59,8 +69,18 @@ struct LogNutritionQuickAddIntent: AppIntent {
 }
 
 struct LogFoodIntent: AppIntent {
-    static var title: LocalizedStringResource = "Log Food"
-    static var description = IntentDescription("Log one of your saved foods.")
+    static var title = LocalizedStringResource(
+        "nutrition.intent.logFood.title",
+        defaultValue: "Log Food",
+        table: "Nutrition",
+        comment: "Title for the App Intent that logs a saved food."
+    )
+    static var description = IntentDescription(LocalizedStringResource(
+        "nutrition.intent.logFood.description",
+        defaultValue: "Log one of your saved foods.",
+        table: "Nutrition",
+        comment: "Description for the App Intent that logs a saved food."
+    ))
     static var supportedModes: IntentModes { .background }
 
     @Parameter(title: "Food")
@@ -92,8 +112,18 @@ struct LogFoodIntent: AppIntent {
 }
 
 struct LogMealIntent: AppIntent {
-    static var title: LocalizedStringResource = "Log Meal"
-    static var description = IntentDescription("Log one of your saved meals.")
+    static var title = LocalizedStringResource(
+        "nutrition.intent.logMeal.title",
+        defaultValue: "Log Meal",
+        table: "Nutrition",
+        comment: "Title for the App Intent that logs a saved meal."
+    )
+    static var description = IntentDescription(LocalizedStringResource(
+        "nutrition.intent.logMeal.description",
+        defaultValue: "Log one of your saved meals.",
+        table: "Nutrition",
+        comment: "Description for the App Intent that logs a saved meal."
+    ))
     static var supportedModes: IntentModes { .background }
 
     @Parameter(title: "Meal")
@@ -130,7 +160,12 @@ struct GymTrackerAppShortcuts: AppShortcutsProvider {
                 "Quick add nutrition in \(.applicationName)",
                 "Add calories to \(.applicationName)"
             ],
-            shortTitle: "Create Log",
+            shortTitle: LocalizedStringResource(
+                "nutrition.shortcut.quickAdd.title",
+                defaultValue: "Create Log",
+                table: "Nutrition",
+                comment: "Short title for the quick nutrition logging shortcut."
+            ),
             systemImageName: "fork.knife"
         )
 
@@ -141,7 +176,12 @@ struct GymTrackerAppShortcuts: AppShortcutsProvider {
                 "Add \(\.$food) to \(.applicationName)",
                 "Log food in \(.applicationName)"
             ],
-            shortTitle: "Log Food",
+            shortTitle: LocalizedStringResource(
+                "nutrition.shortcut.logFood.title",
+                defaultValue: "Log Food",
+                table: "Nutrition",
+                comment: "Short title for the saved food logging shortcut."
+            ),
             systemImageName: "carrot"
         )
 
@@ -152,7 +192,12 @@ struct GymTrackerAppShortcuts: AppShortcutsProvider {
                 "Add \(\.$meal) to \(.applicationName)",
                 "Log meal in \(.applicationName)"
             ],
-            shortTitle: "Log Meal",
+            shortTitle: LocalizedStringResource(
+                "nutrition.shortcut.logMeal.title",
+                defaultValue: "Log Meal",
+                table: "Nutrition",
+                comment: "Short title for the saved meal logging shortcut."
+            ),
             systemImageName: "takeoutbag.and.cup.and.straw"
         )
 
@@ -164,7 +209,12 @@ struct GymTrackerAppShortcuts: AppShortcutsProvider {
                 "Start session from \(\.$routine) in \(.applicationName)",
                 "Start programme session from \(\.$programme) in \(.applicationName)"
             ],
-            shortTitle: "Start Session",
+            shortTitle: LocalizedStringResource(
+                "sessions.shortcut.startSession.title",
+                defaultValue: "Start Session",
+                table: "Sessions",
+                comment: "Short title for the start session shortcut."
+            ),
             systemImageName: "figure.strengthtraining.traditional"
         )
     }

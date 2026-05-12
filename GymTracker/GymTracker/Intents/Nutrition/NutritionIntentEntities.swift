@@ -3,7 +3,12 @@ import Foundation
 
 struct NutritionFoodEntity: AppEntity {
     static let defaultQuery = NutritionFoodEntityQuery()
-    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Food")
+    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: LocalizedStringResource(
+        "nutrition.entity.food",
+        defaultValue: "Food",
+        table: "Nutrition",
+        comment: "Display name for a food entity in App Intents."
+    ))
 
     var id: UUID
     var name: String
@@ -36,7 +41,12 @@ struct NutritionFoodEntityQuery: EntityStringQuery {
 
 struct NutritionMealEntity: AppEntity {
     static let defaultQuery = NutritionMealEntityQuery()
-    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Meal")
+    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: LocalizedStringResource(
+        "nutrition.entity.meal",
+        defaultValue: "Meal",
+        table: "Nutrition",
+        comment: "Display name for a meal entity in App Intents."
+    ))
 
     var id: UUID
     var name: String

@@ -2,8 +2,18 @@ import AppIntents
 import Foundation
 
 struct StartSessionIntent: AppIntent {
-    static var title: LocalizedStringResource = "Start Session"
-    static var description = IntentDescription("Start a blank session, routine session, or programme workout.")
+    static var title = LocalizedStringResource(
+        "sessions.intent.startSession.title",
+        defaultValue: "Start Session",
+        table: "Sessions",
+        comment: "Title for the App Intent that starts a workout session."
+    )
+    static var description = IntentDescription(LocalizedStringResource(
+        "sessions.intent.startSession.description",
+        defaultValue: "Start a blank session, routine session, or programme workout.",
+        table: "Sessions",
+        comment: "Description for the App Intent that starts a workout session."
+    ))
     static var supportedModes: IntentModes { .foreground(.immediate) }
 
     @Parameter(title: "Session Type")

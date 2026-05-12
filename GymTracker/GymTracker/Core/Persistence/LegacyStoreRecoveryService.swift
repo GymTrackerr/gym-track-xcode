@@ -49,6 +49,7 @@ enum LegacyStoreRecoveryService {
             copy.defaultTimer = old.defaultTimer
             copy.showNutritionTab = old.showNutritionTab
             copy.preferredAppearanceRaw = old.preferredAppearanceRaw
+            copy.preferredLanguageRaw = old.preferredLanguageRaw
             copy.onboardingStatus = old.onboardingStatus
             copy.onboardingGoalsRaw = old.onboardingGoalsRaw
             copy.trainingExperienceRaw = old.trainingExperienceRaw

@@ -1,0 +1,114 @@
+{
+  "sourceLanguage" : "en-GB",
+  "strings" : {
+    "sessions.entity.programme" : {
+      "comment" : "Display name for a programme entity in App Intents.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Programme" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Program" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Programa" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Programme" } }
+      }
+    },
+    "sessions.entity.routine" : {
+      "comment" : "Display name for a routine entity in App Intents.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Routine" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Routine" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Rutina" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Routine" } }
+      }
+    },
+    "sessions.intent.startKind.blank.subtitle" : {
+      "comment" : "Blank session type subtitle.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Start without a routine" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Start without a routine" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Iniciar sin rutina" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Démarrer sans routine" } }
+      }
+    },
+    "sessions.intent.startKind.blank.title" : {
+      "comment" : "Blank session type title.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Blank" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Blank" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Vacía" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Vide" } }
+      }
+    },
+    "sessions.intent.startKind.programme.subtitle" : {
+      "comment" : "Programme session type subtitle.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Start the next workout" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Start the next workout" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Iniciar el siguiente entrenamiento" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Démarrer le prochain entraînement" } }
+      }
+    },
+    "sessions.intent.startKind.programme.title" : {
+      "comment" : "Programme session type title.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Programme" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Program" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Programa" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Programme" } }
+      }
+    },
+    "sessions.intent.startKind.routine.subtitle" : {
+      "comment" : "Routine session type subtitle.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Use a saved routine" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Use a saved routine" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Usar una rutina guardada" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Utiliser une routine enregistrée" } }
+      }
+    },
+    "sessions.intent.startKind.routine.title" : {
+      "comment" : "Routine session type title.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Routine" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Routine" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Rutina" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Routine" } }
+      }
+    },
+    "sessions.intent.startKind.type" : {
+      "comment" : "Type name for the session type App Intent enum.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Session Type" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Session Type" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Tipo de sesión" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Type de séance" } }
+      }
+    },
+    "sessions.intent.startSession.description" : {
+      "comment" : "Description for the App Intent that starts a workout session.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Start a blank session, routine session, or programme workout." } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Start a blank session, routine session, or program workout." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Inicia una sesión vacía, una sesión de rutina o un entrenamiento de programa." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Démarrez une séance vide, une séance de routine ou un entraînement de programme." } }
+      }
+    },
+    "sessions.intent.startSession.title" : {
+      "comment" : "Title for the App Intent that starts a workout session.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Start Session" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Start Session" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Iniciar entrenamiento" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Démarrer une séance" } }
+      }
+    },
+    "sessions.shortcut.startSession.title" : {
+      "comment" : "Short title for the start session shortcut.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Start Session" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Start Session" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Iniciar entrenamiento" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Démarrer une séance" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

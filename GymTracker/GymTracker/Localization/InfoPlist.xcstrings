@@ -1,0 +1,105 @@
+{
+  "sourceLanguage" : "en-GB",
+  "strings" : {
+    "CFBundleName" : {
+      "comment" : "Bundle name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "GymTracker"
+          }
+        }
+      }
+    },
+    "NSHealthShareUsageDescription" : {
+      "comment" : "Purpose string for reading Apple Health data",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importing previous workouts, and building graphs for daily steps and weight."
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importing previous workouts, and building graphs for daily steps and weight."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importar entrenamientos anteriores y crear gráficos de pasos diarios y peso."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importer les entraînements précédents et créer des graphiques pour les pas quotidiens et le poids."
+          }
+        }
+      }
+    },
+    "NSHealthUpdateUsageDescription" : {
+      "comment" : "Purpose string for writing workouts to Apple Health",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Workout Sessions created in GymTracker can be imported to the health app."
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Workout Sessions created in GymTracker can be imported to the Health app."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las sesiones de entrenamiento creadas en GymTracker se pueden importar a la app Salud."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les séances d'entraînement créées dans GymTracker peuvent être importées dans l'app Santé."
+          }
+        }
+      }
+    },
+    "NSPhotoLibraryUsageDescription" : {
+      "comment" : "Purpose string for saving processed videos to the photo library",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "We need access to save processed videos to show performance."
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "We need access to save processed videos to show performance."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Necesitamos acceso para guardar videos procesados y mostrar el rendimiento."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nous avons besoin d'un accès pour enregistrer les vidéos traitées afin d'afficher les performances."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

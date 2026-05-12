@@ -267,9 +267,11 @@ struct RootView: View {
     var body: some View {
         if userService.onboardingState != nil {
             OnboardingRootView()
+                .environment(\.locale, userService.currentLanguagePreference.effectiveLocale)
                 .preferredColorScheme(userService.currentAppearancePreference.colorScheme)
         } else {
             ContentView()
+                .environment(\.locale, userService.currentLanguagePreference.effectiveLocale)
                 .preferredColorScheme(userService.currentAppearancePreference.colorScheme)
         }
     }

@@ -60,7 +60,7 @@ struct ContentView: View {
                 }
             }
 
-            Tab("Programme", systemImage: "figure.walk.motion", value: 4) {
+            Tab(ProgrammeL10n.programme, systemImage: "figure.walk.motion", value: 4) {
                 NavigationStack {
                     ProgramsRootView()
                 }

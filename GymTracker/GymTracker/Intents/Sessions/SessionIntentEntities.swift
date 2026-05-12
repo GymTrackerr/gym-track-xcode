@@ -3,7 +3,12 @@ import Foundation
 
 struct SessionRoutineEntity: AppEntity {
     static let defaultQuery = SessionRoutineEntityQuery()
-    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Routine")
+    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: LocalizedStringResource(
+        "sessions.entity.routine",
+        defaultValue: "Routine",
+        table: "Sessions",
+        comment: "Display name for a routine entity in App Intents."
+    ))
 
     var id: UUID
     var name: String
@@ -40,7 +45,12 @@ struct SessionRoutineEntityQuery: EntityStringQuery {
 
 struct SessionProgrammeEntity: AppEntity {
     static let defaultQuery = SessionProgrammeEntityQuery()
-    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Programme")
+    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: LocalizedStringResource(
+        "sessions.entity.programme",
+        defaultValue: "Programme",
+        table: "Sessions",
+        comment: "Display name for a programme entity in App Intents."
+    ))
 
     var id: UUID
     var name: String

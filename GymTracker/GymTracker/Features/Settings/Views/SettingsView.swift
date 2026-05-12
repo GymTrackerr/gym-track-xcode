@@ -294,6 +294,50 @@ struct SettingsView: View {
                 ConnectedCardDivider(leadingInset: 56)
 
                 ConnectedCardRow {
+                    HStack(spacing: 12) {
+                        settingsRowLabel(
+                            title: LocalizedStringResource(
+                                "settings.language.title",
+                                defaultValue: "Language",
+                                table: "Settings",
+                                comment: "Title for the app language preference row"
+                            ),
+                            subtitle: LocalizedStringResource(
+                                "settings.language.subtitle",
+                                defaultValue: "Use system default or choose a language",
+                                table: "Settings",
+                                comment: "Subtitle for the app language preference row"
+                            ),
+                            systemImage: "globe",
+                            showsChevron: false
+                        )
+
+                        Spacer(minLength: 12)
+
+                        Picker(
+                            LocalizedStringResource(
+                                "settings.language.pickerTitle",
+                                defaultValue: "Language",
+                                table: "Settings",
+                                comment: "Accessibility title for the language picker"
+                            ),
+                            selection: Binding(
+                                get: { userService.currentLanguagePreference },
+                                set: { userService.setCurrentLanguagePreference($0) }
+                            )
+                        ) {
+                            ForEach(AppLanguagePreference.allCases) { preference in
+                                Text(preference.titleResource).tag(preference)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                    }
+                }
+
+                ConnectedCardDivider(leadingInset: 56)
+
+                ConnectedCardRow {
                     Toggle(
                         isOn: Binding(
                             get: { userService.currentUser?.showNutritionTab ?? true },
@@ -676,6 +720,37 @@ struct SettingsView: View {
     private func settingsRowLabel(
         title: String,
         subtitle: String,
+        systemImage: String,
+        showsChevron: Bool = true
+    ) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.title3.weight(.semibold))
+                .frame(width: 28, height: 28)
+                .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 8)
+
+            if showsChevron {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func settingsRowLabel(
+        title: LocalizedStringResource,
+        subtitle: LocalizedStringResource,
         systemImage: String,
         showsChevron: Bool = true
     ) -> some View {

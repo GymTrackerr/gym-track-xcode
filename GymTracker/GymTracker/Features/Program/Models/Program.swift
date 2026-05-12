@@ -15,11 +15,25 @@ enum ProgramMode: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     var title: String {
+        String(localized: titleResource)
+    }
+
+    var titleResource: LocalizedStringResource {
         switch self {
         case .weekly:
-            return "Weekly"
+            return LocalizedStringResource(
+                "programme.mode.weekly",
+                defaultValue: "Weekly",
+                table: "Programmes",
+                comment: "Programme schedule mode that repeats by week"
+            )
         case .continuous:
-            return "Continuous"
+            return LocalizedStringResource(
+                "programme.mode.continuous",
+                defaultValue: "Continuous",
+                table: "Programmes",
+                comment: "Programme schedule mode that repeats through workouts continuously"
+            )
         }
     }
 }

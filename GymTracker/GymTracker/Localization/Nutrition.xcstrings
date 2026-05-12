@@ -1,0 +1,186 @@
+{
+  "sourceLanguage" : "en-GB",
+  "strings" : {
+    "nutrition.entity.food" : {
+      "comment" : "Display name for a food entity in App Intents.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Food" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Food" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Alimento" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Aliment" } }
+      }
+    },
+    "nutrition.entity.meal" : {
+      "comment" : "Display name for a meal entity in App Intents.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Meal" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Meal" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Comida" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Repas" } }
+      }
+    },
+    "nutrition.intent.amountType.foodUnit" : {
+      "comment" : "Food unit amount type.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Food Unit" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Food Unit" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Unidad de alimento" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Unité d'aliment" } }
+      }
+    },
+    "nutrition.intent.amountType.serving" : {
+      "comment" : "Serving food amount type.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Serving" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Serving" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Porción" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Portion" } }
+      }
+    },
+    "nutrition.intent.amountType.type" : {
+      "comment" : "Type name for the food amount App Intent enum.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Food Amount Type" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Food Amount Type" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Tipo de cantidad de alimento" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Type de quantité d'aliment" } }
+      }
+    },
+    "nutrition.intent.category.breakfast" : {
+      "comment" : "Breakfast nutrition category.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Breakfast" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Breakfast" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Desayuno" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Petit-déjeuner" } }
+      }
+    },
+    "nutrition.intent.category.dinner" : {
+      "comment" : "Dinner nutrition category.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Dinner" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Dinner" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Cena" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Dîner" } }
+      }
+    },
+    "nutrition.intent.category.lunch" : {
+      "comment" : "Lunch nutrition category.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Lunch" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Lunch" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Almuerzo" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Déjeuner" } }
+      }
+    },
+    "nutrition.intent.category.other" : {
+      "comment" : "Other nutrition category.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Other" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Other" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Otro" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Autre" } }
+      }
+    },
+    "nutrition.intent.category.snack" : {
+      "comment" : "Snack nutrition category.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Snack" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Snack" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Merienda" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Collation" } }
+      }
+    },
+    "nutrition.intent.category.type" : {
+      "comment" : "Type name for the nutrition category App Intent enum.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Nutrition Category" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Nutrition Category" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Categoría nutricional" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Catégorie nutritionnelle" } }
+      }
+    },
+    "nutrition.intent.logFood.description" : {
+      "comment" : "Description for the App Intent that logs a saved food.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Log one of your saved foods." } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Log one of your saved foods." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Registra uno de tus alimentos guardados." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Enregistrez l'un de vos aliments enregistrés." } }
+      }
+    },
+    "nutrition.intent.logFood.title" : {
+      "comment" : "Title for the App Intent that logs a saved food.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Log Food" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Log Food" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Registrar alimento" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Enregistrer un aliment" } }
+      }
+    },
+    "nutrition.intent.logMeal.description" : {
+      "comment" : "Description for the App Intent that logs a saved meal.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Log one of your saved meals." } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Log one of your saved meals." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Registra una de tus comidas guardadas." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Enregistrez l'un de vos repas enregistrés." } }
+      }
+    },
+    "nutrition.intent.logMeal.title" : {
+      "comment" : "Title for the App Intent that logs a saved meal.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Log Meal" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Log Meal" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Registrar comida" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Enregistrer un repas" } }
+      }
+    },
+    "nutrition.intent.quickAdd.description" : {
+      "comment" : "Description for the App Intent that quickly logs nutrition values.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Quick add consumed nutrition values." } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Quick add consumed nutrition values." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Añade rápidamente los valores nutricionales consumidos." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ajoutez rapidement les valeurs nutritionnelles consommées." } }
+      }
+    },
+    "nutrition.intent.quickAdd.title" : {
+      "comment" : "Title for the App Intent that quickly logs nutrition values.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Create Log" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Create Log" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Crear registro" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Créer un journal" } }
+      }
+    },
+    "nutrition.shortcut.logFood.title" : {
+      "comment" : "Short title for the saved food logging shortcut.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Log Food" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Log Food" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Registrar alimento" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Enregistrer un aliment" } }
+      }
+    },
+    "nutrition.shortcut.logMeal.title" : {
+      "comment" : "Short title for the saved meal logging shortcut.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Log Meal" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Log Meal" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Registrar comida" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Enregistrer un repas" } }
+      }
+    },
+    "nutrition.shortcut.quickAdd.title" : {
+      "comment" : "Short title for the quick nutrition logging shortcut.",
+      "localizations" : {
+        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Create Log" } },
+        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Create Log" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Crear registro" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Créer un journal" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

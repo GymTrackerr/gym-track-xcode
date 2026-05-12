@@ -49,14 +49,24 @@ extension TrackerWidgetControl {
 }
 
 struct TimerConfiguration: ControlConfigurationIntent {
-    static let title: LocalizedStringResource = "Timer Name Configuration"
+    static let title = LocalizedStringResource(
+        "widget.timer.configuration.title",
+        defaultValue: "Timer Name Configuration",
+        table: "Widgets",
+        comment: "Title for the timer control configuration intent."
+    )
 
     @Parameter(title: "Timer Name", default: "Timer")
     var timerName: String
 }
 
 struct StartTimerIntent: SetValueIntent {
-    static let title: LocalizedStringResource = "Start a timer"
+    static let title = LocalizedStringResource(
+        "widget.timer.start.title",
+        defaultValue: "Start a timer",
+        table: "Widgets",
+        comment: "Title for the timer control App Intent."
+    )
 
     @Parameter(title: "Timer Name")
     var name: String

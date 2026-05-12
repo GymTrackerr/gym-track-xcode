@@ -34,6 +34,7 @@ final class User {
     var showNutritionTab: Bool = true
     var preferredHealthHistorySyncRangeRaw: String?
     var preferredAppearanceRaw: String?
+    var preferredLanguageRaw: String?
 
     // Phase 9 optional timer feedback settings (non-destructive)
     var timerNotificationsEnabled: Bool?
@@ -90,6 +91,16 @@ final class User {
         }
         set {
             preferredAppearanceRaw = newValue == .system ? nil : newValue.rawValue
+        }
+    }
+
+    var preferredLanguage: AppLanguagePreference {
+        get {
+            guard let preferredLanguageRaw else { return .system }
+            return AppLanguagePreference(rawValue: preferredLanguageRaw) ?? .system
+        }
+        set {
+            preferredLanguageRaw = newValue == .system ? nil : newValue.rawValue
         }
     }
 }
