@@ -32,11 +32,11 @@ struct InteractAccountLinkCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Interact Account")
+            Text("Interact Account", tableName: "Settings")
                 .font(.headline)
 
             if userService.currentUser?.isDemo == true {
-                Text("Account linking is disabled while using Demo mode.")
+                Text("Account linking is disabled while using Demo mode.", tableName: "Settings")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
@@ -58,13 +58,13 @@ struct InteractAccountLinkCard: View {
     private var linkedStateView: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let username = backendAuthService.currentBackendUser?.username, username.isEmpty == false {
-                Text("Linked as @\(username)")
+                Text("Linked as @\(username)", tableName: "Settings")
                     .font(.subheadline)
             } else if let accountUserId = backendAuthService.sessionSnapshot?.accountUserId {
-                Text("Linked account: \(accountUserId)")
+                Text("Linked account: \(accountUserId)", tableName: "Settings")
                     .font(.subheadline)
             } else {
-                Text("Account linked")
+                Text("Account linked", tableName: "Settings")
                     .font(.subheadline)
             }
 
@@ -75,14 +75,18 @@ struct InteractAccountLinkCard: View {
             }
 
             HStack {
-                Button("Refresh Session") {
+                Button {
                     refreshSession()
+                } label: {
+                    Text("Refresh Session", tableName: "Settings")
                 }
                 .buttonStyle(.bordered)
                 .disabled(isSubmitting)
 
-                Button("Unlink") {
+                Button {
                     logout()
+                } label: {
+                    Text("Unlink", tableName: "Settings")
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(isSubmitting)
@@ -92,7 +96,7 @@ struct InteractAccountLinkCard: View {
 
     private var unlinkedStateView: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Link an Interact account to enable optional cloud sync. You can keep using GymTracker without linking.")
+            Text("Link an Interact account to enable optional cloud sync. You can keep using GymTracker without linking.", tableName: "Settings")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
@@ -110,7 +114,7 @@ struct InteractAccountLinkCard: View {
                 if isSubmitting {
                     ProgressView()
                 } else {
-                    Text("Link Interact Account")
+                    Text("Link Interact Account", tableName: "Settings")
                 }
             }
             .buttonStyle(.borderedProminent)

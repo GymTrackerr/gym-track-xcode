@@ -256,21 +256,21 @@ struct ConnectedCardDivider: View {
 }
 
 struct SummaryMetricTile: View {
-    private let title: LocalizedDisplayText
+    private let title: Text
     let value: String
     var systemImage: String?
     var tint: Color?
     var tintsBackground = false
 
     init(
-        title: String.LocalizationValue,
+        title: LocalizedStringKey,
         value: String,
         systemImage: String? = nil,
         tint: Color? = nil,
         tintsBackground: Bool = false,
         tableName: String? = nil
     ) {
-        self.title = .localized(title, table: tableName)
+        self.title = Text(title, tableName: tableName)
         self.value = value
         self.systemImage = systemImage
         self.tint = tint
@@ -284,7 +284,7 @@ struct SummaryMetricTile: View {
         tint: Color? = nil,
         tintsBackground: Bool = false
     ) {
-        title = LocalizedDisplayText(resource: resourceTitle)
+        title = Text(resourceTitle)
         self.value = value
         self.systemImage = systemImage
         self.tint = tint
@@ -298,7 +298,7 @@ struct SummaryMetricTile: View {
         tint: Color? = nil,
         tintsBackground: Bool = false
     ) {
-        title = .verbatim(verbatimTitle)
+        title = Text(verbatim: verbatimTitle)
         self.value = value
         self.systemImage = systemImage
         self.tint = tint
@@ -308,12 +308,12 @@ struct SummaryMetricTile: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             VStack(alignment: .leading, spacing: 4) {
-                LocalizedDisplayTextView(title)
+                title
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(tint ?? .secondary)
                     .textCase(.uppercase)
 
-                Text(value)
+                Text(verbatim: value)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
@@ -375,39 +375,39 @@ struct NavigableCardRow<Content: View, Destination: View>: View {
 }
 
 struct SectionHeaderView: View {
-    private let title: LocalizedDisplayText
-    private let subtitle: LocalizedDisplayText?
+    private let title: Text
+    private let subtitle: Text?
 
     init(
-        title: String.LocalizationValue,
-        subtitle: String.LocalizationValue? = nil,
+        title: LocalizedStringKey,
+        subtitle: LocalizedStringKey? = nil,
         tableName: String? = nil
     ) {
-        self.title = .localized(title, table: tableName)
-        self.subtitle = subtitle.map { .localized($0, table: tableName) }
+        self.title = Text(title, tableName: tableName)
+        self.subtitle = subtitle.map { Text($0, tableName: tableName) }
     }
 
     init(
         resourceTitle: LocalizedStringResource,
         resourceSubtitle: LocalizedStringResource? = nil
     ) {
-        title = LocalizedDisplayText(resource: resourceTitle)
-        subtitle = resourceSubtitle.map { LocalizedDisplayText(resource: $0) }
+        title = Text(resourceTitle)
+        subtitle = resourceSubtitle.map { Text($0) }
     }
 
     init(verbatimTitle: String, verbatimSubtitle: String? = nil) {
-        title = .verbatim(verbatimTitle)
-        subtitle = verbatimSubtitle.map { .verbatim($0) }
+        title = Text(verbatim: verbatimTitle)
+        subtitle = verbatimSubtitle.map { Text(verbatim: $0) }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            LocalizedDisplayTextView(title)
+            title
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
 
             if let subtitle {
-                LocalizedDisplayTextView(subtitle)
+                subtitle
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -419,19 +419,19 @@ struct SectionHeaderView: View {
 }
 
 struct EmptyStateView: View {
-    private let title: LocalizedDisplayText
+    private let title: Text
     let systemImage: String
-    private let message: LocalizedDisplayText
+    private let message: Text
 
     init(
-        title: String.LocalizationValue,
+        title: LocalizedStringKey,
         systemImage: String,
-        message: String.LocalizationValue,
+        message: LocalizedStringKey,
         tableName: String? = nil
     ) {
-        self.title = .localized(title, table: tableName)
+        self.title = Text(title, tableName: tableName)
         self.systemImage = systemImage
-        self.message = .localized(message, table: tableName)
+        self.message = Text(message, tableName: tableName)
     }
 
     init(
@@ -439,26 +439,26 @@ struct EmptyStateView: View {
         systemImage: String,
         resourceMessage: LocalizedStringResource
     ) {
-        title = LocalizedDisplayText(resource: resourceTitle)
+        title = Text(resourceTitle)
         self.systemImage = systemImage
-        message = LocalizedDisplayText(resource: resourceMessage)
+        message = Text(resourceMessage)
     }
 
     init(
-        title: String.LocalizationValue,
+        title: LocalizedStringKey,
         systemImage: String,
         verbatimMessage: String,
         tableName: String? = nil
     ) {
-        self.title = .localized(title, table: tableName)
+        self.title = Text(title, tableName: tableName)
         self.systemImage = systemImage
-        message = .verbatim(verbatimMessage)
+        message = Text(verbatim: verbatimMessage)
     }
 
     init(verbatimTitle: String, systemImage: String, verbatimMessage: String) {
-        title = .verbatim(verbatimTitle)
+        title = Text(verbatim: verbatimTitle)
         self.systemImage = systemImage
-        message = .verbatim(verbatimMessage)
+        message = Text(verbatim: verbatimMessage)
     }
 
     var body: some View {
@@ -467,9 +467,9 @@ struct EmptyStateView: View {
                 Image(systemName: systemImage)
                     .font(.title2)
                     .foregroundStyle(.secondary)
-                LocalizedDisplayTextView(title)
+                title
                     .font(.headline)
-                LocalizedDisplayTextView(message)
+                message
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -482,30 +482,30 @@ struct EmptyStateView: View {
 }
 
 struct FilterPill: View {
-    private let title: LocalizedDisplayText
+    private let title: Text
     let isSelected: Bool
 
     init(
-        title: String.LocalizationValue,
+        title: LocalizedStringKey,
         isSelected: Bool,
         tableName: String? = nil
     ) {
-        self.title = .localized(title, table: tableName)
+        self.title = Text(title, tableName: tableName)
         self.isSelected = isSelected
     }
 
     init(resourceTitle: LocalizedStringResource, isSelected: Bool) {
-        title = LocalizedDisplayText(resource: resourceTitle)
+        title = Text(resourceTitle)
         self.isSelected = isSelected
     }
 
     init(verbatimTitle: String, isSelected: Bool) {
-        title = .verbatim(verbatimTitle)
+        title = Text(verbatim: verbatimTitle)
         self.isSelected = isSelected
     }
 
     var body: some View {
-        LocalizedDisplayTextView(title)
+        title
             .font(.caption.weight(.semibold))
             .padding(.horizontal, 16)
             .padding(.vertical, 8)

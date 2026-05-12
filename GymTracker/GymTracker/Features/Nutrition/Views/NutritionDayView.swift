@@ -97,7 +97,7 @@ struct NutritionDayView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .appBackground()
-        .navigationTitle("Nutrition")
+        .navigationTitle(Text("Nutrition", tableName: "Nutrition"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -113,7 +113,11 @@ struct NutritionDayView: View {
                 Button {
                     showLogSheet = true
                 } label: {
-                    Label("Log", systemImage: "plus.circle")
+                    Label {
+                        Text("Log", tableName: "Nutrition")
+                    } icon: {
+                        Image(systemName: "plus.circle")
+                    }
                 }
             }
 
@@ -121,7 +125,11 @@ struct NutritionDayView: View {
                 Button {
                     showManagePage = true
                 } label: {
-                    Label("Manage", systemImage: "line.3.horizontal")
+                    Label {
+                        Text("Manage", tableName: "Nutrition")
+                    } icon: {
+                        Image(systemName: "line.3.horizontal")
+                    }
                 }
             }
         }
@@ -390,9 +398,9 @@ struct NutritionDayView: View {
                 }
 
                 HStack(spacing: 12) {
-                    SummaryMetricTile(title: "Protein", value: "\(Int(totalProtein.rounded())) g")
-                    SummaryMetricTile(title: "Carbs", value: "\(Int(totalCarbs.rounded())) g")
-                    SummaryMetricTile(title: "Fat", value: "\(Int(totalFat.rounded())) g")
+                    SummaryMetricTile(title: "Protein", value: "\(Int(totalProtein.rounded())) g", tableName: "Nutrition")
+                    SummaryMetricTile(title: "Carbs", value: "\(Int(totalCarbs.rounded())) g", tableName: "Nutrition")
+                    SummaryMetricTile(title: "Fat", value: "\(Int(totalFat.rounded())) g", tableName: "Nutrition")
                 }
 
                 if isTargetEnabled {
@@ -1142,9 +1150,9 @@ private struct NutritionDailySummaryRow: View {
                 }
 
                 HStack(spacing: 10) {
-                    SummaryMetricTile(title: "Protein", value: "\(Int(summary.protein.rounded())) g")
-                    SummaryMetricTile(title: "Carbs", value: "\(Int(summary.carbs.rounded())) g")
-                    SummaryMetricTile(title: "Fat", value: "\(Int(summary.fat.rounded())) g")
+                    SummaryMetricTile(title: "Protein", value: "\(Int(summary.protein.rounded())) g", tableName: "Nutrition")
+                    SummaryMetricTile(title: "Carbs", value: "\(Int(summary.carbs.rounded())) g", tableName: "Nutrition")
+                    SummaryMetricTile(title: "Fat", value: "\(Int(summary.fat.rounded())) g", tableName: "Nutrition")
                 }
             }
         }

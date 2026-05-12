@@ -1,6 +1,595 @@
 {
   "sourceLanguage" : "en-GB",
   "strings" : {
+    "Add Rep" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Rep"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Rep"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añadir repetición"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter une répétition"
+          }
+        }
+      }
+    },
+    "Add Set" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Set"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Set"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añadir serie"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter une série"
+          }
+        }
+      }
+    },
+    "Cardio Set" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cardio Set"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cardio Set"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serie cardiovascular"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Série cardio"
+          }
+        }
+      }
+    },
+    "Copy into current" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy into current"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy into current"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copiar en la actual"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copier dans l’actuelle"
+          }
+        }
+      }
+    },
+    "Copy into Current" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy into Current"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy into Current"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copiar en la actual"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copier dans l’actuelle"
+          }
+        }
+      }
+    },
+    "Current Set" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current Set"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current Set"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serie actual"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Série actuelle"
+          }
+        }
+      }
+    },
+    "Distance" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distance"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distance"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distancia"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distance"
+          }
+        }
+      }
+    },
+    "Distance Unit" : {
+      "comment" : "Picker title for cardio distance units",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distance Unit"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distance Unit"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unidad de distancia"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unité de distance"
+          }
+        }
+      }
+    },
+    "Drop Set" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop Set"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop Set"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serie descendente"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Série dégressive"
+          }
+        }
+      }
+    },
+    "Drop Set Reps" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop Set Reps"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop Set Reps"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repeticiones de serie descendente"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Répétitions de série dégressive"
+          }
+        }
+      }
+    },
+    "Duplicate set" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duplicate set"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duplicate set"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duplicar serie"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dupliquer la série"
+          }
+        }
+      }
+    },
+    "Duplicate Set" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duplicate Set"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duplicate Set"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duplicar serie"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dupliquer la série"
+          }
+        }
+      }
+    },
+    "Duration" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duration"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duration"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duración"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Durée"
+          }
+        }
+      }
+    },
+    "Estimated Pace --" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estimated Pace --"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estimated Pace --"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ritmo estimado --"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allure estimée --"
+          }
+        }
+      }
+    },
+    "Log weight and reps for your next set." : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Log weight and reps for your next set."
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Log weight and reps for your next set."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Registra el peso y las repeticiones de tu próxima serie."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrez le poids et les répétitions de votre prochaine série."
+          }
+        }
+      }
+    },
+    "Log your current cardio effort." : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Log your current cardio effort."
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Log your current cardio effort."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Registra tu esfuerzo cardiovascular actual."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrez votre effort cardio actuel."
+          }
+        }
+      }
+    },
+    "Manual Pace" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manual Pace"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manual Pace"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ritmo manual"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allure manuelle"
+          }
+        }
+      }
+    },
+    "Open full session" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open full session"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open full session"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir sesión completa"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir la séance complète"
+          }
+        }
+      }
+    },
+    "Pace" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pace"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pace"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ritmo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allure"
+          }
+        }
+      }
+    },
+    "Read-only" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read-only"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read-only"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solo lectura"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lecture seule"
+          }
+        }
+      }
+    },
+    "Reps" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reps"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reps"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repeticiones"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Répétitions"
+          }
+        }
+      }
+    },
     "sessions.entity.programme" : {
       "comment" : "Display name for a programme entity in App Intents.",
       "localizations" : {
@@ -320,103 +909,360 @@
         }
       }
     },
+    "sessions.pace.estimated" : {
+      "comment" : "Estimated pace label",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estimated Pace %@"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estimated Pace %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ritmo estimado %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allure estimée %@"
+          }
+        }
+      }
+    },
     "sessions.range.all" : {
       "comment" : "Display name for the \"All\" session range.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "All"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Todo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tout"
           }
         }
       }
     },
     "sessions.range.allSessions" : {
       "comment" : "The name of the \"All Sessions\" range.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "All Sessions"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All Sessions"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Todas las sesiones"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toutes les séances"
           }
         }
       }
     },
     "sessions.range.month" : {
       "comment" : "Display name for the \"Month\" session range option.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Month"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Month"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mois"
           }
         }
       }
     },
     "sessions.range.week" : {
       "comment" : "Display name for the \"Week\" session time range.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Week"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Week"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Semana"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Semaine"
           }
         }
       }
     },
     "sessions.range.year" : {
       "comment" : "Display name for the \"Year\" session time range.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Year"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Year"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Año"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Année"
+          }
+        }
+      }
+    },
+    "sessions.set.chip.dropSet" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Drop Set"
           }
         }
       }
     },
     "sessions.set.chip.more" : {
       "comment" : "Set summary chip showing additional hidden rows",
+      "localizations" : {
+        "en-GB" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "+%lld more"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "+%lld more"
+                }
+              }
+            }
+          }
+        },
+        "en-US" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "+%lld more"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "+%lld more"
+                }
+              }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "+%lld más"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "+%lld más"
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "+%lld de plus"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "+%lld de plus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "sessions.set.chip.note" : {
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "+%lld more"
+            "value" : "Note"
+          }
+        }
+      }
+    },
+    "sessions.set.summary.cardioSet" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Cardio set"
           }
         }
       }
     },
     "sessions.set.summary.pace" : {
       "comment" : "Cardio set summary showing pace",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pace %@"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pace %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ritmo %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allure %@"
+          }
+        }
+      }
+    },
+    "sessions.set.summary.set" : {
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Pace %@"
+            "value" : "Set"
           }
         }
       }
     },
     "sessions.set.summary.weightReps" : {
       "comment" : "Set summary showing weight and repetition count",
-      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "%1$@ %2$@s x %3$lld reps"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ %2$@s x %3$lld reps"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ %2$@ x %3$lld rep."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ %2$@ x %3$lld rép."
           }
         }
       }
@@ -452,64 +1298,394 @@
     },
     "sessions.summary.sessionCount" : {
       "comment" : "Summary count of sessions in the selected time range",
-      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en-GB" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%lld Sessions"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Session"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Sessions"
+                }
+              }
+            }
+          }
+        },
+        "en-US" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Session"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Sessions"
+                }
+              }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld sesión"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld sesiones"
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld séance"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld séances"
+                }
+              }
+            }
           }
         }
       }
     },
     "sessions.summaryTitle.month" : {
       "comment" : "Title for the summary of the month.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "This Month"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This Month"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este mes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce mois-ci"
           }
         }
       }
     },
     "sessions.summaryTitle.week" : {
       "comment" : "Title for the summary of the week.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "This Week"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This Week"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta semana"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette semaine"
           }
         }
       }
     },
     "sessions.summaryTitle.year" : {
       "comment" : "Title for the summary of the year.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "This Year"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This Year"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este año"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette année"
           }
         }
       }
     },
     "sessions.tab.title" : {
       "comment" : "A label for the \"Sessions\" tab.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Sessions"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sessions"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sesiones"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Séances"
+          }
+        }
+      }
+    },
+    "This session is not active. Unlock to add or edit sets." : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This session is not active. Unlock to add or edit sets."
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This session is not active. Unlock to add or edit sets."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta sesión no está activa. Desbloquéala para añadir o editar series."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette séance n’est pas active. Déverrouillez-la pour ajouter ou modifier des séries."
+          }
+        }
+      }
+    },
+    "Time (HH:MM:SS)" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time (HH:MM:SS)"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time (HH:MM:SS)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tiempo (HH:MM:SS)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Temps (HH:MM:SS)"
+          }
+        }
+      }
+    },
+    "Today's Sets" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today's Sets"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today's Sets"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Series de hoy"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Séries du jour"
+          }
+        }
+      }
+    },
+    "Transfer Set" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfer Set"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfer Set"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transferir serie"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transférer la série"
+          }
+        }
+      }
+    },
+    "Transfer set..." : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfer set..."
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfer set..."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transferir serie..."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transférer la série..."
+          }
+        }
+      }
+    },
+    "Unit" : {
+      "comment" : "Picker title for a unit selector",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unit"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unit"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unidad"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unité"
+          }
+        }
+      }
+    },
+    "Weight" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weight"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weight"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Peso"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Poids"
           }
         }
       }

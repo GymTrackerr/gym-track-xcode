@@ -61,7 +61,7 @@ struct SettingsView: View {
             .screenContentPadding()
         }
         .appBackground()
-        .navigationTitle("Settings")
+        .navigationTitle(Text("Settings", tableName: "Settings"))
         .alert(backupAlertTitle, isPresented: $showExportErrorAlert) {
             Button("OK", role: .cancel) { }
         } message: {
@@ -80,7 +80,7 @@ struct SettingsView: View {
             }
             Button("Not Now", role: .cancel) { }
         } message: {
-            Text("Health access is enabled for this account. You can start syncing now or do it later from Settings.")
+            Text("Health access is enabled for this account. You can start syncing now or do it later from Settings.", tableName: "Settings")
         }
         .onAppear {
             loadSelectedHealthHistoryRangeFromUser()
@@ -130,13 +130,17 @@ struct SettingsView: View {
 
     private var accountSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "Accounts")
+            SectionHeaderView(title: "Accounts", tableName: "Settings")
             ConnectedCardSection {
                 ConnectedCardRow {
                     Button {
                         userService.startNewAccountOnboarding()
                     } label: {
-                        Label("New Account", systemImage: "plus.circle.fill")
+                        Label {
+                            Text("New Account", tableName: "Settings")
+                        } icon: {
+                            Image(systemName: "plus.circle.fill")
+                        }
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
@@ -189,7 +193,7 @@ struct SettingsView: View {
 
     private var accountSyncSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "Account Sync")
+            SectionHeaderView(title: "Account Sync", tableName: "Settings")
             ConnectedCardSection {
                 ConnectedCardRow {
                     InteractAccountLinkCard()
@@ -219,7 +223,7 @@ struct SettingsView: View {
 
     private var generalSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "General")
+            SectionHeaderView(title: "General", tableName: "Settings")
             ConnectedCardSection {
                 NavigationLink {
                     DemoSeedView()
@@ -271,7 +275,7 @@ struct SettingsView: View {
 
     private var preferencesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "Preferences")
+            SectionHeaderView(title: "Preferences", tableName: "Settings")
             ConnectedCardSection {
                 ConnectedCardRow {
                     HStack(spacing: 12) {
@@ -373,7 +377,7 @@ struct SettingsView: View {
 
     private var nutritionSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "Nutrition")
+            SectionHeaderView(title: "Nutrition", tableName: "Settings")
             ConnectedCardSection {
                 ConnectedCardRow {
                     nutritionLabelStyleRow
@@ -411,17 +415,25 @@ struct SettingsView: View {
                 .foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Nutrition Label Style")
+                Text("Nutrition Label Style", tableName: "Settings")
                     .font(.headline)
                     .foregroundStyle(.primary)
-                Text("Used by food labels and Quick Add")
+                Text("Used by food labels and Quick Add", tableName: "Settings")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
 
             Spacer(minLength: 8)
 
-            Picker("Nutrition Label Style", selection: $nutritionLabelProfile) {
+            Picker(
+                LocalizedStringResource(
+                    "Nutrition Label Style",
+                    defaultValue: "Nutrition Label Style",
+                    table: "Settings",
+                    comment: "Picker title for the preferred nutrition label style"
+                ),
+                selection: $nutritionLabelProfile
+            ) {
                 ForEach(NutritionLabelProfile.allCases) { profile in
                     Text(profile.displayNameResource).tag(profile)
                 }
@@ -433,7 +445,7 @@ struct SettingsView: View {
 
     private var exercisesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "Exercises")
+            SectionHeaderView(title: "Exercises", tableName: "Settings")
             ConnectedCardSection {
                 ConnectedCardRow {
                     Toggle(
@@ -498,10 +510,10 @@ struct SettingsView: View {
 
     private var appleHealthAccessSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "Apple Health Access")
+            SectionHeaderView(title: "Apple Health Access", tableName: "Settings")
             ConnectedCardSection {
                 ConnectedCardRow {
-                    Text(healthAccessStatusText)
+                    Text(healthAccessStatusResource)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -510,7 +522,7 @@ struct SettingsView: View {
 
                 if userService.currentUser?.isDemo == true {
                     ConnectedCardRow {
-                        Text("Apple Health access is disabled for demo accounts.")
+                        Text("Apple Health access is disabled for demo accounts.", tableName: "Settings")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -561,10 +573,18 @@ struct SettingsView: View {
 
     private var appleHealthSummarySection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "Apple Health Summary")
+            SectionHeaderView(title: "Apple Health Summary", tableName: "Settings")
             ConnectedCardSection {
                 ConnectedCardRow {
-                    Picker("History Range", selection: $selectedHealthHistoryRange) {
+                    Picker(
+                        LocalizedStringResource(
+                            "History Range",
+                            defaultValue: "History Range",
+                            table: "Settings",
+                            comment: "Picker title for Apple Health history range"
+                        ),
+                        selection: $selectedHealthHistoryRange
+                    ) {
                         ForEach(HealthHistorySyncRange.allCases) { range in
                             Text(range.titleResource).tag(range)
                         }
@@ -605,7 +625,7 @@ struct SettingsView: View {
                 if userService.currentUser?.allowHealthAccess != true {
                     ConnectedCardDivider()
                     ConnectedCardRow {
-                        Text("Enable Apple Health access first to use Smart Pull or Full Refresh.")
+                        Text("Enable Apple Health access first to use Smart Pull or Full Refresh.", tableName: "Settings")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -641,7 +661,7 @@ struct SettingsView: View {
 
     private var developerNetworkingSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "Developer Networking")
+            SectionHeaderView(title: "Developer Networking", tableName: "Settings")
             ConnectedCardSection {
                 ConnectedCardRow {
                     TextField("Backend base URL override", text: $backendBaseURLOverride)
@@ -672,7 +692,7 @@ struct SettingsView: View {
                 ConnectedCardDivider()
 
                 ConnectedCardRow {
-                    Text("Leave a field empty to use the normal built-in URL.")
+                    Text("Leave a field empty to use the normal built-in URL.", tableName: "Settings")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -690,7 +710,7 @@ struct SettingsView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 8) {
-                        Text(account.name)
+                        Text(verbatim: account.name)
                             .font(.headline)
 
                         if account.isDemo {
@@ -702,7 +722,7 @@ struct SettingsView: View {
                         }
                     }
 
-                    Text("Last login: \(account.lastLogin, format: .dateTime.month().day().year().hour().minute())")
+                    Text("Last login: \(account.lastLogin, format: .dateTime.month().day().year().hour().minute())", tableName: "Settings")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -710,8 +730,10 @@ struct SettingsView: View {
                 Spacer(minLength: 8)
 
                 if userService.currentUser?.id != account.id {
-                    Button("Sign In") {
+                    Button {
                         userService.switchAccount(to: account.id)
+                    } label: {
+                        Text("Sign In", tableName: "Settings")
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
@@ -721,8 +743,8 @@ struct SettingsView: View {
     }
 
     private func settingsActionRow(
-        title: String.LocalizationValue,
-        subtitle: String.LocalizationValue,
+        title: LocalizedStringKey,
+        subtitle: LocalizedStringKey,
         systemImage: String,
         action: @escaping () -> Void
     ) -> some View {
@@ -735,14 +757,14 @@ struct SettingsView: View {
     }
 
     private func settingsRowLabel(
-        title: String.LocalizationValue,
-        subtitle: String.LocalizationValue,
+        title: LocalizedStringKey,
+        subtitle: LocalizedStringKey,
         systemImage: String,
         showsChevron: Bool = true
     ) -> some View {
         settingsRowLabel(
-            titleText: .localized(title, table: "Settings"),
-            subtitleText: .localized(subtitle, table: "Settings"),
+            titleText: Text(title, tableName: "Settings"),
+            subtitleText: Text(subtitle, tableName: "Settings"),
             systemImage: systemImage,
             showsChevron: showsChevron
         )
@@ -750,15 +772,15 @@ struct SettingsView: View {
 
     private func settingsActionRow(
         resourceTitle: LocalizedStringResource,
-        subtitle: String.LocalizationValue,
+        subtitle: LocalizedStringKey,
         systemImage: String,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             ConnectedCardRow {
                 settingsRowLabel(
-                    titleText: LocalizedDisplayText(resource: resourceTitle),
-                    subtitleText: .localized(subtitle, table: "Settings"),
+                    titleText: Text(resourceTitle),
+                    subtitleText: Text(subtitle, tableName: "Settings"),
                     systemImage: systemImage
                 )
             }
@@ -773,16 +795,16 @@ struct SettingsView: View {
         showsChevron: Bool = true
     ) -> some View {
         settingsRowLabel(
-            titleText: LocalizedDisplayText(resource: resourceTitle),
-            subtitleText: LocalizedDisplayText(resource: resourceSubtitle),
+            titleText: Text(resourceTitle),
+            subtitleText: Text(resourceSubtitle),
             systemImage: systemImage,
             showsChevron: showsChevron
         )
     }
 
     private func settingsRowLabel(
-        titleText: LocalizedDisplayText,
-        subtitleText: LocalizedDisplayText,
+        titleText: Text,
+        subtitleText: Text,
         systemImage: String,
         showsChevron: Bool = true
     ) -> some View {
@@ -793,10 +815,10 @@ struct SettingsView: View {
                 .foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: 2) {
-                LocalizedDisplayTextView(titleText)
+                titleText
                     .font(.headline)
                     .foregroundStyle(.primary)
-                LocalizedDisplayTextView(subtitleText)
+                subtitleText
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -890,19 +912,39 @@ struct SettingsView: View {
         }
     }
 
-    private var healthAccessStatusText: String {
+    private var healthAccessStatusResource: LocalizedStringResource {
         if userService.currentUser?.isDemo == true {
-            return "Apple Health is unavailable in demo mode."
+            return LocalizedStringResource(
+                "settings.appleHealthAccess.status.demoUnavailable",
+                defaultValue: "Apple Health is unavailable in demo mode.",
+                table: "Settings"
+            )
         }
         if userService.currentUser?.allowHealthAccess == true {
             return hkManager.hkConnected
-                ? "Apple Health is enabled for this account."
-                : "Enabled for this account, but Apple Health permission appears unavailable right now."
+                ? LocalizedStringResource(
+                    "settings.appleHealthAccess.status.enabled",
+                    defaultValue: "Apple Health is enabled for this account.",
+                    table: "Settings"
+                )
+                : LocalizedStringResource(
+                    "settings.appleHealthAccess.status.enabledPermissionUnavailable",
+                    defaultValue: "Enabled for this account, but Apple Health permission appears unavailable right now.",
+                    table: "Settings"
+                )
         }
         if hkManager.hkConnected {
-            return "Apple Health permission is available on this device, but disabled for this account."
+            return LocalizedStringResource(
+                "settings.appleHealthAccess.status.permissionAvailable",
+                defaultValue: "Apple Health permission is available on this device, but disabled for this account.",
+                table: "Settings"
+            )
         }
-        return "Apple Health is currently disabled for this account."
+        return LocalizedStringResource(
+            "settings.appleHealthAccess.status.disabled",
+            defaultValue: "Apple Health is currently disabled for this account.",
+            table: "Settings"
+        )
     }
 
     @MainActor
@@ -1161,11 +1203,11 @@ struct SettingsView: View {
 }
 
 private struct AccountChip: View {
-    let title: String
+    let title: LocalizedStringKey
     let tint: Color
 
     var body: some View {
-        Text(title)
+        Text(title, tableName: "Settings")
             .font(.caption2.weight(.semibold))
             .foregroundStyle(tint)
             .padding(.horizontal, 8)

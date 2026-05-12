@@ -12,7 +12,7 @@ struct MetricCard: View {
                 if pageNav {
                     Spacer()
                 }
-                Text(value)
+                Text(verbatim: value)
                     .font(.title3)
                     .foregroundColor(.primary)
                     .fontWeight(.semibold)
@@ -51,17 +51,17 @@ struct MetricActivityRingCard: View {
                             .rotationEffect(.degrees(-90))
                         
                         VStack(spacing: 2) {
-                            Text("\(Int(activityRings.moveRingValue))")
+                            Text(verbatim: "\(Int(activityRings.moveRingValue))")
                                 .font(.headline)
                                 .fontWeight(.semibold)
-                            Text("Cal")
+                            Text("Cal", tableName: "Shared")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
                     }
                     .frame(width: 60, height: 60)
                     
-                    Text("Move")
+                    Text("Move", tableName: "Shared")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -82,17 +82,17 @@ struct MetricActivityRingCard: View {
                             .rotationEffect(.degrees(-90))
                         
                         VStack(spacing: 2) {
-                            Text("\(Int(activityRings.exerciseRingValue))")
+                            Text(verbatim: "\(Int(activityRings.exerciseRingValue))")
                                 .font(.headline)
                                 .fontWeight(.semibold)
-                            Text("Min")
+                            Text("Min", tableName: "Shared")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
                     }
                     .frame(width: 60, height: 60)
                     
-                    Text("Exercise")
+                    Text("Exercise", tableName: "Shared")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -111,17 +111,17 @@ struct MetricActivityRingCard: View {
                             .rotationEffect(.degrees(-90))
                         
                         VStack(spacing: 2) {
-                            Text("\(activityRings.standRingValue)")
+                            Text(verbatim: "\(activityRings.standRingValue)")
                                 .font(.headline)
                                 .fontWeight(.semibold)
-                            Text("hrs")
+                            Text("hrs", tableName: "Shared")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
                     }
                     .frame(width: 60, height: 60)
                     
-                    Text("Stand")
+                    Text("Stand", tableName: "Shared")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }

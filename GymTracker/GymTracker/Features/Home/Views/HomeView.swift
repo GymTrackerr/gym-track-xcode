@@ -45,14 +45,14 @@ struct HomeView: View {
                     await refreshHealthData(waitForSync: true)
                 }
             } else {
-                Text("Please continue to onboarding")
+                Text("Please continue to onboarding", tableName: "Shared")
             }
         }
         .environmentObject(homeHealthSnapshot)
         .task(id: healthRefreshTaskID) {
             await refreshHealthData(requestAuthorization: true, waitForSync: false)
         }
-        .navigationTitle(userService.currentUser.map { "Welcome \($0.name)" } ?? "Home")
+        .navigationTitle(homeTitle)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             if dashboardService.isEditingMode {
@@ -60,13 +60,17 @@ struct HomeView: View {
                     Button {
                         showAddModuleSheet = true
                     } label: {
-                        Label("Add Module", systemImage: "plus.circle")
+                        Label {
+                            Text("Add Module", tableName: "Shared")
+                        } icon: {
+                            Image(systemName: "plus.circle")
+                        }
                     }
                 }
 
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
-                        Section("Presets") {
+                        Section {
                             ForEach(DashboardPreset.productionCases) { preset in
                                 Button {
                                     dashboardService.pendingPresetSelection = preset
@@ -77,10 +81,12 @@ struct HomeView: View {
                                     }
                                 }
                             }
+                        } header: {
+                            Text("Presets", tableName: "Shared")
                         }
 
 #if DEBUG
-                        Section("Debug Layout Tests") {
+                        Section {
                             ForEach(DashboardPreset.debugCases) { preset in
                                 Button {
                                     dashboardService.pendingPresetSelection = preset
@@ -91,10 +97,16 @@ struct HomeView: View {
                                     }
                                 }
                             }
+                        } header: {
+                            Text("Debug Layout Tests", tableName: "Shared")
                         }
 #endif
                     } label: {
-                        Label("Presets", systemImage: "square.grid.2x2")
+                        Label {
+                            Text("Presets", tableName: "Shared")
+                        } icon: {
+                            Image(systemName: "square.grid.2x2")
+                        }
                     }
                 }
             }
@@ -103,17 +115,37 @@ struct HomeView: View {
                 Button(action: {
                     dashboardService.isEditingMode.toggle()
                 }) {
-                    Label(
-                        dashboardService.isEditingMode ? "Done" : "Edit",
-                        systemImage: dashboardService.isEditingMode ? "checkmark.circle" : "pencil"
-                    )
+                    if dashboardService.isEditingMode {
+                        Label {
+                            Text("Done", tableName: "Shared")
+                        } icon: {
+                            Image(systemName: "checkmark.circle")
+                        }
+                    } else {
+                        Label {
+                            Text("Edit", tableName: "Shared")
+                        } icon: {
+                            Image(systemName: "pencil")
+                        }
+                    }
                 }
 
                 NavigationLink(destination: SettingsView()) {
-                    Label("Settings", systemImage: "gearshape")
+                    Label {
+                        Text("Settings", tableName: "Shared")
+                    } icon: {
+                        Image(systemName: "gearshape")
+                    }
                 }
             }
         }
+    }
+
+    private var homeTitle: Text {
+        if let currentUser = userService.currentUser {
+            return Text("Welcome \(currentUser.name)", tableName: "Shared")
+        }
+        return Text("Home", tableName: "Shared")
     }
 
     private func refreshHealthData(
@@ -323,7 +355,7 @@ struct DashboardGridView: View {
             DashboardModulesView(showAddModuleSheet: $showAddModuleSheet)
 
             VStack(alignment: .leading, spacing: 12) {
-                Text("Sessions")
+                Text("Sessions", tableName: "Shared")
                     .font(.headline)
 
                 SessionsView(openedSession: $openedSession)
@@ -339,16 +371,20 @@ struct ExerciseCatalogPromptBanner: View {
     var body: some View {
         CardRowContainer {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Download ExerciseDB?")
+                Text("Download ExerciseDB?", tableName: "Shared")
                     .font(.headline)
-                Text("Enable optional ExerciseDB sync for faster exercise browsing and cached thumbnails.")
+                Text("Enable optional ExerciseDB sync for faster exercise browsing and cached thumbnails.", tableName: "Shared")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
 
                 HStack(spacing: 12) {
-                    Button("Enable Sync", action: onEnable)
+                    Button(action: onEnable) {
+                        Text("Enable Sync", tableName: "Shared")
+                    }
                         .buttonStyle(.borderedProminent)
-                    Button("Not Now", action: onDismiss)
+                    Button(action: onDismiss) {
+                        Text("Not Now", tableName: "Shared")
+                    }
                         .buttonStyle(.bordered)
                 }
             }
@@ -374,7 +410,7 @@ struct ExerciseCatalogSyncProgressCard: View {
     var body: some View {
         CardRowContainer {
             VStack(alignment: .leading, spacing: 10) {
-                Text("ExerciseDB Sync")
+                Text("ExerciseDB Sync", tableName: "Shared")
                     .font(.headline)
                 ProgressView(value: progress)
                 Text(exerciseService.catalogSyncStatusText)
@@ -403,7 +439,7 @@ struct HealthBackfillProgressCard: View {
     var body: some View {
         CardRowContainer {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Health Sync")
+                Text("Health Sync", tableName: "Shared")
                     .font(.headline)
                 ProgressView(value: progress)
                 Text(healthKitDailyStore.backfillStatusText)
@@ -418,9 +454,9 @@ struct HealthAccessBanner: View {
     var body: some View {
         CardRowContainer {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Connect Apple Health")
+                Text("Connect Apple Health", tableName: "Shared")
                     .font(.headline)
-                Text("Health-backed cards like weight, steps, sleep, activity rings, and imported workouts will stay visible here once access is enabled in Settings.")
+                Text("Health-backed cards like weight, steps, sleep, activity rings, and imported workouts will stay visible here once access is enabled in Settings.", tableName: "Shared")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
@@ -434,10 +470,10 @@ struct EmptyDashboardView: View {
             Image(systemName: "square.grid.2x2")
                 .font(.title)
                 .foregroundColor(.secondary)
-            Text("No Dashboard Modules")
+            Text("No Dashboard Modules", tableName: "Shared")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
-            Text("Tap Edit to add modules or apply a preset")
+            Text("Tap Edit to add modules or apply a preset", tableName: "Shared")
                 .font(.caption)
                 .foregroundColor(.secondary.opacity(0.7))
         }
@@ -801,7 +837,7 @@ struct DashboardInlineEditorBar: View {
     var body: some View {
         CardRowContainer {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Drag cards to reorder them, and use the menu on each card to resize or hide it.")
+                Text("Drag cards to reorder them, and use the menu on each card to resize or hide it.", tableName: "Shared")
                     .font(.footnote)
                     .foregroundColor(.secondary)
             }
@@ -817,36 +853,44 @@ struct DashboardInlineAddModuleSheet: View {
         NavigationStack {
             List {
                 if !smallTypes.isEmpty {
-                    Section("Small (1x1)") {
+                    Section {
                         ForEach(smallTypes, id: \.self) { type in
                             addButton(for: type, size: .small)
                         }
+                    } header: {
+                        Text("Small (1x1)", tableName: "Shared")
                     }
                 }
 
                 if !mediumTypes.isEmpty {
-                    Section("Medium (2x1)") {
+                    Section {
                         ForEach(mediumTypes, id: \.self) { type in
                             addButton(for: type, size: .medium)
                         }
+                    } header: {
+                        Text("Medium (2x1)", tableName: "Shared")
                     }
                 }
 
                 if !largeTypes.isEmpty {
-                    Section("Large (2x2)") {
+                    Section {
                         ForEach(largeTypes, id: \.self) { type in
                             addButton(for: type, size: .large)
                         }
+                    } header: {
+                        Text("Large (2x2)", tableName: "Shared")
                     }
                 }
             }
             .cardListScreen()
-            .navigationTitle("Add Module")
+            .navigationTitle(Text("Add Module", tableName: "Shared"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
+                    Button {
                         isPresented = false
+                    } label: {
+                        Text("Done", tableName: "Shared")
                     }
                 }
             }
@@ -934,7 +978,7 @@ struct DashboardEditableModuleCard: View {
     private var moduleActionMenu: some View {
         Menu {
             if module.type.allowedSizes.count > 1 {
-                Section("Size") {
+                Section {
                     ForEach(module.type.allowedSizes, id: \.self) { size in
                         Button {
                             onSizeChange(size)
@@ -950,6 +994,8 @@ struct DashboardEditableModuleCard: View {
                             }
                         }
                     }
+                } header: {
+                    Text("Size", tableName: "Shared")
                 }
             }
 
@@ -957,7 +1003,11 @@ struct DashboardEditableModuleCard: View {
                 Button(role: .destructive) {
                     onHide()
                 } label: {
-                    Label("Remove Module", systemImage: "trash")
+                    Label {
+                        Text("Remove Module", tableName: "Shared")
+                    } icon: {
+                        Image(systemName: "trash")
+                    }
                 }
             }
         } label: {
@@ -1166,10 +1216,10 @@ struct DashboardHealthAccessPlaceholder: View {
                 .font(.title3.weight(.semibold))
                 .foregroundColor(.secondary)
 
-            Text("Connect Apple Health")
+            Text("Connect Apple Health", tableName: "Shared")
                 .font(.subheadline.weight(.semibold))
                 .foregroundColor(.primary)
-            Text("This module will appear here once Health access is enabled.")
+            Text("This module will appear here once Health access is enabled.", tableName: "Shared")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)

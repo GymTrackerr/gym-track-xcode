@@ -5,9 +5,16 @@ struct MealRowView: View {
 
     var body: some View {
         HStack {
-            Text(meal.name)
+            Text(verbatim: meal.name)
             Spacer()
-            Text("\(meal.items.count) items")
+            Text(
+                LocalizedStringResource(
+                    "nutrition.items.count",
+                    defaultValue: "\(meal.items.count) items",
+                    table: "Nutrition",
+                    comment: "Number of items in a meal"
+                )
+            )
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -27,9 +34,9 @@ struct FoodRowView<Trailing: View>: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
-                    Text(food.name)
+                    Text(verbatim: food.name)
                     if food.isArchived {
-                        Text("Archived")
+                        Text("Archived", tableName: "Nutrition")
                             .font(.caption2)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
@@ -37,7 +44,7 @@ struct FoodRowView<Trailing: View>: View {
                     }
                 }
                 if let brand = food.brand {
-                    Text(brand)
+                    Text(verbatim: brand)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

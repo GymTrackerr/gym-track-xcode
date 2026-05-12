@@ -64,10 +64,15 @@ struct SetDisplayUnitPreferences {
     var preferredDistanceUnit: DistanceUnit? = nil
 }
 
+struct SetDisplayChip: Identifiable {
+    let id: String
+    let text: Text
+}
+
 struct SetDisplaySummary {
-    let primaryText: LocalizedDisplayText
-    let secondaryText: LocalizedDisplayText?
-    let chips: [LocalizedDisplayText]
+    let primaryText: Text
+    let secondaryText: Text?
+    let chips: [SetDisplayChip]
 }
 
 enum SetDisplayFormatter {
@@ -172,8 +177,8 @@ enum SetDisplayFormatter {
                 sourceUnit: sourceUnit,
                 preferredDistanceUnit: targetUnit
             ).map { pace in
-                LocalizedDisplayText(
-                    resource: LocalizedStringResource(
+                Text(
+                    LocalizedStringResource(
                         "sessions.set.summary.pace",
                         defaultValue: "Pace \(pace)",
                         table: "Sessions",
@@ -185,24 +190,39 @@ enum SetDisplayFormatter {
             let primaryParts = [durationText, distanceText].compactMap { $0 }
             if !primaryParts.isEmpty {
                 return SetDisplaySummary(
-                    primaryText: .verbatim(primaryParts.joined(separator: " • ")),
-                    secondaryText: paceText ?? (hasNote ? note.map { .verbatim($0) } : nil),
+                    primaryText: Text(verbatim: primaryParts.joined(separator: " • ")),
+                    secondaryText: paceText ?? (hasNote ? note.map { Text(verbatim: $0) } : nil),
                     chips: []
                 )
             }
 
             if hasNote {
                 return SetDisplaySummary(
-                    primaryText: .verbatim(note ?? ""),
+                    primaryText: Text(verbatim: note ?? ""),
                     secondaryText: nil,
                     chips: [
-                        .localized("Note", table: "Sessions", id: "sessions.set.chip.note")
+                        SetDisplayChip(
+                            id: "sessions.set.chip.note",
+                            text: Text(
+                                LocalizedStringResource(
+                                    "sessions.set.chip.note",
+                                    defaultValue: "Note",
+                                    table: "Sessions"
+                                )
+                            )
+                        )
                     ]
                 )
             }
 
             return SetDisplaySummary(
-                primaryText: .localized("Cardio set", table: "Sessions", id: "sessions.set.summary.cardioSet"),
+                primaryText: Text(
+                    LocalizedStringResource(
+                        "sessions.set.summary.cardioSet",
+                        defaultValue: "Cardio set",
+                        table: "Sessions"
+                    )
+                ),
                 secondaryText: nil,
                 chips: []
             )
@@ -226,15 +246,30 @@ enum SetDisplayFormatter {
         if reps.isEmpty {
             if let note, !note.isEmpty {
                 return SetDisplaySummary(
-                    primaryText: .verbatim(note),
+                    primaryText: Text(verbatim: note),
                     secondaryText: nil,
                     chips: [
-                        .localized("Note", table: "Sessions", id: "sessions.set.chip.note")
+                        SetDisplayChip(
+                            id: "sessions.set.chip.note",
+                            text: Text(
+                                LocalizedStringResource(
+                                    "sessions.set.chip.note",
+                                    defaultValue: "Note",
+                                    table: "Sessions"
+                                )
+                            )
+                        )
                     ]
                 )
             }
             return SetDisplaySummary(
-                primaryText: .localized("Set", table: "Sessions", id: "sessions.set.summary.set"),
+                primaryText: Text(
+                    LocalizedStringResource(
+                        "sessions.set.summary.set",
+                        defaultValue: "Set",
+                        table: "Sessions"
+                    )
+                ),
                 secondaryText: nil,
                 chips: []
             )
@@ -265,27 +300,40 @@ enum SetDisplayFormatter {
             return "\(formatNumber(convertedWeight)) \(targetUnit.name)"
         }
 
-        var chips: [LocalizedDisplayText] = []
+        var chips: [SetDisplayChip] = []
         if set.isDropSet || reps.count > 1 {
-            chips.append(.localized("Drop Set", table: "Sessions", id: "sessions.set.chip.dropSet"))
+            chips.append(
+                SetDisplayChip(
+                    id: "sessions.set.chip.dropSet",
+                    text: Text(
+                        LocalizedStringResource(
+                            "sessions.set.chip.dropSet",
+                            defaultValue: "Drop Set",
+                            table: "Sessions"
+                        )
+                    )
+                )
+            )
         }
         if reps.count > 3 {
             chips.append(
-                LocalizedDisplayText(
-                    resource: LocalizedStringResource(
-                        "sessions.set.chip.more",
-                        defaultValue: "+\(reps.count - 3) more",
-                        table: "Sessions",
-                        comment: "Set summary chip showing additional hidden rows"
-                    ),
-                    id: "sessions.set.chip.more.\(reps.count - 3)"
+                SetDisplayChip(
+                    id: "sessions.set.chip.more.\(reps.count - 3)",
+                    text: Text(
+                        LocalizedStringResource(
+                            "sessions.set.chip.more",
+                            defaultValue: "+\(reps.count - 3) more",
+                            table: "Sessions",
+                            comment: "Set summary chip showing additional hidden rows"
+                        )
+                    )
                 )
             )
         }
 
         return SetDisplaySummary(
-            primaryText: .verbatim(displayRows.joined(separator: " • ")),
-            secondaryText: (note?.isEmpty == false) ? note.map { .verbatim($0) } : nil,
+            primaryText: Text(verbatim: displayRows.joined(separator: " • ")),
+            secondaryText: (note?.isEmpty == false) ? note.map { Text(verbatim: $0) } : nil,
             chips: chips
         )
     }

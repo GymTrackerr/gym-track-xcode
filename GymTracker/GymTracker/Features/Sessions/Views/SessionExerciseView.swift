@@ -311,17 +311,23 @@ struct SessionExerciseView: View {
     private var addSetForm: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Current Set")
+                Text("Current Set", tableName: "Sessions")
                     .font(.headline)
-                Text(sessionEntry.exercise.cardio ? "Log your current cardio effort." : "Log weight and reps for your next set.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if sessionEntry.exercise.cardio {
+                    Text("Log your current cardio effort.", tableName: "Sessions")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Log weight and reps for your next set.", tableName: "Sessions")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if sessionEntry.exercise.cardio {
                 VStack(alignment: .leading, spacing: 12) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Time (HH:MM:SS)")
+                        Text("Time (HH:MM:SS)", tableName: "Sessions")
                             .font(.subheadline)
                             .fontWeight(.semibold)
                         DurationWheelPicker(totalSeconds: $cardioDurationSeconds)
@@ -331,7 +337,7 @@ struct SessionExerciseView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Distance")
+                        Text("Distance", tableName: "Sessions")
                             .font(.subheadline)
                             .fontWeight(.semibold)
                         HStack(spacing: 10) {
@@ -339,7 +345,15 @@ struct SessionExerciseView: View {
                                 .keyboardType(.decimalPad)
                                 .textFieldStyle(.roundedBorder)
 
-                            Picker("Unit", selection: $cardioDistanceUnit) {
+                            Picker(
+                                LocalizedStringResource(
+                                    "Unit",
+                                    defaultValue: "Unit",
+                                    table: "Sessions",
+                                    comment: "Picker title for a unit selector"
+                                ),
+                                selection: $cardioDistanceUnit
+                            ) {
                                 Text("km").tag(DistanceUnit.km)
                                 Text("mi").tag(DistanceUnit.mi)
                             }
@@ -351,11 +365,13 @@ struct SessionExerciseView: View {
             } else {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 10) {
-                        Text("Drop Set")
+                        Text("Drop Set", tableName: "Sessions")
                             .font(.subheadline)
                             .fontWeight(.semibold)
                         Spacer()
-                        Toggle("Drop Set", isOn: isDropSetBinding)
+                        Toggle(isOn: isDropSetBinding) {
+                            Text("Drop Set", tableName: "Sessions")
+                        }
                             .labelsHidden()
                             .onChange(of: isDropSetEnabled) { _, newValue in
                                 if !newValue {
@@ -366,7 +382,15 @@ struct SessionExerciseView: View {
                             }
                     }
 
-                    Picker("Unit", selection: $draftUnit) {
+                    Picker(
+                        LocalizedStringResource(
+                            "Unit",
+                            defaultValue: "Unit",
+                            table: "Sessions",
+                            comment: "Picker title for a unit selector"
+                        ),
+                        selection: $draftUnit
+                    ) {
                         ForEach(WeightUnit.allCases) { unit in
                             Text(unit.name).tag(unit)
                         }
@@ -379,7 +403,7 @@ struct SessionExerciseView: View {
                     if !isDropSetEnabled {
                         HStack(spacing: 12) {
                             VStack(alignment: .leading, spacing: 6) {
-                                Text("Weight")
+                                Text("Weight", tableName: "Sessions")
                                     .font(.subheadline)
                                     .fontWeight(.semibold)
                                 TextField("", value: $draftReps[0].weight, formatter: weightFormatter)
@@ -396,7 +420,7 @@ struct SessionExerciseView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
 
                             VStack(alignment: .leading, spacing: 6) {
-                                Text("Reps")
+                                Text("Reps", tableName: "Sessions")
                                     .font(.subheadline)
                                     .fontWeight(.semibold)
                                 TextField("", value: $draftReps[0].reps, formatter: repsFormatter)
@@ -418,7 +442,7 @@ struct SessionExerciseView: View {
                         insetCard {
                             VStack(alignment: .leading, spacing: 10) {
                                 HStack {
-                                    Text("Drop Set Reps")
+                                    Text("Drop Set Reps", tableName: "Sessions")
                                         .font(.subheadline)
                                         .fontWeight(.semibold)
                                     Spacer()
@@ -430,7 +454,11 @@ struct SessionExerciseView: View {
                                         let previousReps = draftReps.last?.reps ?? 0
                                         draftReps.append(RepDraft(weight: previousWeight, reps: previousReps, unit: draftUnit))
                                     } label: {
-                                        Label("Add Rep", systemImage: "plus")
+                                        Label {
+                                            Text("Add Rep", tableName: "Sessions")
+                                        } icon: {
+                                            Image(systemName: "plus")
+                                        }
                                             .font(.subheadline)
                                     }
                                     .buttonStyle(.borderless)
@@ -439,7 +467,9 @@ struct SessionExerciseView: View {
                                 ForEach(draftReps.indices, id: \.self) { index in
                                     let rowId = draftReps[index].id
                                     HStack(alignment: .center, spacing: 10) {
-                                        TextField("Weight", text: dropSetWeightBinding(for: rowId))
+                                        TextField(text: dropSetWeightBinding(for: rowId), prompt: Text("Weight", tableName: "Sessions")) {
+                                            Text("Weight", tableName: "Sessions")
+                                        }
                                             .keyboardType(.decimalPad)
                                             .textFieldStyle(.roundedBorder)
                                             .frame(maxWidth: .infinity)
@@ -448,7 +478,9 @@ struct SessionExerciseView: View {
                                                 commitDropSetField(.weight(rowId))
                                             }
 
-                                        TextField("Reps", text: dropSetRepsBinding(for: rowId))
+                                        TextField(text: dropSetRepsBinding(for: rowId), prompt: Text("Reps", tableName: "Sessions")) {
+                                            Text("Reps", tableName: "Sessions")
+                                        }
                                             .keyboardType(.numberPad)
                                             .textFieldStyle(.roundedBorder)
                                             .frame(maxWidth: .infinity)
@@ -494,7 +526,11 @@ struct SessionExerciseView: View {
                 dismissKeyboard()
                 startTimerIfNeeded()
             } label: {
-                Label("Add Set", systemImage: "plus")
+                Label {
+                    Text("Add Set", tableName: "Sessions")
+                } icon: {
+                    Image(systemName: "plus")
+                }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
             }
@@ -504,17 +540,19 @@ struct SessionExerciseView: View {
                 insetCard {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack(spacing: 10) {
-                            Text("Manual Pace")
+                            Text("Manual Pace", tableName: "Sessions")
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
                             Spacer()
-                            Toggle("Manual Pace", isOn: $cardioManualPace)
+                            Toggle(isOn: $cardioManualPace) {
+                                Text("Manual Pace", tableName: "Sessions")
+                            }
                                 .labelsHidden()
                         }
 
                         if cardioManualPace {
                             HStack(spacing: 8) {
-                                Text("Pace")
+                                Text("Pace", tableName: "Sessions")
                                     .font(.subheadline)
                                     .fontWeight(.semibold)
                                 TextField("", text: $cardioPaceText)
@@ -529,11 +567,18 @@ struct SessionExerciseView: View {
                             durationSeconds: cardioDurationSeconds > 0 ? cardioDurationSeconds : nil,
                             distanceUnit: cardioDistanceUnit
                         ) {
-                            Text("Estimated Pace \(estimated)")
+                            Text(
+                                LocalizedStringResource(
+                                    "sessions.pace.estimated",
+                                    defaultValue: "Estimated Pace \(estimated)",
+                                    table: "Sessions",
+                                    comment: "Estimated pace label"
+                                )
+                            )
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         } else {
-                            Text("Estimated Pace --")
+                            Text("Estimated Pace --", tableName: "Sessions")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -556,10 +601,10 @@ struct SessionExerciseView: View {
 
     private var lockedEditingNotice: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Read-only")
+            Text("Read-only", tableName: "Sessions")
                 .font(.subheadline)
                 .fontWeight(.semibold)
-            Text("This session is not active. Unlock to add or edit sets.")
+            Text("This session is not active. Unlock to add or edit sets.", tableName: "Sessions")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
@@ -568,7 +613,7 @@ struct SessionExerciseView: View {
 
     private var todaysSetsList: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Today's Sets")
+            Text("Today's Sets", tableName: "Sessions")
                 .font(.headline)
 
             let exerciseKind = sessionEntry.exercise.setDisplayKind
@@ -610,14 +655,20 @@ struct SessionExerciseView: View {
                     }
                     .contextMenu {
                         if canEditSession {
-                            Button("Copy into Current") {
+                            Button {
                                 copySetIntoCurrentDraft(sessionSet)
+                            } label: {
+                                Text("Copy into Current", tableName: "Sessions")
                             }
-                            Button("Duplicate Set") {
+                            Button {
                                 duplicateSet(sessionSet)
+                            } label: {
+                                Text("Duplicate Set", tableName: "Sessions")
                             }
-                            Button("Transfer Set") {
+                            Button {
                                 startMoveSetFlow(for: sessionSet)
+                            } label: {
+                                Text("Transfer Set", tableName: "Sessions")
                             }
                         }
                     }
@@ -626,12 +677,12 @@ struct SessionExerciseView: View {
                         setBadge(text: "\(sessionSet.order + 1)")
 
                         VStack(alignment: .leading, spacing: 6) {
-                            LocalizedDisplayTextView(summary.primaryText)
+                            summary.primaryText
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
 
                             if let secondary = summary.secondaryText {
-                                LocalizedDisplayTextView(secondary)
+                                secondary
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -639,7 +690,7 @@ struct SessionExerciseView: View {
                             if !summary.chips.isEmpty {
                                 HStack(spacing: 6) {
                                     ForEach(summary.chips) { chip in
-                                        LocalizedDisplayTextView(chip)
+                                        chip.text
                                             .font(.caption2)
                                             .foregroundColor(.secondary)
                                             .padding(.horizontal, 8)
@@ -660,14 +711,20 @@ struct SessionExerciseView: View {
                     }
                     .contextMenu {
                         if canEditSession {
-                            Button("Copy into current") {
+                            Button {
                                 copySetIntoCurrentDraft(sessionSet)
+                            } label: {
+                                Text("Copy into current", tableName: "Sessions")
                             }
-                            Button("Duplicate set") {
+                            Button {
                                 duplicateSet(sessionSet)
+                            } label: {
+                                Text("Duplicate set", tableName: "Sessions")
                             }
-                            Button("Transfer set...") {
+                            Button {
                                 startMoveSetFlow(for: sessionSet)
+                            } label: {
+                                Text("Transfer set...", tableName: "Sessions")
                             }
                         }
                     }
@@ -678,7 +735,7 @@ struct SessionExerciseView: View {
 
     private var editingSetsView: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Today's Sets")
+            Text("Today's Sets", tableName: "Sessions")
                 .font(.headline)
 
             ForEach(sessionEntry.sets.sorted { $0.order < $1.order }, id: \.id) { sessionSet in
@@ -689,7 +746,7 @@ struct SessionExerciseView: View {
                                 Image(systemName: "line.3.horizontal")
                                     .foregroundColor(.secondary)
                                 setBadge(text: "\(sessionSet.order + 1)")
-                                Text("Cardio Set")
+                                Text("Cardio Set", tableName: "Sessions")
                                     .font(.subheadline)
                                     .fontWeight(.semibold)
                                 Spacer()
@@ -702,7 +759,7 @@ struct SessionExerciseView: View {
 
                             VStack(alignment: .leading, spacing: 10) {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("Duration")
+                                    Text("Duration", tableName: "Sessions")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                     DurationWheelPicker(totalSeconds: durationSecondsBinding(for: sessionSet))
@@ -712,7 +769,7 @@ struct SessionExerciseView: View {
                                 }
 
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("Distance")
+                                    Text("Distance", tableName: "Sessions")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                     HStack(spacing: 10) {
@@ -723,7 +780,15 @@ struct SessionExerciseView: View {
                                         .keyboardType(.decimalPad)
                                         .textFieldStyle(.roundedBorder)
 
-                                        Picker("Distance Unit", selection: distanceUnitBinding(for: sessionSet)) {
+                                        Picker(
+                                            LocalizedStringResource(
+                                                "Distance Unit",
+                                                defaultValue: "Distance Unit",
+                                                table: "Sessions",
+                                                comment: "Picker title for cardio distance units"
+                                            ),
+                                            selection: distanceUnitBinding(for: sessionSet)
+                                        ) {
                                             Text("km").tag(DistanceUnit.km)
                                             Text("mi").tag(DistanceUnit.mi)
                                         }
@@ -733,11 +798,13 @@ struct SessionExerciseView: View {
                                 }
 
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Toggle("Manual Pace", isOn: manualPaceBinding(for: sessionSet))
+                                    Toggle(isOn: manualPaceBinding(for: sessionSet)) {
+                                        Text("Manual Pace", tableName: "Sessions")
+                                    }
                                         .font(.caption)
                                     if (sessionSet.paceSeconds ?? 0) > 0 {
                                         HStack(spacing: 8) {
-                                            Text("Pace")
+                                            Text("Pace", tableName: "Sessions")
                                                 .font(.caption)
                                                 .foregroundStyle(.secondary)
                                             TextField(
@@ -755,11 +822,18 @@ struct SessionExerciseView: View {
                                         durationSeconds: sessionSet.durationSeconds,
                                         distanceUnit: sessionSet.distanceUnit
                                     ) {
-                                        Text("Estimated Pace \(estimated)")
+                                        Text(
+                                            LocalizedStringResource(
+                                                "sessions.pace.estimated",
+                                                defaultValue: "Estimated Pace \(estimated)",
+                                                table: "Sessions",
+                                                comment: "Estimated pace label"
+                                            )
+                                        )
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
                                     } else {
-                                        Text("Estimated Pace --")
+                                        Text("Estimated Pace --", tableName: "Sessions")
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
                                     }
@@ -805,7 +879,9 @@ struct SessionExerciseView: View {
 
                                     setBadge(text: badgeText(for: sessionSet, repIndex: index))
 
-                                    TextField("Weight", value: binding(for: rep).weight, format: .number)
+                                    TextField(value: binding(for: rep).weight, format: .number, prompt: Text("Weight", tableName: "Sessions")) {
+                                        Text("Weight", tableName: "Sessions")
+                                    }
                                         .keyboardType(.decimalPad)
                                         .textFieldStyle(.roundedBorder)
                                         .frame(width: 70)
@@ -823,7 +899,9 @@ struct SessionExerciseView: View {
                                             .foregroundColor(.secondary)
                                     }
 
-                                    TextField("Reps", value: binding(for: rep).count, format: .number)
+                                    TextField(value: binding(for: rep).count, format: .number, prompt: Text("Reps", tableName: "Sessions")) {
+                                        Text("Reps", tableName: "Sessions")
+                                    }
                                         .keyboardType(.numberPad)
                                         .textFieldStyle(.roundedBorder)
                                         .frame(width: 60)
@@ -894,7 +972,7 @@ struct SessionExerciseView: View {
             .appBackground()
         } label: {
             HStack {
-                Text("Open full session")
+                Text("Open full session", tableName: "Sessions")
                     .font(.subheadline)
                     .fontWeight(.semibold)
                 Spacer()

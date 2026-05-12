@@ -387,7 +387,7 @@ struct NutritionLogSheet: View {
             }
         case .meal:
             VStack(alignment: .leading, spacing: 8) {
-                SectionHeaderView(title: "Meal")
+                SectionHeaderView(title: "Meal", tableName: "Nutrition")
                 ConnectedCardSection {
                     Button {
                         showMealPicker = true
@@ -420,7 +420,7 @@ struct NutritionLogSheet: View {
             }
         case .quickAdd:
             VStack(alignment: .leading, spacing: 8) {
-                SectionHeaderView(title: "Quick Add")
+                SectionHeaderView(title: "Quick Add", tableName: "Nutrition")
                 NutritionLabelEditorCard(
                     referenceSummary: "entry",
                     calories: $quickCalories,
@@ -430,7 +430,12 @@ struct NutritionLogSheet: View {
                     extraNutrientValues: $quickExtraNutrientValues,
                     definitions: nutritionService.visibleNutrientDefinitions(),
                     profile: quickAddLabelProfile,
-                    amountTextOverride: "Total for this entry"
+                    amountTextOverrideResource: LocalizedStringResource(
+                        "nutrition.label.totalForEntry",
+                        defaultValue: "Total for this entry",
+                        table: "Nutrition",
+                        comment: "Nutrition label amount summary for a quick-add entry"
+                    )
                 )
             }
         }
@@ -442,7 +447,7 @@ struct NutritionLogSheet: View {
 
     private var detailsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "Details")
+            SectionHeaderView(title: "Details", tableName: "Nutrition")
             ConnectedCardSection {
                 ConnectedCardRow {
                         Picker("Category", selection: $category) {
@@ -815,14 +820,22 @@ struct NutritionMealPickerView: View {
 
     private var mealPickerSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "Meals")
+            SectionHeaderView(title: "Meals", tableName: "Nutrition")
 
             if filteredMeals.isEmpty {
-                EmptyStateView(
-                    title: searchText.isEmpty ? "No meals" : "No results",
-                    systemImage: "fork.knife",
-                    message: searchText.isEmpty ? "Create a meal template to see it here." : "No meals match your search."
-                )
+                if searchText.isEmpty {
+                    EmptyStateView(
+                        title: "No meals",
+                        systemImage: "fork.knife",
+                        message: "Create a meal template to see it here."
+                    )
+                } else {
+                    EmptyStateView(
+                        title: "No results",
+                        systemImage: "fork.knife",
+                        message: "No meals match your search."
+                    )
+                }
             } else {
                 LazyVStack(spacing: 8) {
                     ForEach(filteredMeals, id: \.id) { meal in
@@ -1110,14 +1123,22 @@ private struct ManageMealsView: View {
 
     private var managedMealSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "Meals")
+            SectionHeaderView(title: "Meals", tableName: "Nutrition")
 
             if meals.isEmpty {
-                EmptyStateView(
-                    title: searchText.isEmpty ? "No meals" : "No results",
-                    systemImage: "fork.knife",
-                    message: searchText.isEmpty ? "Add a meal to see it here." : "No meals match your search."
-                )
+                if searchText.isEmpty {
+                    EmptyStateView(
+                        title: "No meals",
+                        systemImage: "fork.knife",
+                        message: "Add a meal to see it here."
+                    )
+                } else {
+                    EmptyStateView(
+                        title: "No results",
+                        systemImage: "fork.knife",
+                        message: "No meals match your search."
+                    )
+                }
             } else {
                 LazyVStack(spacing: 8) {
                     ForEach(meals, id: \.id) { meal in
@@ -1195,7 +1216,7 @@ private struct NutritionFoodDetailView: View {
 
     private var foodOverviewSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "Nutrition")
+            SectionHeaderView(title: "Nutrition", tableName: "Nutrition")
             CardRowContainer {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(alignment: .firstTextBaseline) {
@@ -1257,7 +1278,7 @@ private struct NutritionFoodDetailView: View {
 
     private var foodServingSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "Serving")
+            SectionHeaderView(title: "Serving", tableName: "Nutrition")
             ConnectedCardSection {
                 ConnectedCardRow {
                     LabeledContent("Reference") {
@@ -1280,7 +1301,7 @@ private struct NutritionFoodDetailView: View {
 
     private var snapshotHistorySection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "Logged History")
+            SectionHeaderView(title: "Logged History", tableName: "Nutrition")
 
             if history.isEmpty {
                 EmptyStateView(
@@ -1372,7 +1393,7 @@ private struct NutritionMealDetailView: View {
 
     private var mealOverviewSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "Per Serving")
+            SectionHeaderView(title: "Per Serving", tableName: "Nutrition")
             CardRowContainer {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(alignment: .firstTextBaseline) {
@@ -1427,7 +1448,7 @@ private struct NutritionMealDetailView: View {
 
     private var mealItemsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "Items")
+            SectionHeaderView(title: "Items", tableName: "Nutrition")
             ConnectedCardSection {
                 ForEach(Array(meal.items.sorted { $0.order < $1.order }.enumerated()), id: \.element.id) { index, item in
                     ConnectedCardRow {
@@ -1459,7 +1480,7 @@ private struct NutritionMealDetailView: View {
 
     private var mealHistorySection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "Logged History")
+            SectionHeaderView(title: "Logged History", tableName: "Nutrition")
 
             if history.isEmpty {
                 EmptyStateView(
@@ -1587,7 +1608,7 @@ private struct NutritionLabelEditorCard: View {
     @Binding var extraNutrientValues: [String: String]
     let definitions: [NutritionNutrientDefinition]
     let profile: NutritionLabelProfile
-    var amountTextOverride: String? = nil
+    var amountTextOverrideResource: LocalizedStringResource? = nil
 
     @State private var showsAdditionalNutrients = false
 
@@ -1595,20 +1616,26 @@ private struct NutritionLabelEditorCard: View {
         CardRowContainer {
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(titleText)
+                    Text(titleResource)
                         .font(.system(.title2, design: .rounded).weight(.black))
                         .foregroundStyle(.primary)
 
-                    Text(amountTextOverride ?? amountText)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                    if let amountTextOverrideResource {
+                        Text(amountTextOverrideResource)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text(amountTextResource)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 .padding(.bottom, 8)
 
                 NutritionLabelRule(height: 6)
 
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text(energyTitle)
+                    Text(energyTitleResource)
                         .font(.title3.weight(.black))
                         .foregroundStyle(.primary)
 
@@ -1626,7 +1653,7 @@ private struct NutritionLabelEditorCard: View {
                 NutritionLabelRule(height: 4)
 
                 NutritionLabelInputRow(
-                    title: fatTitle,
+                    titleResource: fatTitleResource,
                     text: $fat,
                     unit: "g",
                     isStrong: true
@@ -1638,7 +1665,7 @@ private struct NutritionLabelEditorCard: View {
                 NutritionLabelRule(height: 1)
 
                 NutritionLabelInputRow(
-                    title: carbohydrateTitle,
+                    titleResource: carbohydrateTitleResource,
                     text: $carbs,
                     unit: "g",
                     isStrong: true
@@ -1650,7 +1677,12 @@ private struct NutritionLabelEditorCard: View {
                 NutritionLabelRule(height: 1)
 
                 NutritionLabelInputRow(
-                    title: "Protein",
+                    titleResource: LocalizedStringResource(
+                        "nutrition.label.protein",
+                        defaultValue: "Protein",
+                        table: "Nutrition",
+                        comment: "Protein row title in the nutrition label editor"
+                    ),
                     text: $protein,
                     unit: "g",
                     isStrong: true
@@ -1666,7 +1698,7 @@ private struct NutritionLabelEditorCard: View {
                             definitionRows(additionalRows)
                         }
                     } label: {
-                        Text("Additional nutrients")
+                        Text("Additional nutrients", tableName: "Nutrition")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.primary)
                     }
@@ -1676,36 +1708,100 @@ private struct NutritionLabelEditorCard: View {
         }
     }
 
-    private var titleText: String {
+    private var titleResource: LocalizedStringResource {
         switch profile {
         case .ukEU:
-            return "Nutrition Declaration"
+            return LocalizedStringResource(
+                "nutrition.label.title.ukEU",
+                defaultValue: "Nutrition Declaration",
+                table: "Nutrition",
+                comment: "UK/EU nutrition label title"
+            )
         case .us:
-            return "Nutrition Facts"
+            return LocalizedStringResource(
+                "nutrition.label.title.us",
+                defaultValue: "Nutrition Facts",
+                table: "Nutrition",
+                comment: "US nutrition label title"
+            )
         case .defaultProfile:
-            return "Nutrition Label"
+            return LocalizedStringResource(
+                "nutrition.label.title.default",
+                defaultValue: "Nutrition Label",
+                table: "Nutrition",
+                comment: "Default nutrition label title"
+            )
         }
     }
 
-    private var amountText: String {
+    private var amountTextResource: LocalizedStringResource {
         switch profile {
         case .ukEU:
-            return "Typical values per \(referenceSummary)"
+            return LocalizedStringResource(
+                "nutrition.label.amount.typicalValuesPer",
+                defaultValue: "Typical values per \(referenceSummary)",
+                table: "Nutrition",
+                comment: "UK/EU nutrition label reference amount"
+            )
         case .us, .defaultProfile:
-            return "Amount per \(referenceSummary)"
+            return LocalizedStringResource(
+                "nutrition.label.amount.per",
+                defaultValue: "Amount per \(referenceSummary)",
+                table: "Nutrition",
+                comment: "Nutrition label reference amount"
+            )
         }
     }
 
-    private var energyTitle: String {
-        profile == .ukEU ? "Energy" : "Calories"
+    private var energyTitleResource: LocalizedStringResource {
+        if profile == .ukEU {
+            return LocalizedStringResource(
+                "nutrition.label.energy",
+                defaultValue: "Energy",
+                table: "Nutrition",
+                comment: "Energy row title in the nutrition label editor"
+            )
+        }
+        return LocalizedStringResource(
+            "nutrition.label.calories",
+            defaultValue: "Calories",
+            table: "Nutrition",
+            comment: "Calories row title in the nutrition label editor"
+        )
     }
 
-    private var fatTitle: String {
-        profile == .us ? "Total Fat" : "Fat"
+    private var fatTitleResource: LocalizedStringResource {
+        if profile == .us {
+            return LocalizedStringResource(
+                "nutrition.label.totalFat",
+                defaultValue: "Total Fat",
+                table: "Nutrition",
+                comment: "US total fat row title in the nutrition label editor"
+            )
+        }
+        return LocalizedStringResource(
+            "nutrition.label.fat",
+            defaultValue: "Fat",
+            table: "Nutrition",
+            comment: "Fat row title in the nutrition label editor"
+        )
     }
 
-    private var carbohydrateTitle: String {
-        profile == .us ? "Total Carbohydrate" : "Carbohydrate"
+    private var carbohydrateTitleResource: LocalizedStringResource {
+        if profile == .us {
+            return LocalizedStringResource(
+                "nutrition.label.totalCarbohydrate",
+                defaultValue: "Total Carbohydrate",
+                table: "Nutrition",
+                comment: "US total carbohydrate row title in the nutrition label editor"
+            )
+        }
+        return LocalizedStringResource(
+            "nutrition.label.carbohydrate",
+            defaultValue: "Carbohydrate",
+            table: "Nutrition",
+            comment: "Carbohydrate row title in the nutrition label editor"
+        )
     }
 
     private var primaryKeys: Set<String> {
@@ -1758,7 +1854,7 @@ private struct NutritionLabelEditorCard: View {
             let indentLevel = indentLevel(for: definition)
             NutritionLabelRule(height: 1, leadingInset: CGFloat(indentLevel) * 18)
             NutritionLabelInputRow(
-                title: displayName(for: definition),
+                titleText: displayNameText(for: definition),
                 text: binding(for: definition.key, in: $extraNutrientValues),
                 unit: definition.unitLabel,
                 indentLevel: indentLevel
@@ -1777,20 +1873,86 @@ private struct NutritionLabelEditorCard: View {
         NutritionNutrientKey.normalized(definition.key)
     }
 
-    private func displayName(for definition: NutritionNutrientDefinition) -> String {
+    private func displayNameText(for definition: NutritionNutrientDefinition) -> Text {
         switch normalizedKey(definition) {
         case "saturated-fat":
-            return profile == .us ? "Saturated Fat" : "of which saturates"
+            return Text(
+                profile == .us
+                    ? LocalizedStringResource(
+                        "nutrition.label.saturatedFat",
+                        defaultValue: "Saturated Fat",
+                        table: "Nutrition"
+                    )
+                    : LocalizedStringResource(
+                        "nutrition.label.ofWhichSaturates",
+                        defaultValue: "of which saturates",
+                        table: "Nutrition"
+                    )
+            )
         case "trans-fat":
-            return "Trans Fat"
+            return Text(
+                LocalizedStringResource(
+                    "nutrition.label.transFat",
+                    defaultValue: "Trans Fat",
+                    table: "Nutrition"
+                )
+            )
         case "fiber":
-            return profile == .ukEU ? "Fibre" : (profile == .us ? "Dietary Fiber" : "Fiber")
+            if profile == .ukEU {
+                return Text(
+                    LocalizedStringResource(
+                        "nutrition.label.fibre",
+                        defaultValue: "Fibre",
+                        table: "Nutrition"
+                    )
+                )
+            }
+            if profile == .us {
+                return Text(
+                    LocalizedStringResource(
+                        "nutrition.label.dietaryFiber",
+                        defaultValue: "Dietary Fiber",
+                        table: "Nutrition"
+                    )
+                )
+            }
+            return Text(
+                LocalizedStringResource(
+                    "nutrition.label.fiber",
+                    defaultValue: "Fiber",
+                    table: "Nutrition"
+                )
+            )
         case "total-sugars":
-            return profile == .us ? "Total Sugars" : "of which sugars"
+            return Text(
+                profile == .us
+                    ? LocalizedStringResource(
+                        "nutrition.label.totalSugars",
+                        defaultValue: "Total Sugars",
+                        table: "Nutrition"
+                    )
+                    : LocalizedStringResource(
+                        "nutrition.label.ofWhichSugars",
+                        defaultValue: "of which sugars",
+                        table: "Nutrition"
+                    )
+            )
         case "added-sugars":
-            return profile == .us ? "Includes Added Sugars" : "of which added sugars"
+            return Text(
+                profile == .us
+                    ? LocalizedStringResource(
+                        "nutrition.label.includesAddedSugars",
+                        defaultValue: "Includes Added Sugars",
+                        table: "Nutrition"
+                    )
+                    : LocalizedStringResource(
+                        "nutrition.label.ofWhichAddedSugars",
+                        defaultValue: "of which added sugars",
+                        table: "Nutrition"
+                    )
+            )
         default:
-            return definition.displayName
+            return Text(verbatim: definition.displayName)
         }
     }
 
@@ -1809,15 +1971,43 @@ private struct NutritionLabelEditorCard: View {
 }
 
 private struct NutritionLabelInputRow: View {
-    let title: String
+    let titleText: Text
     @Binding var text: String
     let unit: String
     var isStrong = false
     var indentLevel = 0
 
+    init(
+        titleResource: LocalizedStringResource,
+        text: Binding<String>,
+        unit: String,
+        isStrong: Bool = false,
+        indentLevel: Int = 0
+    ) {
+        self.titleText = Text(titleResource)
+        self._text = text
+        self.unit = unit
+        self.isStrong = isStrong
+        self.indentLevel = indentLevel
+    }
+
+    init(
+        titleText: Text,
+        text: Binding<String>,
+        unit: String,
+        isStrong: Bool = false,
+        indentLevel: Int = 0
+    ) {
+        self.titleText = titleText
+        self._text = text
+        self.unit = unit
+        self.isStrong = isStrong
+        self.indentLevel = indentLevel
+    }
+
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
-            Text(title)
+            titleText
                 .font(.subheadline.weight(isStrong ? .semibold : .regular))
                 .foregroundStyle(.primary)
                 .lineLimit(2)
@@ -1837,21 +2027,23 @@ private struct NutritionLabelInputRow: View {
 }
 
 private struct NutritionLabelValueField: View {
-    let placeholder: String
+    let placeholder: LocalizedStringKey
     @Binding var text: String
     let unit: String
     let isProminent: Bool
 
     var body: some View {
         HStack(spacing: 4) {
-            TextField(placeholder, text: $text)
+            TextField(text: $text, prompt: Text(placeholder, tableName: "Nutrition")) {
+                Text(placeholder, tableName: "Nutrition")
+            }
                 .keyboardType(.decimalPad)
                 .multilineTextAlignment(.trailing)
                 .font(fieldFont)
                 .textFieldStyle(.plain)
                 .frame(width: isProminent ? 88 : 74)
 
-            Text(unit)
+            Text(verbatim: unit)
                 .font(unitFont)
                 .foregroundStyle(.secondary)
                 .frame(minWidth: isProminent ? 30 : 24, alignment: .leading)
@@ -1959,7 +2151,7 @@ struct NutritionFoodEditorView: View {
 
     private var foodDetailsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "Food")
+            SectionHeaderView(title: "Food", tableName: "Nutrition")
             ConnectedCardSection {
                 ConnectedCardRow {
                     LabeledContent("Name") {
@@ -2002,7 +2194,7 @@ struct NutritionFoodEditorView: View {
 
     private var referenceAmountSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "Reference Amount")
+            SectionHeaderView(title: "Reference Amount", tableName: "Nutrition")
             ConnectedCardSection {
                 ConnectedCardRow {
                     LabeledContent("\(unit.displayName) per reference") {
@@ -2017,7 +2209,7 @@ struct NutritionFoodEditorView: View {
 
     private var servingSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "Serving")
+            SectionHeaderView(title: "Serving", tableName: "Nutrition")
             ConnectedCardSection {
                 ConnectedCardRow {
                     LabeledContent("\(unit.displayName) per serving") {
@@ -2059,7 +2251,7 @@ struct NutritionFoodEditorView: View {
 
     private var nutritionValuesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "Nutrition Per Reference")
+            SectionHeaderView(title: "Nutrition Per Reference", tableName: "Nutrition")
             NutritionLabelEditorCard(
                 referenceSummary: nutritionReferenceSummary,
                 calories: $kcalPerReference,
@@ -2312,7 +2504,7 @@ struct NutritionMealTemplateEditorView: View {
 
     private var mealDetailsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "Meal")
+            SectionHeaderView(title: "Meal", tableName: "Nutrition")
             ConnectedCardSection {
                 ConnectedCardRow {
                     LabeledContent("Name") {

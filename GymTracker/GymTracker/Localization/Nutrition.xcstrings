@@ -1,67 +1,553 @@
 {
   "sourceLanguage" : "en-GB",
   "strings" : {
+    "Additional nutrients" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Additional nutrients"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Additional nutrients"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutrientes adicionales"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutriments supplémentaires"
+          }
+        }
+      }
+    },
+    "Archived" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archived"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archived"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archivado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archivé"
+          }
+        }
+      }
+    },
+    "Carbs" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carbs"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carbs"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carbohidratos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Glucides"
+          }
+        }
+      }
+    },
+    "Details" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Details"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Details"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detalles"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Détails"
+          }
+        }
+      }
+    },
+    "Fat" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fat"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fat"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grasas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Matières grasses"
+          }
+        }
+      }
+    },
+    "Food" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Food"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Food"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alimento"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aliment"
+          }
+        }
+      }
+    },
+    "Items" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Items"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Items"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elementos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Éléments"
+          }
+        }
+      }
+    },
+    "Log" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Log"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Log"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Registrar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer"
+          }
+        }
+      }
+    },
+    "Logged History" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Logged History"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Logged History"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Historial registrado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Historique enregistré"
+          }
+        }
+      }
+    },
+    "Manage" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manage"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manage"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gestionar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gérer"
+          }
+        }
+      }
+    },
+    "Meal" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meal"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meal"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comida"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repas"
+          }
+        }
+      }
+    },
+    "Meals" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meals"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meals"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comidas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repas"
+          }
+        }
+      }
+    },
+    "Nutrition" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutrition"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutrition"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutrición"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutrition"
+          }
+        }
+      }
+    },
+    "Nutrition Per Reference" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutrition Per Reference"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutrition Per Reference"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutrición por referencia"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutrition par référence"
+          }
+        }
+      }
+    },
     "nutrition.category.breakfast" : {
       "comment" : "Display name for the breakfast food log category.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Breakfast"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Breakfast"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desayuno"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Petit-déjeuner"
           }
         }
       }
     },
     "nutrition.category.dinner" : {
       "comment" : "Display name for the \"Dinner\" category in the nutrition app.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Dinner"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dinner"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cena"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dîner"
           }
         }
       }
     },
     "nutrition.category.lunch" : {
       "comment" : "Display name for the \"Lunch\" category in the nutrition app.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Lunch"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lunch"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Almuerzo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déjeuner"
           }
         }
       }
     },
     "nutrition.category.other" : {
       "comment" : "Display name of the \"Other\" food log category.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Other"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Other"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otro"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autre"
           }
         }
       }
     },
     "nutrition.category.snack" : {
       "comment" : "Display name for the snack category in the nutrition app.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Snack"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Snack"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tentempié"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collation"
           }
         }
       }
@@ -126,117 +612,270 @@
     },
     "nutrition.foodFilter.all" : {
       "comment" : "Title for the \"All\" option in the food filter.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "All"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Todo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tout"
           }
         }
       }
     },
     "nutrition.foodFilter.drinks" : {
       "comment" : "Title for the \"Drinks\" filter in the nutrition app.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Drinks"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drinks"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bebidas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Boissons"
           }
         }
       }
     },
     "nutrition.foodFilter.foods" : {
       "comment" : "Title for the \"Foods\" filter in the nutrition app.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Foods"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foods"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alimentos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aliments"
           }
         }
       }
     },
     "nutrition.foodFilter.ingredients" : {
       "comment" : "The plural form of \"ingredient\"",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Ingredients"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ingredients"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ingredientes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ingrédients"
           }
         }
       }
     },
     "nutrition.foodFilter.item" : {
       "comment" : "A singular form of \"item\" used in nutrition.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Item"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Item"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elemento"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Élément"
           }
         }
       }
     },
     "nutrition.foodFilter.items" : {
       "comment" : "A pluralized version of the title for the \"All\" option in the food filter.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Items"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Items"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elementos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Éléments"
           }
         }
       }
     },
     "nutrition.foodKind.drink" : {
       "comment" : "Display name for a food item kind of a drink.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Drink"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drink"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bebida"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Boisson"
           }
         }
       }
     },
     "nutrition.foodKind.food" : {
       "comment" : "Display name for a food item.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Food"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Food"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alimento"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aliment"
           }
         }
       }
     },
     "nutrition.foodKind.ingredient" : {
       "comment" : "Display name for the ingredient type.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Ingredient"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ingredient"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ingrediente"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ingrédient"
           }
         }
       }
@@ -676,287 +1315,1443 @@
         }
       }
     },
+    "nutrition.items.count" : {
+      "comment" : "Number of items in a meal",
+      "localizations" : {
+        "en-GB" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld item"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld items"
+                }
+              }
+            }
+          }
+        },
+        "en-US" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld item"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld items"
+                }
+              }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld elemento"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld elementos"
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld élément"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld éléments"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "nutrition.label.amount.per" : {
+      "comment" : "Nutrition label reference amount",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Amount per %@"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Amount per %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cantidad por %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quantité par %@"
+          }
+        }
+      }
+    },
+    "nutrition.label.amount.typicalValuesPer" : {
+      "comment" : "UK/EU nutrition label reference amount",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Typical values per %@"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Typical values per %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valores medios por %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valeurs moyennes pour %@"
+          }
+        }
+      }
+    },
+    "nutrition.label.calories" : {
+      "comment" : "Calories row title in the nutrition label editor",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calories"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calories"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calorías"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calories"
+          }
+        }
+      }
+    },
+    "nutrition.label.carbohydrate" : {
+      "comment" : "Carbohydrate row title in the nutrition label editor",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carbohydrate"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carbohydrate"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carbohidratos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Glucides"
+          }
+        }
+      }
+    },
+    "nutrition.label.dietaryFiber" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dietary Fibre"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dietary Fiber"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fibra dietética"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fibres alimentaires"
+          }
+        }
+      }
+    },
+    "nutrition.label.energy" : {
+      "comment" : "Energy row title in the nutrition label editor",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Energy"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Energy"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Energía"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Énergie"
+          }
+        }
+      }
+    },
+    "nutrition.label.fat" : {
+      "comment" : "Fat row title in the nutrition label editor",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fat"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fat"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grasas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Matières grasses"
+          }
+        }
+      }
+    },
+    "nutrition.label.fiber" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fibre"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fiber"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fibra"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fibres"
+          }
+        }
+      }
+    },
+    "nutrition.label.fibre" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fibre"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fiber"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fibra"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fibres"
+          }
+        }
+      }
+    },
+    "nutrition.label.includesAddedSugars" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Includes Added Sugars"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Includes Added Sugars"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Incluye azúcares añadidos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inclut les sucres ajoutés"
+          }
+        }
+      }
+    },
+    "nutrition.label.ofWhichAddedSugars" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "of which added sugars"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "of which added sugars"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "de los cuales azúcares añadidos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "dont sucres ajoutés"
+          }
+        }
+      }
+    },
+    "nutrition.label.ofWhichSaturates" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "of which saturates"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "of which saturates"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "de las cuales saturadas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "dont acides gras saturés"
+          }
+        }
+      }
+    },
+    "nutrition.label.ofWhichSugars" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "of which sugars"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "of which sugars"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "de los cuales azúcares"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "dont sucres"
+          }
+        }
+      }
+    },
+    "nutrition.label.protein" : {
+      "comment" : "Protein row title in the nutrition label editor",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protein"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protein"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Proteínas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protéines"
+          }
+        }
+      }
+    },
+    "nutrition.label.saturatedFat" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saturated Fat"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saturated Fat"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grasas saturadas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acides gras saturés"
+          }
+        }
+      }
+    },
+    "nutrition.label.title.default" : {
+      "comment" : "Default nutrition label title",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutrition Label"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutrition Label"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Etiqueta nutricional"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Étiquette nutritionnelle"
+          }
+        }
+      }
+    },
+    "nutrition.label.title.ukEU" : {
+      "comment" : "UK/EU nutrition label title",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutrition Declaration"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutrition Declaration"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Declaración nutricional"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déclaration nutritionnelle"
+          }
+        }
+      }
+    },
+    "nutrition.label.title.us" : {
+      "comment" : "US nutrition label title",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutrition Facts"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutrition Facts"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Información nutricional"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valeurs nutritives"
+          }
+        }
+      }
+    },
+    "nutrition.label.totalCarbohydrate" : {
+      "comment" : "US total carbohydrate row title in the nutrition label editor",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total Carbohydrate"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total Carbohydrate"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carbohidratos totales"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Glucides totaux"
+          }
+        }
+      }
+    },
+    "nutrition.label.totalFat" : {
+      "comment" : "US total fat row title in the nutrition label editor",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total Fat"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total Fat"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grasas totales"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Matières grasses totales"
+          }
+        }
+      }
+    },
+    "nutrition.label.totalForEntry" : {
+      "comment" : "Nutrition label amount summary for a quick-add entry",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total for this entry"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total for this entry"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total de esta entrada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total pour cette entrée"
+          }
+        }
+      }
+    },
+    "nutrition.label.totalSugars" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total Sugars"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total Sugars"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Azúcares totales"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sucres totaux"
+          }
+        }
+      }
+    },
+    "nutrition.label.transFat" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trans Fat"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trans Fat"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grasas trans"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acides gras trans"
+          }
+        }
+      }
+    },
     "nutrition.labelProfile.default" : {
       "comment" : "Display name of the default nutrition label profile.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Default"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Default"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Predeterminado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Par défaut"
           }
         }
       }
     },
     "nutrition.labelProfile.ukEU" : {
       "comment" : "Display name for the nutrition label profile for the UK/EU region.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "UK/EU"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UK/EU"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RU/UE"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "R.-U./UE"
           }
         }
       }
     },
     "nutrition.labelProfile.us" : {
       "comment" : "Display name for the nutrition label profile for the US.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "US"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "US"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EE. UU."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "États-Unis"
           }
         }
       }
     },
     "nutrition.logMode.drink" : {
       "comment" : "Title of a nutrition log mode for drinks.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Drink"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drink"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bebida"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Boisson"
           }
         }
       }
     },
     "nutrition.logMode.food" : {
       "comment" : "Title of a nutrition log mode for food.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Food"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Food"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alimento"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aliment"
           }
         }
       }
     },
     "nutrition.logMode.meal" : {
       "comment" : "Title of a nutrition log mode for a meal.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Meal"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meal"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comida"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repas"
           }
         }
       }
     },
     "nutrition.logMode.quickAdd" : {
       "comment" : "Title of the nutrition log mode for quick addition.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Quick Add"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quick Add"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entrada rápida"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajout rapide"
           }
         }
       }
     },
     "nutrition.nutrientGroup.carbohydrate" : {
       "comment" : "Display name of a nutrient group for carbohydrates.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Carbohydrate"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carbohydrate"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carbohidratos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Glucides"
           }
         }
       }
     },
     "nutrition.nutrientGroup.energy" : {
       "comment" : "Display name of a nutrient group for energy.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Energy"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Energy"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Energía"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Énergie"
           }
         }
       }
     },
     "nutrition.nutrientGroup.fat" : {
       "comment" : "Display name of a nutrient group called \"Fat\".",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Fat"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fat"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grasas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Matières grasses"
           }
         }
       }
     },
     "nutrition.nutrientGroup.mineral" : {
       "comment" : "Display name of a nutrient group.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Mineral"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mineral"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mineral"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minéral"
           }
         }
       }
     },
     "nutrition.nutrientGroup.other" : {
       "comment" : "Display name of a nutrition nutrient group that is not listed in the other categories.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Other"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Other"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otro"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autre"
           }
         }
       }
     },
     "nutrition.nutrientGroup.vitamin" : {
       "comment" : "Display name of a nutrient group for vitamins.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Vitamin"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vitamin"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vitamina"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vitamine"
           }
         }
       }
     },
     "nutrition.periodSection.days" : {
       "comment" : "Title of the section that shows the days of the selected period.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Days"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Days"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Días"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jours"
           }
         }
       }
     },
     "nutrition.periodSection.loggedDays" : {
       "comment" : "Title of the section of the nutrition view that shows the logged days.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Logged Days"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Logged Days"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Días registrados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jours enregistrés"
           }
         }
       }
     },
     "nutrition.periodSubtitle.loggedDays" : {
       "comment" : "Subtitle showing the number of days with nutrition logs",
-      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en-GB" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%lld logged days"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld logged day"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld logged days"
+                }
+              }
+            }
+          }
+        },
+        "en-US" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld logged day"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld logged days"
+                }
+              }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld día registrado"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld días registrados"
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld jour enregistré"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld jours enregistrés"
+                }
+              }
+            }
           }
         }
       }
     },
     "nutrition.periodSubtitle.noLoggedDays" : {
       "comment" : "Subtitle displayed when the user has not logged any nutrition data.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "No logged days yet"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No logged days yet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aún no hay días registrados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun jour enregistré pour le moment"
           }
         }
       }
     },
     "nutrition.range.all" : {
       "comment" : "The name of the \"All\" option in the nutrition range picker.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "All"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Todo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tout"
           }
         }
       }
     },
     "nutrition.range.allNutrition" : {
       "comment" : "The title of the \"All Nutrition\" section.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "All Nutrition"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All Nutrition"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toda la nutrición"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toute la nutrition"
           }
         }
       }
     },
     "nutrition.range.month" : {
       "comment" : "A title for the nutrition view, when the user is viewing a month.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Month"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Month"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mois"
           }
         }
       }
     },
     "nutrition.range.today" : {
       "comment" : "A title for the nutrition view when the selected range is \"Today\".",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Today"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hoy"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aujourd’hui"
           }
         }
       }
     },
     "nutrition.range.week" : {
       "comment" : "A title for the nutrition view, when the selected range is a week.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Week"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Week"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Semana"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Semaine"
           }
         }
       }
@@ -1050,12 +2845,29 @@
     },
     "nutrition.tab.title" : {
       "comment" : "A label for the nutrition tab.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
+            "value" : "Nutrition"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutrition"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutrición"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : "Nutrition"
           }
         }
@@ -1063,39 +2875,264 @@
     },
     "nutrition.unit.grams" : {
       "comment" : "Display name of a nutrition unit.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
+            "value" : "Grammes"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : "Grams"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gramos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grammes"
           }
         }
       }
     },
     "nutrition.unit.milliliters" : {
       "comment" : "Display name of the nutrition unit \"milliliters\".",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
+            "value" : "Millilitres"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : "Milliliters"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mililitros"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Millilitres"
           }
         }
       }
     },
     "nutrition.unit.piece" : {
       "comment" : "Display name of the \"Piece\" unit.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Piece"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Piece"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pieza"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pièce"
+          }
+        }
+      }
+    },
+    "Optional" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Optional"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Optional"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opcional"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Facultatif"
+          }
+        }
+      }
+    },
+    "Per Serving" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Per Serving"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Per Serving"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Por porción"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Par portion"
+          }
+        }
+      }
+    },
+    "Protein" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protein"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protein"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Proteínas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protéines"
+          }
+        }
+      }
+    },
+    "Quick Add" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quick Add"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quick Add"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entrada rápida"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajout rapide"
+          }
+        }
+      }
+    },
+    "Reference Amount" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reference Amount"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reference Amount"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cantidad de referencia"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quantité de référence"
+          }
+        }
+      }
+    },
+    "Serving" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serving"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serving"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Porción"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Portion"
           }
         }
       }

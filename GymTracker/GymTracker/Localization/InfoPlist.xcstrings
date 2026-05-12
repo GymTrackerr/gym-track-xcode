@@ -3,11 +3,28 @@
   "strings" : {
     "CFBundleName" : {
       "comment" : "Bundle name",
-      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
+            "value" : "GymTracker"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GymTracker"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GymTracker"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : "GymTracker"
           }
         }

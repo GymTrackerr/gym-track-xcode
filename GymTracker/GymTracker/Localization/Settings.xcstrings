@@ -1,115 +1,2452 @@
 {
   "sourceLanguage" : "en-GB",
   "strings" : {
-    "settings.appearance.dark" : {
-      "comment" : "Appearance picker option for dark mode",
-      "extractionState" : "extracted_with_value",
+    "About" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
+            "value" : "About"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "About"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acerca de"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "À propos"
+          }
+        }
+      }
+    },
+    "Account linked" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Account linked"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Account linked"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cuenta vinculada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compte associé"
+          }
+        }
+      }
+    },
+    "Account linking is disabled while using Demo mode." : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Account linking is disabled while using Demo mode."
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Account linking is disabled while using Demo mode."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La vinculación de cuentas está desactivada en el modo demo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’association de compte est désactivée en mode démo."
+          }
+        }
+      }
+    },
+    "Account Sync" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Account Sync"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Account Sync"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sincronización de cuenta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Synchronisation du compte"
+          }
+        }
+      }
+    },
+    "Accounts" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accounts"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accounts"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cuentas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comptes"
+          }
+        }
+      }
+    },
+    "Allow this account to use Apple Health data" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow this account to use Apple Health data"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow this account to use Apple Health data"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permite que esta cuenta use datos de Apple Health"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autoriser ce compte à utiliser les données Apple Health"
+          }
+        }
+      }
+    },
+    "Appearance" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appearance"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appearance"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apariencia"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apparence"
+          }
+        }
+      }
+    },
+    "Apple Health Access" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Health Access"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Health Access"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acceso a Apple Health"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accès Apple Health"
+          }
+        }
+      }
+    },
+    "Apple Health access is disabled for demo accounts." : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Health access is disabled for demo accounts."
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Health access is disabled for demo accounts."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El acceso a Apple Health está desactivado para las cuentas demo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’accès Apple Health est désactivé pour les comptes démo."
+          }
+        }
+      }
+    },
+    "Apple Health Summary" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Health Summary"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Health Summary"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resumen de Apple Health"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Résumé Apple Health"
+          }
+        }
+      }
+    },
+    "Apply URL Overrides" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply URL Overrides"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply URL Overrides"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aplicar URL alternativas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appliquer les remplacements d’URL"
+          }
+        }
+      }
+    },
+    "Clean up duplicate catalog exercises" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clean up duplicate catalogue exercises"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clean up duplicate catalog exercises"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limpia ejercicios duplicados del catálogo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nettoyer les exercices dupliqués du catalogue"
+          }
+        }
+      }
+    },
+    "Clear URL Overrides" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear URL Overrides"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear URL Overrides"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Borrar URL alternativas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Effacer les remplacements d’URL"
+          }
+        }
+      }
+    },
+    "Current" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actual"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actuel"
+          }
+        }
+      }
+    },
+    "Debug Data" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Debug Data"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Debug Data"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datos de depuración"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Données de débogage"
+          }
+        }
+      }
+    },
+    "Delete Account" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Account"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Account"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eliminar cuenta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer le compte"
+          }
+        }
+      }
+    },
+    "Delete Account Unavailable" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Account Unavailable"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Account Unavailable"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eliminar cuenta no disponible"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suppression du compte indisponible"
+          }
+        }
+      }
+    },
+    "Demo" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demo"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demo"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Démo"
+          }
+        }
+      }
+    },
+    "Demo accounts cannot be deleted" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demo accounts cannot be deleted"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demo accounts cannot be deleted"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las cuentas demo no se pueden eliminar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les comptes démo ne peuvent pas être supprimés"
+          }
+        }
+      }
+    },
+    "Demo Mode" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demo Mode"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demo Mode"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modo demo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mode démo"
+          }
+        }
+      }
+    },
+    "Developer Networking" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Developer Networking"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Developer Networking"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Red de desarrollo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réseau développeur"
+          }
+        }
+      }
+    },
+    "Disable For This Account" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disable For This Account"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disable For This Account"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desactivar para esta cuenta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Désactiver pour ce compte"
+          }
+        }
+      }
+    },
+    "Enable Apple Health Access" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable Apple Health Access"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable Apple Health Access"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activar acceso a Apple Health"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activer l’accès Apple Health"
+          }
+        }
+      }
+    },
+    "Enable Apple Health access first to use Smart Pull or Full Refresh." : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable Apple Health access first to use Smart Pull or Full Refresh."
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable Apple Health access first to use Smart Pull or Full Refresh."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activa primero el acceso a Apple Health para usar extracción inteligente o actualización completa."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activez d’abord l’accès Apple Health pour utiliser la récupération intelligente ou l’actualisation complète."
+          }
+        }
+      }
+    },
+    "Enable optional cloud sync for this account" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable optional cloud sync for this account"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable optional cloud sync for this account"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activa la sincronización en la nube opcional para esta cuenta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activer la synchronisation cloud facultative pour ce compte"
+          }
+        }
+      }
+    },
+    "Enabling Apple Health..." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enabling Apple Health..."
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enabling Apple Health..."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activando Apple Health..."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activation d’Apple Health..."
+          }
+        }
+      }
+    },
+    "ExerciseDB Catalog Sync" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ExerciseDB Catalogue Sync"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ExerciseDB Catalog Sync"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sincronización del catálogo ExerciseDB"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Synchronisation du catalogue ExerciseDB"
+          }
+        }
+      }
+    },
+    "Exercises" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exercises"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exercises"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ejercicios"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exercices"
+          }
+        }
+      }
+    },
+    "Export Apple Health Summary" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export Apple Health Summary"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export Apple Health Summary"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportar resumen de Apple Health"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporter le résumé Apple Health"
+          }
+        }
+      }
+    },
+    "Export Exercise Backup" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export Exercise Backup"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export Exercise Backup"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportar copia de seguridad de ejercicios"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporter la sauvegarde des exercices"
+          }
+        }
+      }
+    },
+    "Export Nutrition Backup" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export Nutrition Backup"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export Nutrition Backup"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportar copia de seguridad de nutrición"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporter la sauvegarde nutritionnelle"
+          }
+        }
+      }
+    },
+    "General" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "General"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "General"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "General"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Général"
+          }
+        }
+      }
+    },
+    "Health access is enabled for this account. You can start syncing now or do it later from Settings." : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Health access is enabled for this account. You can start syncing now or do it later from Settings."
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Health access is enabled for this account. You can start syncing now or do it later from Settings."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El acceso a Salud está activado para esta cuenta. Puedes empezar a sincronizar ahora o hacerlo más tarde desde Ajustes."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’accès aux données de santé est activé pour ce compte. Vous pouvez lancer la synchronisation maintenant ou le faire plus tard depuis Réglages."
+          }
+        }
+      }
+    },
+    "History Range" : {
+      "comment" : "Picker title for Apple Health history range",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "History Range"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "History Range"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intervalo de historial"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plage d’historique"
+          }
+        }
+      }
+    },
+    "Import Apple Health Summary" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Apple Health Summary"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Apple Health Summary"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importar resumen de Apple Health"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importer un résumé Apple Health"
+          }
+        }
+      }
+    },
+    "Import Exercise Backup (Merge)" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Exercise Backup (Merge)"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Exercise Backup (Merge)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importar copia de ejercicios (fusionar)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importer une sauvegarde d’exercices (fusion)"
+          }
+        }
+      }
+    },
+    "Import Exercise Backup (Replace)" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Exercise Backup (Replace)"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Exercise Backup (Replace)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importar copia de ejercicios (reemplazar)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importer une sauvegarde d’exercices (remplacer)"
+          }
+        }
+      }
+    },
+    "Import Nutrition Backup" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Nutrition Backup"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Nutrition Backup"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importar copia de seguridad de nutrición"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importer une sauvegarde nutritionnelle"
+          }
+        }
+      }
+    },
+    "Inspect local record counts" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inspect local record counts"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inspect local record counts"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inspecciona el recuento de registros locales"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inspecter le nombre d’enregistrements locaux"
+          }
+        }
+      }
+    },
+    "Interact Account" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Interact Account"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Interact Account"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cuenta de Interact"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compte Interact"
+          }
+        }
+      }
+    },
+    "Keep nutrition visible in the main tabs" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep nutrition visible in the main tabs"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep nutrition visible in the main tabs"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mantén Nutrición visible en las pestañas principales"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Garder Nutrition visible dans les onglets principaux"
+          }
+        }
+      }
+    },
+    "Keep the external exercise catalog updated" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep the external exercise catalogue updated"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep the external exercise catalog updated"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mantén actualizado el catálogo externo de ejercicios"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maintenir le catalogue d’exercices externe à jour"
+          }
+        }
+      }
+    },
+    "Language" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Language"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Language"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Idioma"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Langue"
+          }
+        }
+      }
+    },
+    "Last login: %@" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last login: %@"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last login: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Último inicio de sesión: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dernière connexion : %@"
+          }
+        }
+      }
+    },
+    "Leave a field empty to use the normal built-in URL." : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leave a field empty to use the normal built-in URL."
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leave a field empty to use the normal built-in URL."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deja un campo vacío para usar la URL integrada normal."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Laissez un champ vide pour utiliser l’URL intégrée normale."
+          }
+        }
+      }
+    },
+    "Link an Interact account to enable optional cloud sync. You can keep using GymTracker without linking." : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Link an Interact account to enable optional cloud sync. You can keep using GymTracker without linking."
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Link an Interact account to enable optional cloud sync. You can keep using GymTracker without linking."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vincula una cuenta de Interact para activar la sincronización opcional en la nube. Puedes seguir usando GymTracker sin vincularla."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Associez un compte Interact pour activer la synchronisation cloud facultative. Vous pouvez continuer à utiliser GymTracker sans l’associer."
+          }
+        }
+      }
+    },
+    "Link Interact Account" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Link Interact Account"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Link Interact Account"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vincular cuenta de Interact"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Associer le compte Interact"
+          }
+        }
+      }
+    },
+    "Linked account: %@" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linked account: %@"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linked account: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cuenta vinculada: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compte associé : %@"
+          }
+        }
+      }
+    },
+    "Linked as @%@" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linked as @%@"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linked as @%@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vinculado como @%@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Associé en tant que @%@"
+          }
+        }
+      }
+    },
+    "Merge exercise backup data into this account" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge exercise backup data into this account"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge exercise backup data into this account"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fusiona datos de copia de ejercicios en esta cuenta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fusionner les données de sauvegarde d’exercices dans ce compte"
+          }
+        }
+      }
+    },
+    "Merge Exercises by npId" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge Exercises by npId"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge Exercises by npId"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fusionar ejercicios por npId"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fusionner les exercices par npId"
+          }
+        }
+      }
+    },
+    "Move exercise history between records" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move exercise history between records"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move exercise history between records"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mueve el historial de ejercicios entre registros"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déplacer l’historique d’exercices entre les fiches"
+          }
+        }
+      }
+    },
+    "New Account" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Account"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Account"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nueva cuenta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouveau compte"
+          }
+        }
+      }
+    },
+    "Notifications and haptics for rest timers" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications and haptics for rest timers"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications and haptics for rest timers"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notificaciones y vibración para temporizadores de descanso"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications et retours haptiques pour les minuteurs de repos"
+          }
+        }
+      }
+    },
+    "Nutrition" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutrition"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutrition"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutrición"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutrition"
+          }
+        }
+      }
+    },
+    "Nutrition Label Style" : {
+      "comment" : "Picker title for the preferred nutrition label style",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutrition Label Style"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutrition Label Style"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estilo de etiqueta nutricional"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Style d’étiquette nutritionnelle"
+          }
+        }
+      }
+    },
+    "Preferences" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preferences"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preferences"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preferencias"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Préférences"
+          }
+        }
+      }
+    },
+    "Pull the latest catalog now" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pull the latest catalogue now"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pull the latest catalog now"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descargar el catálogo más reciente ahora"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Récupérer le dernier catalogue maintenant"
+          }
+        }
+      }
+    },
+    "Refresh Session" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refresh Session"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refresh Session"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualizar sesión"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualiser la session"
+          }
+        }
+      }
+    },
+    "Refresh the selected health history range" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refresh the selected health history range"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refresh the selected health history range"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualiza el intervalo de historial de salud seleccionado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualiser la plage d’historique de santé sélectionnée"
+          }
+        }
+      }
+    },
+    "Remote Sync" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remote Sync"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remote Sync"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sincronización remota"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Synchronisation distante"
+          }
+        }
+      }
+    },
+    "Remove the current local account" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove the current local account"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove the current local account"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eliminar la cuenta local actual"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer le compte local actuel"
+          }
+        }
+      }
+    },
+    "Replace existing exercise data from backup" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replace existing exercise data from backup"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replace existing exercise data from backup"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reemplaza los datos de ejercicios existentes desde la copia"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remplacer les données d’exercices existantes depuis la sauvegarde"
+          }
+        }
+      }
+    },
+    "Restore daily health summaries from JSON" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore daily health summaries from JSON"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore daily health summaries from JSON"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restaura resúmenes diarios de salud desde JSON"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restaurer les résumés de santé quotidiens depuis JSON"
+          }
+        }
+      }
+    },
+    "Restore nutrition data from JSON" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore nutrition data from JSON"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore nutrition data from JSON"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restaura datos de nutrición desde JSON"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restaurer les données nutritionnelles depuis JSON"
+          }
+        }
+      }
+    },
+    "Return networking to the built-in URLs" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Return networking to the built-in URLs"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Return networking to the built-in URLs"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restablece las URL integradas de red"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rétablir les URL intégrées pour le réseau"
+          }
+        }
+      }
+    },
+    "Save exercises, routines, programmes, and sessions" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save exercises, routines, programmes, and sessions"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save exercises, routines, programs, and sessions"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guarda ejercicios, rutinas, programas y sesiones"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer les exercices, routines, programmes et séances"
+          }
+        }
+      }
+    },
+    "Save food, meals, targets, and logs to JSON" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save food, meals, targets, and logs to JSON"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save food, meals, targets, and logs to JSON"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guarda alimentos, comidas, objetivos y registros en JSON"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer aliments, repas, objectifs et journaux en JSON"
+          }
+        }
+      }
+    },
+    "Save synced daily health summaries" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save synced daily health summaries"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save synced daily health summaries"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guarda resúmenes diarios de salud sincronizados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer les résumés de santé quotidiens synchronisés"
+          }
+        }
+      }
+    },
+    "Seed sample data for trying the app" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seed sample data for trying the app"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seed sample data for trying the app"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añade datos de ejemplo para probar la app"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter des exemples de données pour essayer l’app"
+          }
+        }
+      }
+    },
+    "Settings" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajustes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réglages"
+          }
+        }
+      }
+    },
+    "settings.appearance.dark" : {
+      "comment" : "Appearance picker option for dark mode",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : "Dark"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dark"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oscuro"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sombre"
           }
         }
       }
     },
     "settings.appearance.light" : {
       "comment" : "Appearance picker option for light mode",
-      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Light"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Light"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claro"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clair"
           }
         }
       }
     },
     "settings.appearance.system" : {
       "comment" : "Appearance picker option that follows the system appearance",
-      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "System"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "System"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sistema"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Système"
+          }
+        }
+      }
+    },
+    "settings.appleHealthAccess.status.demoUnavailable" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Health is unavailable in demo mode."
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Health is unavailable in demo mode."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Health no está disponible en el modo demo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Health n’est pas disponible en mode démo."
+          }
+        }
+      }
+    },
+    "settings.appleHealthAccess.status.disabled" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Health is currently disabled for this account."
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Health is currently disabled for this account."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Health está desactivado para esta cuenta."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Health est actuellement désactivé pour ce compte."
+          }
+        }
+      }
+    },
+    "settings.appleHealthAccess.status.enabled" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Health is enabled for this account."
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Health is enabled for this account."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Health está activado para esta cuenta."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Health est activé pour ce compte."
+          }
+        }
+      }
+    },
+    "settings.appleHealthAccess.status.enabledPermissionUnavailable" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enabled for this account, but Apple Health permission appears unavailable right now."
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enabled for this account, but Apple Health permission appears unavailable right now."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Está activado para esta cuenta, pero el permiso de Apple Health parece no estar disponible ahora mismo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activé pour ce compte, mais l’autorisation Apple Health semble indisponible pour le moment."
+          }
+        }
+      }
+    },
+    "settings.appleHealthAccess.status.permissionAvailable" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Health permission is available on this device, but disabled for this account."
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Health permission is available on this device, but disabled for this account."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El permiso de Apple Health está disponible en este dispositivo, pero está desactivado para esta cuenta."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’autorisation Apple Health est disponible sur cet appareil, mais désactivée pour ce compte."
           }
         }
       }
     },
     "settings.appleHealthSummary.fullRefresh" : {
       "comment" : "Action title to refresh Apple Health data for the selected range",
-      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Full Refresh (%@)"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full Refresh (%@)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualización completa (%@)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualisation complète (%@)"
           }
         }
       }
     },
     "settings.healthHistoryRange.all" : {
       "comment" : "Title of the health history range option to show all health history.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "All"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Todo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tout"
           }
         }
       }
     },
     "settings.healthHistoryRange.months3" : {
       "comment" : "Title for the health history range option of 3 months.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "3 months"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3 months"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3 meses"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3 mois"
           }
         }
       }
     },
     "settings.healthHistoryRange.months6" : {
       "comment" : "Title for the health history range option of 6 months.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "6 months"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "6 months"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "6 meses"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "6 mois"
           }
         }
       }
     },
     "settings.healthHistoryRange.months12" : {
       "comment" : "Title of the health history range option for 12 months.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "12 months"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "12 months"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "12 meses"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "12 mois"
           }
         }
       }
     },
     "settings.healthHistoryRange.months24" : {
       "comment" : "Title for the health history range option that includes all health history.",
-      "extractionState" : "extracted_with_value",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "24 months"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "24 months"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "24 meses"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "24 mois"
           }
         }
       }
@@ -344,6 +2681,409 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Langue"
+          }
+        }
+      }
+    },
+    "Show Nutrition Tab" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Nutrition Tab"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Nutrition Tab"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar la pestaña Nutrición"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher l’onglet Nutrition"
+          }
+        }
+      }
+    },
+    "Sign In" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign In"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign In"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iniciar sesión"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se connecter"
+          }
+        }
+      }
+    },
+    "Smart Pull Now" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Smart Pull Now"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Smart Pull Now"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extracción inteligente ahora"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Récupération intelligente maintenant"
+          }
+        }
+      }
+    },
+    "Stop syncing Apple Health for the current account" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop syncing Apple Health for the current account"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop syncing Apple Health for the current account"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detén la sincronización de Apple Health para la cuenta actual"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrêter la synchronisation Apple Health pour le compte actuel"
+          }
+        }
+      }
+    },
+    "Sync ExerciseDB Now" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync ExerciseDB Now"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync ExerciseDB Now"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sincronizar ExerciseDB ahora"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Synchroniser ExerciseDB maintenant"
+          }
+        }
+      }
+    },
+    "Sync the most useful recent health data" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync the most useful recent health data"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync the most useful recent health data"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sincroniza los datos de salud recientes más útiles"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Synchroniser les données de santé récentes les plus utiles"
+          }
+        }
+      }
+    },
+    "Timer Feedback" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Timer Feedback"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Timer Feedback"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avisos del temporizador"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retour du minuteur"
+          }
+        }
+      }
+    },
+    "Transfer History" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfer History"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfer History"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transferir historial"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transférer l’historique"
+          }
+        }
+      }
+    },
+    "Unlink" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlink"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlink"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desvincular"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dissocier"
+          }
+        }
+      }
+    },
+    "Use system default or choose a language" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use system default or choose a language"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use system default or choose a language"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa el idioma del sistema o elige uno"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utiliser la langue du système ou choisir une langue"
+          }
+        }
+      }
+    },
+    "Use system, light, or dark mode" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use system, light, or dark mode"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use system, light, or dark mode"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa el modo del sistema, claro u oscuro"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utiliser le mode système, clair ou sombre"
+          }
+        }
+      }
+    },
+    "Use these URLs for development requests" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use these URLs for development requests"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use these URLs for development requests"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa estas URL para solicitudes de desarrollo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utiliser ces URL pour les requêtes de développement"
+          }
+        }
+      }
+    },
+    "Used by food labels and Quick Add" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Used by food labels and Quick Add"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Used by food labels and Quick Add"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se usa en etiquetas de alimentos y entrada rápida"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilisé par les étiquettes d’aliments et l’ajout rapide"
+          }
+        }
+      }
+    },
+    "Version, build, and project details" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version, build, and project details"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version, build, and project details"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Versión, compilación y detalles del proyecto"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version, build et détails du projet"
           }
         }
       }
