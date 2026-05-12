@@ -6,6 +6,17 @@ enum FoodItemKind: Int, Codable, CaseIterable, Identifiable {
     case ingredient = 2
 
     var id: Int { rawValue }
+
+    var displayNameResource: LocalizedStringResource {
+        switch self {
+        case .food:
+            return LocalizedStringResource("nutrition.foodKind.food", defaultValue: "Food", table: "Nutrition")
+        case .drink:
+            return LocalizedStringResource("nutrition.foodKind.drink", defaultValue: "Drink", table: "Nutrition")
+        case .ingredient:
+            return LocalizedStringResource("nutrition.foodKind.ingredient", defaultValue: "Ingredient", table: "Nutrition")
+        }
+    }
 }
 
 enum FoodLogCategory: Int, CaseIterable, Identifiable {
@@ -18,12 +29,21 @@ enum FoodLogCategory: Int, CaseIterable, Identifiable {
     var id: Int { rawValue }
 
     var displayName: String {
+        String(localized: displayNameResource)
+    }
+
+    var displayNameResource: LocalizedStringResource {
         switch self {
-        case .breakfast: return "Breakfast"
-        case .lunch: return "Lunch"
-        case .dinner: return "Dinner"
-        case .snack: return "Snack"
-        case .other: return "Other"
+        case .breakfast:
+            return LocalizedStringResource("nutrition.category.breakfast", defaultValue: "Breakfast", table: "Nutrition")
+        case .lunch:
+            return LocalizedStringResource("nutrition.category.lunch", defaultValue: "Lunch", table: "Nutrition")
+        case .dinner:
+            return LocalizedStringResource("nutrition.category.dinner", defaultValue: "Dinner", table: "Nutrition")
+        case .snack:
+            return LocalizedStringResource("nutrition.category.snack", defaultValue: "Snack", table: "Nutrition")
+        case .other:
+            return LocalizedStringResource("nutrition.category.other", defaultValue: "Other", table: "Nutrition")
         }
     }
 
@@ -49,13 +69,17 @@ enum FoodItemUnit: Int, Codable, CaseIterable, Identifiable {
     }
 
     var displayName: String {
+        String(localized: displayNameResource)
+    }
+
+    var displayNameResource: LocalizedStringResource {
         switch self {
         case .grams:
-            return "Grams"
+            return LocalizedStringResource("nutrition.unit.grams", defaultValue: "Grams", table: "Nutrition")
         case .milliliters:
-            return "Milliliters"
+            return LocalizedStringResource("nutrition.unit.milliliters", defaultValue: "Milliliters", table: "Nutrition")
         case .piece:
-            return "Piece"
+            return LocalizedStringResource("nutrition.unit.piece", defaultValue: "Piece", table: "Nutrition")
         }
     }
 }
@@ -68,13 +92,17 @@ enum NutritionLabelProfile: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     var displayName: String {
+        String(localized: displayNameResource)
+    }
+
+    var displayNameResource: LocalizedStringResource {
         switch self {
         case .defaultProfile:
-            return "Default"
+            return LocalizedStringResource("nutrition.labelProfile.default", defaultValue: "Default", table: "Nutrition")
         case .ukEU:
-            return "UK/EU"
+            return LocalizedStringResource("nutrition.labelProfile.ukEU", defaultValue: "UK/EU", table: "Nutrition")
         case .us:
-            return "US"
+            return LocalizedStringResource("nutrition.labelProfile.us", defaultValue: "US", table: "Nutrition")
         }
     }
 
@@ -161,19 +189,23 @@ enum NutritionNutrientGroup: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     var displayName: String {
+        String(localized: displayNameResource)
+    }
+
+    var displayNameResource: LocalizedStringResource {
         switch self {
         case .fat:
-            return "Fat"
+            return LocalizedStringResource("nutrition.nutrientGroup.fat", defaultValue: "Fat", table: "Nutrition")
         case .carbohydrate:
-            return "Carbohydrate"
+            return LocalizedStringResource("nutrition.nutrientGroup.carbohydrate", defaultValue: "Carbohydrate", table: "Nutrition")
         case .mineral:
-            return "Mineral"
+            return LocalizedStringResource("nutrition.nutrientGroup.mineral", defaultValue: "Mineral", table: "Nutrition")
         case .vitamin:
-            return "Vitamin"
+            return LocalizedStringResource("nutrition.nutrientGroup.vitamin", defaultValue: "Vitamin", table: "Nutrition")
         case .energy:
-            return "Energy"
+            return LocalizedStringResource("nutrition.nutrientGroup.energy", defaultValue: "Energy", table: "Nutrition")
         case .other:
-            return "Other"
+            return LocalizedStringResource("nutrition.nutrientGroup.other", defaultValue: "Other", table: "Nutrition")
         }
     }
 }

@@ -69,13 +69,7 @@ struct ExercisesView: View {
 
                         // Muscle filters
                         ForEach(availableMuscles, id: \.self) { muscle in
-                            FilterPill(
-                                title: muscle,
-                                isSelected: selectedMuscle == muscle
-                            )
-                            .onTapGesture {
-                                selectedMuscle = muscle
-                            }
+                            muscleFilterPill(muscle)
                         }
                         Spacer()
                     }
@@ -96,9 +90,9 @@ struct ExercisesView: View {
                 .screenContentPadding()
             } else if filteredRows.isEmpty {
                 EmptyStateView(
-                    title: emptyFilteredTitle,
+                    verbatimTitle: emptyFilteredTitle,
                     systemImage: "magnifyingglass",
-                    message: emptyFilteredMessage
+                    verbatimMessage: emptyFilteredMessage
                 )
                 .screenContentPadding()
             } else {
@@ -212,6 +206,14 @@ struct ExercisesView: View {
                 }
             }
         }
+    }
+
+    private func muscleFilterPill(_ muscle: String) -> some View {
+        let isSelected = selectedMuscle == muscle
+        return FilterPill(verbatimTitle: muscle, isSelected: isSelected)
+            .onTapGesture {
+                selectedMuscle = muscle
+            }
     }
 
     private func deleteFilteredExercises(offsets: IndexSet) {

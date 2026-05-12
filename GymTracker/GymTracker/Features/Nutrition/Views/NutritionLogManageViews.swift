@@ -7,6 +7,19 @@ private enum NutritionLogMode: String, CaseIterable, Identifiable {
     case quickAdd = "Quick Add"
 
     var id: String { rawValue }
+
+    var titleResource: LocalizedStringResource {
+        switch self {
+        case .food:
+            return LocalizedStringResource("nutrition.logMode.food", defaultValue: "Food", table: "Nutrition")
+        case .drink:
+            return LocalizedStringResource("nutrition.logMode.drink", defaultValue: "Drink", table: "Nutrition")
+        case .meal:
+            return LocalizedStringResource("nutrition.logMode.meal", defaultValue: "Meal", table: "Nutrition")
+        case .quickAdd:
+            return LocalizedStringResource("nutrition.logMode.quickAdd", defaultValue: "Quick Add", table: "Nutrition")
+        }
+    }
 }
 
 enum FoodFilterKind: Int, CaseIterable, Identifiable {
@@ -18,41 +31,53 @@ enum FoodFilterKind: Int, CaseIterable, Identifiable {
     var id: Int { rawValue }
 
     var title: String {
+        String(localized: titleResource)
+    }
+
+    var titleResource: LocalizedStringResource {
         switch self {
         case .all:
-            return "All"
+            return LocalizedStringResource("nutrition.foodFilter.all", defaultValue: "All", table: "Nutrition")
         case .foods:
-            return "Foods"
+            return LocalizedStringResource("nutrition.foodFilter.foods", defaultValue: "Foods", table: "Nutrition")
         case .drinks:
-            return "Drinks"
+            return LocalizedStringResource("nutrition.foodFilter.drinks", defaultValue: "Drinks", table: "Nutrition")
         case .ingredients:
-            return "Ingredients"
+            return LocalizedStringResource("nutrition.foodFilter.ingredients", defaultValue: "Ingredients", table: "Nutrition")
         }
     }
 
     var singularTitle: String {
+        String(localized: singularTitleResource)
+    }
+
+    var singularTitleResource: LocalizedStringResource {
         switch self {
         case .all:
-            return "Item"
+            return LocalizedStringResource("nutrition.foodFilter.item", defaultValue: "Item", table: "Nutrition")
         case .foods:
-            return "Food"
+            return LocalizedStringResource("nutrition.foodKind.food", defaultValue: "Food", table: "Nutrition")
         case .drinks:
-            return "Drink"
+            return LocalizedStringResource("nutrition.foodKind.drink", defaultValue: "Drink", table: "Nutrition")
         case .ingredients:
-            return "Ingredient"
+            return LocalizedStringResource("nutrition.foodKind.ingredient", defaultValue: "Ingredient", table: "Nutrition")
         }
     }
 
     var pluralTitle: String {
+        String(localized: pluralTitleResource)
+    }
+
+    var pluralTitleResource: LocalizedStringResource {
         switch self {
         case .all:
-            return "Items"
+            return LocalizedStringResource("nutrition.foodFilter.items", defaultValue: "Items", table: "Nutrition")
         case .foods:
-            return "Foods"
+            return LocalizedStringResource("nutrition.foodFilter.foods", defaultValue: "Foods", table: "Nutrition")
         case .drinks:
-            return "Drinks"
+            return LocalizedStringResource("nutrition.foodFilter.drinks", defaultValue: "Drinks", table: "Nutrition")
         case .ingredients:
-            return "Ingredients"
+            return LocalizedStringResource("nutrition.foodFilter.ingredients", defaultValue: "Ingredients", table: "Nutrition")
         }
     }
 
@@ -304,7 +329,7 @@ struct NutritionLogSheet: View {
         switch mode {
         case .food, .drink:
             VStack(alignment: .leading, spacing: 8) {
-                SectionHeaderView(title: mode == .drink ? "Drink" : "Food")
+                SectionHeaderView(resourceTitle: mode.titleResource)
                 ConnectedCardSection {
                     Button {
                         showFoodPicker = true
@@ -420,11 +445,11 @@ struct NutritionLogSheet: View {
             SectionHeaderView(title: "Details")
             ConnectedCardSection {
                 ConnectedCardRow {
-                    Picker("Category", selection: $category) {
-                        ForEach(FoodLogCategory.displayOrder) { item in
-                            Text(item.displayName).tag(item)
+                        Picker("Category", selection: $category) {
+                            ForEach(FoodLogCategory.displayOrder) { item in
+                            Text(item.displayNameResource).tag(item)
+                            }
                         }
-                    }
                 }
 
                 ConnectedCardDivider()
@@ -641,7 +666,7 @@ struct NutritionFoodPickerView: View {
             ConnectedCardRow {
                 Picker("Type", selection: $filter) {
                     ForEach(FoodFilterKind.allCases) { item in
-                        Text(item.title).tag(item)
+                        Text(item.titleResource).tag(item)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -657,13 +682,13 @@ struct NutritionFoodPickerView: View {
 
     private func foodSection(title: String, foods: [FoodItem]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: title)
+            SectionHeaderView(verbatimTitle: title)
 
             if foods.isEmpty {
                 EmptyStateView(
-                    title: searchText.isEmpty ? "No \(title.lowercased())" : "No results",
+                    verbatimTitle: searchText.isEmpty ? "No \(title.lowercased())" : "No results",
                     systemImage: "fork.knife",
-                    message: searchText.isEmpty ? "Create an item to see it here." : "No items match your search."
+                    verbatimMessage: searchText.isEmpty ? "Create an item to see it here." : "No items match your search."
                 )
             } else {
                 LazyVStack(spacing: 8) {
@@ -910,7 +935,7 @@ private struct ManageFoodsView: View {
             ConnectedCardRow {
                 Picker("Type", selection: $filter) {
                     ForEach(FoodFilterKind.allCases) { item in
-                        Text(item.title).tag(item)
+                        Text(item.titleResource).tag(item)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -937,13 +962,13 @@ private struct ManageFoodsView: View {
 
     private var managedFoodSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: filter.pluralTitle)
+            SectionHeaderView(resourceTitle: filter.pluralTitleResource)
 
             if foods.isEmpty {
                 EmptyStateView(
-                    title: searchText.isEmpty ? "No \(filter.pluralTitle.lowercased())" : "No results",
+                    verbatimTitle: searchText.isEmpty ? "No \(filter.pluralTitle.lowercased())" : "No results",
                     systemImage: "fork.knife",
-                    message: searchText.isEmpty ? "Add an item to see it here." : "No items match your search."
+                    verbatimMessage: searchText.isEmpty ? "Add an item to see it here." : "No items match your search."
                 )
             } else {
                 LazyVStack(spacing: 8) {
@@ -1967,7 +1992,7 @@ struct NutritionFoodEditorView: View {
                 ConnectedCardRow {
                     Picker("Unit", selection: $unit) {
                         ForEach(FoodItemUnit.allCases) { value in
-                            Text(value.displayName).tag(value)
+                            Text(value.displayNameResource).tag(value)
                         }
                     }
                 }
@@ -2023,7 +2048,7 @@ struct NutritionFoodEditorView: View {
                     ConnectedCardRow {
                         Picker("Label Style", selection: $labelProfile) {
                             ForEach(NutritionLabelProfile.allCases) { profile in
-                                Text(profile.displayName).tag(profile)
+                                Text(profile.displayNameResource).tag(profile)
                             }
                         }
                     }
@@ -2223,7 +2248,13 @@ struct NutritionMealTemplateEditorView: View {
     }
 
     private var sectionTitle: String {
-        filter == .all ? "Items" : filter.pluralTitle
+        String(localized: sectionTitleResource)
+    }
+
+    private var sectionTitleResource: LocalizedStringResource {
+        filter == .all
+            ? LocalizedStringResource("nutrition.foodFilter.items", defaultValue: "Items", table: "Nutrition")
+            : filter.pluralTitleResource
     }
 
     var body: some View {
@@ -2314,7 +2345,7 @@ struct NutritionMealTemplateEditorView: View {
                 ConnectedCardRow {
                     Picker("Default Category", selection: $defaultCategory) {
                         ForEach(FoodLogCategory.displayOrder) { item in
-                            Text(item.displayName).tag(item)
+                            Text(item.displayNameResource).tag(item)
                         }
                     }
                 }
@@ -2324,12 +2355,12 @@ struct NutritionMealTemplateEditorView: View {
 
     private var mealItemsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: sectionTitle)
+            SectionHeaderView(resourceTitle: sectionTitleResource)
             ConnectedCardSection {
                 ConnectedCardRow {
                     Picker("Type", selection: $filter) {
                         ForEach(FoodFilterKind.allCases) { item in
-                            Text(item.title).tag(item)
+                            Text(item.titleResource).tag(item)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -2344,9 +2375,9 @@ struct NutritionMealTemplateEditorView: View {
 
             if availableFoods.isEmpty {
                 EmptyStateView(
-                    title: "No \(filter.pluralTitle.lowercased()) yet",
+                    verbatimTitle: "No \(filter.pluralTitle.lowercased()) yet",
                     systemImage: "fork.knife",
-                    message: "Create a \(selectionLabel.lowercased()) first to build this template."
+                    verbatimMessage: "Create a \(selectionLabel.lowercased()) first to build this template."
                 )
 
                 Button {

@@ -12,17 +12,21 @@ enum HealthHistorySyncRange: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     var title: String {
+        String(localized: titleResource)
+    }
+
+    var titleResource: LocalizedStringResource {
         switch self {
         case .months3:
-            return "3 months"
+            return LocalizedStringResource("settings.healthHistoryRange.months3", defaultValue: "3 months", table: "Settings")
         case .months6:
-            return "6 months"
+            return LocalizedStringResource("settings.healthHistoryRange.months6", defaultValue: "6 months", table: "Settings")
         case .months12:
-            return "12 months"
+            return LocalizedStringResource("settings.healthHistoryRange.months12", defaultValue: "12 months", table: "Settings")
         case .months24:
-            return "24 months"
+            return LocalizedStringResource("settings.healthHistoryRange.months24", defaultValue: "24 months", table: "Settings")
         case .all:
-            return "All"
+            return LocalizedStringResource("settings.healthHistoryRange.all", defaultValue: "All", table: "Settings")
         }
     }
 

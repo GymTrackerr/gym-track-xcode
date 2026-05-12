@@ -31,7 +31,7 @@ struct SessionsPageView: View {
                 HStack(spacing: 12) {
                     ForEach(SessionTimeRange.allCases) { range in
                         FilterPill(
-                            title: range.rawValue,
+                            resourceTitle: range.displayNameResource,
                             isSelected: selectedRange == range
                         )
                         .onTapGesture {
@@ -180,7 +180,7 @@ struct SessionsPageView: View {
         VStack(alignment: .leading, spacing: 12) {
             sessionSummaryHeader
 
-            Text("\(summary.sessionCount) Session\(summary.sessionCount == 1 ? "" : "s")")
+            Text(sessionCountResource)
                 .font(.title3.weight(.semibold))
 
             HStack(spacing: 10) {
@@ -251,13 +251,27 @@ struct SessionsPageView: View {
             Spacer()
 
             VStack(alignment: .center, spacing: 3) {
-                Text(selectedRange == .all ? "All Sessions" : periodNavigationTitle)
+                if selectedRange == .all {
+                    Text(
+                        LocalizedStringResource(
+                            "sessions.range.allSessions",
+                            defaultValue: "All Sessions",
+                            table: "Sessions"
+                        )
+                    )
                     .font(.subheadline.weight(.semibold))
                     .multilineTextAlignment(.center)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
+                } else {
+                    Text(periodNavigationTitle)
+                        .font(.subheadline.weight(.semibold))
+                        .multilineTextAlignment(.center)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                }
 
-                Text(selectedRange.displayName)
+                Text(selectedRange.displayNameResource)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -454,6 +468,15 @@ struct SessionsPageView: View {
         guard duration > 0 else { return nil }
         return Int((duration / 60).rounded())
     }
+
+    private var sessionCountResource: LocalizedStringResource {
+        LocalizedStringResource(
+            "sessions.summary.sessionCount",
+            defaultValue: "\(summary.sessionCount) Sessions",
+            table: "Sessions",
+            comment: "Summary count of sessions in the selected time range"
+        )
+    }
 }
 
 private enum SessionTimeRange: String, CaseIterable, Identifiable {
@@ -465,28 +488,36 @@ private enum SessionTimeRange: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     var displayName: String {
+        String(localized: displayNameResource)
+    }
+
+    var displayNameResource: LocalizedStringResource {
         switch self {
         case .week:
-            return "Week"
+            return LocalizedStringResource("sessions.range.week", defaultValue: "Week", table: "Sessions")
         case .month:
-            return "Month"
+            return LocalizedStringResource("sessions.range.month", defaultValue: "Month", table: "Sessions")
         case .year:
-            return "Year"
+            return LocalizedStringResource("sessions.range.year", defaultValue: "Year", table: "Sessions")
         case .all:
-            return "All"
+            return LocalizedStringResource("sessions.range.all", defaultValue: "All", table: "Sessions")
         }
     }
 
     var summaryTitle: String {
+        String(localized: summaryTitleResource)
+    }
+
+    var summaryTitleResource: LocalizedStringResource {
         switch self {
         case .week:
-            return "This Week"
+            return LocalizedStringResource("sessions.summaryTitle.week", defaultValue: "This Week", table: "Sessions")
         case .month:
-            return "This Month"
+            return LocalizedStringResource("sessions.summaryTitle.month", defaultValue: "This Month", table: "Sessions")
         case .year:
-            return "This Year"
+            return LocalizedStringResource("sessions.summaryTitle.year", defaultValue: "This Year", table: "Sessions")
         case .all:
-            return "All"
+            return LocalizedStringResource("sessions.range.all", defaultValue: "All", table: "Sessions")
         }
     }
 

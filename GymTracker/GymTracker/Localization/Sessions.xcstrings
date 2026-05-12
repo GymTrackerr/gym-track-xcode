@@ -4,111 +4,516 @@
     "sessions.entity.programme" : {
       "comment" : "Display name for a programme entity in App Intents.",
       "localizations" : {
-        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Programme" } },
-        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Program" } },
-        "es" : { "stringUnit" : { "state" : "translated", "value" : "Programa" } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Programme" } }
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programme"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Program"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programa"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programme"
+          }
+        }
       }
     },
     "sessions.entity.routine" : {
       "comment" : "Display name for a routine entity in App Intents.",
       "localizations" : {
-        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Routine" } },
-        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Routine" } },
-        "es" : { "stringUnit" : { "state" : "translated", "value" : "Rutina" } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Routine" } }
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Routine"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Routine"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rutina"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Routine"
+          }
+        }
       }
     },
     "sessions.intent.startKind.blank.subtitle" : {
       "comment" : "Blank session type subtitle.",
       "localizations" : {
-        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Start without a routine" } },
-        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Start without a routine" } },
-        "es" : { "stringUnit" : { "state" : "translated", "value" : "Iniciar sin rutina" } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Démarrer sans routine" } }
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start without a routine"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start without a routine"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iniciar sin rutina"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Démarrer sans routine"
+          }
+        }
       }
     },
     "sessions.intent.startKind.blank.title" : {
       "comment" : "Blank session type title.",
       "localizations" : {
-        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Blank" } },
-        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Blank" } },
-        "es" : { "stringUnit" : { "state" : "translated", "value" : "Vacía" } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Vide" } }
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blank"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blank"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vacía"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vide"
+          }
+        }
       }
     },
     "sessions.intent.startKind.programme.subtitle" : {
       "comment" : "Programme session type subtitle.",
       "localizations" : {
-        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Start the next workout" } },
-        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Start the next workout" } },
-        "es" : { "stringUnit" : { "state" : "translated", "value" : "Iniciar el siguiente entrenamiento" } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Démarrer le prochain entraînement" } }
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start the next workout"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start the next workout"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iniciar el siguiente entrenamiento"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Démarrer le prochain entraînement"
+          }
+        }
       }
     },
     "sessions.intent.startKind.programme.title" : {
       "comment" : "Programme session type title.",
       "localizations" : {
-        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Programme" } },
-        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Program" } },
-        "es" : { "stringUnit" : { "state" : "translated", "value" : "Programa" } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Programme" } }
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programme"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Program"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programa"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programme"
+          }
+        }
       }
     },
     "sessions.intent.startKind.routine.subtitle" : {
       "comment" : "Routine session type subtitle.",
       "localizations" : {
-        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Use a saved routine" } },
-        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Use a saved routine" } },
-        "es" : { "stringUnit" : { "state" : "translated", "value" : "Usar una rutina guardada" } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Utiliser une routine enregistrée" } }
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use a saved routine"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use a saved routine"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usar una rutina guardada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utiliser une routine enregistrée"
+          }
+        }
       }
     },
     "sessions.intent.startKind.routine.title" : {
       "comment" : "Routine session type title.",
       "localizations" : {
-        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Routine" } },
-        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Routine" } },
-        "es" : { "stringUnit" : { "state" : "translated", "value" : "Rutina" } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Routine" } }
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Routine"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Routine"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rutina"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Routine"
+          }
+        }
       }
     },
     "sessions.intent.startKind.type" : {
       "comment" : "Type name for the session type App Intent enum.",
       "localizations" : {
-        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Session Type" } },
-        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Session Type" } },
-        "es" : { "stringUnit" : { "state" : "translated", "value" : "Tipo de sesión" } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Type de séance" } }
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session Type"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session Type"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tipo de sesión"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Type de séance"
+          }
+        }
       }
     },
     "sessions.intent.startSession.description" : {
       "comment" : "Description for the App Intent that starts a workout session.",
       "localizations" : {
-        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Start a blank session, routine session, or programme workout." } },
-        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Start a blank session, routine session, or program workout." } },
-        "es" : { "stringUnit" : { "state" : "translated", "value" : "Inicia una sesión vacía, una sesión de rutina o un entrenamiento de programa." } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Démarrez une séance vide, une séance de routine ou un entraînement de programme." } }
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start a blank session, routine session, or programme workout."
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start a blank session, routine session, or program workout."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inicia una sesión vacía, una sesión de rutina o un entrenamiento de programa."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Démarrez une séance vide, une séance de routine ou un entraînement de programme."
+          }
+        }
       }
     },
     "sessions.intent.startSession.title" : {
       "comment" : "Title for the App Intent that starts a workout session.",
       "localizations" : {
-        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Start Session" } },
-        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Start Session" } },
-        "es" : { "stringUnit" : { "state" : "translated", "value" : "Iniciar entrenamiento" } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Démarrer une séance" } }
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start Session"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start Session"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iniciar entrenamiento"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Démarrer une séance"
+          }
+        }
+      }
+    },
+    "sessions.range.all" : {
+      "comment" : "Display name for the \"All\" session range.",
+      "extractionState" : "extracted_with_value",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "All"
+          }
+        }
+      }
+    },
+    "sessions.range.allSessions" : {
+      "comment" : "The name of the \"All Sessions\" range.",
+      "extractionState" : "extracted_with_value",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "All Sessions"
+          }
+        }
+      }
+    },
+    "sessions.range.month" : {
+      "comment" : "Display name for the \"Month\" session range option.",
+      "extractionState" : "extracted_with_value",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Month"
+          }
+        }
+      }
+    },
+    "sessions.range.week" : {
+      "comment" : "Display name for the \"Week\" session time range.",
+      "extractionState" : "extracted_with_value",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Week"
+          }
+        }
+      }
+    },
+    "sessions.range.year" : {
+      "comment" : "Display name for the \"Year\" session time range.",
+      "extractionState" : "extracted_with_value",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Year"
+          }
+        }
+      }
+    },
+    "sessions.set.chip.more" : {
+      "comment" : "Set summary chip showing additional hidden rows",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "+%lld more"
+          }
+        }
+      }
+    },
+    "sessions.set.summary.pace" : {
+      "comment" : "Cardio set summary showing pace",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Pace %@"
+          }
+        }
+      }
+    },
+    "sessions.set.summary.weightReps" : {
+      "comment" : "Set summary showing weight and repetition count",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$@s x %3$lld reps"
+          }
+        }
       }
     },
     "sessions.shortcut.startSession.title" : {
       "comment" : "Short title for the start session shortcut.",
       "localizations" : {
-        "en-GB" : { "stringUnit" : { "state" : "translated", "value" : "Start Session" } },
-        "en-US" : { "stringUnit" : { "state" : "translated", "value" : "Start Session" } },
-        "es" : { "stringUnit" : { "state" : "translated", "value" : "Iniciar entrenamiento" } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Démarrer une séance" } }
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start Session"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start Session"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iniciar entrenamiento"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Démarrer une séance"
+          }
+        }
+      }
+    },
+    "sessions.summary.sessionCount" : {
+      "comment" : "Summary count of sessions in the selected time range",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%lld Sessions"
+          }
+        }
+      }
+    },
+    "sessions.summaryTitle.month" : {
+      "comment" : "Title for the summary of the month.",
+      "extractionState" : "extracted_with_value",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This Month"
+          }
+        }
+      }
+    },
+    "sessions.summaryTitle.week" : {
+      "comment" : "Title for the summary of the week.",
+      "extractionState" : "extracted_with_value",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This Week"
+          }
+        }
+      }
+    },
+    "sessions.summaryTitle.year" : {
+      "comment" : "Title for the summary of the year.",
+      "extractionState" : "extracted_with_value",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This Year"
+          }
+        }
+      }
+    },
+    "sessions.tab.title" : {
+      "comment" : "A label for the \"Sessions\" tab.",
+      "extractionState" : "extracted_with_value",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Sessions"
+          }
+        }
       }
     }
   },
-  "version" : "1.0"
+  "version" : "1.1"
 }

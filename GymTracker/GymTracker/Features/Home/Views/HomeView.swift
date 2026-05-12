@@ -72,8 +72,8 @@ struct HomeView: View {
                                     dashboardService.pendingPresetSelection = preset
                                 } label: {
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(preset.displayName)
-                                        Text(preset.description)
+                                        Text(preset.displayNameResource)
+                                        Text(preset.descriptionResource)
                                     }
                                 }
                             }
@@ -86,8 +86,8 @@ struct HomeView: View {
                                     dashboardService.pendingPresetSelection = preset
                                 } label: {
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(preset.displayName)
-                                        Text(preset.description)
+                                        Text(preset.displayNameResource)
+                                        Text(preset.descriptionResource)
                                     }
                                 }
                             }
@@ -876,7 +876,11 @@ struct DashboardInlineAddModuleSheet: View {
             isPresented = false
         } label: {
             HStack {
-                Label(type.displayName, systemImage: type.iconName)
+                Label {
+                    Text(type.displayNameResource)
+                } icon: {
+                    Image(systemName: type.iconName)
+                }
                 Spacer()
                 Image(systemName: "plus.circle.fill")
                     .foregroundColor(.blue)
@@ -912,7 +916,7 @@ struct DashboardEditableModuleCard: View {
         )
         .animation(.easeInOut(duration: 0.18), value: isDragging)
         .overlay(alignment: .bottomLeading) {
-            Text(module.size.displayName)
+            Text(module.size.displayNameResource)
                 .font(.caption2.weight(.semibold))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
@@ -936,9 +940,13 @@ struct DashboardEditableModuleCard: View {
                             onSizeChange(size)
                         } label: {
                             if size == module.size {
-                                Label(size.displayName, systemImage: "checkmark")
+                                Label {
+                                    Text(size.displayNameResource)
+                                } icon: {
+                                    Image(systemName: "checkmark")
+                                }
                             } else {
-                                Text(size.displayName)
+                                Text(size.displayNameResource)
                             }
                         }
                     }
@@ -977,10 +985,10 @@ struct DashboardModuleDragPreview: View {
                 .foregroundColor(.secondary)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(module.type.displayName)
+                Text(module.type.displayNameResource)
                     .font(.subheadline.weight(.semibold))
                     .foregroundColor(.primary)
-                Text(module.size.displayName)
+                Text(module.size.displayNameResource)
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -1093,7 +1101,7 @@ struct DashboardModuleCardChrome<Content: View>: View {
                         .font(.body)
 
                     
-                    Text(module.type.displayName)
+                    Text(module.type.displayNameResource)
                         .font(spec.headerFont)
                         .foregroundColor(.secondary)
 
@@ -1161,7 +1169,7 @@ struct DashboardHealthAccessPlaceholder: View {
             Text("Connect Apple Health")
                 .font(.subheadline.weight(.semibold))
                 .foregroundColor(.primary)
-            Text("\(module.type.displayName) will appear here once Health access is enabled.")
+            Text("This module will appear here once Health access is enabled.")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)

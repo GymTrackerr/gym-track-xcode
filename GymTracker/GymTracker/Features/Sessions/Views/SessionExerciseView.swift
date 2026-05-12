@@ -588,7 +588,14 @@ struct SessionExerciseView: View {
                             HStack(spacing: 12) {
                                 setBadge(text: badgeText(for: sessionSet, repIndex: index))
 
-                                Text("\(rep.weight.clean) \(rep.weightUnit.name)s x \(rep.count) reps")
+                                Text(
+                                    LocalizedStringResource(
+                                        "sessions.set.summary.weightReps",
+                                        defaultValue: "\(rep.weight.clean) \(rep.weightUnit.name)s x \(rep.count) reps",
+                                        table: "Sessions",
+                                        comment: "Set summary showing weight and repetition count"
+                                    )
+                                )
                                     .font(.subheadline)
                                     .fontWeight(.semibold)
 
@@ -619,20 +626,20 @@ struct SessionExerciseView: View {
                         setBadge(text: "\(sessionSet.order + 1)")
 
                         VStack(alignment: .leading, spacing: 6) {
-                            Text(summary.primaryText)
+                            LocalizedDisplayTextView(summary.primaryText)
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
 
-                            if let secondary = summary.secondaryText, !secondary.isEmpty {
-                                Text(secondary)
+                            if let secondary = summary.secondaryText {
+                                LocalizedDisplayTextView(secondary)
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
 
                             if !summary.chips.isEmpty {
                                 HStack(spacing: 6) {
-                                    ForEach(summary.chips, id: \.self) { chip in
-                                        Text(chip)
+                                    ForEach(summary.chips) { chip in
+                                        LocalizedDisplayTextView(chip)
                                             .font(.caption2)
                                             .foregroundColor(.secondary)
                                             .padding(.horizontal, 8)

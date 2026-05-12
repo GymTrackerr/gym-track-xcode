@@ -249,7 +249,7 @@ struct NutritionDayView: View {
 
                 ForEach(NutritionRangeMode.allCases) { range in
                     FilterPill(
-                        title: range.displayName,
+                        resourceTitle: range.displayNameResource,
                         isSelected: selectedRange == range && (range != .today || isSelectedDateToday)
                     )
                     .onTapGesture {
@@ -292,7 +292,7 @@ struct NutritionDayView: View {
                     EmptyStateView(
                         title: "Couldn't load nutrition summaries",
                         systemImage: "exclamationmark.triangle",
-                        message: periodErrorMessage
+                        verbatimMessage: periodErrorMessage
                     )
                 } else if periodSummaries.isEmpty {
                     EmptyStateView(
@@ -302,7 +302,7 @@ struct NutritionDayView: View {
                     )
                 } else {
                     VStack(alignment: .leading, spacing: 8) {
-                        SectionHeaderView(title: periodSectionTitle)
+                        SectionHeaderView(resourceTitle: periodSectionTitleResource)
 
                         ForEach(periodSummaries) { summary in
                             NavigationLink {
@@ -505,18 +505,35 @@ struct NutritionDayView: View {
             Spacer()
 
             VStack(alignment: .center, spacing: 3) {
-                Text(selectedRange == .all ? periodTitle : periodNavigationTitle)
-                    .font(.subheadline.weight(.semibold))
-                    .multilineTextAlignment(.center)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
+                if selectedRange == .all {
+                    Text(periodTitleResource)
+                        .font(.subheadline.weight(.semibold))
+                        .multilineTextAlignment(.center)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                } else {
+                    Text(periodNavigationTitle)
+                        .font(.subheadline.weight(.semibold))
+                        .multilineTextAlignment(.center)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                }
 
-                Text(selectedRange == .all ? periodSubtitle : selectedRange.displayName)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                if selectedRange == .all {
+                    Text(allNutritionSubtitleResource)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                } else {
+                    Text(selectedRange.displayNameResource)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
             }
 
             Spacer()
@@ -540,15 +557,19 @@ struct NutritionDayView: View {
     }
 
     private var periodTitle: String {
+        String(localized: periodTitleResource)
+    }
+
+    private var periodTitleResource: LocalizedStringResource {
         switch selectedRange {
         case .today:
-            return "Today"
+            return LocalizedStringResource("nutrition.range.today", defaultValue: "Today", table: "Nutrition")
         case .week:
-            return "Week"
+            return LocalizedStringResource("nutrition.range.week", defaultValue: "Week", table: "Nutrition")
         case .month:
-            return "Month"
+            return LocalizedStringResource("nutrition.range.month", defaultValue: "Month", table: "Nutrition")
         case .all:
-            return "All Nutrition"
+            return LocalizedStringResource("nutrition.range.allNutrition", defaultValue: "All Nutrition", table: "Nutrition")
         }
     }
 
@@ -569,6 +590,23 @@ struct NutritionDayView: View {
         }
     }
 
+    private var allNutritionSubtitleResource: LocalizedStringResource {
+        if periodSummaries.isEmpty {
+            return LocalizedStringResource(
+                "nutrition.periodSubtitle.noLoggedDays",
+                defaultValue: "No logged days yet",
+                table: "Nutrition"
+            )
+        }
+
+        return LocalizedStringResource(
+            "nutrition.periodSubtitle.loggedDays",
+            defaultValue: "\(periodSummaries.count) logged days",
+            table: "Nutrition",
+            comment: "Subtitle showing the number of days with nutrition logs"
+        )
+    }
+
     private var periodNavigationTitle: String {
         switch selectedRange {
         case .today:
@@ -587,7 +625,23 @@ struct NutritionDayView: View {
     }
 
     private var periodSectionTitle: String {
-        selectedRange == .all ? "Logged Days" : "Days"
+        String(localized: periodSectionTitleResource)
+    }
+
+    private var periodSectionTitleResource: LocalizedStringResource {
+        if selectedRange == .all {
+            return LocalizedStringResource(
+                "nutrition.periodSection.loggedDays",
+                defaultValue: "Logged Days",
+                table: "Nutrition"
+            )
+        }
+
+        return LocalizedStringResource(
+            "nutrition.periodSection.days",
+            defaultValue: "Days",
+            table: "Nutrition"
+        )
     }
 
     private var periodAverageCalories: Double {
@@ -827,7 +881,7 @@ struct NutritionDayView: View {
         meals: [NutritionLogEntry]
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: category.displayName)
+            SectionHeaderView(resourceTitle: category.displayNameResource)
 
             ConnectedCardSection {
                 let combinedCount = standalone.count + meals.count
@@ -1001,15 +1055,19 @@ private enum NutritionRangeMode: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     var displayName: String {
+        String(localized: displayNameResource)
+    }
+
+    var displayNameResource: LocalizedStringResource {
         switch self {
         case .today:
-            return "Today"
+            return LocalizedStringResource("nutrition.range.today", defaultValue: "Today", table: "Nutrition")
         case .week:
-            return "Week"
+            return LocalizedStringResource("nutrition.range.week", defaultValue: "Week", table: "Nutrition")
         case .month:
-            return "Month"
+            return LocalizedStringResource("nutrition.range.month", defaultValue: "Month", table: "Nutrition")
         case .all:
-            return "All"
+            return LocalizedStringResource("nutrition.range.all", defaultValue: "All", table: "Nutrition")
         }
     }
 
@@ -1435,7 +1493,7 @@ private struct EditNutritionLogView: View {
 
                     Picker("Category", selection: $category) {
                         ForEach(FoodLogCategory.displayOrder) { item in
-                            Text(item.displayName).tag(item)
+                            Text(item.displayNameResource).tag(item)
                         }
                     }
 

@@ -163,12 +163,21 @@ struct SettingsView: View {
                         }
                     } label: {
                         ConnectedCardRow {
-                            settingsRowLabel(
-                                title: userService.currentUser?.isDemo == true ? "Delete Account Unavailable" : "Delete Account",
-                                subtitle: userService.currentUser?.isDemo == true ? "Demo accounts cannot be deleted" : "Remove the current local account",
-                                systemImage: "trash",
-                                showsChevron: false
-                            )
+                            if userService.currentUser?.isDemo == true {
+                                settingsRowLabel(
+                                    title: "Delete Account Unavailable",
+                                    subtitle: "Demo accounts cannot be deleted",
+                                    systemImage: "trash",
+                                    showsChevron: false
+                                )
+                            } else {
+                                settingsRowLabel(
+                                    title: "Delete Account",
+                                    subtitle: "Remove the current local account",
+                                    systemImage: "trash",
+                                    showsChevron: false
+                                )
+                            }
                         }
                     }
                     .buttonStyle(.plain)
@@ -283,7 +292,7 @@ struct SettingsView: View {
                             )
                         ) {
                             ForEach(AppAppearancePreference.allCases) { preference in
-                                Text(preference.title).tag(preference)
+                                Text(preference.titleResource).tag(preference)
                             }
                         }
                         .pickerStyle(.menu)
@@ -296,18 +305,8 @@ struct SettingsView: View {
                 ConnectedCardRow {
                     HStack(spacing: 12) {
                         settingsRowLabel(
-                            title: LocalizedStringResource(
-                                "settings.language.title",
-                                defaultValue: "Language",
-                                table: "Settings",
-                                comment: "Title for the app language preference row"
-                            ),
-                            subtitle: LocalizedStringResource(
-                                "settings.language.subtitle",
-                                defaultValue: "Use system default or choose a language",
-                                table: "Settings",
-                                comment: "Subtitle for the app language preference row"
-                            ),
+                            title: "Language",
+                            subtitle: "Use system default or choose a language",
                             systemImage: "globe",
                             showsChevron: false
                         )
@@ -424,7 +423,7 @@ struct SettingsView: View {
 
             Picker("Nutrition Label Style", selection: $nutritionLabelProfile) {
                 ForEach(NutritionLabelProfile.allCases) { profile in
-                    Text(profile.displayName).tag(profile)
+                    Text(profile.displayNameResource).tag(profile)
                 }
             }
             .labelsHidden()
@@ -536,12 +535,21 @@ struct SettingsView: View {
                         }
                     } label: {
                         ConnectedCardRow {
-                            settingsRowLabel(
-                                title: isEnablingHealthAccess ? "Enabling Apple Health..." : "Enable Apple Health Access",
-                                subtitle: "Allow this account to use Apple Health data",
-                                systemImage: "heart.circle",
-                                showsChevron: false
-                            )
+                            if isEnablingHealthAccess {
+                                settingsRowLabel(
+                                    title: "Enabling Apple Health...",
+                                    subtitle: "Allow this account to use Apple Health data",
+                                    systemImage: "heart.circle",
+                                    showsChevron: false
+                                )
+                            } else {
+                                settingsRowLabel(
+                                    title: "Enable Apple Health Access",
+                                    subtitle: "Allow this account to use Apple Health data",
+                                    systemImage: "heart.circle",
+                                    showsChevron: false
+                                )
+                            }
                         }
                     }
                     .buttonStyle(.plain)
@@ -558,7 +566,7 @@ struct SettingsView: View {
                 ConnectedCardRow {
                     Picker("History Range", selection: $selectedHealthHistoryRange) {
                         ForEach(HealthHistorySyncRange.allCases) { range in
-                            Text(range.title).tag(range)
+                            Text(range.titleResource).tag(range)
                         }
                     }
                 }
@@ -576,7 +584,16 @@ struct SettingsView: View {
 
                 ConnectedCardDivider(leadingInset: 56)
 
-                settingsActionRow(title: "Full Refresh (\(selectedHealthHistoryRange.title))", subtitle: "Refresh the selected health history range", systemImage: "arrow.clockwise.circle") {
+                settingsActionRow(
+                    resourceTitle: LocalizedStringResource(
+                        "settings.appleHealthSummary.fullRefresh",
+                        defaultValue: "Full Refresh (\(selectedHealthHistoryRange.title))",
+                        table: "Settings",
+                        comment: "Action title to refresh Apple Health data for the selected range"
+                    ),
+                    subtitle: "Refresh the selected health history range",
+                    systemImage: "arrow.clockwise.circle"
+                ) {
                     triggerFullHealthRefresh()
                 }
                 .disabled(
@@ -704,8 +721,8 @@ struct SettingsView: View {
     }
 
     private func settingsActionRow(
-        title: String,
-        subtitle: String,
+        title: String.LocalizationValue,
+        subtitle: String.LocalizationValue,
         systemImage: String,
         action: @escaping () -> Void
     ) -> some View {
@@ -718,39 +735,54 @@ struct SettingsView: View {
     }
 
     private func settingsRowLabel(
-        title: String,
-        subtitle: String,
+        title: String.LocalizationValue,
+        subtitle: String.LocalizationValue,
         systemImage: String,
         showsChevron: Bool = true
     ) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: systemImage)
-                .font(.title3.weight(.semibold))
-                .frame(width: 28, height: 28)
-                .foregroundStyle(.secondary)
+        settingsRowLabel(
+            titleText: .localized(title, table: "Settings"),
+            subtitleText: .localized(subtitle, table: "Settings"),
+            systemImage: systemImage,
+            showsChevron: showsChevron
+        )
+    }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer(minLength: 8)
-
-            if showsChevron {
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+    private func settingsActionRow(
+        resourceTitle: LocalizedStringResource,
+        subtitle: String.LocalizationValue,
+        systemImage: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            ConnectedCardRow {
+                settingsRowLabel(
+                    titleText: LocalizedDisplayText(resource: resourceTitle),
+                    subtitleText: .localized(subtitle, table: "Settings"),
+                    systemImage: systemImage
+                )
             }
         }
+        .buttonStyle(.plain)
     }
 
     private func settingsRowLabel(
-        title: LocalizedStringResource,
-        subtitle: LocalizedStringResource,
+        resourceTitle: LocalizedStringResource,
+        resourceSubtitle: LocalizedStringResource,
+        systemImage: String,
+        showsChevron: Bool = true
+    ) -> some View {
+        settingsRowLabel(
+            titleText: LocalizedDisplayText(resource: resourceTitle),
+            subtitleText: LocalizedDisplayText(resource: resourceSubtitle),
+            systemImage: systemImage,
+            showsChevron: showsChevron
+        )
+    }
+
+    private func settingsRowLabel(
+        titleText: LocalizedDisplayText,
+        subtitleText: LocalizedDisplayText,
         systemImage: String,
         showsChevron: Bool = true
     ) -> some View {
@@ -761,10 +793,10 @@ struct SettingsView: View {
                 .foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
+                LocalizedDisplayTextView(titleText)
                     .font(.headline)
                     .foregroundStyle(.primary)
-                Text(subtitle)
+                LocalizedDisplayTextView(subtitleText)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

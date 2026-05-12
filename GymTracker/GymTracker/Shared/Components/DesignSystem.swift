@@ -256,16 +256,59 @@ struct ConnectedCardDivider: View {
 }
 
 struct SummaryMetricTile: View {
-    let title: String
+    private let title: LocalizedDisplayText
     let value: String
     var systemImage: String?
     var tint: Color?
     var tintsBackground = false
 
+    init(
+        title: String.LocalizationValue,
+        value: String,
+        systemImage: String? = nil,
+        tint: Color? = nil,
+        tintsBackground: Bool = false,
+        tableName: String? = nil
+    ) {
+        self.title = .localized(title, table: tableName)
+        self.value = value
+        self.systemImage = systemImage
+        self.tint = tint
+        self.tintsBackground = tintsBackground
+    }
+
+    init(
+        resourceTitle: LocalizedStringResource,
+        value: String,
+        systemImage: String? = nil,
+        tint: Color? = nil,
+        tintsBackground: Bool = false
+    ) {
+        title = LocalizedDisplayText(resource: resourceTitle)
+        self.value = value
+        self.systemImage = systemImage
+        self.tint = tint
+        self.tintsBackground = tintsBackground
+    }
+
+    init(
+        verbatimTitle: String,
+        value: String,
+        systemImage: String? = nil,
+        tint: Color? = nil,
+        tintsBackground: Bool = false
+    ) {
+        title = .verbatim(verbatimTitle)
+        self.value = value
+        self.systemImage = systemImage
+        self.tint = tint
+        self.tintsBackground = tintsBackground
+    }
+
     var body: some View {
         ZStack(alignment: .topTrailing) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(title)
+                LocalizedDisplayTextView(title)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(tint ?? .secondary)
                     .textCase(.uppercase)
@@ -332,22 +375,39 @@ struct NavigableCardRow<Content: View, Destination: View>: View {
 }
 
 struct SectionHeaderView: View {
-    let title: String
-    let subtitle: String?
+    private let title: LocalizedDisplayText
+    private let subtitle: LocalizedDisplayText?
 
-    init(title: String, subtitle: String? = nil) {
-        self.title = title
-        self.subtitle = subtitle
+    init(
+        title: String.LocalizationValue,
+        subtitle: String.LocalizationValue? = nil,
+        tableName: String? = nil
+    ) {
+        self.title = .localized(title, table: tableName)
+        self.subtitle = subtitle.map { .localized($0, table: tableName) }
+    }
+
+    init(
+        resourceTitle: LocalizedStringResource,
+        resourceSubtitle: LocalizedStringResource? = nil
+    ) {
+        title = LocalizedDisplayText(resource: resourceTitle)
+        subtitle = resourceSubtitle.map { LocalizedDisplayText(resource: $0) }
+    }
+
+    init(verbatimTitle: String, verbatimSubtitle: String? = nil) {
+        title = .verbatim(verbatimTitle)
+        subtitle = verbatimSubtitle.map { .verbatim($0) }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(title)
+            LocalizedDisplayTextView(title)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            if let subtitle, !subtitle.isEmpty {
-                Text(subtitle)
+            if let subtitle {
+                LocalizedDisplayTextView(subtitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -359,9 +419,47 @@ struct SectionHeaderView: View {
 }
 
 struct EmptyStateView: View {
-    let title: String
+    private let title: LocalizedDisplayText
     let systemImage: String
-    let message: String
+    private let message: LocalizedDisplayText
+
+    init(
+        title: String.LocalizationValue,
+        systemImage: String,
+        message: String.LocalizationValue,
+        tableName: String? = nil
+    ) {
+        self.title = .localized(title, table: tableName)
+        self.systemImage = systemImage
+        self.message = .localized(message, table: tableName)
+    }
+
+    init(
+        resourceTitle: LocalizedStringResource,
+        systemImage: String,
+        resourceMessage: LocalizedStringResource
+    ) {
+        title = LocalizedDisplayText(resource: resourceTitle)
+        self.systemImage = systemImage
+        message = LocalizedDisplayText(resource: resourceMessage)
+    }
+
+    init(
+        title: String.LocalizationValue,
+        systemImage: String,
+        verbatimMessage: String,
+        tableName: String? = nil
+    ) {
+        self.title = .localized(title, table: tableName)
+        self.systemImage = systemImage
+        message = .verbatim(verbatimMessage)
+    }
+
+    init(verbatimTitle: String, systemImage: String, verbatimMessage: String) {
+        title = .verbatim(verbatimTitle)
+        self.systemImage = systemImage
+        message = .verbatim(verbatimMessage)
+    }
 
     var body: some View {
         CardRowContainer {
@@ -369,9 +467,9 @@ struct EmptyStateView: View {
                 Image(systemName: systemImage)
                     .font(.title2)
                     .foregroundStyle(.secondary)
-                Text(title)
+                LocalizedDisplayTextView(title)
                     .font(.headline)
-                Text(message)
+                LocalizedDisplayTextView(message)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -384,11 +482,30 @@ struct EmptyStateView: View {
 }
 
 struct FilterPill: View {
-    let title: String
+    private let title: LocalizedDisplayText
     let isSelected: Bool
 
+    init(
+        title: String.LocalizationValue,
+        isSelected: Bool,
+        tableName: String? = nil
+    ) {
+        self.title = .localized(title, table: tableName)
+        self.isSelected = isSelected
+    }
+
+    init(resourceTitle: LocalizedStringResource, isSelected: Bool) {
+        title = LocalizedDisplayText(resource: resourceTitle)
+        self.isSelected = isSelected
+    }
+
+    init(verbatimTitle: String, isSelected: Bool) {
+        title = .verbatim(verbatimTitle)
+        self.isSelected = isSelected
+    }
+
     var body: some View {
-        Text(title)
+        LocalizedDisplayTextView(title)
             .font(.caption.weight(.semibold))
             .padding(.horizontal, 16)
             .padding(.vertical, 8)

@@ -38,14 +38,30 @@ struct ContentView: View {
             }
             
             if userService.currentUser?.showNutritionTab ?? true {
-                Tab("Nutrition", systemImage: "fork.knife", value: 3) {
+                Tab(
+                    LocalizedStringResource(
+                        "nutrition.tab.title",
+                        defaultValue: "Nutrition",
+                        table: "Nutrition"
+                    ),
+                    systemImage: "fork.knife",
+                    value: 3
+                ) {
                     NavigationStack {
                         NutritionDayView(openLogRequestID: nutritionLogRequestID)
                     }
                 }
             }
             
-            Tab("Sessions", systemImage: "list.bullet.rectangle", value: 2) {
+            Tab(
+                LocalizedStringResource(
+                    "sessions.tab.title",
+                    defaultValue: "Sessions",
+                    table: "Sessions"
+                ),
+                systemImage: "list.bullet.rectangle",
+                value: 2
+            ) {
                 NavigationStack {
                     SessionsPageView(
                         openCreateSessionRequestID: sessionLogRequestID,
@@ -60,7 +76,16 @@ struct ContentView: View {
                 }
             }
 
-            Tab(ProgrammeL10n.programme, systemImage: "figure.walk.motion", value: 4) {
+            Tab(
+                LocalizedStringResource(
+                    "programme.term.programme",
+                    defaultValue: "Programme",
+                    table: "Programmes",
+                    comment: "The app section for training programmes"
+                ),
+                systemImage: "figure.walk.motion",
+                value: 4
+            ) {
                 NavigationStack {
                     ProgramsRootView()
                 }

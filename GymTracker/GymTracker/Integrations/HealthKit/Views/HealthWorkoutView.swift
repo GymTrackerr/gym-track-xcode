@@ -64,7 +64,7 @@ struct HealthWorkoutView: View {
                         ForEach([WorkoutFilter.all, .cardio, .strength, .flexibility], id: \.self) { filter in
 
                             FilterPill(
-                                title: filter.title,
+                                verbatimTitle: filter.title,
                                 isSelected: selectedFilter == filter
                             )
                             .onTapGesture {
