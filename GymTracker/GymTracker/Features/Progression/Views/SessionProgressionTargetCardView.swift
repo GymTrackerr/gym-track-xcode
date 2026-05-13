@@ -131,7 +131,7 @@ struct SessionProgressionTargetCardView: View {
 
             if let cycleSummary = sessionEntry.appliedProgressionCycleSummary,
                !cycleSummary.isEmpty {
-                Text(cycleSummary)
+                Text(verbatim: cycleSummary)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

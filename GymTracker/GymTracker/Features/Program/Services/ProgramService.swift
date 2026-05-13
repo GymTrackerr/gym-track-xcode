@@ -474,11 +474,11 @@ final class ProgramService: ServiceBase, ObservableObject {
                 nextWorkout: nil,
                 activeSession: nil,
                 recentCompletedSession: recentCompletedSession,
-                blockLabel: "Workout Rotation",
-                progressLabel: "Add workouts to begin",
+                blockLabel: workoutRotationLabel,
+                progressLabel: addWorkoutsToBeginLabel,
                 scheduleLabel: program.scheduleSummary,
-                nextWorkoutLabel: "Add a workout",
-                actionTitle: "Add Workout",
+                nextWorkoutLabel: addWorkoutLabel,
+                actionTitle: addWorkoutLabel,
                 canStartNextWorkout: false,
                 canSkipNextWorkout: false,
                 shouldShowDashboardStartAction: false
@@ -548,8 +548,8 @@ final class ProgramService: ServiceBase, ObservableObject {
             blockLabel: blockLabel(for: block),
             progressLabel: weekLabel,
             scheduleLabel: nextWorkout?.scheduleLabel ?? program.scheduleSummary,
-            nextWorkoutLabel: nextWorkout?.displayName ?? "All workouts completed this week",
-            actionTitle: activeSession == nil ? (nextWorkout == nil ? "Workout Complete" : "Start Next Workout") : "Resume Current Workout",
+            nextWorkoutLabel: nextWorkout?.displayName ?? allWorkoutsCompletedThisWeekLabel,
+            actionTitle: activeSession == nil ? (nextWorkout == nil ? workoutCompleteLabel : startNextWorkoutLabel) : resumeCurrentWorkoutLabel,
             canStartNextWorkout: canStartNextWorkout,
             canSkipNextWorkout: canSkipNextWorkout,
             shouldShowDashboardStartAction: shouldShowDashboardStartAction
@@ -588,7 +588,7 @@ final class ProgramService: ServiceBase, ObservableObject {
                 progressLabel: continuousProgressLabel(for: block, consumedWorkoutCount: consumedWithinBlock),
                 scheduleLabel: program.scheduleSummary,
                 nextWorkoutLabel: workout.displayName,
-                actionTitle: "Resume Current Workout",
+                actionTitle: resumeCurrentWorkoutLabel,
                 canStartNextWorkout: true,
                 canSkipNextWorkout: false,
                 shouldShowDashboardStartAction: true
@@ -606,10 +606,10 @@ final class ProgramService: ServiceBase, ObservableObject {
                     activeSession: nil,
                     recentCompletedSession: recentCompletedSession,
                     blockLabel: blockLabel(for: block),
-                    progressLabel: "No workouts yet",
+                    progressLabel: noWorkoutsYetLabel,
                     scheduleLabel: program.scheduleSummary,
-                    nextWorkoutLabel: "Add a workout",
-                    actionTitle: "Add Workout",
+                    nextWorkoutLabel: addWorkoutLabel,
+                    actionTitle: addWorkoutLabel,
                     canStartNextWorkout: false,
                     canSkipNextWorkout: false,
                     shouldShowDashboardStartAction: false
@@ -629,7 +629,7 @@ final class ProgramService: ServiceBase, ObservableObject {
                     progressLabel: continuousProgressLabel(for: block, consumedWorkoutCount: consumedWithinBlock),
                     scheduleLabel: program.scheduleSummary,
                     nextWorkoutLabel: nextWorkout.displayName,
-                    actionTitle: "Start Next Workout",
+                    actionTitle: startNextWorkoutLabel,
                     canStartNextWorkout: isWorkoutStartable(nextWorkout),
                     canSkipNextWorkout: true,
                     shouldShowDashboardStartAction: isWorkoutStartable(nextWorkout) && !completedToday
@@ -648,10 +648,10 @@ final class ProgramService: ServiceBase, ObservableObject {
             activeSession: nil,
             recentCompletedSession: recentCompletedSession,
             blockLabel: blockLabel(for: fallbackBlock),
-            progressLabel: "Completed",
+            progressLabel: completedLabel,
             scheduleLabel: program.scheduleSummary,
-            nextWorkoutLabel: fallbackWorkout?.displayName ?? "No workout",
-            actionTitle: "Workout Complete",
+            nextWorkoutLabel: fallbackWorkout?.displayName ?? noWorkoutLabel,
+            actionTitle: workoutCompleteLabel,
             canStartNextWorkout: false,
             canSkipNextWorkout: false,
             shouldShowDashboardStartAction: false
@@ -690,9 +690,13 @@ final class ProgramService: ServiceBase, ObservableObject {
         referenceDate: Date,
         calendar: Calendar
     ) -> String {
-        guard let block else { return "No block" }
+        guard let block else { return noBlockLabel }
         if block.repeatsForever {
-            return "Repeats weekly"
+            return String(localized: LocalizedStringResource(
+                "programmes.state.repeatsWeekly",
+                defaultValue: "Repeats weekly",
+                table: "Programmes"
+            ))
         }
 
         let blocks = sortedBlocks(for: program)
@@ -706,7 +710,12 @@ final class ProgramService: ServiceBase, ObservableObject {
             .reduce(0) { $0 + max($1.durationCount, 1) }
 
         let weekInBlock = min(max((elapsedWeeks - previousWeeks) + 1, 1), max(block.durationCount, 1))
-        return "Week \(weekInBlock) of \(max(block.durationCount, 1))"
+        let duration = max(block.durationCount, 1)
+        return String(localized: LocalizedStringResource(
+            "programmes.state.weekOf",
+            defaultValue: "Week \(weekInBlock) of \(duration)",
+            table: "Programmes"
+        ))
     }
 
     private func nextWeeklyWorkout(
@@ -761,9 +770,19 @@ final class ProgramService: ServiceBase, ObservableObject {
         let workoutsCount = max(block.workouts.count, 1)
         let completedPasses = consumedWorkoutCount / workoutsCount
         if block.repeatsForever {
-            return "Split \(completedPasses + 1)"
+            let split = completedPasses + 1
+            return String(localized: LocalizedStringResource(
+                "programmes.state.split",
+                defaultValue: "Split \(split)",
+                table: "Programmes"
+            ))
         }
-        return "Split \(min(completedPasses + 1, block.durationCount)) of \(block.durationCount)"
+        let split = min(completedPasses + 1, block.durationCount)
+        return String(localized: LocalizedStringResource(
+            "programmes.state.splitOf",
+            defaultValue: "Split \(split) of \(block.durationCount)",
+            table: "Programmes"
+        ))
     }
 
     private func currentProgramWeekOffset(
@@ -1111,11 +1130,99 @@ final class ProgramService: ServiceBase, ObservableObject {
     }
 
     private func blockLabel(for block: ProgramBlock?) -> String {
-        guard let block else { return "No block" }
+        guard let block else { return noBlockLabel }
         if block.isHiddenRepeatingBlock {
-            return "Workout Rotation"
+            return workoutRotationLabel
         }
         return block.displayName
+    }
+
+    private var addWorkoutLabel: String {
+        String(localized: LocalizedStringResource(
+            "programmes.action.addWorkout",
+            defaultValue: "Add Workout",
+            table: "Programmes"
+        ))
+    }
+
+    private var addWorkoutsToBeginLabel: String {
+        String(localized: LocalizedStringResource(
+            "programmes.state.addWorkoutsToBegin",
+            defaultValue: "Add workouts to begin",
+            table: "Programmes"
+        ))
+    }
+
+    private var allWorkoutsCompletedThisWeekLabel: String {
+        String(localized: LocalizedStringResource(
+            "programmes.state.allWorkoutsCompletedThisWeek",
+            defaultValue: "All workouts completed this week",
+            table: "Programmes"
+        ))
+    }
+
+    private var completedLabel: String {
+        String(localized: LocalizedStringResource(
+            "programmes.state.completed",
+            defaultValue: "Completed",
+            table: "Programmes"
+        ))
+    }
+
+    private var noBlockLabel: String {
+        String(localized: LocalizedStringResource(
+            "programmes.state.noBlock",
+            defaultValue: "No block",
+            table: "Programmes"
+        ))
+    }
+
+    private var noWorkoutLabel: String {
+        String(localized: LocalizedStringResource(
+            "programmes.state.noWorkout",
+            defaultValue: "No workout",
+            table: "Programmes"
+        ))
+    }
+
+    private var noWorkoutsYetLabel: String {
+        String(localized: LocalizedStringResource(
+            "programmes.state.noWorkoutsYet",
+            defaultValue: "No workouts yet",
+            table: "Programmes"
+        ))
+    }
+
+    private var resumeCurrentWorkoutLabel: String {
+        String(localized: LocalizedStringResource(
+            "programmes.action.resumeCurrentWorkout",
+            defaultValue: "Resume Current Workout",
+            table: "Programmes"
+        ))
+    }
+
+    private var startNextWorkoutLabel: String {
+        String(localized: LocalizedStringResource(
+            "programmes.action.startNextWorkout",
+            defaultValue: "Start Next Workout",
+            table: "Programmes"
+        ))
+    }
+
+    private var workoutCompleteLabel: String {
+        String(localized: LocalizedStringResource(
+            "programmes.action.workoutComplete",
+            defaultValue: "Workout Complete",
+            table: "Programmes"
+        ))
+    }
+
+    private var workoutRotationLabel: String {
+        String(localized: LocalizedStringResource(
+            "programmes.state.workoutRotation",
+            defaultValue: "Workout Rotation",
+            table: "Programmes"
+        ))
     }
 }
 

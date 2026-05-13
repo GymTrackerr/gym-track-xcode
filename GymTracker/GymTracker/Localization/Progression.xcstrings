@@ -2381,6 +2381,315 @@
           }
         }
       }
+    },
+    "progression.cycleSummary.setCount": {
+      "comment": "Number of sets in a progression cycle summary",
+      "localizations": {
+        "en-GB": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld set"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld sets"
+                }
+              }
+            }
+          }
+        },
+        "en-US": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld set"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld sets"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld série"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld séries"
+                }
+              }
+            }
+          }
+        },
+        "es": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld serie"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld series"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "progression.cycleSummary.linearWithWeight": {
+      "comment": "Progression cycle summary for linear progression with a current target load",
+      "localizations": {
+        "en-GB": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hit %@ at %@ reps, then add load. Current target: %@."
+          }
+        },
+        "en-US": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hit %@ at %@ reps, then add load. Current target: %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atteignez %@ à %@ répétitions, puis augmentez la charge. Objectif actuel : %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Completa %@ con %@ repeticiones y luego aumenta la carga. Objetivo actual: %@."
+          }
+        }
+      }
+    },
+    "progression.cycleSummary.linear": {
+      "comment": "Progression cycle summary for linear progression without a current target load",
+      "localizations": {
+        "en-GB": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hit %@ at %@ reps, then add load."
+          }
+        },
+        "en-US": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hit %@ at %@ reps, then add load."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atteignez %@ à %@ répétitions, puis augmentez la charge."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Completa %@ con %@ repeticiones y luego aumenta la carga."
+          }
+        }
+      }
+    },
+    "progression.cycleSummary.doubleLastCycle": {
+      "comment": "Progression cycle summary after completing a double progression cycle",
+      "localizations": {
+        "en-GB": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last cycle topped out at %@ x %lld. Choose %@ and restart at %@ reps."
+          }
+        },
+        "en-US": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last cycle topped out at %@ x %lld. Choose %@ and restart at %@ reps."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le dernier cycle s'est terminé à %@ x %lld. Choisissez %@ et repartez à %@ répétitions."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El último ciclo llegó hasta %@ x %lld. Elige %@ y reinicia con %@ repeticiones."
+          }
+        }
+      }
+    },
+    "progression.cycleSummary.doubleChoose": {
+      "comment": "Progression cycle summary when choosing a new double progression load",
+      "localizations": {
+        "en-GB": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose %@ and restart at %@ reps."
+          }
+        },
+        "en-US": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose %@ and restart at %@ reps."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choisissez %@ et repartez à %@ répétitions."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige %@ y reinicia con %@ repeticiones."
+          }
+        }
+      }
+    },
+    "progression.cycleSummary.doubleCurrentCycle": {
+      "comment": "Progression cycle summary for an active double progression cycle",
+      "localizations": {
+        "en-GB": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Current cycle: %@ for %lld x %@. Goal this time: %@ reps on every set."
+          }
+        },
+        "en-US": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Current cycle: %@ for %lld x %@. Goal this time: %@ reps on every set."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cycle actuel : %@ pour %lld x %@. Objectif cette fois : %@ répétitions à chaque série."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ciclo actual: %@ para %lld x %@. Objetivo esta vez: %@ repeticiones en cada serie."
+          }
+        }
+      }
+    },
+    "progression.cycleSummary.doubleBuildRange": {
+      "comment": "Progression cycle summary for building through a double progression rep range",
+      "localizations": {
+        "en-GB": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Build each set through the %@ range. Goal this time: %@ reps."
+          }
+        },
+        "en-US": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Build each set through the %@ range. Goal this time: %@ reps."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Faites progresser chaque série dans la plage %@. Objectif cette fois : %@ répétitions."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aumenta cada serie dentro del rango %@. Objetivo esta vez: %@ repeticiones."
+          }
+        }
+      }
+    },
+    "progression.cycleSummary.volumeWithWeight": {
+      "comment": "Progression cycle summary for volume progression with a target load",
+      "localizations": {
+        "en-GB": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep %@ steady and build up to %@."
+          }
+        },
+        "en-US": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep %@ steady and build up to %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gardez %@ stable et montez jusqu'à %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mantén %@ estable y sube hasta %@."
+          }
+        }
+      }
+    },
+    "progression.cycleSummary.volume": {
+      "comment": "Progression cycle summary for volume progression without a target load",
+      "localizations": {
+        "en-GB": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep the load steady and build up to %@."
+          }
+        },
+        "en-US": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep the load steady and build up to %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gardez la charge stable et montez jusqu'à %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mantén la carga estable y sube hasta %@."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

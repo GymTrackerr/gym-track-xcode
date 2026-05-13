@@ -587,13 +587,26 @@ final class ProgressionService: ServiceBase, ObservableObject {
             high: recommendation.upperWeight,
             unit: recommendation.unit
         )
+        let setCountText = String(localized: LocalizedStringResource(
+            "progression.cycleSummary.setCount",
+            defaultValue: "\(targetSets) sets",
+            table: "Progression"
+        ))
 
         switch resolvedType {
         case .linear:
             if let weightText {
-                return "Hit \(targetSets) set\(targetSets == 1 ? "" : "s") at \(goalRepText) reps, then add load. Current target: \(weightText)."
+                return String(localized: LocalizedStringResource(
+                    "progression.cycleSummary.linearWithWeight",
+                    defaultValue: "Hit \(setCountText) at \(goalRepText) reps, then add load. Current target: \(weightText).",
+                    table: "Progression"
+                ))
             }
-            return "Hit \(targetSets) set\(targetSets == 1 ? "" : "s") at \(goalRepText) reps, then add load."
+            return String(localized: LocalizedStringResource(
+                "progression.cycleSummary.linear",
+                defaultValue: "Hit \(setCountText) at \(goalRepText) reps, then add load.",
+                table: "Progression"
+            ))
 
         case .doubleProgression:
             if progressionExercise.workingWeight == nil,
@@ -603,21 +616,45 @@ final class ProgressionService: ServiceBase, ObservableObject {
                     unit: progressionExercise.lastCompletedCycleUnit
                 ) {
                     let topReps = progressionExercise.lastCompletedCycleReps ?? progressionExercise.targetRepsHigh ?? progressionExercise.targetReps ?? 0
-                    return "Last cycle topped out at \(lastCompletedText) x \(topReps). Choose \(weightText) and restart at \(goalRepText) reps."
+                    return String(localized: LocalizedStringResource(
+                        "progression.cycleSummary.doubleLastCycle",
+                        defaultValue: "Last cycle topped out at \(lastCompletedText) x \(topReps). Choose \(weightText) and restart at \(goalRepText) reps.",
+                        table: "Progression"
+                    ))
                 }
-                return "Choose \(weightText) and restart at \(goalRepText) reps."
+                return String(localized: LocalizedStringResource(
+                    "progression.cycleSummary.doubleChoose",
+                    defaultValue: "Choose \(weightText) and restart at \(goalRepText) reps.",
+                    table: "Progression"
+                ))
             }
 
             if let weightText {
-                return "Current cycle: \(weightText) for \(targetSets) x \(repsRangeText). Goal this time: \(goalRepText) reps on every set."
+                return String(localized: LocalizedStringResource(
+                    "progression.cycleSummary.doubleCurrentCycle",
+                    defaultValue: "Current cycle: \(weightText) for \(targetSets) x \(repsRangeText). Goal this time: \(goalRepText) reps on every set.",
+                    table: "Progression"
+                ))
             }
-            return "Build each set through the \(repsRangeText) range. Goal this time: \(goalRepText) reps."
+            return String(localized: LocalizedStringResource(
+                "progression.cycleSummary.doubleBuildRange",
+                defaultValue: "Build each set through the \(repsRangeText) range. Goal this time: \(goalRepText) reps.",
+                table: "Progression"
+            ))
 
         case .volume:
             if let weightText {
-                return "Keep \(weightText) steady and build up to \(targetSets) total sets."
+                return String(localized: LocalizedStringResource(
+                    "progression.cycleSummary.volumeWithWeight",
+                    defaultValue: "Keep \(weightText) steady and build up to \(setCountText).",
+                    table: "Progression"
+                ))
             }
-            return "Keep the load steady and build up to \(targetSets) total sets."
+            return String(localized: LocalizedStringResource(
+                "progression.cycleSummary.volume",
+                defaultValue: "Keep the load steady and build up to \(setCountText).",
+                table: "Progression"
+            ))
         }
     }
 

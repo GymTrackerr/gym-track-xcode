@@ -50,40 +50,48 @@ enum ProgramWeekday: Int, Codable, CaseIterable, Identifiable {
     var id: Int { rawValue }
 
     var shortTitle: String {
+        String(localized: shortTitleResource)
+    }
+
+    var shortTitleResource: LocalizedStringResource {
         switch self {
         case .monday:
-            return "Mon"
+            return LocalizedStringResource("programmes.weekday.short.monday", defaultValue: "Mon", table: "Programmes")
         case .tuesday:
-            return "Tue"
+            return LocalizedStringResource("programmes.weekday.short.tuesday", defaultValue: "Tue", table: "Programmes")
         case .wednesday:
-            return "Wed"
+            return LocalizedStringResource("programmes.weekday.short.wednesday", defaultValue: "Wed", table: "Programmes")
         case .thursday:
-            return "Thu"
+            return LocalizedStringResource("programmes.weekday.short.thursday", defaultValue: "Thu", table: "Programmes")
         case .friday:
-            return "Fri"
+            return LocalizedStringResource("programmes.weekday.short.friday", defaultValue: "Fri", table: "Programmes")
         case .saturday:
-            return "Sat"
+            return LocalizedStringResource("programmes.weekday.short.saturday", defaultValue: "Sat", table: "Programmes")
         case .sunday:
-            return "Sun"
+            return LocalizedStringResource("programmes.weekday.short.sunday", defaultValue: "Sun", table: "Programmes")
         }
     }
 
     var title: String {
+        String(localized: titleResource)
+    }
+
+    var titleResource: LocalizedStringResource {
         switch self {
         case .monday:
-            return "Monday"
+            return LocalizedStringResource("programmes.weekday.monday", defaultValue: "Monday", table: "Programmes")
         case .tuesday:
-            return "Tuesday"
+            return LocalizedStringResource("programmes.weekday.tuesday", defaultValue: "Tuesday", table: "Programmes")
         case .wednesday:
-            return "Wednesday"
+            return LocalizedStringResource("programmes.weekday.wednesday", defaultValue: "Wednesday", table: "Programmes")
         case .thursday:
-            return "Thursday"
+            return LocalizedStringResource("programmes.weekday.thursday", defaultValue: "Thursday", table: "Programmes")
         case .friday:
-            return "Friday"
+            return LocalizedStringResource("programmes.weekday.friday", defaultValue: "Friday", table: "Programmes")
         case .saturday:
-            return "Saturday"
+            return LocalizedStringResource("programmes.weekday.saturday", defaultValue: "Saturday", table: "Programmes")
         case .sunday:
-            return "Sunday"
+            return LocalizedStringResource("programmes.weekday.sunday", defaultValue: "Sunday", table: "Programmes")
         }
     }
 
@@ -154,9 +162,9 @@ final class Program {
     var scheduleSummary: String {
         switch mode {
         case .weekly:
-            return "Weekly schedule"
+            return String(localized: LocalizedStringResource("programmes.schedule.weeklySummary", defaultValue: "Weekly schedule", table: "Programmes"))
         case .continuous:
-            return "\(trainDaysBeforeRest) on / \(restDays) off"
+            return String(localized: LocalizedStringResource("programmes.schedule.continuousSummary", defaultValue: "\(trainDaysBeforeRest) on / \(restDays) off", table: "Programmes"))
         }
     }
 }
@@ -195,13 +203,22 @@ final class ProgramBlock {
 
     var displayName: String {
         if isHiddenRepeatingBlock {
-            return "Workout Rotation"
+            return String(localized: LocalizedStringResource(
+                "programmes.state.workoutRotation",
+                defaultValue: "Workout Rotation",
+                table: "Programmes"
+            ))
         }
         let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if !trimmed.isEmpty {
             return trimmed
         }
-        return "Block \(order + 1)"
+        let blockNumber = order + 1
+        return String(localized: LocalizedStringResource(
+            "programmes.block.defaultName",
+            defaultValue: "Block \(blockNumber)",
+            table: "Programmes"
+        ))
     }
 
     var isHiddenRepeatingBlock: Bool {

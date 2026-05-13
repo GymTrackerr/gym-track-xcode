@@ -30,7 +30,11 @@ struct SessionsView: View {
                 Button {
                     showingCreateSession = true
                 } label: {
-                    Label("New Session", systemImage: "plus.circle")
+                    Label {
+                        Text(LocalizedStringResource("sessions.create.title", defaultValue: "New Session", table: "Sessions"))
+                    } icon: {
+                        Image(systemName: "plus.circle")
+                    }
                         .font(.headline)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -38,7 +42,9 @@ struct SessionsView: View {
             }
 
             if !sortedSessions.isEmpty {
-                SectionHeaderView(title: "Previous Sessions")
+                SectionHeaderView(
+                    resourceTitle: LocalizedStringResource("sessions.list.previousSessions", defaultValue: "Previous Sessions", table: "Sessions")
+                )
                 
                 VStack(spacing: 8) {
                     ForEach(sortedSessions, id: \.id) { session in
@@ -53,19 +59,31 @@ struct SessionsView: View {
                             Button {
                                 openedSession = session
                             } label: {
-                                Label("Edit", systemImage: "pencil")
+                                Label {
+                                    Text(LocalizedStringResource("sessions.action.edit", defaultValue: "Edit", table: "Sessions"))
+                                } icon: {
+                                    Image(systemName: "pencil")
+                                }
                             }
                             Button(role: .destructive) {
                                 sessionService.removeSession(session: session)
                             } label: {
-                                Label("Delete", systemImage: "trash")
+                                Label {
+                                    Text(LocalizedStringResource("sessions.action.delete", defaultValue: "Delete", table: "Sessions"))
+                                } icon: {
+                                    Image(systemName: "trash")
+                                }
                             }
                         }
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             Button(role: .destructive) {
                                 sessionService.removeSession(session: session)
                             } label: {
-                                Label("Delete", systemImage: "trash")
+                                Label {
+                                    Text(LocalizedStringResource("sessions.action.delete", defaultValue: "Delete", table: "Sessions"))
+                                } icon: {
+                                    Image(systemName: "trash")
+                                }
                             }
                         }
                         .buttonStyle(.plain)
@@ -190,10 +208,10 @@ struct CreateSessionSheetView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("New Session")
+                        Text(LocalizedStringResource("sessions.create.title", defaultValue: "New Session", table: "Sessions"))
                             .font(.title2.weight(.bold))
 
-                        Text("Start from your active programme or pick a routine directly.")
+                        Text(LocalizedStringResource("sessions.create.subtitle", defaultValue: "Start from your active programme or pick a routine directly.", table: "Sessions"))
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -201,20 +219,22 @@ struct CreateSessionSheetView: View {
 
                     if let activeProgram, let activeProgramState {
                         VStack(alignment: .leading, spacing: 8) {
-                            SectionHeaderView(title: "Active Programme")
+                            SectionHeaderView(
+                                resourceTitle: LocalizedStringResource("sessions.create.activeProgramme", defaultValue: "Active Programme", table: "Sessions")
+                            )
 
                             CardRowContainer {
                                 VStack(alignment: .leading, spacing: 10) {
                                     HStack(alignment: .top, spacing: 12) {
                                         VStack(alignment: .leading, spacing: 4) {
-                                            Text(activeProgram.name)
+                                            Text(verbatim: activeProgram.name)
                                                 .font(.body)
                                                 .fontWeight(.semibold)
                                                 .foregroundStyle(.primary)
-                                            Text(activeProgramState.blockLabel)
+                                            Text(verbatim: activeProgramState.blockLabel)
                                                 .font(.caption)
                                                 .foregroundStyle(.secondary)
-                                            Text(activeProgramState.nextWorkoutLabel)
+                                            Text(verbatim: activeProgramState.nextWorkoutLabel)
                                                 .font(.caption)
                                                 .foregroundStyle(.secondary)
                                         }
@@ -230,7 +250,7 @@ struct CreateSessionSheetView: View {
                                             }
                                             isPresented = false
                                         } label: {
-                                            Text(activeProgramState.actionTitle)
+                                            Text(verbatim: activeProgramState.actionTitle)
                                                 .font(.caption)
                                                 .fontWeight(.semibold)
                                                 .padding(.horizontal, 12)
@@ -241,9 +261,9 @@ struct CreateSessionSheetView: View {
                                     }
 
                                     HStack {
-                                        Text(activeProgramState.progressLabel)
+                                        Text(verbatim: activeProgramState.progressLabel)
                                         Spacer()
-                                        Text(activeProgramState.scheduleLabel)
+                                        Text(verbatim: activeProgramState.scheduleLabel)
                                     }
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -253,7 +273,9 @@ struct CreateSessionSheetView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 8) {
-                        SectionHeaderView(title: "Workout Split")
+                        SectionHeaderView(
+                            resourceTitle: LocalizedStringResource("sessions.create.workoutSplit", defaultValue: "Workout Split", table: "Sessions")
+                        )
                         
                         VStack(spacing: 8) {
                             ForEach(splitDayService.routines, id: \.id) { routine in
@@ -271,7 +293,7 @@ struct CreateSessionSheetView: View {
                                         .font(.title3)
                                         .foregroundStyle(sessionService.selected_splitDay == routine ? .green : .gray.opacity(0.5))
                                         
-                                        Text(routine.name)
+                                        Text(verbatim: routine.name)
                                             .font(.body)
                                             .fontWeight(.medium)
                                             .foregroundColor(.primary)
@@ -287,11 +309,19 @@ struct CreateSessionSheetView: View {
                     }
                     
                     VStack(alignment: .leading, spacing: 8) {
-                        SectionHeaderView(title: "Notes")
+                        SectionHeaderView(
+                            resourceTitle: LocalizedStringResource("sessions.create.notes", defaultValue: "Notes", table: "Sessions")
+                        )
                         
                         ConnectedCardSection {
                             ConnectedCardRow {
-                                TextField("e.g., Feeling strong today, focus on form.", text: $sessionService.create_notes, axis: .vertical)
+                                TextField(
+                                    text: $sessionService.create_notes,
+                                    prompt: Text(LocalizedStringResource("sessions.create.notes.placeholder", defaultValue: "e.g., Feeling strong today, focus on form.", table: "Sessions")),
+                                    axis: .vertical
+                                ) {
+                                    Text(LocalizedStringResource("sessions.create.notes", defaultValue: "Notes", table: "Sessions"))
+                                }
                                     .lineLimit(3...5)
                             }
                         }
@@ -307,7 +337,9 @@ struct CreateSessionSheetView: View {
                 } label: {
                     HStack {
                         Image(systemName: "play.fill")
-                        Text(sessionService.selected_splitDay == nil ? "Start Empty Session" : "Start Session")
+                        Text(sessionService.selected_splitDay == nil
+                             ? LocalizedStringResource("sessions.create.startEmpty", defaultValue: "Start Empty Session", table: "Sessions")
+                             : LocalizedStringResource("sessions.create.start", defaultValue: "Start Session", table: "Sessions"))
                             .font(.headline)
                     }
                     .frame(maxWidth: .infinity)
@@ -319,7 +351,7 @@ struct CreateSessionSheetView: View {
                     isPresented = false
                     sessionService.resetCreationState()
                 } label: {
-                    Text("Cancel")
+                    Text(LocalizedStringResource("sessions.action.cancel", defaultValue: "Cancel", table: "Sessions"))
                         .font(.body)
                         .fontWeight(.medium)
                         .foregroundColor(.secondary)
