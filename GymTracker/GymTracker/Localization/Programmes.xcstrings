@@ -633,6 +633,35 @@
         }
       }
     },
+    "programmes.action.removeWorkout" : {
+      "comment" : "Action title for removing a workout from a programme",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove Workout"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove Workout"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quitar entrenamiento"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retirer l’entraînement"
+          }
+        }
+      }
+    },
     "programmes.action.done" : {
       "comment" : "Done action",
       "localizations" : {

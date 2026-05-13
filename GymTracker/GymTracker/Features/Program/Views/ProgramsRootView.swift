@@ -14,6 +14,12 @@ struct ProgramsRootView: View {
         var id: UUID { programId }
     }
 
+    private struct OpenedRoutineTarget: Identifiable, Hashable {
+        let routineId: UUID
+
+        var id: UUID { routineId }
+    }
+
     @EnvironmentObject private var programService: ProgramService
     @EnvironmentObject private var routineService: RoutineService
     @EnvironmentObject private var sessionService: SessionService
@@ -21,6 +27,7 @@ struct ProgramsRootView: View {
     @State private var showingCreateProgram = false
     @State private var openedSession: Session?
     @State private var openedProgramTarget: OpenedProgramTarget?
+    @State private var openedRoutineTarget: OpenedRoutineTarget?
 
     private var visiblePrograms: [Program] {
         programService.programs.sorted { lhs, rhs in
@@ -35,13 +42,11 @@ struct ProgramsRootView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                programsSection
-                routinesSection
-            }
-            .screenContentPadding()
+        List {
+            programsSection
+            routinesSection
         }
+        .cardListScreen()
         .appBackground()
         .navigationTitle(
             Text(
@@ -62,6 +67,15 @@ struct ProgramsRootView: View {
                 programService.archivedPrograms.first(where: { $0.id == target.programId }) {
                 ProgramDetailView(program: program)
                 .appBackground()
+            } else {
+                EmptyView()
+            }
+        }
+        .navigationDestination(item: $openedRoutineTarget) { target in
+            if let routine = routineService.routines.first(where: { $0.id == target.routineId }) ??
+                routineService.archivedRoutines.first(where: { $0.id == target.routineId }) {
+                SingleDayView(routine: routine)
+                    .appBackground()
             } else {
                 EmptyView()
             }
@@ -116,7 +130,7 @@ struct ProgramsRootView: View {
     }
 
     private var programsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        Section {
 //            sectionHeader(
 //                title: "Programmes",
 //                subtitle: "Keep one programme active, see the next workout, and jump straight into it."
@@ -127,60 +141,58 @@ struct ProgramsRootView: View {
                     title: "No programmes yet",
                     subtitle: "Create a simple weekly or continuous programme and layer it on top of your existing routines."
                 )
+                .cardListRowStyle()
             } else {
-                VStack(spacing: 12) {
-                    ForEach(visiblePrograms, id: \.id) { program in
-                        let state = programService.resolvedState(
-                            for: program,
-                            sessions: sessionService.sessions
-                        )
-                        let workoutCount = programService.workoutCount(for: program)
-                        let nextDueSummary = programService.nextDueSummary(
-                            for: program,
-                            sessions: sessionService.sessions
-                        )
+                ForEach(visiblePrograms, id: \.id) { program in
+                    let state = programService.resolvedState(
+                        for: program,
+                        sessions: sessionService.sessions
+                    )
+                    let workoutCount = programService.workoutCount(for: program)
+                    let nextDueSummary = programService.nextDueSummary(
+                        for: program,
+                        sessions: sessionService.sessions
+                    )
 
-                        if program.isActive {
-                            CardRowContainer {
-                                VStack(alignment: .leading, spacing: 12) {
-                                    NavigationLink {
-                                        ProgramDetailView(program: program)
-                                            .appBackground()
-                                    } label: {
-                                        ActiveProgrammeCard(
-                                            program: program,
-                                            state: state,
-                                            nextDueSummary: nextDueSummary
-                                        )
-                                    }
-                                    .buttonStyle(.plain)
-
-                                    Button {
-                                        openSession(for: program, state: state)
-                                    } label: {
-                                        Label {
-                                            Text(programActionTitleResource(state.actionTitle))
-                                        } icon: {
-                                            Image(systemName: state.activeSession == nil ? "play.fill" : "arrow.clockwise")
-                                        }
-                                            .frame(maxWidth: .infinity)
-                                    }
-                                    .buttonStyle(.borderedProminent)
-                                    .disabled(!canLaunchWorkout(from: state))
-                                }
-                            }
-                        } else {
-                            NavigationLink {
-                                ProgramDetailView(program: program)
-                                    .appBackground()
+                    if program.isActive {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Button {
+                                openedProgramTarget = OpenedProgramTarget(programId: program.id)
                             } label: {
-                                InactiveProgrammePreviewCard(
+                                ActiveProgrammeCard(
                                     program: program,
-                                    workoutCount: workoutCount
+                                    state: state,
+                                    nextDueSummary: nextDueSummary
                                 )
                             }
                             .buttonStyle(.plain)
+
+                            Button {
+                                openSession(for: program, state: state)
+                            } label: {
+                                Label {
+                                    Text(programActionTitleResource(state.actionTitle))
+                                } icon: {
+                                    Image(systemName: state.activeSession == nil ? "play.fill" : "arrow.clockwise")
+                                }
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(!canLaunchWorkout(from: state))
                         }
+                        .cardListRowContentPadding()
+                        .cardListRowStyle()
+                    } else {
+                        Button {
+                            openedProgramTarget = OpenedProgramTarget(programId: program.id)
+                        } label: {
+                            InactiveProgrammePreviewCard(
+                                program: program,
+                                workoutCount: workoutCount
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .cardListRowStyle()
                     }
                 }
             }
@@ -188,7 +200,7 @@ struct ProgramsRootView: View {
     }
 
     private var routinesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        Section {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Routines", tableName: "Programmes")
@@ -213,48 +225,61 @@ struct ProgramsRootView: View {
                 }
                 .buttonStyle(.bordered)
             }
+            .dashboardHeaderRowStyle()
 
             if routineService.routines.isEmpty {
                 emptyCard(
                     title: "No routines yet",
                     subtitle: "Create a routine first if you want to attach workouts to a programme."
                 )
+                .cardListRowStyle()
             } else {
-                VStack(spacing: 12) {
-                    ForEach(routineService.routines, id: \.id) { routine in
-                        NavigationLink {
-                            SingleDayView(routine: routine)
-                                .appBackground()
+                ForEach(routineService.routines, id: \.id) { routine in
+                    Button {
+                        openedRoutineTarget = OpenedRoutineTarget(routineId: routine.id)
+                    } label: {
+                        ProgrammeDashboardRoutineCard(routine: routine)
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        Button {
+                            openedRoutineTarget = OpenedRoutineTarget(routineId: routine.id)
                         } label: {
-                            CardRowContainer {
-                                HStack(spacing: 12) {
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        Text(verbatim: routine.name)
-                                            .font(.headline)
-                                            .foregroundStyle(.primary)
-
-                                        Text(
-                                            LocalizedStringResource(
-                                                "programmes.routine.exerciseCount",
-                                                defaultValue: "\(routine.exerciseSplits.count) exercises",
-                                                table: "Programmes",
-                                                comment: "Number of exercises in a routine"
-                                            )
-                                        )
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-
-                                    Spacer()
-
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
+                            Label {
+                                Text(LocalizedStringResource("routines.action.edit", defaultValue: "Edit", table: "Routines"))
+                            } icon: {
+                                Image(systemName: "pencil")
                             }
                         }
-                        .buttonStyle(.plain)
+
+                        Button(role: .destructive) {
+                            routineService.removeSplitDay(routine)
+                        } label: {
+                            let isArchive = routineService.willArchiveOnDelete(routine)
+                            Label {
+                                Text(isArchive
+                                     ? LocalizedStringResource("routines.action.archive", defaultValue: "Archive", table: "Routines")
+                                     : LocalizedStringResource("routines.action.delete", defaultValue: "Delete", table: "Routines"))
+                            } icon: {
+                                Image(systemName: isArchive ? "archivebox" : "trash")
+                            }
+                        }
                     }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        let isArchive = routineService.willArchiveOnDelete(routine)
+                        Button(role: .destructive) {
+                            routineService.removeSplitDay(routine)
+                        } label: {
+                            Label {
+                                Text(isArchive
+                                     ? LocalizedStringResource("routines.action.archive", defaultValue: "Archive", table: "Routines")
+                                     : LocalizedStringResource("routines.action.delete", defaultValue: "Delete", table: "Routines"))
+                            } icon: {
+                                Image(systemName: isArchive ? "archivebox" : "trash")
+                            }
+                        }
+                    }
+                    .cardListRowStyle()
                 }
             }
         }
@@ -274,15 +299,14 @@ struct ProgramsRootView: View {
 
     @ViewBuilder
     private func emptyCard(title: LocalizedStringKey, subtitle: LocalizedStringKey) -> some View {
-        CardRowContainer {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title, tableName: "Programmes")
-                    .font(.headline)
-                Text(subtitle, tableName: "Programmes")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title, tableName: "Programmes")
+                .font(.headline)
+            Text(subtitle, tableName: "Programmes")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
+        .cardListRowContentPadding()
     }
 
     private func canLaunchWorkout(from state: ProgramResolvedState) -> Bool {
@@ -321,6 +345,34 @@ struct ProgramsRootView: View {
                 comment: "Fallback programme action title"
             )
         }
+    }
+}
+
+private struct ProgrammeDashboardRoutineCard: View {
+    let routine: Routine
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(verbatim: routine.name)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+
+                Text(
+                    LocalizedStringResource(
+                        "programmes.routine.exerciseCount",
+                        defaultValue: "\(routine.exerciseSplits.count) exercises",
+                        table: "Programmes",
+                        comment: "Number of exercises in a routine"
+                    )
+                )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .cardListRowContentPadding()
     }
 }
 
@@ -378,32 +430,35 @@ private struct InactiveProgrammePreviewCard: View {
     let workoutCount: Int
 
     var body: some View {
-        CardRowContainer {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(verbatim: program.name)
-                        .font(.headline)
-                        .foregroundStyle(.primary)
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(verbatim: program.name)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
 
-                    Text(
-                        LocalizedStringResource(
-                            "programmes.workout.count",
-                            defaultValue: "\(workoutCount) workouts",
-                            table: "Programmes",
-                            comment: "Number of workouts in a programme"
-                        )
+                Text(
+                    LocalizedStringResource(
+                        "programmes.workout.count",
+                        defaultValue: "\(workoutCount) workouts",
+                        table: "Programmes",
+                        comment: "Number of workouts in a programme"
                     )
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
+                )
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            Spacer(minLength: 0)
         }
+        .cardListRowContentPadding()
+    }
+}
+
+private extension View {
+    func dashboardHeaderRowStyle() -> some View {
+        listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 16, leading: 16, bottom: 4, trailing: 16))
     }
 }
 

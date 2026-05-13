@@ -58,6 +58,14 @@ private func programmeWorkoutCount(_ count: Int) -> String {
     ))
 }
 
+private var programmeRemoveWorkoutResource: LocalizedStringResource {
+    LocalizedStringResource(
+        "programmes.action.removeWorkout",
+        defaultValue: "Remove Workout",
+        table: "Programmes"
+    )
+}
+
 private func programmeBlockSummary(workoutCount: Int, durationText: String) -> String {
     let workoutCountText = programmeWorkoutCount(workoutCount)
     return String(localized: LocalizedStringResource(
@@ -334,7 +342,8 @@ struct ProgramDetailView: View {
                             workout: workout,
                             resolvedState: resolvedState,
                             showScheduleLabel: program.mode == .weekly,
-                            onStart: { openSession(for: workout) }
+                            onStart: { openSession(for: workout) },
+                            onDelete: { programService.deleteWorkout(workout) }
                         )
                     }
                 }
@@ -510,6 +519,7 @@ private struct ProgramWorkoutRowCard: View {
     let resolvedState: ProgramResolvedState
     let showScheduleLabel: Bool
     let onStart: () -> Void
+    let onDelete: (() -> Void)?
 
     private var activeSession: Session? {
         resolvedState.activeSession
@@ -574,6 +584,32 @@ private struct ProgramWorkoutRowCard: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(isLockedByAnotherActiveSession || !programService.isWorkoutStartable(workout))
+            }
+        }
+        .contextMenu {
+            if let onDelete {
+                Button(role: .destructive) {
+                    onDelete()
+                } label: {
+                    Label {
+                        Text(programmeRemoveWorkoutResource)
+                    } icon: {
+                        Image(systemName: "trash")
+                    }
+                }
+            }
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            if let onDelete {
+                Button(role: .destructive) {
+                    onDelete()
+                } label: {
+                    Label {
+                        Text(programmeRemoveWorkoutResource)
+                    } icon: {
+                        Image(systemName: "trash")
+                    }
+                }
             }
         }
     }
@@ -679,7 +715,8 @@ private struct ProgramBlockDetailView: View {
                                 workout: workout,
                                 resolvedState: resolvedState,
                                 showScheduleLabel: program.mode == .weekly,
-                                onStart: { openSession(for: workout) }
+                                onStart: { openSession(for: workout) },
+                                onDelete: { programService.deleteWorkout(workout) }
                             )
                         }
                     }
@@ -923,7 +960,11 @@ private struct ProgramManagementSheet: View {
                     .cardListRowStyle()
             } else {
                 ForEach(managedWorkouts, id: \.id) { workout in
-                    ProgramWorkoutManageRow(workout: workout, showScheduleLabel: program.mode == .weekly)
+                    ProgramWorkoutManageRow(
+                        workout: workout,
+                        showScheduleLabel: program.mode == .weekly,
+                        onDelete: { programService.deleteWorkout(workout) }
+                    )
                         .cardListRowStyle()
                 }
                 .onMove { source, destination in
@@ -1047,7 +1088,11 @@ private struct ProgramBlockManagementSheet: View {
                         .cardListRowStyle()
                 } else {
                     ForEach(sortedWorkouts, id: \.id) { workout in
-                        ProgramWorkoutManageRow(workout: workout, showScheduleLabel: program.mode == .weekly)
+                        ProgramWorkoutManageRow(
+                            workout: workout,
+                            showScheduleLabel: program.mode == .weekly,
+                            onDelete: { programService.deleteWorkout(workout) }
+                        )
                             .cardListRowStyle()
                     }
                     .onMove { source, destination in
@@ -1143,6 +1188,7 @@ private struct ProgramBlockManagementSheet: View {
 private struct ProgramWorkoutManageRow: View {
     let workout: ProgramWorkout
     let showScheduleLabel: Bool
+    let onDelete: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -1160,6 +1206,32 @@ private struct ProgramWorkoutManageRow: View {
             }
         }
         .cardListRowContentPadding()
+        .contextMenu {
+            if let onDelete {
+                Button(role: .destructive) {
+                    onDelete()
+                } label: {
+                    Label {
+                        Text(programmeRemoveWorkoutResource)
+                    } icon: {
+                        Image(systemName: "trash")
+                    }
+                }
+            }
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            if let onDelete {
+                Button(role: .destructive) {
+                    onDelete()
+                } label: {
+                    Label {
+                        Text(programmeRemoveWorkoutResource)
+                    } icon: {
+                        Image(systemName: "trash")
+                    }
+                }
+            }
+        }
     }
 }
 

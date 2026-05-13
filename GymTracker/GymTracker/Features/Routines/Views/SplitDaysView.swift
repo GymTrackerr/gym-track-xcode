@@ -8,9 +8,16 @@
 import SwiftUI
 
 struct SplitDaysView: View {
+    private struct OpenedRoutineTarget: Identifiable, Hashable {
+        let routineId: UUID
+
+        var id: UUID { routineId }
+    }
+
     @EnvironmentObject var splitDayService: RoutineService
     @Environment(\.editMode) private var editMode
     @State private var isAdding: Bool = false
+    @State private var openedRoutineTarget: OpenedRoutineTarget?
     @EnvironmentObject var toastManager: ActionToastManager
     
     var body: some View {
@@ -23,6 +30,16 @@ struct SplitDaysView: View {
                         .cardListRowContentPadding()
                 }
                 .contextMenu {
+                    Button {
+                        openedRoutineTarget = OpenedRoutineTarget(routineId: routine.id)
+                    } label: {
+                        Label {
+                            Text(LocalizedStringResource("routines.action.edit", defaultValue: "Edit", table: "Routines"))
+                        } icon: {
+                            Image(systemName: "pencil")
+                        }
+                    }
+
                     Button(role: .destructive) {
                         deleteRoutine(routine)
                     } label: {
@@ -37,20 +54,7 @@ struct SplitDaysView: View {
                     }
                 }
                 .cardListRowStyle()
-                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                    Button(role: .destructive) {
-                        deleteRoutine(routine)
-                    } label: {
-                        let isArchive = splitDayService.willArchiveOnDelete(routine)
-                        Label {
-                            Text(isArchive
-                                 ? LocalizedStringResource("routines.action.archive", defaultValue: "Archive", table: "Routines")
-                                 : LocalizedStringResource("routines.action.delete", defaultValue: "Delete", table: "Routines"))
-                        } icon: {
-                            Image(systemName: isArchive ? "archivebox" : "trash")
-                        }
-                    }
-                }
+                .deleteDisabled(editMode?.wrappedValue != .active)
             }
             .onDelete(perform: deleteRoutinesFromOffsets)
             .onMove(perform: splitDayService.moveSplitDay)
@@ -68,6 +72,14 @@ struct SplitDaysView: View {
         }
         .cardListScreen()
         .appBackground()
+        .navigationDestination(item: $openedRoutineTarget) { target in
+            if let routine = splitDayService.routines.first(where: { $0.id == target.routineId }) ??
+                splitDayService.archivedRoutines.first(where: { $0.id == target.routineId }) {
+                SingleDayView(routine: routine)
+            } else {
+                EmptyView()
+            }
+        }
         .navigationTitle(String(localized: LocalizedStringResource("routines.title", defaultValue: "Routines", table: "Routines")))
         .toolbar {
 #if os(iOS)

@@ -18,6 +18,7 @@ struct SingleDayView: View {
     @EnvironmentObject var exerciseService: ExerciseService
     @EnvironmentObject var splitDayService: RoutineService
     @EnvironmentObject var progressionService: ProgressionService
+    @Environment(\.dismiss) private var dismiss
     @Bindable var routine: Routine
     
     @State private var routineAliasDraft: String = ""
@@ -236,6 +237,23 @@ struct SingleDayView: View {
                     }
                 }
             }
+
+            if editMode?.wrappedValue == .active {
+                ToolbarItem {
+                    Button(role: .destructive) {
+                        deleteRoutine()
+                    } label: {
+                        let isArchive = splitDayService.willArchiveOnDelete(routine)
+                        Label {
+                            Text(isArchive
+                                 ? LocalizedStringResource("routines.action.archive", defaultValue: "Archive", table: "Routines")
+                                 : LocalizedStringResource("routines.action.delete", defaultValue: "Delete", table: "Routines"))
+                        } icon: {
+                            Image(systemName: isArchive ? "archivebox" : "trash")
+                        }
+                    }
+                }
+            }
         }
         .sheet(isPresented: $esdService.addingExerciseSplit) {
             RoutineExercisePickerSheet(
@@ -333,6 +351,11 @@ struct SingleDayView: View {
     private func removeRoutineAlias(_ alias: String) {
         let updated = routine.aliases.filter { $0 != alias }
         _ = splitDayService.setAliases(for: routine, aliases: updated)
+    }
+
+    private func deleteRoutine() {
+        splitDayService.removeSplitDay(routine)
+        dismiss()
     }
 
     @ViewBuilder

@@ -134,6 +134,11 @@ class RoutineService : ServiceBase, ObservableObject {
             }
         }
     }
+
+    func removeSplitDay(_ routine: Routine) {
+        guard let index = routines.firstIndex(where: { $0.id == routine.id }) else { return }
+        removeSplitDay(offsets: IndexSet(integer: index))
+    }
     
     func addRestoredRoutine(_ routine: Routine) {
         do {
