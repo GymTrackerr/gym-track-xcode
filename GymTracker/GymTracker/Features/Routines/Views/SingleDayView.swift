@@ -26,9 +26,11 @@ struct SingleDayView: View {
     @Environment(\.editMode) private var editMode
 
     private var defaultProgressionName: String {
-        progressionService.profile(id: routine.defaultProgressionProfileId)?.name ??
-        routine.defaultProgressionProfileNameSnapshot ??
-        "None"
+        if let profile = progressionService.profile(id: routine.defaultProgressionProfileId) {
+            return profile.isBuiltIn ? profile.type.title : profile.name
+        }
+        return routine.defaultProgressionProfileNameSnapshot ??
+        String(localized: LocalizedStringResource("progression.value.none", defaultValue: "None", table: "Progression"))
     }
 
     var body: some View {
@@ -47,7 +49,14 @@ struct SingleDayView: View {
                         VStack(spacing: 6) {
                             detailRow(title: "Order", value: "\(routine.order)")
                             detailRow(title: "Date", value: routine.timestamp.formatted(date: .abbreviated, time: .omitted))
-                            detailRow(title: "Progression", value: defaultProgressionName)
+                            detailRow(
+                                titleResource: LocalizedStringResource(
+                                    "progression.title",
+                                    defaultValue: "Progression",
+                                    table: "Progression"
+                                ),
+                                value: defaultProgressionName
+                            )
                         }
 
                         if !routine.aliases.isEmpty {
@@ -112,9 +121,15 @@ struct SingleDayView: View {
                         showingProgressionSheet = true
                     } label: {
                         HStack {
-                            Text("Default Progression")
+                            Text(
+                                LocalizedStringResource(
+                                    "progression.routine.defaultProgression",
+                                    defaultValue: "Default Progression",
+                                    table: "Progression"
+                                )
+                            )
                             Spacer()
-                            Text(defaultProgressionName)
+                            Text(verbatim: defaultProgressionName)
                                 .foregroundStyle(.secondary)
                             Image(systemName: "chevron.right")
                                 .foregroundStyle(.secondary)
@@ -299,6 +314,19 @@ struct SingleDayView: View {
         }
     }
 
+    @ViewBuilder
+    private func detailRow(titleResource: LocalizedStringResource, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(titleResource)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(verbatim: value)
+                .font(.caption.weight(.semibold))
+                .multilineTextAlignment(.trailing)
+        }
+    }
+
     private func removeExerciseOptimistic(splitIds: [UUID]) {
         let toRemove = routine.exerciseSplits.filter { split in
             splitIds.contains(split.id)
@@ -334,34 +362,56 @@ private struct RoutineProgressionSheet: View {
 
     var body: some View {
         Form {
-            Section("Default Progression") {
-                Picker("Profile", selection: $selectedProfileId) {
-                    Text("None").tag(Optional<UUID>.none)
+            Section {
+                Picker(
+                    LocalizedStringResource(
+                        "progression.detail.profile",
+                        defaultValue: "Profile",
+                        table: "Progression"
+                    ),
+                    selection: $selectedProfileId
+                ) {
+                    Text(LocalizedStringResource("progression.value.none", defaultValue: "None", table: "Progression"))
+                        .tag(Optional<UUID>.none)
                     ForEach(progressionService.profiles, id: \.id) { profile in
-                        Text(profile.name).tag(Optional(profile.id))
+                        profileNameText(profile).tag(Optional(profile.id))
                     }
                 }
 
-                Text("Routine sessions will automatically apply this profile to exercises that do not already have their own saved progression.")
+                Text(
+                    LocalizedStringResource(
+                        "progression.routine.description",
+                        defaultValue: "Routine sessions will automatically apply this profile to exercises that do not already have their own saved progression.",
+                        table: "Progression"
+                    )
+                )
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            } header: {
+                Text(LocalizedStringResource("progression.routine.defaultProgression", defaultValue: "Default Progression", table: "Progression"))
             }
         }
         .screenContentPadding()
-        .navigationTitle("Routine Progression")
+        .navigationTitle(Text(LocalizedStringResource("progression.routine.title", defaultValue: "Routine Progression", table: "Progression")))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") { dismiss() }
+                Button {
+                    dismiss()
+                } label: {
+                    Text(LocalizedStringResource("progression.action.cancel", defaultValue: "Cancel", table: "Progression"))
+                }
             }
 
             ToolbarItem(placement: .confirmationAction) {
-                Button("Save") {
+                Button {
                     let selectedProfile = progressionService.profile(id: selectedProfileId)
                     routine.defaultProgressionProfileId = selectedProfile?.id
                     routine.defaultProgressionProfileNameSnapshot = selectedProfile?.name
                     esdService.saveChanges()
                     dismiss()
+                } label: {
+                    Text(LocalizedStringResource("progression.action.save", defaultValue: "Save", table: "Progression"))
                 }
             }
         }
@@ -370,6 +420,13 @@ private struct RoutineProgressionSheet: View {
             progressionService.loadProfiles()
             selectedProfileId = routine.defaultProgressionProfileId
         }
+    }
+
+    private func profileNameText(_ profile: ProgressionProfile) -> Text {
+        if profile.isBuiltIn {
+            return Text(profile.type.titleResource)
+        }
+        return Text(verbatim: profile.name)
     }
 }
 

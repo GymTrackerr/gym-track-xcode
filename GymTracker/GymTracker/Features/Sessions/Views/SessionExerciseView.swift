@@ -285,10 +285,16 @@ struct SessionExerciseView: View {
                 Image(systemName: "chart.line.uptrend.xyaxis")
                     .font(.headline)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Progression")
+                    Text(
+                        LocalizedStringResource(
+                            "progression.title",
+                            defaultValue: "Progression",
+                            table: "Progression"
+                        )
+                    )
                         .font(.subheadline)
                         .fontWeight(.semibold)
-                    Text(progressionQuickModeTitle)
+                    Text(verbatim: progressionQuickModeTitle)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -1256,7 +1262,7 @@ struct SessionExerciseView: View {
             return resolvedProfile.type.title
         }
 
-        return "No saved progression"
+        return String(localized: LocalizedStringResource("progression.value.noSavedProgression", defaultValue: "No saved progression", table: "Progression"))
     }
 
     private var weightAdjustmentStep: Double {

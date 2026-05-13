@@ -115,7 +115,13 @@ struct SessionProgressionTargetCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
-                Text("Targets")
+                Text(
+                    LocalizedStringResource(
+                        "progression.profileEditor.section.targets",
+                        defaultValue: "Targets",
+                        table: "Progression"
+                    )
+                )
                     .font(.headline)
 
                 Spacer()
@@ -132,7 +138,13 @@ struct SessionProgressionTargetCardView: View {
 
             if !targetChecklistRows.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Per Set Goal")
+                    Text(
+                        LocalizedStringResource(
+                            "progression.targetCard.perSetGoal",
+                            defaultValue: "Per Set Goal",
+                            table: "Progression"
+                        )
+                    )
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -165,19 +177,37 @@ struct SessionProgressionTargetCardView: View {
                     .foregroundStyle(.primary)
 
                 if isMissed {
-                    Text("Missed target on this set")
+                    Text(
+                        LocalizedStringResource(
+                            "progression.targetCard.missedTarget",
+                            defaultValue: "Missed target on this set",
+                            table: "Progression"
+                        )
+                    )
                         .font(.caption2)
                         .foregroundStyle(.orange)
                 } else if isOver {
-                    Text("Above target on this set")
+                    Text(
+                        LocalizedStringResource(
+                            "progression.targetCard.aboveTargetOnSet",
+                            defaultValue: "Above target on this set",
+                            table: "Progression"
+                        )
+                    )
                         .font(.caption2)
                         .foregroundStyle(.blue)
                 } else if isSuggested && !isCompleted {
-                    Text("Next target")
+                    Text(
+                        LocalizedStringResource(
+                            "progression.targetCard.nextTarget",
+                            defaultValue: "Next target",
+                            table: "Progression"
+                        )
+                    )
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 } else if isCompleted {
-                    Text(status == .onTarget ? "On target" : "Above target")
+                    Text(status == .onTarget ? onTargetResource : aboveTargetResource)
                         .font(.caption2)
                         .foregroundStyle(statusColor(for: status))
                 }
@@ -219,16 +249,30 @@ struct SessionProgressionTargetCardView: View {
                     onAutofill(summarySelection)
                 } label: {
                     CardRowContainer {
-                        detailRow(title: "Next Target", value: targetRangeText)
+                        detailRow(
+                            title: LocalizedStringResource("progression.targetCard.nextTarget.title", defaultValue: "Next Target", table: "Progression"),
+                            value: targetRangeText
+                        )
                     }
                 }
                 .buttonStyle(.plain)
             } else {
                 CardRowContainer {
-                    detailRow(title: "Next Target", value: targetRangeText)
+                    detailRow(
+                        title: LocalizedStringResource("progression.targetCard.nextTarget.title", defaultValue: "Next Target", table: "Progression"),
+                        value: targetRangeText
+                    )
                 }
             }
         }
+    }
+
+    private var onTargetResource: LocalizedStringResource {
+        LocalizedStringResource("progression.targetCard.onTarget", defaultValue: "On target", table: "Progression")
+    }
+
+    private var aboveTargetResource: LocalizedStringResource {
+        LocalizedStringResource("progression.targetCard.aboveTarget", defaultValue: "Above target", table: "Progression")
     }
 
     private var summarySelection: TargetAutofillSelection {
@@ -370,13 +414,13 @@ struct SessionProgressionTargetCardView: View {
     }
 
     @ViewBuilder
-    private func detailRow(title: String, value: String) -> some View {
+    private func detailRow(title: LocalizedStringResource, value: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
-            Text(value)
+            Text(verbatim: value)
                 .font(.caption)
                 .fontWeight(.semibold)
                 .multilineTextAlignment(.trailing)

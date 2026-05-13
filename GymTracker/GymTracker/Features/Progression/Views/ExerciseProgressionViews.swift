@@ -19,15 +19,35 @@ struct ExerciseProgressionCardView: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Exercise Override")
+                        Text(
+                            LocalizedStringResource(
+                                "progression.exerciseOverride.title",
+                                defaultValue: "Exercise Override",
+                                table: "Progression"
+                            )
+                        )
                             .font(.headline)
 
                         if let progressionExercise {
-                            Text(profile?.miniDescription ?? progressionExercise.progressionMiniDescriptionSnapshot ?? "Saved target guidance for this exercise.")
+                            progressionDescriptionText(
+                                profile: profile,
+                                snapshot: progressionExercise.progressionMiniDescriptionSnapshot,
+                                fallback: LocalizedStringResource(
+                                    "progression.exerciseOverride.savedDescription",
+                                    defaultValue: "Saved target guidance for this exercise.",
+                                    table: "Progression"
+                                )
+                            )
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         } else {
-                            Text("Set an exercise-only override. If you leave this empty, routine, programme, or global defaults can still apply automatically.")
+                            Text(
+                                LocalizedStringResource(
+                                    "progression.exerciseOverride.emptyDescription",
+                                    defaultValue: "Set an exercise-only override. If you leave this empty, routine, programme, or global defaults can still apply automatically.",
+                                    table: "Progression"
+                                )
+                            )
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -38,18 +58,26 @@ struct ExerciseProgressionCardView: View {
                     Button {
                         onEdit()
                     } label: {
-                        Label(progressionExercise == nil ? "Set" : "Edit", systemImage: progressionExercise == nil ? "plus.circle" : "pencil")
+                        Label {
+                            Text(progressionExercise == nil ? setActionResource : editActionResource)
+                        } icon: {
+                            Image(systemName: progressionExercise == nil ? "plus.circle" : "pencil")
+                        }
                     }
                     .buttonStyle(.bordered)
                 }
 
                 if let progressionExercise {
                     detailRow(
-                        title: "Profile",
-                        value: profile?.name ?? progressionExercise.progressionNameSnapshot ?? "Custom"
+                        title: LocalizedStringResource("progression.detail.profile", defaultValue: "Profile", table: "Progression"),
+                        value: profileName(
+                            profile,
+                            snapshot: progressionExercise.progressionNameSnapshot,
+                            fallback: String(localized: LocalizedStringResource("progression.value.custom", defaultValue: "Custom", table: "Progression"))
+                        )
                     )
                     detailRow(
-                        title: "Target",
+                        title: LocalizedStringResource("progression.detail.target", defaultValue: "Target", table: "Progression"),
                         value: ProgressionDisplayFormatter.targetSummary(
                             setCount: progressionExercise.targetSetCount,
                             targetReps: progressionExercise.targetReps,
@@ -72,28 +100,41 @@ struct ExerciseProgressionCardView: View {
                         weightHigh: progressionExercise.suggestedWeightHigh,
                         unit: progressionExercise.workingWeightUnit
                     )
-                    detailRow(title: "Cycle", value: cycleSummary)
+                    detailRow(
+                        title: LocalizedStringResource("progression.detail.cycle", defaultValue: "Cycle", table: "Progression"),
+                        value: cycleSummary
+                    )
 
                     if let completedWeightText = ProgressionDisplayFormatter.weightSummary(
                         weight: progressionExercise.lastCompletedCycleWeight,
                         unit: progressionExercise.lastCompletedCycleUnit
                     ) {
                         detailRow(
-                            title: "Last Top Set",
+                            title: LocalizedStringResource("progression.detail.lastTopSet", defaultValue: "Last Top Set", table: "Progression"),
                             value: "\(completedWeightText) x \(progressionExercise.lastCompletedCycleReps ?? progressionExercise.targetRepsHigh ?? progressionExercise.targetReps ?? 0)"
                         )
                     }
                 } else if let inheritedProgressionExercise {
                     detailRow(
-                        title: "Following",
-                        value: inheritedProfile?.name ?? inheritedProgressionExercise.progressionNameSnapshot ?? "Automatic progression"
+                        title: LocalizedStringResource("progression.detail.following", defaultValue: "Following", table: "Progression"),
+                        value: profileName(
+                            inheritedProfile,
+                            snapshot: inheritedProgressionExercise.progressionNameSnapshot,
+                            fallback: String(localized: LocalizedStringResource("progression.value.automaticProgression", defaultValue: "Automatic progression", table: "Progression"))
+                        )
                     )
                     detailRow(
-                        title: "Source",
+                        title: LocalizedStringResource("progression.detail.source", defaultValue: "Source", table: "Progression"),
                         value: inheritedProgressionExercise.assignmentSource.title
                     )
                 } else {
-                    Text("No exercise override yet. Routine, programme, or global defaults can still apply automatically when you start logging.")
+                    Text(
+                        LocalizedStringResource(
+                            "progression.exerciseOverride.noOverride",
+                            defaultValue: "No exercise override yet. Routine, programme, or global defaults can still apply automatically when you start logging.",
+                            table: "Progression"
+                        )
+                    )
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -102,17 +143,59 @@ struct ExerciseProgressionCardView: View {
     }
 
     @ViewBuilder
-    private func detailRow(title: String, value: String) -> some View {
+    private func detailRow(title: LocalizedStringResource, value: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
-            Text(value)
+            Text(verbatim: value)
                 .font(.caption)
                 .fontWeight(.semibold)
                 .multilineTextAlignment(.trailing)
         }
+    }
+
+    private var setActionResource: LocalizedStringResource {
+        LocalizedStringResource("progression.action.set", defaultValue: "Set", table: "Progression")
+    }
+
+    private var editActionResource: LocalizedStringResource {
+        LocalizedStringResource("progression.action.edit", defaultValue: "Edit", table: "Progression")
+    }
+
+    private func profileName(_ profile: ProgressionProfile?, snapshot: String?, fallback: String) -> String {
+        if let profile {
+            return profile.isBuiltIn ? profile.type.title : profile.name
+        }
+        return snapshot ?? fallback
+    }
+
+    private func progressionDescriptionText(
+        profile: ProgressionProfile?,
+        snapshot: String?,
+        fallback: LocalizedStringResource
+    ) -> Text {
+        if let profile, profile.isBuiltIn {
+            switch profile.type {
+            case .linear:
+                return Text(LocalizedStringResource("progression.builtIn.linear.description", defaultValue: "Increase the load by a small amount after a successful session.", table: "Progression"))
+            case .doubleProgression:
+                return Text(LocalizedStringResource("progression.builtIn.doubleProgression.description", defaultValue: "Build reps inside a range before moving the weight up.", table: "Progression"))
+            case .volume:
+                return Text(LocalizedStringResource("progression.builtIn.volume.description", defaultValue: "Add more sets over time while keeping reps steady.", table: "Progression"))
+            }
+        }
+
+        if let profile {
+            return Text(verbatim: profile.miniDescription)
+        }
+
+        if let snapshot {
+            return Text(verbatim: snapshot)
+        }
+
+        return Text(fallback)
     }
 }
 
@@ -147,59 +230,120 @@ struct ExerciseProgressionSheetView: View {
 
     var body: some View {
         Form {
-            Section("Profile") {
-                Picker("Progression", selection: $selectedProfileId) {
-                    Text("None").tag(Optional<UUID>.none)
+            Section {
+                Picker(
+                    LocalizedStringResource(
+                        "progression.field.progression",
+                        defaultValue: "Progression",
+                        table: "Progression"
+                    ),
+                    selection: $selectedProfileId
+                ) {
+                    Text(
+                        LocalizedStringResource(
+                            "progression.value.none",
+                            defaultValue: "None",
+                            table: "Progression"
+                        )
+                    )
+                    .tag(Optional<UUID>.none)
                     ForEach(progressionService.profiles, id: \.id) { profile in
-                        Text(profile.name).tag(Optional(profile.id))
+                        profileNameText(profile).tag(Optional(profile.id))
                     }
                 }
 
                 if let selectedProfile {
-                    Text(selectedProfile.miniDescription)
+                    profileDescriptionText(selectedProfile)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+            } header: {
+                Text(
+                    LocalizedStringResource(
+                        "progression.profileEditor.section.profile",
+                        defaultValue: "Profile",
+                        table: "Progression"
+                    )
+                )
             }
 
             if let selectedProfile {
-                Section("Targets") {
-                    Stepper("Sets: \(targetSets)", value: $targetSets, in: 1...12)
+                Section {
+                    Stepper(value: $targetSets, in: 1...12) {
+                        Text(
+                            LocalizedStringResource(
+                                "progression.stepper.sets",
+                                defaultValue: "Sets: \(targetSets)",
+                                table: "Progression"
+                            )
+                        )
+                    }
 
                     if selectedProfile.type == .doubleProgression {
-                        Stepper("Rep Range Low: \(targetRepsLow)", value: $targetRepsLow, in: 1...30)
-                        Stepper("Rep Range High: \(targetRepsHigh)", value: $targetRepsHigh, in: 1...30)
+                        Stepper(value: $targetRepsLow, in: 1...30) {
+                            Text(LocalizedStringResource("progression.stepper.repRangeLow", defaultValue: "Rep Range Low: \(targetRepsLow)", table: "Progression"))
+                        }
+                        Stepper(value: $targetRepsHigh, in: 1...30) {
+                            Text(LocalizedStringResource("progression.stepper.repRangeHigh", defaultValue: "Rep Range High: \(targetRepsHigh)", table: "Progression"))
+                        }
                     } else {
-                        Stepper("Target Reps: \(targetReps)", value: $targetReps, in: 1...30)
+                        Stepper(value: $targetReps, in: 1...30) {
+                            Text(LocalizedStringResource("progression.stepper.targetReps", defaultValue: "Target Reps: \(targetReps)", table: "Progression"))
+                        }
                     }
+                } header: {
+                    Text(LocalizedStringResource("progression.profileEditor.section.targets", defaultValue: "Targets", table: "Progression"))
                 }
             }
 
             if currentAssignment != nil {
                 Section {
-                    Button("Remove Override", role: .destructive) {
+                    Button(role: .destructive) {
                         progressionService.removeProgression(from: exercise)
                         dismiss()
+                    } label: {
+                        Text(
+                            LocalizedStringResource(
+                                "progression.action.removeOverride",
+                                defaultValue: "Remove Override",
+                                table: "Progression"
+                            )
+                        )
                     }
                 }
             } else if let inheritedAssignment {
-                Section("Automatic Source") {
-                    Text("\(inheritedAssignment.assignmentSource.title) is currently handling this exercise. Saving here will turn this into an exercise-only override.")
+                Section {
+                    Text(
+                        LocalizedStringResource(
+                            "progression.exerciseOverride.automaticSourceDescription",
+                            defaultValue: "\(inheritedAssignment.assignmentSource.title) is currently handling this exercise. Saving here will turn this into an exercise-only override.",
+                            table: "Progression",
+                            comment: "Explains that an inherited progression source will be replaced by an exercise override"
+                        )
+                    )
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                } header: {
+                    Text(LocalizedStringResource("progression.section.automaticSource", defaultValue: "Automatic Source", table: "Progression"))
                 }
             }
         }
-        .navigationTitle("Exercise Override")
+        .navigationTitle(Text(LocalizedStringResource("progression.exerciseOverride.title", defaultValue: "Exercise Override", table: "Progression")))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") { dismiss() }
+                Button {
+                    dismiss()
+                } label: {
+                    Text(LocalizedStringResource("progression.action.cancel", defaultValue: "Cancel", table: "Progression"))
+                }
             }
 
             ToolbarItem(placement: .confirmationAction) {
-                Button("Save") {
+                Button {
                     saveAssignment()
+                } label: {
+                    Text(LocalizedStringResource("progression.action.save", defaultValue: "Save", table: "Progression"))
                 }
                 .disabled(selectedProfileId == nil && currentAssignment == nil)
             }
@@ -227,6 +371,27 @@ struct ExerciseProgressionSheetView: View {
                 targetRepsLow = newValue
             }
         }
+    }
+
+    private func profileNameText(_ profile: ProgressionProfile) -> Text {
+        if profile.isBuiltIn {
+            return Text(profile.type.titleResource)
+        }
+        return Text(verbatim: profile.name)
+    }
+
+    private func profileDescriptionText(_ profile: ProgressionProfile) -> Text {
+        if profile.isBuiltIn {
+            switch profile.type {
+            case .linear:
+                return Text(LocalizedStringResource("progression.builtIn.linear.description", defaultValue: "Increase the load by a small amount after a successful session.", table: "Progression"))
+            case .doubleProgression:
+                return Text(LocalizedStringResource("progression.builtIn.doubleProgression.description", defaultValue: "Build reps inside a range before moving the weight up.", table: "Progression"))
+            case .volume:
+                return Text(LocalizedStringResource("progression.builtIn.volume.description", defaultValue: "Add more sets over time while keeping reps steady.", table: "Progression"))
+            }
+        }
+        return Text(verbatim: profile.miniDescription)
     }
 
     private func seedFromCurrentAssignment() {

@@ -26,7 +26,7 @@ struct SessionProgressionDetailsView: View {
         profile?.name ??
         progressionExercise?.progressionNameSnapshot ??
         sessionEntry.appliedProgressionNameSnapshot ??
-        "No saved progression"
+        String(localized: LocalizedStringResource("progression.value.noSavedProgression", defaultValue: "No saved progression", table: "Progression"))
     }
 
     private var profileDescription: String? {
@@ -71,7 +71,7 @@ struct SessionProgressionDetailsView: View {
             )
         }
 
-        return "No saved cycle yet."
+        return String(localized: LocalizedStringResource("progression.value.noSavedCycle", defaultValue: "No saved cycle yet.", table: "Progression"))
     }
 
     private var lastTopSetText: String? {
@@ -99,34 +99,52 @@ struct SessionProgressionDetailsView: View {
             VStack(alignment: .leading, spacing: 16) {
                 sectionCard {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text(profileName)
+                        profileNameText
                             .font(.title3)
                             .fontWeight(.semibold)
 
-                        if let profileDescription, !profileDescription.isEmpty {
-                            Text(profileDescription)
+                        if let profileDescriptionText {
+                            profileDescriptionText
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
 
-                        detailRow(title: "Exercise", value: sessionEntry.exercise.name)
+                        detailRow(
+                            title: LocalizedStringResource("progression.detail.exercise", defaultValue: "Exercise", table: "Progression"),
+                            value: sessionEntry.exercise.name
+                        )
                         if let sourceLabel {
-                            detailRow(title: "Source", value: sourceLabel)
+                            detailRow(
+                                title: LocalizedStringResource("progression.detail.source", defaultValue: "Source", table: "Progression"),
+                                value: sourceLabel
+                            )
                         }
-                        detailRow(title: "Target", value: targetSummary)
+                        detailRow(
+                            title: LocalizedStringResource("progression.detail.target", defaultValue: "Target", table: "Progression"),
+                            value: targetSummary
+                        )
                     }
                 }
 
                 sectionCard {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Current Cycle")
+                        Text(
+                            LocalizedStringResource(
+                                "progression.sessionDetails.currentCycle",
+                                defaultValue: "Current Cycle",
+                                table: "Progression"
+                            )
+                        )
                             .font(.headline)
-                        Text(currentCycleSummary)
+                        Text(verbatim: currentCycleSummary)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
 
                         if let lastTopSetText {
-                            detailRow(title: "Last Top Set", value: lastTopSetText)
+                            detailRow(
+                                title: LocalizedStringResource("progression.detail.lastTopSet", defaultValue: "Last Top Set", table: "Progression"),
+                                value: lastTopSetText
+                            )
                         }
                     }
                 }
@@ -137,7 +155,13 @@ struct SessionProgressionDetailsView: View {
                     }
                 } else {
                     sectionCard {
-                        Text("No progression target was snapped into this session entry yet. Once the exercise is started from a routine, programme, or exercise progression, the targets will show here.")
+                        Text(
+                            LocalizedStringResource(
+                                "progression.sessionDetails.noSnapshot",
+                                defaultValue: "No progression target was snapped into this session entry yet. Once the exercise is started from a routine, programme, or exercise progression, the targets will show here.",
+                                table: "Progression"
+                            )
+                        )
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -145,12 +169,14 @@ struct SessionProgressionDetailsView: View {
             }
             .screenContentPadding()
         }
-        .navigationTitle("Progression")
+        .navigationTitle(Text(LocalizedStringResource("progression.title", defaultValue: "Progression", table: "Progression")))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button("Edit") {
+                Button {
                     showingEditSheet = true
+                } label: {
+                    Text(LocalizedStringResource("progression.action.edit", defaultValue: "Edit", table: "Progression"))
                 }
             }
         }
@@ -162,19 +188,42 @@ struct SessionProgressionDetailsView: View {
         }
     }
 
+    private var profileNameText: Text {
+        if let profile, profile.isBuiltIn {
+            return Text(profile.type.titleResource)
+        }
+        return Text(verbatim: profileName)
+    }
+
+    private var profileDescriptionText: Text? {
+        if let profile, profile.isBuiltIn {
+            switch profile.type {
+            case .linear:
+                return Text(LocalizedStringResource("progression.builtIn.linear.description", defaultValue: "Increase the load by a small amount after a successful session.", table: "Progression"))
+            case .doubleProgression:
+                return Text(LocalizedStringResource("progression.builtIn.doubleProgression.description", defaultValue: "Build reps inside a range before moving the weight up.", table: "Progression"))
+            case .volume:
+                return Text(LocalizedStringResource("progression.builtIn.volume.description", defaultValue: "Add more sets over time while keeping reps steady.", table: "Progression"))
+            }
+        }
+
+        guard let profileDescription, !profileDescription.isEmpty else { return nil }
+        return Text(verbatim: profileDescription)
+    }
+
     private func sectionCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
             .cardRowContainerStyle()
     }
 
     @ViewBuilder
-    private func detailRow(title: String, value: String) -> some View {
+    private func detailRow(title: LocalizedStringResource, value: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
-            Text(value)
+            Text(verbatim: value)
                 .font(.caption)
                 .fontWeight(.semibold)
                 .multilineTextAlignment(.trailing)

@@ -27,34 +27,84 @@ struct ProgressionProfilesView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 SectionHeaderView(
-                    title: "Automatic Progression",
-                    subtitle: "Enable this if you want every routine-less exercise to fall back to one default profile when no exercise, routine, or programme override is set."
+                    resourceTitle: LocalizedStringResource(
+                        "progression.profiles.automatic.title",
+                        defaultValue: "Automatic Progression",
+                        table: "Progression"
+                    ),
+                    resourceSubtitle: LocalizedStringResource(
+                        "progression.profiles.automatic.subtitle",
+                        defaultValue: "Enable this if you want every routine-less exercise to fall back to one default profile when no exercise, routine, or programme override is set.",
+                        table: "Progression"
+                    )
                 )
 
                 VStack(alignment: .leading, spacing: 12) {
-                    Toggle("Enable progression for everything", isOn: $globalProgressionEnabled)
+                    Toggle(isOn: $globalProgressionEnabled) {
+                        Text(
+                            LocalizedStringResource(
+                                "progression.profiles.automatic.enable",
+                                defaultValue: "Enable progression for everything",
+                                table: "Progression"
+                            )
+                        )
+                    }
 
-                    Picker("Default Profile", selection: $selectedGlobalProfileId) {
-                        Text("None").tag(Optional<UUID>.none)
+                    Picker(
+                        LocalizedStringResource(
+                            "progression.profile.defaultProfile",
+                            defaultValue: "Default Profile",
+                            table: "Progression"
+                        ),
+                        selection: $selectedGlobalProfileId
+                    ) {
+                        Text(
+                            LocalizedStringResource(
+                                "progression.value.none",
+                                defaultValue: "None",
+                                table: "Progression"
+                            )
+                        )
+                        .tag(Optional<UUID>.none)
                         ForEach(progressionService.profiles, id: \.id) { profile in
-                            Text(profile.name).tag(Optional(profile.id))
+                            profileNameText(profile).tag(Optional(profile.id))
                         }
                     }
                     .disabled(!globalProgressionEnabled)
 
-                    Text("Session source still wins first: exercise override, then programme default, then routine default, and this global default fills the gaps.")
+                    Text(
+                        LocalizedStringResource(
+                            "progression.profiles.automatic.orderDescription",
+                            defaultValue: "Session source still wins first: exercise override, then programme default, then routine default, and this global default fills the gaps.",
+                            table: "Progression"
+                        )
+                    )
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 .cardRowContainerStyle()
 
                 SectionHeaderView(
-                    title: "Built-in Progressions",
-                    subtitle: "These seed from JSON once, live in the database after that, and can be tuned for your defaults."
+                    resourceTitle: LocalizedStringResource(
+                        "progression.profiles.builtIn.title",
+                        defaultValue: "Built-in Progressions",
+                        table: "Progression"
+                    ),
+                    resourceSubtitle: LocalizedStringResource(
+                        "progression.profiles.builtIn.subtitle",
+                        defaultValue: "These seed from JSON once, live in the database after that, and can be tuned for your defaults.",
+                        table: "Progression"
+                    )
                 )
 
                 if builtInProfiles.isEmpty {
-                    emptyCard("Built-in profiles are still loading.")
+                    emptyCard(
+                        LocalizedStringResource(
+                            "progression.profiles.builtIn.loading",
+                            defaultValue: "Built-in profiles are still loading.",
+                            table: "Progression"
+                        )
+                    )
                 } else {
                     VStack(spacing: 12) {
                         ForEach(builtInProfiles, id: \.id) { profile in
@@ -64,12 +114,26 @@ struct ProgressionProfilesView: View {
                 }
 
                 SectionHeaderView(
-                    title: "Custom Profiles",
-                    subtitle: "Create extra progression setups for exercises that need different targets or increments."
+                    resourceTitle: LocalizedStringResource(
+                        "progression.profiles.custom.title",
+                        defaultValue: "Custom Profiles",
+                        table: "Progression"
+                    ),
+                    resourceSubtitle: LocalizedStringResource(
+                        "progression.profiles.custom.subtitle",
+                        defaultValue: "Create extra progression setups for exercises that need different targets or increments.",
+                        table: "Progression"
+                    )
                 )
 
                 if customProfiles.isEmpty {
-                    emptyCard("No custom profiles yet.")
+                    emptyCard(
+                        LocalizedStringResource(
+                            "progression.profiles.custom.empty",
+                            defaultValue: "No custom profiles yet.",
+                            table: "Progression"
+                        )
+                    )
                 } else {
                     VStack(spacing: 12) {
                         ForEach(customProfiles, id: \.id) { profile in
@@ -80,13 +144,31 @@ struct ProgressionProfilesView: View {
             }
             .screenContentPadding()
         }
-        .navigationTitle("Progression")
+        .navigationTitle(
+            Text(
+                LocalizedStringResource(
+                    "progression.title",
+                    defaultValue: "Progression",
+                    table: "Progression"
+                )
+            )
+        )
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     showingCreateProfile = true
                 } label: {
-                    Label("Add Profile", systemImage: "plus")
+                    Label {
+                        Text(
+                            LocalizedStringResource(
+                                "progression.action.addProfile",
+                                defaultValue: "Add Profile",
+                                table: "Progression"
+                            )
+                        )
+                    } icon: {
+                        Image(systemName: "plus")
+                    }
                 }
             }
         }
@@ -130,9 +212,9 @@ struct ProgressionProfilesView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(profile.name)
+                    profileNameText(profile)
                         .font(.headline)
-                    Text(profile.miniDescription)
+                    profileDescriptionText(profile)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -140,7 +222,13 @@ struct ProgressionProfilesView: View {
                 Spacer()
 
                 if profile.isBuiltIn {
-                    Text("DEFAULT")
+                    Text(
+                        LocalizedStringResource(
+                            "progression.badge.default",
+                            defaultValue: "DEFAULT",
+                            table: "Progression"
+                        )
+                    )
                         .font(.caption2)
                         .fontWeight(.bold)
                         .foregroundStyle(.blue)
@@ -151,15 +239,34 @@ struct ProgressionProfilesView: View {
                 }
             }
 
-            detailRow(title: "Type", value: profile.type.title)
-            detailRow(title: "Default Target", value: defaultTargetSummary(for: profile))
-            detailRow(title: "Advancement", value: advancementSummary(for: profile))
+            detailRow(
+                title: LocalizedStringResource("progression.detail.type", defaultValue: "Type", table: "Progression"),
+                value: profile.type.title
+            )
+            detailRow(
+                title: LocalizedStringResource("progression.detail.defaultTarget", defaultValue: "Default Target", table: "Progression"),
+                value: defaultTargetSummary(for: profile)
+            )
+            detailRow(
+                title: LocalizedStringResource("progression.detail.advancement", defaultValue: "Advancement", table: "Progression"),
+                value: advancementSummary(for: profile)
+            )
 
             HStack(spacing: 10) {
                 Button {
                     editingProfile = profile
                 } label: {
-                    Label("Edit", systemImage: "pencil")
+                    Label {
+                        Text(
+                            LocalizedStringResource(
+                                "progression.action.edit",
+                                defaultValue: "Edit",
+                                table: "Progression"
+                            )
+                        )
+                    } icon: {
+                        Image(systemName: "pencil")
+                    }
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
@@ -168,7 +275,17 @@ struct ProgressionProfilesView: View {
                     Button(role: .destructive) {
                         progressionService.delete(profile)
                     } label: {
-                        Label("Delete", systemImage: "trash")
+                        Label {
+                            Text(
+                                LocalizedStringResource(
+                                    "progression.action.delete",
+                                    defaultValue: "Delete",
+                                    table: "Progression"
+                                )
+                            )
+                        } icon: {
+                            Image(systemName: "trash")
+                        }
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
@@ -179,7 +296,7 @@ struct ProgressionProfilesView: View {
     }
 
     @ViewBuilder
-    private func emptyCard(_ text: String) -> some View {
+    private func emptyCard(_ text: LocalizedStringResource) -> some View {
         Text(text)
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -187,17 +304,56 @@ struct ProgressionProfilesView: View {
     }
 
     @ViewBuilder
-    private func detailRow(title: String, value: String) -> some View {
+    private func detailRow(title: LocalizedStringResource, value: String) -> some View {
         HStack {
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
-            Text(value)
+            Text(verbatim: value)
                 .font(.caption)
                 .fontWeight(.semibold)
                 .multilineTextAlignment(.trailing)
         }
+    }
+
+    private func profileNameText(_ profile: ProgressionProfile) -> Text {
+        if profile.isBuiltIn {
+            return Text(profile.type.titleResource)
+        }
+        return Text(verbatim: profile.name)
+    }
+
+    private func profileDescriptionText(_ profile: ProgressionProfile) -> Text {
+        if profile.isBuiltIn {
+            switch profile.type {
+            case .linear:
+                return Text(
+                    LocalizedStringResource(
+                        "progression.builtIn.linear.description",
+                        defaultValue: "Increase the load by a small amount after a successful session.",
+                        table: "Progression"
+                    )
+                )
+            case .doubleProgression:
+                return Text(
+                    LocalizedStringResource(
+                        "progression.builtIn.doubleProgression.description",
+                        defaultValue: "Build reps inside a range before moving the weight up.",
+                        table: "Progression"
+                    )
+                )
+            case .volume:
+                return Text(
+                    LocalizedStringResource(
+                        "progression.builtIn.volume.description",
+                        defaultValue: "Add more sets over time while keeping reps steady.",
+                        table: "Progression"
+                    )
+                )
+            }
+        }
+        return Text(verbatim: profile.miniDescription)
     }
 
     private func defaultTargetSummary(for profile: ProgressionProfile) -> String {
@@ -215,7 +371,9 @@ struct ProgressionProfilesView: View {
         let absoluteText = profile.incrementValue > 0 ? "\(profile.incrementValue.clean) \(profile.incrementUnit.name)" : nil
         let percentageText = profile.percentageIncrease > 0 ? "\(profile.percentageIncrease.clean)%" : nil
         let parts = [absoluteText, percentageText].compactMap { $0 }
-        return parts.isEmpty ? "Manual" : parts.joined(separator: " + ")
+        return parts.isEmpty
+            ? String(localized: LocalizedStringResource("progression.value.manual", defaultValue: "Manual", table: "Progression"))
+            : parts.joined(separator: " + ")
     }
 }
 
@@ -264,16 +422,34 @@ private struct ProgressionProfileEditorSheet: View {
             .screenContentPadding()
         }
         .appBackground()
-        .navigationTitle(profile == nil ? "New Profile" : "Edit Profile")
+        .navigationTitle(Text(editorTitleResource))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") { dismiss() }
+                Button {
+                    dismiss()
+                } label: {
+                    Text(
+                        LocalizedStringResource(
+                            "progression.action.cancel",
+                            defaultValue: "Cancel",
+                            table: "Progression"
+                        )
+                    )
+                }
             }
 
             ToolbarItem(placement: .confirmationAction) {
-                Button("Save") {
+                Button {
                     saveProfile()
+                } label: {
+                    Text(
+                        LocalizedStringResource(
+                            "progression.action.save",
+                            defaultValue: "Save",
+                            table: "Progression"
+                        )
+                    )
                 }
                 .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
@@ -290,30 +466,86 @@ private struct ProgressionProfileEditorSheet: View {
         }
     }
 
+    private var editorTitleResource: LocalizedStringResource {
+        if profile == nil {
+            return LocalizedStringResource("progression.profileEditor.newTitle", defaultValue: "New Profile", table: "Progression")
+        }
+        return LocalizedStringResource("progression.profileEditor.editTitle", defaultValue: "Edit Profile", table: "Progression")
+    }
+
     private var profileSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "Profile")
+            SectionHeaderView(
+                resourceTitle: LocalizedStringResource(
+                    "progression.profileEditor.section.profile",
+                    defaultValue: "Profile",
+                    table: "Progression"
+                )
+            )
             ConnectedCardSection {
                 ConnectedCardRow {
-                    LabeledContent("Name") {
-                        TextField("Required", text: $name)
+                    LabeledContent {
+                        TextField(text: $name, prompt: Text(LocalizedStringResource("progression.placeholder.required", defaultValue: "Required", table: "Progression"))) {
+                            Text(LocalizedStringResource("progression.placeholder.required", defaultValue: "Required", table: "Progression"))
+                        }
                             .multilineTextAlignment(.trailing)
                             .disabled(profile?.isBuiltIn == true)
+                    } label: {
+                        Text(
+                            LocalizedStringResource(
+                                "progression.field.name",
+                                defaultValue: "Name",
+                                table: "Progression"
+                            )
+                        )
                     }
                 }
                 ConnectedCardDivider()
                 ConnectedCardRow {
-                    LabeledContent("Description") {
-                        TextField("Mini Description", text: $miniDescription, axis: .vertical)
+                    LabeledContent {
+                        TextField(
+                            text: $miniDescription,
+                            prompt: Text(
+                                LocalizedStringResource(
+                                    "progression.placeholder.miniDescription",
+                                    defaultValue: "Mini Description",
+                                    table: "Progression"
+                                )
+                            ),
+                            axis: .vertical
+                        ) {
+                            Text(
+                                LocalizedStringResource(
+                                    "progression.placeholder.miniDescription",
+                                    defaultValue: "Mini Description",
+                                    table: "Progression"
+                                )
+                            )
+                        }
                             .lineLimit(3, reservesSpace: true)
                             .multilineTextAlignment(.trailing)
+                    } label: {
+                        Text(
+                            LocalizedStringResource(
+                                "progression.field.description",
+                                defaultValue: "Description",
+                                table: "Progression"
+                            )
+                        )
                     }
                 }
                 ConnectedCardDivider()
                 ConnectedCardRow {
-                    Picker("Type", selection: $type) {
+                    Picker(
+                        LocalizedStringResource(
+                            "progression.field.type",
+                            defaultValue: "Type",
+                            table: "Progression"
+                        ),
+                        selection: $type
+                    ) {
                         ForEach(ProgressionType.allCases) { type in
-                            Text(type.title).tag(type)
+                            Text(type.titleResource).tag(type)
                         }
                     }
                 }
@@ -323,23 +555,61 @@ private struct ProgressionProfileEditorSheet: View {
 
     private var targetsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "Targets")
+            SectionHeaderView(
+                resourceTitle: LocalizedStringResource(
+                    "progression.profileEditor.section.targets",
+                    defaultValue: "Targets",
+                    table: "Progression"
+                )
+            )
             ConnectedCardSection {
                 ConnectedCardRow {
-                    Stepper("Default Sets: \(defaultSetsTarget)", value: $defaultSetsTarget, in: 1...12)
+                    Stepper(value: $defaultSetsTarget, in: 1...12) {
+                        Text(
+                            LocalizedStringResource(
+                                "progression.stepper.defaultSets",
+                                defaultValue: "Default Sets: \(defaultSetsTarget)",
+                                table: "Progression"
+                            )
+                        )
+                    }
                 }
                 ConnectedCardDivider()
                 if type == .doubleProgression {
                     ConnectedCardRow {
-                        Stepper("Rep Range Low: \(defaultRepsLow)", value: $defaultRepsLow, in: 1...30)
+                        Stepper(value: $defaultRepsLow, in: 1...30) {
+                            Text(
+                                LocalizedStringResource(
+                                    "progression.stepper.repRangeLow",
+                                    defaultValue: "Rep Range Low: \(defaultRepsLow)",
+                                    table: "Progression"
+                                )
+                            )
+                        }
                     }
                     ConnectedCardDivider()
                     ConnectedCardRow {
-                        Stepper("Rep Range High: \(defaultRepsHigh)", value: $defaultRepsHigh, in: 1...30)
+                        Stepper(value: $defaultRepsHigh, in: 1...30) {
+                            Text(
+                                LocalizedStringResource(
+                                    "progression.stepper.repRangeHigh",
+                                    defaultValue: "Rep Range High: \(defaultRepsHigh)",
+                                    table: "Progression"
+                                )
+                            )
+                        }
                     }
                 } else {
                     ConnectedCardRow {
-                        Stepper("Target Reps: \(defaultRepsTarget)", value: $defaultRepsTarget, in: 1...30)
+                        Stepper(value: $defaultRepsTarget, in: 1...30) {
+                            Text(
+                                LocalizedStringResource(
+                                    "progression.stepper.targetReps",
+                                    defaultValue: "Target Reps: \(defaultRepsTarget)",
+                                    table: "Progression"
+                                )
+                            )
+                        }
                     }
                 }
             }
@@ -348,26 +618,91 @@ private struct ProgressionProfileEditorSheet: View {
 
     private var advancementSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "Advancement")
+            SectionHeaderView(
+                resourceTitle: LocalizedStringResource(
+                    "progression.profileEditor.section.advancement",
+                    defaultValue: "Advancement",
+                    table: "Progression"
+                )
+            )
             ConnectedCardSection {
                 ConnectedCardRow {
-                    LabeledContent("Weight Increment") {
-                        TextField("Weight Increment", value: $incrementValue, format: .number)
+                    LabeledContent {
+                        TextField(
+                            value: $incrementValue,
+                            format: .number,
+                            prompt: Text(
+                                LocalizedStringResource(
+                                    "progression.field.weightIncrement",
+                                    defaultValue: "Weight Increment",
+                                    table: "Progression"
+                                )
+                            )
+                        ) {
+                            Text(
+                                LocalizedStringResource(
+                                    "progression.field.weightIncrement",
+                                    defaultValue: "Weight Increment",
+                                    table: "Progression"
+                                )
+                            )
+                        }
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
+                    } label: {
+                        Text(
+                            LocalizedStringResource(
+                                "progression.field.weightIncrement",
+                                defaultValue: "Weight Increment",
+                                table: "Progression"
+                            )
+                        )
                     }
                 }
                 ConnectedCardDivider()
                 ConnectedCardRow {
-                    LabeledContent("Percentage Increase") {
-                        TextField("Percentage Increase", value: $percentageIncrease, format: .number)
+                    LabeledContent {
+                        TextField(
+                            value: $percentageIncrease,
+                            format: .number,
+                            prompt: Text(
+                                LocalizedStringResource(
+                                    "progression.field.percentageIncrease",
+                                    defaultValue: "Percentage Increase",
+                                    table: "Progression"
+                                )
+                            )
+                        ) {
+                            Text(
+                                LocalizedStringResource(
+                                    "progression.field.percentageIncrease",
+                                    defaultValue: "Percentage Increase",
+                                    table: "Progression"
+                                )
+                            )
+                        }
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
+                    } label: {
+                        Text(
+                            LocalizedStringResource(
+                                "progression.field.percentageIncrease",
+                                defaultValue: "Percentage Increase",
+                                table: "Progression"
+                            )
+                        )
                     }
                 }
                 ConnectedCardDivider()
                 ConnectedCardRow {
-                    Picker("Increment Unit", selection: $incrementUnit) {
+                    Picker(
+                        LocalizedStringResource(
+                            "progression.field.incrementUnit",
+                            defaultValue: "Increment Unit",
+                            table: "Progression"
+                        ),
+                        selection: $incrementUnit
+                    ) {
                         ForEach(WeightUnit.allCases) { unit in
                             Text(unit.name).tag(unit)
                         }
@@ -376,12 +711,28 @@ private struct ProgressionProfileEditorSheet: View {
                 }
                 ConnectedCardDivider()
                 ConnectedCardRow {
-                    Stepper("Success Threshold: \(successThreshold)", value: $successThreshold, in: 1...10)
+                    Stepper(value: $successThreshold, in: 1...10) {
+                        Text(
+                            LocalizedStringResource(
+                                "progression.stepper.successThreshold",
+                                defaultValue: "Success Threshold: \(successThreshold)",
+                                table: "Progression"
+                            )
+                        )
+                    }
                 }
                 if type == .volume {
                     ConnectedCardDivider()
                     ConnectedCardRow {
-                        Stepper("Set Increment: \(setIncrement)", value: $setIncrement, in: 1...5)
+                        Stepper(value: $setIncrement, in: 1...5) {
+                            Text(
+                                LocalizedStringResource(
+                                    "progression.stepper.setIncrement",
+                                    defaultValue: "Set Increment: \(setIncrement)",
+                                    table: "Progression"
+                                )
+                            )
+                        }
                     }
                 }
             }

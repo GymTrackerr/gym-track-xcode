@@ -16,13 +16,17 @@ enum ProgressionType: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     var title: String {
+        String(localized: titleResource)
+    }
+
+    var titleResource: LocalizedStringResource {
         switch self {
         case .linear:
-            return "Load Progression"
+            return LocalizedStringResource("progression.type.linear", defaultValue: "Load Progression", table: "Progression")
         case .doubleProgression:
-            return "Double Progression"
+            return LocalizedStringResource("progression.type.doubleProgression", defaultValue: "Double Progression", table: "Progression")
         case .volume:
-            return "Volume Progression"
+            return LocalizedStringResource("progression.type.volume", defaultValue: "Volume Progression", table: "Progression")
         }
     }
 }
@@ -36,15 +40,19 @@ enum ProgressionAssignmentSource: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     var title: String {
+        String(localized: titleResource)
+    }
+
+    var titleResource: LocalizedStringResource {
         switch self {
         case .exerciseOverride:
-            return "Exercise Override"
+            return LocalizedStringResource("progression.assignmentSource.exerciseOverride", defaultValue: "Exercise Override", table: "Progression")
         case .programDefault:
-            return "Programme Default"
+            return LocalizedStringResource("progression.assignmentSource.programmeDefault", defaultValue: "Programme Default", table: "Progression")
         case .routineDefault:
-            return "Routine Default"
+            return LocalizedStringResource("progression.assignmentSource.routineDefault", defaultValue: "Routine Default", table: "Progression")
         case .userDefault:
-            return "Global Default"
+            return LocalizedStringResource("progression.assignmentSource.userDefault", defaultValue: "Global Default", table: "Progression")
         }
     }
 }
