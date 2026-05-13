@@ -41,15 +41,19 @@ class NutritionService: ServiceBase, ObservableObject {
         var id: String { rawValue }
 
         var displayName: String {
+            String(localized: displayNameResource)
+        }
+
+        var displayNameResource: LocalizedStringResource {
             switch self {
             case .calories:
-                return "Calories"
+                return LocalizedStringResource("nutrition.metric.calories", defaultValue: "Calories", table: "Nutrition")
             case .protein:
-                return "Protein"
+                return LocalizedStringResource("nutrition.metric.protein", defaultValue: "Protein", table: "Nutrition")
             case .carbs:
-                return "Carbs"
+                return LocalizedStringResource("nutrition.metric.carbs", defaultValue: "Carbs", table: "Nutrition")
             case .fat:
-                return "Fat"
+                return LocalizedStringResource("nutrition.metric.fat", defaultValue: "Fat", table: "Nutrition")
             }
         }
     }

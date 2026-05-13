@@ -39,7 +39,14 @@ struct ExercisesView: View {
     var body : some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("\(filteredRows.count) exercises")
+                Text(
+                    LocalizedStringResource(
+                        "exercises.count",
+                        defaultValue: "\(filteredRows.count) exercises",
+                        table: "Exercises",
+                        comment: "Count of exercises in the current list"
+                    )
+                )
                     .font(.caption)
                     .foregroundColor(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -51,7 +58,8 @@ struct ExercisesView: View {
                         // All filter
                         FilterPill(
                             title: "All",
-                            isSelected: selectedMuscle.isEmpty && !showUserExercisesOnly
+                            isSelected: selectedMuscle.isEmpty && !showUserExercisesOnly,
+                            tableName: "Exercises"
                         )
                         .onTapGesture {
                             selectedMuscle = ""
@@ -60,7 +68,8 @@ struct ExercisesView: View {
 
                         FilterPill(
                             title: "Mine",
-                            isSelected: showUserExercisesOnly
+                            isSelected: showUserExercisesOnly,
+                            tableName: "Exercises"
                         )
                         .onTapGesture {
                             showUserExercisesOnly.toggle()
@@ -85,14 +94,15 @@ struct ExercisesView: View {
                 EmptyStateView(
                     title: "No Exercises",
                     systemImage: "dumbbell.fill",
-                    message: "Create your first exercise."
+                    message: "Create your first exercise.",
+                    tableName: "Exercises"
                 )
                 .screenContentPadding()
             } else if filteredRows.isEmpty {
                 EmptyStateView(
-                    verbatimTitle: emptyFilteredTitle,
+                    resourceTitle: emptyFilteredTitleResource,
                     systemImage: "magnifyingglass",
-                    verbatimMessage: emptyFilteredMessage
+                    resourceMessage: emptyFilteredMessageResource
                 )
                 .screenContentPadding()
             } else {
@@ -106,7 +116,11 @@ struct ExercisesView: View {
                             Button(role: .destructive) {
                                 deleteExercise(id: row.id)
                             } label: {
-                                Label("Delete", systemImage: "trash")
+                                Label {
+                                    Text("Delete", tableName: "Exercises")
+                                } icon: {
+                                    Image(systemName: "trash")
+                                }
                             }
                         }
                     }
@@ -119,10 +133,10 @@ struct ExercisesView: View {
         .searchable(
             text: $searchText,
             placement: .navigationBarDrawer(displayMode: .automatic),
-            prompt: "Search exercises"
+            prompt: Text("Search exercises", tableName: "Exercises")
         )
         .appBackground()
-        .navigationTitle("Exercises")
+        .navigationTitle(Text("Exercises", tableName: "Exercises"))
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: ExerciseNavigationTarget.self) { target in
             SingleExerciseView(exerciseId: target.exerciseId)
@@ -139,7 +153,11 @@ struct ExercisesView: View {
                 Button {
                     exerciseService.editingExercise = true
                 } label: {
-                    Label("Add Exercise", systemImage: "plus.circle")
+                    Label {
+                        Text("Add Exercise", tableName: "Exercises")
+                    } icon: {
+                        Image(systemName: "plus.circle")
+                    }
                 }
             }
         }
@@ -169,10 +187,12 @@ struct ExercisesView: View {
         .sheet(isPresented: $exerciseService.editingExercise) {
             NavigationView {
                 VStack(spacing: 16) {
-                    Text("Name your new exercise")
+                    Text("Name your new exercise", tableName: "Exercises")
                         .font(.headline)
 
-                    TextField("Name", text: $exerciseService.editingContent)
+                    TextField(text: $exerciseService.editingContent, prompt: Text("Name", tableName: "Exercises")) {
+                        Text("Name", tableName: "Exercises")
+                    }
                         .textFieldStyle(.roundedBorder)
                         .padding(.horizontal)
                     Menu {
@@ -180,13 +200,28 @@ struct ExercisesView: View {
                             Button(exerciseType.name, action: { exerciseService.selectedExerciseType = exerciseType })
                         }
                    } label: {
-                       Label("Exercise Type: \(exerciseService.selectedExerciseType.name)", systemImage: "chevron.down")
+                       Label {
+                           Text(
+                               LocalizedStringResource(
+                                   "exercises.type.selected",
+                                   defaultValue: "Exercise Type: \(exerciseService.selectedExerciseType.name)",
+                                   table: "Exercises",
+                                   comment: "Selected exercise type label"
+                               )
+                           )
+                       } icon: {
+                           Image(systemName: "chevron.down")
+                       }
                    }
 
                     Button {
                         _ = exerciseService.addExercise()
                     } label: {
-                        Label("Save", systemImage: "plus.circle")
+                        Label {
+                            Text("Save", tableName: "Exercises")
+                        } icon: {
+                            Image(systemName: "plus.circle")
+                        }
                             .font(.title2)
                             .padding()
                     }
@@ -195,12 +230,14 @@ struct ExercisesView: View {
                     Spacer()
                 }
                 .padding()
-                .navigationTitle("Create New Exercise")
+                .navigationTitle(Text("Create New Exercise", tableName: "Exercises"))
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") {
+                        Button {
                             exerciseService.editingExercise = false
                             exerciseService.editingContent = ""
+                        } label: {
+                            Text("Cancel", tableName: "Exercises")
                         }
                     }
                 }
@@ -319,37 +356,55 @@ struct ExercisesView: View {
         }
     }
 
-    private var emptyFilteredTitle: String {
+    private var emptyFilteredTitleResource: LocalizedStringResource {
         if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return selectedMuscle.isEmpty ? "No Results" : "No Results in \(selectedMuscle)"
+            if selectedMuscle.isEmpty {
+                return LocalizedStringResource("exercises.empty.noResults", defaultValue: "No Results", table: "Exercises")
+            }
+            return LocalizedStringResource(
+                "exercises.empty.noResultsInMuscle",
+                defaultValue: "No Results in \(selectedMuscle)",
+                table: "Exercises",
+                comment: "Empty search title scoped to a muscle filter"
+            )
         }
 
         if showUserExercisesOnly {
-            return "No Custom Exercises"
+            return LocalizedStringResource("exercises.empty.noCustomExercises", defaultValue: "No Custom Exercises", table: "Exercises")
         }
 
         if !selectedMuscle.isEmpty {
-            return "No \(selectedMuscle) Exercises"
+            return LocalizedStringResource(
+                "exercises.empty.noMuscleExercises",
+                defaultValue: "No \(selectedMuscle) Exercises",
+                table: "Exercises",
+                comment: "Empty list title scoped to a muscle filter"
+            )
         }
 
-        return "No Results"
+        return LocalizedStringResource("exercises.empty.noResults", defaultValue: "No Results", table: "Exercises")
     }
 
-    private var emptyFilteredMessage: String {
+    private var emptyFilteredMessageResource: LocalizedStringResource {
         let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedSearch.isEmpty {
-            return "No exercises match \"\(trimmedSearch)\"."
+            return LocalizedStringResource(
+                "exercises.empty.noSearchMatch",
+                defaultValue: "No exercises match \"\(trimmedSearch)\".",
+                table: "Exercises",
+                comment: "Empty search message"
+            )
         }
 
         if showUserExercisesOnly {
-            return "Create an exercise to see it here."
+            return LocalizedStringResource("exercises.empty.createExercise", defaultValue: "Create an exercise to see it here.", table: "Exercises")
         }
 
         if !selectedMuscle.isEmpty {
-            return "No exercises match this muscle filter."
+            return LocalizedStringResource("exercises.empty.noMuscleMatch", defaultValue: "No exercises match this muscle filter.", table: "Exercises")
         }
 
-        return "Try adjusting your filters."
+        return LocalizedStringResource("exercises.empty.adjustFilters", defaultValue: "Try adjusting your filters.", table: "Exercises")
     }
 
 }
@@ -361,7 +416,7 @@ private struct ExerciseListRow: View {
         VStack(alignment: .leading, spacing: 4) {
             if snapshot.isUserCreated {
                 VStack(alignment: .leading) {
-                    Text(snapshot.name)
+                    Text(verbatim: snapshot.name)
                     HStack {
                         Text(snapshot.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
                             .font(.caption)
@@ -382,7 +437,7 @@ private struct ExerciseListRow: View {
 
                     VStack(alignment: .leading) {
                         HStack {
-                            Text(snapshot.name)
+                            Text(verbatim: snapshot.name)
                             Spacer()
                         }
                     }

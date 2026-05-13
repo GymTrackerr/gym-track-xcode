@@ -98,14 +98,22 @@ struct NutritionWeeklyCaloriesModule: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: module.size == .large ? 8 : 6) {
-            Text(metricTitle)
+            Text(metricTitleResource)
                 .font(.caption)
                 .foregroundColor(.secondary)
 
             if module.size == .large {
-                Picker("Metric", selection: $selectedMetric) {
+                Picker(
+                    LocalizedStringResource(
+                        "nutrition.metric.picker",
+                        defaultValue: "Metric",
+                        table: "Nutrition",
+                        comment: "Picker title for nutrition chart metric"
+                    ),
+                    selection: $selectedMetric
+                ) {
                     ForEach(NutritionService.NutritionSeriesMetric.allCases) { metric in
-                        Text(metric.displayName).tag(metric)
+                        Text(metric.displayNameResource).tag(metric)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -118,22 +126,50 @@ struct NutritionWeeklyCaloriesModule: View {
             )
 
             if !hasLogsInRange && module.size == .large {
-                Text("No logs yet")
+                Text("No logs yet", tableName: "Nutrition")
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
 
             if module.size == .medium {
-                Text("Total: \(formatted(total, metric: .calories))  •  Avg: \(formatted(average, metric: .calories))")
+                Text(
+                    LocalizedStringResource(
+                        "nutrition.chart.totalAverage",
+                        defaultValue: "Total: \(formatted(total, metric: .calories))  •  Avg: \(formatted(average, metric: .calories))",
+                        table: "Nutrition",
+                        comment: "Nutrition chart total and average summary"
+                    )
+                )
                 .font(.caption2)
                 .foregroundColor(.secondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
             } else if module.size == .large {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Today: \(formatted(todayValue, metric: effectiveMetric))")
-                    Text("Weekly total: \(formatted(total, metric: effectiveMetric))")
-                    Text("Weekly average: \(formatted(average, metric: effectiveMetric))")
+                    Text(
+                        LocalizedStringResource(
+                            "nutrition.chart.today",
+                            defaultValue: "Today: \(formatted(todayValue, metric: effectiveMetric))",
+                            table: "Nutrition",
+                            comment: "Nutrition chart value for today"
+                        )
+                    )
+                    Text(
+                        LocalizedStringResource(
+                            "nutrition.chart.weeklyTotal",
+                            defaultValue: "Weekly total: \(formatted(total, metric: effectiveMetric))",
+                            table: "Nutrition",
+                            comment: "Nutrition chart weekly total"
+                        )
+                    )
+                    Text(
+                        LocalizedStringResource(
+                            "nutrition.chart.weeklyAverage",
+                            defaultValue: "Weekly average: \(formatted(average, metric: effectiveMetric))",
+                            table: "Nutrition",
+                            comment: "Nutrition chart weekly average"
+                        )
+                    )
                 }
                 .font(.caption2)
                 .foregroundColor(.secondary)
@@ -160,11 +196,21 @@ struct NutritionWeeklyCaloriesModule: View {
         }
     }
 
-    private var metricTitle: String {
+    private var metricTitleResource: LocalizedStringResource {
         if module.size == .large {
-            return "\(effectiveMetric.displayName) (7d)"
+            return LocalizedStringResource(
+                "nutrition.chart.metricTitle",
+                defaultValue: "\(effectiveMetric.displayName) (7d)",
+                table: "Nutrition",
+                comment: "Nutrition chart title showing selected metric over seven days"
+            )
         }
-        return "Calories (7d)"
+        return LocalizedStringResource(
+            "nutrition.chart.caloriesTitle",
+            defaultValue: "Calories (7d)",
+            table: "Nutrition",
+            comment: "Nutrition chart title for calories over seven days"
+        )
     }
 
     private func refreshSeries() {

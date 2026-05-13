@@ -62,7 +62,7 @@ struct SessionsPageView: View {
                     Button {
                         showingCreateSession = true
                     } label: {
-                        Text("Add Log")
+                        Text("Add Log", tableName: "Sessions")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
@@ -82,20 +82,32 @@ struct SessionsPageView: View {
                             Button {
                                 openedSession = session
                             } label: {
-                                Label("Edit", systemImage: "pencil")
+                                Label {
+                                    Text("Edit", tableName: "Sessions")
+                                } icon: {
+                                    Image(systemName: "pencil")
+                                }
                             }
 
                             Button(role: .destructive) {
                                 sessionService.removeSession(session: session)
                             } label: {
-                                Label("Delete", systemImage: "trash")
+                                Label {
+                                    Text("Delete", tableName: "Sessions")
+                                } icon: {
+                                    Image(systemName: "trash")
+                                }
                             }
                         }
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             Button(role: .destructive) {
                                 sessionService.removeSession(session: session)
                             } label: {
-                                Label("Delete", systemImage: "trash")
+                                Label {
+                                    Text("Delete", tableName: "Sessions")
+                                } icon: {
+                                    Image(systemName: "trash")
+                                }
                             }
                         }
                         .cardListRowStyle()
@@ -106,7 +118,7 @@ struct SessionsPageView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .appBackground()
-        .navigationTitle("Sessions")
+        .navigationTitle(Text("Sessions", tableName: "Sessions"))
         .navigationBarTitleDisplayMode(.inline)
         
         .toolbar {
@@ -123,13 +135,23 @@ struct SessionsPageView: View {
                 Button {
                     showingCreateSession = true
                 } label: {
-                    Label("New Session", systemImage: "plus.circle").labelStyle(.iconOnly)
+                    Label {
+                        Text("New Session", tableName: "Sessions")
+                    } icon: {
+                        Image(systemName: "plus.circle")
+                    }
+                    .labelStyle(.iconOnly)
                 }
                 
                 Button {
                     showingNotesImport = true
                 } label: {
-                    Label("Import", systemImage: "doc.text").labelStyle(.iconOnly)
+                    Label {
+                        Text("Import", tableName: "Sessions")
+                    } icon: {
+                        Image(systemName: "doc.text")
+                    }
+                    .labelStyle(.iconOnly)
                 }
             }
         }
@@ -188,14 +210,16 @@ struct SessionsPageView: View {
                     title: "Volume",
                     value: SessionService.formattedPounds(summary.totalVolume),
                     systemImage: "scalemass",
-                    tint: .purple
+                    tint: .purple,
+                    tableName: "Sessions"
                 )
 
                 SummaryMetricTile(
                     title: "Avg Vol",
                     value: SessionService.formattedPounds(summary.averageSessionVolume),
                     systemImage: "chart.bar",
-                    tint: .green
+                    tint: .green,
+                    tableName: "Sessions"
                 )
 
                 if let averageDurationMinutes = summary.averageDurationMinutes {
@@ -203,14 +227,16 @@ struct SessionsPageView: View {
                         title: "Avg Time",
                         value: "\(Int(averageDurationMinutes.rounded())) min",
                         systemImage: "clock",
-                        tint: .blue
+                        tint: .blue,
+                        tableName: "Sessions"
                     )
                 } else {
                     SummaryMetricTile(
                         title: "Avg Time",
                         value: "-",
                         systemImage: "clock",
-                        tint: .blue
+                        tint: .blue,
+                        tableName: "Sessions"
                     )
                 }
             }
@@ -222,9 +248,9 @@ struct SessionsPageView: View {
             Image(systemName: "figure.strengthtraining.traditional")
                 .font(.title2)
                 .foregroundStyle(.secondary)
-            Text("No sessions in this period")
+            Text("No sessions in this period", tableName: "Sessions")
                 .font(.headline)
-            Text("Add a session log or choose another period.")
+            Text("Add a session log or choose another period.", tableName: "Sessions")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

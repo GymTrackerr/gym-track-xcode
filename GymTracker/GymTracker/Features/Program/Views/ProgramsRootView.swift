@@ -72,7 +72,11 @@ struct ProgramsRootView: View {
                     ProgressionProfilesView()
                         .appBackground()
                 } label: {
-                    Label("Progression", systemImage: "chart.line.uptrend.xyaxis")
+                    Label {
+                        Text("Progression", tableName: "Programmes")
+                    } icon: {
+                        Image(systemName: "chart.line.uptrend.xyaxis")
+                    }
                 }
             }
 
@@ -80,7 +84,11 @@ struct ProgramsRootView: View {
                 Button {
                     showingCreateProgram = true
                 } label: {
-                    Label("Add Programme", systemImage: "plus")
+                    Label {
+                        Text("Add Programme", tableName: "Programmes")
+                    } icon: {
+                        Image(systemName: "plus")
+                    }
                 }
             }
         }
@@ -150,7 +158,11 @@ struct ProgramsRootView: View {
                                     Button {
                                         openSession(for: program, state: state)
                                     } label: {
-                                        Label(state.actionTitle, systemImage: state.activeSession == nil ? "play.fill" : "arrow.clockwise")
+                                        Label {
+                                            Text(programActionTitleResource(state.actionTitle))
+                                        } icon: {
+                                            Image(systemName: state.activeSession == nil ? "play.fill" : "arrow.clockwise")
+                                        }
                                             .frame(maxWidth: .infinity)
                                     }
                                     .buttonStyle(.borderedProminent)
@@ -179,10 +191,10 @@ struct ProgramsRootView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Routines")
+                    Text("Routines", tableName: "Programmes")
                         .font(.title3)
                         .fontWeight(.semibold)
-                    Text("These stay directly startable and are also the building blocks for programmes.")
+                    Text("These stay directly startable and are also the building blocks for programmes.", tableName: "Programmes")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -193,7 +205,11 @@ struct ProgramsRootView: View {
                     routineService.editingContent = ""
                     routineService.editingSplit = true
                 } label: {
-                    Label("Add", systemImage: "plus")
+                    Label {
+                        Text("Add", tableName: "Programmes")
+                    } icon: {
+                        Image(systemName: "plus")
+                    }
                 }
                 .buttonStyle(.bordered)
             }
@@ -213,11 +229,18 @@ struct ProgramsRootView: View {
                             CardRowContainer {
                                 HStack(spacing: 12) {
                                     VStack(alignment: .leading, spacing: 6) {
-                                        Text(routine.name)
+                                        Text(verbatim: routine.name)
                                             .font(.headline)
                                             .foregroundStyle(.primary)
 
-                                        Text("\(routine.exerciseSplits.count) exercise\(routine.exerciseSplits.count == 1 ? "" : "s")")
+                                        Text(
+                                            LocalizedStringResource(
+                                                "programmes.routine.exerciseCount",
+                                                defaultValue: "\(routine.exerciseSplits.count) exercises",
+                                                table: "Programmes",
+                                                comment: "Number of exercises in a routine"
+                                            )
+                                        )
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
@@ -238,24 +261,24 @@ struct ProgramsRootView: View {
     }
 
     @ViewBuilder
-    private func sectionHeader(title: String, subtitle: String) -> some View {
+    private func sectionHeader(title: LocalizedStringKey, subtitle: LocalizedStringKey) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title)
+            Text(title, tableName: "Programmes")
                 .font(.title3)
                 .fontWeight(.semibold)
-            Text(subtitle)
+            Text(subtitle, tableName: "Programmes")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
     }
 
     @ViewBuilder
-    private func emptyCard(title: String, subtitle: String) -> some View {
+    private func emptyCard(title: LocalizedStringKey, subtitle: LocalizedStringKey) -> some View {
         CardRowContainer {
             VStack(alignment: .leading, spacing: 6) {
-                Text(title)
+                Text(title, tableName: "Programmes")
                     .font(.headline)
-                Text(subtitle)
+                Text(subtitle, tableName: "Programmes")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -279,6 +302,26 @@ struct ProgramsRootView: View {
         guard let workout = state.nextWorkout else { return }
         openedSession = sessionService.startProgramWorkout(program: program, workout: workout)
     }
+
+    private func programActionTitleResource(_ title: String) -> LocalizedStringResource {
+        switch title {
+        case "Add Workout":
+            return LocalizedStringResource("programmes.action.addWorkout", defaultValue: "Add Workout", table: "Programmes")
+        case "Workout Complete":
+            return LocalizedStringResource("programmes.action.workoutComplete", defaultValue: "Workout Complete", table: "Programmes")
+        case "Resume Current Workout":
+            return LocalizedStringResource("programmes.action.resumeCurrentWorkout", defaultValue: "Resume Current Workout", table: "Programmes")
+        case "Start Next Workout":
+            return LocalizedStringResource("programmes.action.startNextWorkout", defaultValue: "Start Next Workout", table: "Programmes")
+        default:
+            return LocalizedStringResource(
+                "programmes.action.open",
+                defaultValue: "Open Programme",
+                table: "Programmes",
+                comment: "Fallback programme action title"
+            )
+        }
+    }
 }
 
 private struct ActiveProgrammeCard: View {
@@ -289,12 +332,12 @@ private struct ActiveProgrammeCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                Text(program.name)
+                Text(verbatim: program.name)
                     .font(.headline)
                     .foregroundStyle(.primary)
 
                 if program.isActive {
-                    Text("ACTIVE")
+                    Text("ACTIVE", tableName: "Programmes")
                         .font(.caption2)
                         .fontWeight(.bold)
                         .foregroundStyle(.green)
@@ -315,13 +358,13 @@ private struct ActiveProgrammeCard: View {
     }
 
     @ViewBuilder
-    private func detailRow(title: String, value: String) -> some View {
+    private func detailRow(title: LocalizedStringKey, value: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(title)
+            Text(title, tableName: "Programmes")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
-            Text(value)
+            Text(verbatim: value)
                 .font(.caption)
                 .fontWeight(.semibold)
                 .foregroundStyle(.primary)
@@ -338,11 +381,18 @@ private struct InactiveProgrammePreviewCard: View {
         CardRowContainer {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(program.name)
+                    Text(verbatim: program.name)
                         .font(.headline)
                         .foregroundStyle(.primary)
 
-                    Text("\(workoutCount) workout\(workoutCount == 1 ? "" : "s")")
+                    Text(
+                        LocalizedStringResource(
+                            "programmes.workout.count",
+                            defaultValue: "\(workoutCount) workouts",
+                            table: "Programmes",
+                            comment: "Number of workouts in a programme"
+                        )
+                    )
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -364,12 +414,16 @@ private struct RoutineCreateSheetView: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
-                SectionHeaderView(title: "Routine")
+                SectionHeaderView(title: "Routine", tableName: "Programmes")
                 ConnectedCardSection {
                     ConnectedCardRow {
-                        LabeledContent("Name") {
-                            TextField("Required", text: $routineService.editingContent)
+                        LabeledContent {
+                            TextField(text: $routineService.editingContent, prompt: Text("Required", tableName: "Programmes")) {
+                                Text("Required", tableName: "Programmes")
+                            }
                                 .multilineTextAlignment(.trailing)
+                        } label: {
+                            Text("Name", tableName: "Programmes")
                         }
                     }
                 }
@@ -377,21 +431,25 @@ private struct RoutineCreateSheetView: View {
             .screenContentPadding()
         }
         .appBackground()
-        .navigationTitle("New Routine")
+        .navigationTitle(Text("New Routine", tableName: "Programmes"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") {
+                Button {
                     routineService.editingSplit = false
                     routineService.editingContent = ""
                     dismiss()
+                } label: {
+                    Text("Cancel", tableName: "Programmes")
                 }
             }
 
             ToolbarItem(placement: .confirmationAction) {
-                Button("Save") {
+                Button {
                     _ = routineService.addSplitDay()
                     dismiss()
+                } label: {
+                    Text("Save", tableName: "Programmes")
                 }
                 .disabled(routineService.editingContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }

@@ -1,6 +1,62 @@
 {
   "sourceLanguage" : "en-GB",
   "strings" : {
+    "Add a session log or choose another period." : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a session log or choose another period."
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a session log or choose another period."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añade un registro de sesión o elige otro periodo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajoutez un journal de séance ou choisissez une autre période."
+          }
+        }
+      }
+    },
+    "Add Log" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Log"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Log"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añadir registro"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter un journal"
+          }
+        }
+      }
+    },
     "Add Rep" : {
       "localizations" : {
         "en-GB" : {
@@ -53,6 +109,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ajouter une série"
+          }
+        }
+      }
+    },
+    "Avg Time" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avg Time"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avg Time"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tiempo medio"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Temps moy."
+          }
+        }
+      }
+    },
+    "Avg Vol" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avg Vol"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avg Vol"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vol. medio"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vol. moy."
           }
         }
       }
@@ -165,6 +279,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Série actuelle"
+          }
+        }
+      }
+    },
+    "Delete" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eliminar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer"
           }
         }
       }
@@ -366,6 +508,34 @@
         }
       }
     },
+    "Edit" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Editar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifier"
+          }
+        }
+      }
+    },
     "Estimated Pace --" : {
       "localizations" : {
         "en-GB" : {
@@ -390,6 +560,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Allure estimée --"
+          }
+        }
+      }
+    },
+    "Import" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importer"
           }
         }
       }
@@ -474,6 +672,62 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Allure manuelle"
+          }
+        }
+      }
+    },
+    "New Session" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Session"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Session"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nueva sesión"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouvelle séance"
+          }
+        }
+      }
+    },
+    "No sessions in this period" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No sessions in this period"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No sessions in this period"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay sesiones en este periodo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune séance sur cette période"
           }
         }
       }
@@ -586,6 +840,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Répétitions"
+          }
+        }
+      }
+    },
+    "Sessions" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sessions"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sessions"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sesiones"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Séances"
           }
         }
       }
@@ -1089,12 +1371,29 @@
       }
     },
     "sessions.set.chip.dropSet" : {
-      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Drop Set"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop Set"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serie descendente"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Série dégressive"
           }
         }
       }
@@ -1177,23 +1476,57 @@
       }
     },
     "sessions.set.chip.note" : {
-      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
+            "value" : "Note"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Note"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nota"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : "Note"
           }
         }
       }
     },
     "sessions.set.summary.cardioSet" : {
-      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Cardio set"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cardio set"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serie cardiovascular"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Série cardio"
           }
         }
       }
@@ -1228,12 +1561,29 @@
       }
     },
     "sessions.set.summary.set" : {
-      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en-GB" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Set"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serie"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Série"
           }
         }
       }
@@ -1658,6 +2008,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Unité"
+          }
+        }
+      }
+    },
+    "Volume" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volume"
+          }
+        },
+        "en-US" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volume"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volumen"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volume"
           }
         }
       }
