@@ -7,6 +7,66 @@
 
 import SwiftUI
 
+private func programmeNoneValue() -> String {
+    String(localized: LocalizedStringResource(
+        "programmes.value.none",
+        defaultValue: "None",
+        table: "Programmes"
+    ))
+}
+
+private func programmeWorkoutFallbackName(order: Int) -> String {
+    let workoutNumber = order + 1
+    return String(localized: LocalizedStringResource(
+        "programmes.workout.defaultName",
+        defaultValue: "Workout \(workoutNumber)",
+        table: "Programmes"
+    ))
+}
+
+private func programmeDurationSummary(mode: ProgramMode, durationCount: Int, repeatsForever: Bool) -> String {
+    if repeatsForever {
+        return String(localized: LocalizedStringResource(
+            "programmes.duration.repeatsForever",
+            defaultValue: "Repeats forever",
+            table: "Programmes"
+        ))
+    }
+
+    let duration = max(durationCount, 1)
+    switch mode {
+    case .weekly:
+        return String(localized: LocalizedStringResource(
+            "programmes.duration.weeks",
+            defaultValue: "\(duration) weeks",
+            table: "Programmes"
+        ))
+    case .continuous:
+        return String(localized: LocalizedStringResource(
+            "programmes.duration.fullSplits",
+            defaultValue: "\(duration) full splits",
+            table: "Programmes"
+        ))
+    }
+}
+
+private func programmeWorkoutCount(_ count: Int) -> String {
+    String(localized: LocalizedStringResource(
+        "programmes.workout.count",
+        defaultValue: "\(count) workouts",
+        table: "Programmes"
+    ))
+}
+
+private func programmeBlockSummary(workoutCount: Int, durationText: String) -> String {
+    let workoutCountText = programmeWorkoutCount(workoutCount)
+    return String(localized: LocalizedStringResource(
+        "programmes.block.summary",
+        defaultValue: "\(workoutCountText) • \(durationText)",
+        table: "Programmes"
+    ))
+}
+
 struct ProgramDetailView: View {
     @EnvironmentObject private var programService: ProgramService
     @EnvironmentObject private var sessionService: SessionService
@@ -47,7 +107,7 @@ struct ProgramDetailView: View {
     private var defaultProgressionName: String {
         progressionService.profile(id: program.defaultProgressionProfileId)?.name ??
         program.defaultProgressionProfileNameSnapshot ??
-        "None"
+        programmeNoneValue()
     }
 
     private var previousSessions: [Session] {
@@ -78,20 +138,32 @@ struct ProgramDetailView: View {
                 Button {
                     showingManageProgram = true
                 } label: {
-                    Label("Edit", systemImage: "slider.horizontal.3")
+                    Label {
+                        Text(LocalizedStringResource("programmes.action.edit", defaultValue: "Edit", table: "Programmes"))
+                    } icon: {
+                        Image(systemName: "slider.horizontal.3")
+                    }
                 }
 
                 if isDirectWorkoutMode {
                     Button {
                         blockForNewWorkout = directWorkoutBlock
                     } label: {
-                        Label("Add Workout", systemImage: "plus")
+                        Label {
+                            Text(LocalizedStringResource("programmes.action.addWorkout", defaultValue: "Add Workout", table: "Programmes"))
+                        } icon: {
+                            Image(systemName: "plus")
+                        }
                     }
                 } else {
                     Button {
                         showingAddBlock = true
                     } label: {
-                        Label("Add Block", systemImage: "plus")
+                        Label {
+                            Text(LocalizedStringResource("programmes.action.addBlock", defaultValue: "Add Block", table: "Programmes"))
+                        } icon: {
+                            Image(systemName: "plus")
+                        }
                     }
                 }
             }
@@ -126,7 +198,7 @@ struct ProgramDetailView: View {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .top, spacing: 12) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(program.name)
+                        Text(verbatim: program.name)
                             .font(.title3)
                             .fontWeight(.semibold)
 
@@ -135,7 +207,7 @@ struct ProgramDetailView: View {
                             .foregroundStyle(.secondary)
 
                         if program.isActive {
-                            Text("ACTIVE")
+                            Text(LocalizedStringResource("programmes.status.active", defaultValue: "ACTIVE", table: "Programmes"))
                                 .font(.caption2)
                                 .fontWeight(.bold)
                                 .foregroundStyle(.green)
@@ -150,23 +222,30 @@ struct ProgramDetailView: View {
                 }
 
             if !program.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(program.notes)
+                Text(verbatim: program.notes)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
 
-            detailRow(title: "Structure", value: isDirectWorkoutMode ? "Continuous Workout Rotation" : "Blocks")
-            detailRow(title: "Start Date", value: program.startDate.formatted(date: .abbreviated, time: .omitted))
-            detailRow(title: "Schedule", value: resolvedState.scheduleLabel)
-            detailRow(title: "Current Block", value: resolvedState.blockLabel)
-            detailRow(title: "Progress", value: resolvedState.progressLabel)
-            detailRow(title: "Progression", value: defaultProgressionName)
-            detailRow(title: "Next Workout", value: resolvedState.nextWorkoutLabel)
+            detailRow(
+                title: LocalizedStringResource("programmes.detail.structure", defaultValue: "Structure", table: "Programmes"),
+                value: isDirectWorkoutMode ? String(localized: LocalizedStringResource("programmes.structure.continuousWorkoutRotation", defaultValue: "Continuous Workout Rotation", table: "Programmes")) : String(localized: LocalizedStringResource("programmes.structure.blocks", defaultValue: "Blocks", table: "Programmes"))
+            )
+            detailRow(title: LocalizedStringResource("programmes.detail.startDate", defaultValue: "Start Date", table: "Programmes"), value: program.startDate.formatted(date: .abbreviated, time: .omitted))
+            detailRow(title: LocalizedStringResource("programmes.detail.schedule", defaultValue: "Schedule", table: "Programmes"), value: resolvedState.scheduleLabel)
+            detailRow(title: LocalizedStringResource("programmes.detail.currentBlock", defaultValue: "Current Block", table: "Programmes"), value: resolvedState.blockLabel)
+            detailRow(title: LocalizedStringResource("programmes.detail.progress", defaultValue: "Progress", table: "Programmes"), value: resolvedState.progressLabel)
+            detailRow(title: LocalizedStringResource("programmes.detail.progression", defaultValue: "Progression", table: "Programmes"), value: defaultProgressionName)
+            detailRow(title: LocalizedStringResource("programmes.detail.nextWorkout", defaultValue: "Next Workout", table: "Programmes"), value: resolvedState.nextWorkoutLabel)
 
             Button {
                 openPrimaryWorkout()
             } label: {
-                Label(resolvedState.actionTitle, systemImage: resolvedState.activeSession == nil ? "play.fill" : "arrow.clockwise")
+                Label {
+                    Text(verbatim: resolvedState.actionTitle)
+                } icon: {
+                    Image(systemName: resolvedState.activeSession == nil ? "play.fill" : "arrow.clockwise")
+                }
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
@@ -176,7 +255,11 @@ struct ProgramDetailView: View {
                 Button {
                     programService.skipNextWorkout(for: program, sessions: sessionService.sessions)
                 } label: {
-                    Label("Skip Workout", systemImage: "forward.fill")
+                    Label {
+                        Text(LocalizedStringResource("programmes.action.skipWorkout", defaultValue: "Skip Workout", table: "Programmes"))
+                    } icon: {
+                        Image(systemName: "forward.fill")
+                    }
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
@@ -189,14 +272,14 @@ struct ProgramDetailView: View {
     private var previousSessionsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeaderView(
-                title: "Previous Sessions",
-                subtitle: "Quickly jump back into your recent programme workouts."
+                resourceTitle: LocalizedStringResource("programmes.detail.previousSessions", defaultValue: "Previous Sessions", table: "Programmes"),
+                resourceSubtitle: LocalizedStringResource("programmes.detail.previousSessions.subtitle", defaultValue: "Quickly jump back into your recent programme workouts.", table: "Programmes")
             )
 
             if previousSessions.isEmpty {
                 emptyCard(
-                    title: "No programme sessions yet",
-                    subtitle: "Once you finish workouts from this programme, they will show up here."
+                    title: LocalizedStringResource("programmes.detail.previousSessions.empty.title", defaultValue: "No programme sessions yet", table: "Programmes"),
+                    subtitle: LocalizedStringResource("programmes.detail.previousSessions.empty.subtitle", defaultValue: "Once you finish workouts from this programme, they will show up here.", table: "Programmes")
                 )
             } else {
                 VStack(spacing: 10) {
@@ -221,8 +304,8 @@ struct ProgramDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
                 SectionHeaderView(
-                    title: "Workouts",
-                    subtitle: "This programme repeats the workout list forever. Use Edit to reorder workouts or switch the structure later."
+                    resourceTitle: LocalizedStringResource("programmes.detail.workouts", defaultValue: "Workouts", table: "Programmes"),
+                    resourceSubtitle: LocalizedStringResource("programmes.detail.workouts.subtitle", defaultValue: "This programme repeats the workout list forever. Use Edit to reorder workouts or switch the structure later.", table: "Programmes")
                 )
 
                 Spacer()
@@ -230,15 +313,19 @@ struct ProgramDetailView: View {
                 Button {
                     blockForNewWorkout = directWorkoutBlock
                 } label: {
-                    Label("Add", systemImage: "plus")
+                    Label {
+                        Text(LocalizedStringResource("programmes.action.add", defaultValue: "Add", table: "Programmes"))
+                    } icon: {
+                        Image(systemName: "plus")
+                    }
                 }
                 .buttonStyle(.bordered)
             }
 
             if directWorkouts.isEmpty {
                 emptyCard(
-                    title: "No workouts yet",
-                    subtitle: "Add a routine and the programme will keep rotating through the workouts forever."
+                    title: LocalizedStringResource("programmes.detail.workouts.empty.title", defaultValue: "No workouts yet", table: "Programmes"),
+                    subtitle: LocalizedStringResource("programmes.detail.workouts.empty.subtitle", defaultValue: "Add a routine and the programme will keep rotating through the workouts forever.", table: "Programmes")
                 )
             } else {
                 VStack(spacing: 12) {
@@ -259,8 +346,8 @@ struct ProgramDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
                 SectionHeaderView(
-                    title: "Blocks",
-                    subtitle: "Open a block to manage its workouts. Add the next block when you are ready to phase the programme forward."
+                    resourceTitle: LocalizedStringResource("programmes.detail.blocks", defaultValue: "Blocks", table: "Programmes"),
+                    resourceSubtitle: LocalizedStringResource("programmes.detail.blocks.subtitle", defaultValue: "Open a block to manage its workouts. Add the next block when you are ready to phase the programme forward.", table: "Programmes")
                 )
 
                 Spacer()
@@ -268,15 +355,19 @@ struct ProgramDetailView: View {
                 Button {
                     showingAddBlock = true
                 } label: {
-                    Label("Add", systemImage: "plus")
+                    Label {
+                        Text(LocalizedStringResource("programmes.action.add", defaultValue: "Add", table: "Programmes"))
+                    } icon: {
+                        Image(systemName: "plus")
+                    }
                 }
                 .buttonStyle(.bordered)
             }
 
             if visibleBlocks.isEmpty {
                 emptyCard(
-                    title: "No blocks yet",
-                    subtitle: "Add a block if you want phased weeks or phased split passes instead of a single continuous workout rotation."
+                    title: LocalizedStringResource("programmes.detail.blocks.empty.title", defaultValue: "No blocks yet", table: "Programmes"),
+                    subtitle: LocalizedStringResource("programmes.detail.blocks.empty.subtitle", defaultValue: "Add a block if you want phased weeks or phased split passes instead of a single continuous workout rotation.", table: "Programmes")
                 )
             } else {
                 VStack(spacing: 12) {
@@ -299,13 +390,13 @@ struct ProgramDetailView: View {
     }
 
     @ViewBuilder
-    private func detailRow(title: String, value: String) -> some View {
+    private func detailRow(title: LocalizedStringResource, value: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
-            Text(value)
+            Text(verbatim: value)
                 .font(.caption)
                 .fontWeight(.semibold)
                 .multilineTextAlignment(.trailing)
@@ -313,7 +404,7 @@ struct ProgramDetailView: View {
     }
 
     @ViewBuilder
-    private func emptyCard(title: String, subtitle: String) -> some View {
+    private func emptyCard(title: LocalizedStringResource, subtitle: LocalizedStringResource) -> some View {
         CardRowContainer {
             VStack(alignment: .leading, spacing: 6) {
                 Text(title)
@@ -358,17 +449,11 @@ struct ProgramDetailView: View {
     }
 
     private func durationSummary(for block: ProgramBlock) -> String {
-        if block.repeatsForever {
-            return "Repeats forever"
-        }
-
-        let duration = max(block.durationCount, 1)
-        switch program.mode {
-        case .weekly:
-            return "\(duration) week\(duration == 1 ? "" : "s")"
-        case .continuous:
-            return "\(duration) full split\(duration == 1 ? "" : "s")"
-        }
+        programmeDurationSummary(
+            mode: program.mode,
+            durationCount: block.durationCount,
+            repeatsForever: block.repeatsForever
+        )
     }
 
 }
@@ -384,12 +469,12 @@ private struct ProgramBlockSummaryCard: View {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 8) {
-                        Text(block.displayName)
+                        Text(verbatim: block.displayName)
                             .font(.headline)
                             .foregroundStyle(.primary)
 
                         if isCurrent {
-                            Text("CURRENT")
+                            Text(LocalizedStringResource("programmes.status.current", defaultValue: "CURRENT", table: "Programmes"))
                                 .font(.caption2)
                                 .fontWeight(.bold)
                                 .foregroundStyle(.blue)
@@ -404,7 +489,7 @@ private struct ProgramBlockSummaryCard: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    Text("\(workoutCount) workout\(workoutCount == 1 ? "" : "s")")
+                    Text(verbatim: programmeWorkoutCount(workoutCount))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -446,7 +531,7 @@ private struct ProgramWorkoutRowCard: View {
         if showScheduleLabel, let weekday = workout.resolvedWeekday {
             return weekday.title
         }
-        return "Workout \(workout.order + 1)"
+        return programmeWorkoutFallbackName(order: workout.order)
     }
 
     var body: some View {
@@ -454,12 +539,12 @@ private struct ProgramWorkoutRowCard: View {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 8) {
-                        Text(workout.displayName)
+                        Text(verbatim: workout.displayName)
                             .font(.subheadline)
                             .fontWeight(.semibold)
 
                         if isNextWorkout {
-                            Text("NEXT")
+                            Text(LocalizedStringResource("programmes.status.next", defaultValue: "NEXT", table: "Programmes"))
                                 .font(.caption2)
                                 .fontWeight(.bold)
                                 .foregroundStyle(.green)
@@ -470,7 +555,7 @@ private struct ProgramWorkoutRowCard: View {
                         }
                     }
 
-                    Text(labelText)
+                    Text(verbatim: labelText)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -480,7 +565,9 @@ private struct ProgramWorkoutRowCard: View {
                 Button {
                     onStart()
                 } label: {
-                    Text(isResumableWorkout ? "Resume" : "Start")
+                    Text(isResumableWorkout
+                         ? LocalizedStringResource("programmes.action.resume", defaultValue: "Resume", table: "Programmes")
+                         : LocalizedStringResource("programmes.action.start", defaultValue: "Start", table: "Programmes"))
                         .font(.caption)
                         .fontWeight(.semibold)
                         .frame(minWidth: 64)
@@ -524,7 +611,7 @@ private struct ProgramBlockDetailView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(alignment: .top, spacing: 12) {
                             VStack(alignment: .leading, spacing: 6) {
-                                Text(block.displayName)
+                                Text(verbatim: block.displayName)
                                     .font(.title3)
                                     .fontWeight(.semibold)
 
@@ -536,7 +623,7 @@ private struct ProgramBlockDetailView: View {
                             Spacer()
 
                             if resolvedState.currentBlock?.id == block.id {
-                                Text("CURRENT")
+                                Text(LocalizedStringResource("programmes.status.current", defaultValue: "CURRENT", table: "Programmes"))
                                     .font(.caption2)
                                     .fontWeight(.bold)
                                     .foregroundStyle(.blue)
@@ -551,7 +638,11 @@ private struct ProgramBlockDetailView: View {
                             Button {
                                 blockForNewWorkout = block
                             } label: {
-                                Label("Add Workout", systemImage: "plus")
+                                Label {
+                                    Text(LocalizedStringResource("programmes.action.addWorkout", defaultValue: "Add Workout", table: "Programmes"))
+                                } icon: {
+                                    Image(systemName: "plus")
+                                }
                                     .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.bordered)
@@ -559,7 +650,11 @@ private struct ProgramBlockDetailView: View {
                             Button {
                                 showingManageWorkouts = true
                             } label: {
-                                Label("Edit", systemImage: "slider.horizontal.3")
+                                Label {
+                                    Text(LocalizedStringResource("programmes.action.edit", defaultValue: "Edit", table: "Programmes"))
+                                } icon: {
+                                    Image(systemName: "slider.horizontal.3")
+                                }
                                     .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.bordered)
@@ -570,9 +665,9 @@ private struct ProgramBlockDetailView: View {
                 if sortedWorkouts.isEmpty {
                     CardRowContainer {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("No workouts yet")
+                            Text(LocalizedStringResource("programmes.detail.workouts.empty.title", defaultValue: "No workouts yet", table: "Programmes"))
                                 .font(.headline)
-                            Text("Add workouts to this block. You can keep the same routines as the previous block or change them when the phase changes.")
+                            Text(LocalizedStringResource("programmes.blockDetail.empty.subtitle", defaultValue: "Add workouts to this block. You can keep the same routines as the previous block or change them when the phase changes.", table: "Programmes"))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -615,17 +710,11 @@ private struct ProgramBlockDetailView: View {
     }
 
     private var durationSummary: String {
-        if block.repeatsForever {
-            return "Repeats forever"
-        }
-
-        let duration = max(block.durationCount, 1)
-        switch program.mode {
-        case .weekly:
-            return "\(duration) week\(duration == 1 ? "" : "s")"
-        case .continuous:
-            return "\(duration) full split\(duration == 1 ? "" : "s")"
-        }
+        programmeDurationSummary(
+            mode: program.mode,
+            durationCount: block.durationCount,
+            repeatsForever: block.repeatsForever
+        )
     }
 
     private func openSession(for workout: ProgramWorkout) {
@@ -687,6 +776,24 @@ private struct ProgramManagementSheet: View {
         programService.willArchiveOnDelete(program)
     }
 
+    private var deleteDialogTitle: String {
+        String(localized: deletesAsArchive
+               ? LocalizedStringResource("programmes.dialog.archive.title", defaultValue: "Archive Programme?", table: "Programmes")
+               : LocalizedStringResource("programmes.dialog.delete.title", defaultValue: "Delete Programme?", table: "Programmes"))
+    }
+
+    private var deleteActionTitle: String {
+        String(localized: deletesAsArchive
+               ? LocalizedStringResource("programmes.action.archiveProgramme", defaultValue: "Archive Programme", table: "Programmes")
+               : LocalizedStringResource("programmes.action.deleteProgramme", defaultValue: "Delete Programme", table: "Programmes"))
+    }
+
+    private var deleteMessageResource: LocalizedStringResource {
+        deletesAsArchive
+        ? LocalizedStringResource("programmes.dialog.archive.message", defaultValue: "This programme already has session history, so it will be archived instead of permanently deleted.", table: "Programmes")
+        : LocalizedStringResource("programmes.dialog.delete.message", defaultValue: "This will permanently delete the programme because it has not been used yet.", table: "Programmes")
+    }
+
     var body: some View {
         List {
             actionsSection
@@ -699,11 +806,15 @@ private struct ProgramManagementSheet: View {
         }
         .cardListScreen()
         .environment(\.editMode, $editMode)
-        .navigationTitle("Edit Programme")
+        .navigationTitle(String(localized: LocalizedStringResource("programmes.editor.editProgramme", defaultValue: "Edit Programme", table: "Programmes")))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Done") { dismiss() }
+                Button {
+                    dismiss()
+                } label: {
+                    Text(LocalizedStringResource("programmes.action.done", defaultValue: "Done", table: "Programmes"))
+                }
             }
 
             if let managedBlock {
@@ -711,7 +822,11 @@ private struct ProgramManagementSheet: View {
                     Button {
                         blockForNewWorkout = managedBlock
                     } label: {
-                        Label("Add Workout", systemImage: "plus")
+                        Label {
+                            Text(LocalizedStringResource("programmes.action.addWorkout", defaultValue: "Add Workout", table: "Programmes"))
+                        } icon: {
+                            Image(systemName: "plus")
+                        }
                     }
                 }
             }
@@ -728,30 +843,30 @@ private struct ProgramManagementSheet: View {
             }
             .editorSheetPresentation()
         }
-        .confirmationDialog(deletesAsArchive ? "Archive Programme?" : "Delete Programme?", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
-            Button(deletesAsArchive ? "Archive Programme" : "Delete Programme", role: .destructive) {
+        .confirmationDialog(deleteDialogTitle, isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
+            Button(deleteActionTitle, role: .destructive) {
                 programService.delete(program)
                 dismiss()
                 DispatchQueue.main.async {
                     onDelete()
                 }
             }
-            Button("Cancel", role: .cancel) {}
+            Button(String(localized: LocalizedStringResource("programmes.action.cancel", defaultValue: "Cancel", table: "Programmes")), role: .cancel) {}
         } message: {
-            Text(
-                deletesAsArchive
-                    ? "This programme already has session history, so it will be archived instead of permanently deleted."
-                    : "This will permanently delete the programme because it has not been used yet."
-            )
+            Text(deleteMessageResource)
         }
     }
 
     private var actionsSection: some View {
-        Section("Actions") {
+        Section {
             Button {
                 showingProgramEditor = true
             } label: {
-                Label("Edit Programme Details", systemImage: "pencil")
+                Label {
+                    Text(LocalizedStringResource("programmes.action.editProgrammeDetails", defaultValue: "Edit Programme Details", table: "Programmes"))
+                } icon: {
+                    Image(systemName: "pencil")
+                }
                     .cardListRowContentPadding()
             }
             .cardListRowStyle()
@@ -760,7 +875,11 @@ private struct ProgramManagementSheet: View {
                 Button {
                     programService.convertToBlocksMode(program)
                 } label: {
-                    Label("Switch To Blocks", systemImage: "square.split.2x1")
+                    Label {
+                        Text(LocalizedStringResource("programmes.action.switchToBlocks", defaultValue: "Switch To Blocks", table: "Programmes"))
+                    } icon: {
+                        Image(systemName: "square.split.2x1")
+                    }
                         .cardListRowContentPadding()
                 }
                 .cardListRowStyle()
@@ -768,7 +887,11 @@ private struct ProgramManagementSheet: View {
                 Button {
                     programService.convertToDirectWorkoutMode(program)
                 } label: {
-                    Label("Use Workout Rotation", systemImage: "repeat")
+                    Label {
+                        Text(LocalizedStringResource("programmes.action.useWorkoutRotation", defaultValue: "Use Workout Rotation", table: "Programmes"))
+                    } icon: {
+                        Image(systemName: "repeat")
+                    }
                         .cardListRowContentPadding()
                 }
                 .cardListRowStyle()
@@ -777,17 +900,23 @@ private struct ProgramManagementSheet: View {
             Button(role: .destructive) {
                 showingDeleteConfirmation = true
             } label: {
-                Label(deletesAsArchive ? "Archive Programme" : "Delete Programme", systemImage: "trash")
+                Label {
+                    Text(verbatim: deleteActionTitle)
+                } icon: {
+                    Image(systemName: "trash")
+                }
                     .cardListRowContentPadding()
             }
             .cardListRowStyle()
+        } header: {
+            Text(LocalizedStringResource("programmes.section.actions", defaultValue: "Actions", table: "Programmes"))
         }
     }
 
     private func workoutsSection(for block: ProgramBlock) -> some View {
         Section {
             if managedWorkouts.isEmpty {
-                Text("Add workouts to get this programme moving.")
+                Text(LocalizedStringResource("programmes.management.workouts.empty", defaultValue: "Add workouts to get this programme moving.", table: "Programmes"))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .cardListRowContentPadding()
@@ -805,9 +934,13 @@ private struct ProgramManagementSheet: View {
                 }
             }
         } header: {
-            Text(programService.isDirectWorkoutMode(program) ? "Workout Order" : block.displayName)
+            if programService.isDirectWorkoutMode(program) {
+                Text(LocalizedStringResource("programmes.section.workoutOrder", defaultValue: "Workout Order", table: "Programmes"))
+            } else {
+                Text(verbatim: block.displayName)
+            }
         } footer: {
-            Text("Drag workouts to reorder them. Swipe to delete if you need to remove one.")
+            Text(LocalizedStringResource("programmes.management.workoutOrder.footer", defaultValue: "Drag workouts to reorder them. Swipe to delete if you need to remove one.", table: "Programmes"))
         }
     }
 
@@ -819,7 +952,7 @@ private struct ProgramManagementSheet: View {
                 } label: {
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(block.displayName)
+                            Text(verbatim: block.displayName)
                                 .font(.body.weight(.semibold))
                             Text(blockSummary(for: block))
                                 .font(.caption)
@@ -833,9 +966,9 @@ private struct ProgramManagementSheet: View {
                 .cardListRowStyle()
             }
         } header: {
-            Text("Blocks")
+            Text(LocalizedStringResource("programmes.detail.blocks", defaultValue: "Blocks", table: "Programmes"))
         } footer: {
-            Text("Open a block to reorder its workouts with drag and drop.")
+            Text(LocalizedStringResource("programmes.management.blocks.footer", defaultValue: "Open a block to reorder its workouts with drag and drop.", table: "Programmes"))
         }
     }
 
@@ -852,15 +985,13 @@ private struct ProgramManagementSheet: View {
     private func blockSummary(for block: ProgramBlock) -> String {
         let workoutCount = block.workouts.count
         let durationText: String
-        if block.repeatsForever {
-            durationText = "Repeats forever"
-        } else if program.mode == .weekly {
-            durationText = "\(block.durationCount) week\(block.durationCount == 1 ? "" : "s")"
-        } else {
-            durationText = "\(block.durationCount) full split\(block.durationCount == 1 ? "" : "s")"
-        }
+        durationText = programmeDurationSummary(
+            mode: program.mode,
+            durationCount: block.durationCount,
+            repeatsForever: block.repeatsForever
+        )
 
-        return "\(workoutCount) workout\(workoutCount == 1 ? "" : "s") • \(durationText)"
+        return programmeBlockSummary(workoutCount: workoutCount, durationText: durationText)
     }
 }
 
@@ -894,7 +1025,7 @@ private struct ProgramBlockManagementSheet: View {
     var body: some View {
         List {
             Section {
-                Text(block.displayName)
+                Text(verbatim: block.displayName)
                     .font(.body.weight(.semibold))
                     .cardListRowContentPadding()
                     .cardListRowStyle()
@@ -904,12 +1035,12 @@ private struct ProgramBlockManagementSheet: View {
                     .cardListRowContentPadding()
                     .cardListRowStyle()
             } header: {
-                Text("Block")
+                Text(LocalizedStringResource("programmes.section.block", defaultValue: "Block", table: "Programmes"))
             }
 
             Section {
                 if sortedWorkouts.isEmpty {
-                    Text("Add workouts to start this block.")
+                    Text(LocalizedStringResource("programmes.blockManagement.empty", defaultValue: "Add workouts to start this block.", table: "Programmes"))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .cardListRowContentPadding()
@@ -927,16 +1058,20 @@ private struct ProgramBlockManagementSheet: View {
                     }
                 }
             } header: {
-                Text("Workout Order")
+                Text(LocalizedStringResource("programmes.section.workoutOrder", defaultValue: "Workout Order", table: "Programmes"))
             } footer: {
-                Text("Drag workouts to reorder them. Swipe to delete if you need to remove one.")
+                Text(LocalizedStringResource("programmes.management.workoutOrder.footer", defaultValue: "Drag workouts to reorder them. Swipe to delete if you need to remove one.", table: "Programmes"))
             }
 
             Section {
                 Button(role: .destructive) {
                     showingDeleteConfirmation = true
                 } label: {
-                    Label("Delete Block", systemImage: "trash")
+                    Label {
+                        Text(LocalizedStringResource("programmes.action.deleteBlock", defaultValue: "Delete Block", table: "Programmes"))
+                    } icon: {
+                        Image(systemName: "trash")
+                    }
                         .cardListRowContentPadding()
                 }
                 .cardListRowStyle()
@@ -944,18 +1079,26 @@ private struct ProgramBlockManagementSheet: View {
         }
         .cardListScreen()
         .environment(\.editMode, $editMode)
-        .navigationTitle("Edit Block")
+        .navigationTitle(String(localized: LocalizedStringResource("programmes.editor.editBlock", defaultValue: "Edit Block", table: "Programmes")))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Done") { dismiss() }
+                Button {
+                    dismiss()
+                } label: {
+                    Text(LocalizedStringResource("programmes.action.done", defaultValue: "Done", table: "Programmes"))
+                }
             }
 
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     blockForNewWorkout = block
                 } label: {
-                    Label("Add Workout", systemImage: "plus")
+                    Label {
+                        Text(LocalizedStringResource("programmes.action.addWorkout", defaultValue: "Add Workout", table: "Programmes"))
+                    } icon: {
+                        Image(systemName: "plus")
+                    }
                 }
             }
         }
@@ -965,29 +1108,26 @@ private struct ProgramBlockManagementSheet: View {
             }
             .editorSheetPresentation()
         }
-        .confirmationDialog("Delete Block?", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
-            Button("Delete Block", role: .destructive) {
+        .confirmationDialog(String(localized: LocalizedStringResource("programmes.dialog.deleteBlock.title", defaultValue: "Delete Block?", table: "Programmes")), isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
+            Button(String(localized: LocalizedStringResource("programmes.action.deleteBlock", defaultValue: "Delete Block", table: "Programmes")), role: .destructive) {
                 programService.deleteBlock(block)
                 dismiss()
                 DispatchQueue.main.async {
                     onDelete?()
                 }
             }
-            Button("Cancel", role: .cancel) {}
+            Button(String(localized: LocalizedStringResource("programmes.action.cancel", defaultValue: "Cancel", table: "Programmes")), role: .cancel) {}
         } message: {
-            Text("This removes the block and all of its workout slots.")
+            Text(LocalizedStringResource("programmes.dialog.deleteBlock.message", defaultValue: "This removes the block and all of its workout slots.", table: "Programmes"))
         }
     }
 
     private var blockDurationSummary: String {
-        if block.repeatsForever {
-            return "Repeats forever"
-        }
-
-        if program.mode == .weekly {
-            return "\(block.durationCount) week\(block.durationCount == 1 ? "" : "s")"
-        }
-        return "\(block.durationCount) full split\(block.durationCount == 1 ? "" : "s")"
+        programmeDurationSummary(
+            mode: program.mode,
+            durationCount: block.durationCount,
+            repeatsForever: block.repeatsForever
+        )
     }
 
     private func deleteWorkouts(at offsets: IndexSet) {
@@ -1006,15 +1146,15 @@ private struct ProgramWorkoutManageRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(workout.displayName)
+            Text(verbatim: workout.displayName)
                 .font(.body.weight(.semibold))
 
             if showScheduleLabel, let weekday = workout.resolvedWeekday {
-                Text(weekday.title)
+                Text(verbatim: weekday.title)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                Text("Workout \(workout.order + 1)")
+                Text(verbatim: programmeWorkoutFallbackName(order: workout.order))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -1057,61 +1197,84 @@ struct ProgramEditorSheet: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
                 VStack(alignment: .leading, spacing: 8) {
-                    SectionHeaderView(title: "Programme")
+                    SectionHeaderView(resourceTitle: LocalizedStringResource("programmes.section.programme", defaultValue: "Programme", table: "Programmes"))
                     ConnectedCardSection {
                         ConnectedCardRow {
-                            LabeledContent("Name") {
-                                TextField("Required", text: $name)
+                            LabeledContent {
+                                TextField(
+                                    text: $name,
+                                    prompt: Text(LocalizedStringResource("programmes.placeholder.required", defaultValue: "Required", table: "Programmes"))
+                                ) {
+                                    Text(LocalizedStringResource("programmes.field.name", defaultValue: "Name", table: "Programmes"))
+                                }
                                     .multilineTextAlignment(.trailing)
+                            } label: {
+                                Text(LocalizedStringResource("programmes.field.name", defaultValue: "Name", table: "Programmes"))
                             }
                         }
                         ConnectedCardDivider()
                         ConnectedCardRow {
-                            LabeledContent("Notes") {
-                                TextField("Optional", text: $notes, axis: .vertical)
+                            LabeledContent {
+                                TextField(
+                                    text: $notes,
+                                    prompt: Text(LocalizedStringResource("programmes.placeholder.optional", defaultValue: "Optional", table: "Programmes")),
+                                    axis: .vertical
+                                ) {
+                                    Text(LocalizedStringResource("programmes.field.notes", defaultValue: "Notes", table: "Programmes"))
+                                }
                                     .lineLimit(3, reservesSpace: true)
                                     .multilineTextAlignment(.trailing)
+                            } label: {
+                                Text(LocalizedStringResource("programmes.field.notes", defaultValue: "Notes", table: "Programmes"))
                             }
                         }
                         ConnectedCardDivider()
                         ConnectedCardRow {
-                            Picker("Schedule", selection: $mode) {
+                            Picker(selection: $mode) {
                                 ForEach(ProgramMode.allCases) { mode in
                                     Text(mode.titleResource).tag(mode)
                                 }
+                            } label: {
+                                Text(LocalizedStringResource("programmes.field.schedule", defaultValue: "Schedule", table: "Programmes"))
                             }
                         }
                         ConnectedCardDivider()
                         ConnectedCardRow {
-                            DatePicker("Start Date", selection: $startDate, displayedComponents: .date)
+                            DatePicker(selection: $startDate, displayedComponents: .date) {
+                                Text(LocalizedStringResource("programmes.field.startDate", defaultValue: "Start Date", table: "Programmes"))
+                            }
                         }
                         ConnectedCardDivider()
                         ConnectedCardRow {
-                            Toggle("Set Active", isOn: $isActive)
+                            Toggle(isOn: $isActive) {
+                                Text(LocalizedStringResource("programmes.field.setActive", defaultValue: "Set Active", table: "Programmes"))
+                            }
                         }
                     }
                 }
 
                 CardRowContainer {
-                    Text("New programmes start as a continuous workout rotation. You can keep that simple setup or switch into blocks later if you want phases.")
+                    Text(LocalizedStringResource("programmes.editor.structureHint", defaultValue: "New programmes start as a continuous workout rotation. You can keep that simple setup or switch into blocks later if you want phases.", table: "Programmes"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    SectionHeaderView(title: "Progression")
+                    SectionHeaderView(resourceTitle: LocalizedStringResource("programmes.section.progression", defaultValue: "Progression", table: "Programmes"))
                     ConnectedCardSection {
                         ConnectedCardRow {
-                            Picker("Default Profile", selection: $selectedProgressionProfileId) {
-                                Text("None").tag(Optional<UUID>.none)
+                            Picker(selection: $selectedProgressionProfileId) {
+                                Text(LocalizedStringResource("programmes.value.none", defaultValue: "None", table: "Programmes")).tag(Optional<UUID>.none)
                                 ForEach(progressionService.profiles, id: \.id) { profile in
-                                    Text(profile.name).tag(Optional(profile.id))
+                                    Text(verbatim: profile.name).tag(Optional(profile.id))
                                 }
+                            } label: {
+                                Text(LocalizedStringResource("programmes.field.defaultProfile", defaultValue: "Default Profile", table: "Programmes"))
                             }
                         }
                         ConnectedCardDivider()
                         ConnectedCardRow {
-                            Text("Programme-started sessions will use this profile for exercises that do not already have their own saved override.")
+                            Text(LocalizedStringResource("programmes.editor.progressionHint", defaultValue: "Programme-started sessions will use this profile for exercises that do not already have their own saved override.", table: "Programmes"))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -1120,14 +1283,22 @@ struct ProgramEditorSheet: View {
 
                 if mode == .continuous {
                     VStack(alignment: .leading, spacing: 8) {
-                        SectionHeaderView(title: "Continuous Schedule")
+                        SectionHeaderView(resourceTitle: LocalizedStringResource("programmes.section.continuousSchedule", defaultValue: "Continuous Schedule", table: "Programmes"))
                         ConnectedCardSection {
                             ConnectedCardRow {
-                                Stepper("Train Days Before Rest: \(trainDaysBeforeRest)", value: $trainDaysBeforeRest, in: 1...14)
+                                Stepper(
+                                    String(localized: LocalizedStringResource("programmes.field.trainDaysBeforeRest", defaultValue: "Train Days Before Rest: \(trainDaysBeforeRest)", table: "Programmes")),
+                                    value: $trainDaysBeforeRest,
+                                    in: 1...14
+                                )
                             }
                             ConnectedCardDivider()
                             ConnectedCardRow {
-                                Stepper("Rest Days: \(restDays)", value: $restDays, in: 0...7)
+                                Stepper(
+                                    String(localized: LocalizedStringResource("programmes.field.restDays", defaultValue: "Rest Days: \(restDays)", table: "Programmes")),
+                                    value: $restDays,
+                                    in: 0...7
+                                )
                             }
                         }
                     }
@@ -1136,16 +1307,24 @@ struct ProgramEditorSheet: View {
             .screenContentPadding()
         }
         .appBackground()
-        .navigationTitle(program == nil ? "New Programme" : "Edit Programme")
+        .navigationTitle(String(localized: program == nil
+                                ? LocalizedStringResource("programmes.editor.newProgramme", defaultValue: "New Programme", table: "Programmes")
+                                : LocalizedStringResource("programmes.editor.editProgramme", defaultValue: "Edit Programme", table: "Programmes")))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") { dismiss() }
+                Button {
+                    dismiss()
+                } label: {
+                    Text(LocalizedStringResource("programmes.action.cancel", defaultValue: "Cancel", table: "Programmes"))
+                }
             }
 
             ToolbarItem(placement: .confirmationAction) {
-                Button("Save") {
+                Button {
                     saveProgram()
+                } label: {
+                    Text(LocalizedStringResource("programmes.action.save", defaultValue: "Save", table: "Programmes"))
                 }
                 .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
@@ -1220,17 +1399,26 @@ private struct ProgramBlockEditorSheet: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
                 VStack(alignment: .leading, spacing: 8) {
-                    SectionHeaderView(title: "Block")
+                    SectionHeaderView(resourceTitle: LocalizedStringResource("programmes.section.block", defaultValue: "Block", table: "Programmes"))
                     ConnectedCardSection {
                         ConnectedCardRow {
-                            LabeledContent("Name") {
-                                TextField("Optional", text: $name)
+                            LabeledContent {
+                                TextField(
+                                    text: $name,
+                                    prompt: Text(LocalizedStringResource("programmes.placeholder.optional", defaultValue: "Optional", table: "Programmes"))
+                                ) {
+                                    Text(LocalizedStringResource("programmes.field.name", defaultValue: "Name", table: "Programmes"))
+                                }
                                     .multilineTextAlignment(.trailing)
+                            } label: {
+                                Text(LocalizedStringResource("programmes.field.name", defaultValue: "Name", table: "Programmes"))
                             }
                         }
                         ConnectedCardDivider()
                         ConnectedCardRow {
-                            Toggle("Repeat Forever", isOn: $repeatsForever)
+                            Toggle(isOn: $repeatsForever) {
+                                Text(LocalizedStringResource("programmes.field.repeatForever", defaultValue: "Repeat Forever", table: "Programmes"))
+                            }
                         }
                         if !repeatsForever {
                             ConnectedCardDivider()
@@ -1243,14 +1431,16 @@ private struct ProgramBlockEditorSheet: View {
 
                 if let previousBlock, !previousBlock.workouts.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
-                        SectionHeaderView(title: "Copy Previous Block")
+                        SectionHeaderView(resourceTitle: LocalizedStringResource("programmes.section.copyPreviousBlock", defaultValue: "Copy Previous Block", table: "Programmes"))
                         ConnectedCardSection {
                             ConnectedCardRow {
-                                Toggle("Copy workouts from \(previousBlock.displayName)", isOn: $copyPreviousBlock)
+                                Toggle(isOn: $copyPreviousBlock) {
+                                    Text(LocalizedStringResource("programmes.field.copyWorkoutsFrom", defaultValue: "Copy workouts from \(previousBlock.displayName)", table: "Programmes"))
+                                }
                             }
                             ConnectedCardDivider()
                             ConnectedCardRow {
-                                Text("This copies the routines and workout order so you can tweak the next phase instead of rebuilding it from scratch.")
+                                Text(LocalizedStringResource("programmes.editor.copyPreviousBlockHint", defaultValue: "This copies the routines and workout order so you can tweak the next phase instead of rebuilding it from scratch.", table: "Programmes"))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -1261,15 +1451,19 @@ private struct ProgramBlockEditorSheet: View {
             .screenContentPadding()
         }
         .appBackground()
-        .navigationTitle("New Block")
+        .navigationTitle(String(localized: LocalizedStringResource("programmes.editor.newBlock", defaultValue: "New Block", table: "Programmes")))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") { dismiss() }
+                Button {
+                    dismiss()
+                } label: {
+                    Text(LocalizedStringResource("programmes.action.cancel", defaultValue: "Cancel", table: "Programmes"))
+                }
             }
 
             ToolbarItem(placement: .confirmationAction) {
-                Button("Save") {
+                Button {
                     let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard let block = programService.addBlock(
                         to: program,
@@ -1284,6 +1478,8 @@ private struct ProgramBlockEditorSheet: View {
                     }
 
                     dismiss()
+                } label: {
+                    Text(LocalizedStringResource("programmes.action.save", defaultValue: "Save", table: "Programmes"))
                 }
             }
         }
@@ -1292,9 +1488,9 @@ private struct ProgramBlockEditorSheet: View {
     private var durationLabel: String {
         switch program.mode {
         case .weekly:
-            return "Weeks: \(durationCount)"
+            return String(localized: LocalizedStringResource("programmes.field.weeks", defaultValue: "Weeks: \(durationCount)", table: "Programmes"))
         case .continuous:
-            return "Full Splits: \(durationCount)"
+            return String(localized: LocalizedStringResource("programmes.field.fullSplits", defaultValue: "Full Splits: \(durationCount)", table: "Programmes"))
         }
     }
 }
@@ -1317,20 +1513,22 @@ private struct ProgramWorkoutEditorSheet: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
-                SectionHeaderView(title: "Workout")
+                SectionHeaderView(resourceTitle: LocalizedStringResource("programmes.section.workout", defaultValue: "Workout", table: "Programmes"))
                 ConnectedCardSection {
                     if routineService.routines.isEmpty {
                         ConnectedCardRow {
-                            Text("Create a routine first, then come back and attach it to this workout slot.")
+                            Text(LocalizedStringResource("programmes.workoutEditor.noRoutines", defaultValue: "Create a routine first, then come back and attach it to this workout slot.", table: "Programmes"))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                     } else {
                         ConnectedCardRow {
-                            Picker("Routine", selection: $selectedRoutineId) {
+                            Picker(selection: $selectedRoutineId) {
                                 ForEach(routineService.routines, id: \.id) { routine in
-                                    Text(routine.name).tag(Optional(routine.id))
+                                    Text(verbatim: routine.name).tag(Optional(routine.id))
                                 }
+                            } label: {
+                                Text(LocalizedStringResource("programmes.field.routine", defaultValue: "Routine", table: "Programmes"))
                             }
                         }
                     }
@@ -1338,19 +1536,28 @@ private struct ProgramWorkoutEditorSheet: View {
                     ConnectedCardDivider()
 
                     ConnectedCardRow {
-                        LabeledContent("Custom Name") {
-                            TextField("Optional", text: $customName)
+                        LabeledContent {
+                            TextField(
+                                text: $customName,
+                                prompt: Text(LocalizedStringResource("programmes.placeholder.optional", defaultValue: "Optional", table: "Programmes"))
+                            ) {
+                                Text(LocalizedStringResource("programmes.field.customName", defaultValue: "Custom Name", table: "Programmes"))
+                            }
                                 .multilineTextAlignment(.trailing)
+                        } label: {
+                            Text(LocalizedStringResource("programmes.field.customName", defaultValue: "Custom Name", table: "Programmes"))
                         }
                     }
 
                     if block.program.mode == .weekly {
                         ConnectedCardDivider()
                         ConnectedCardRow {
-                            Picker("Day", selection: $selectedWeekday) {
+                            Picker(selection: $selectedWeekday) {
                                 ForEach(ProgramWeekday.allCases) { weekday in
-                                    Text(weekday.title).tag(weekday)
+                                    Text(verbatim: weekday.title).tag(weekday)
                                 }
+                            } label: {
+                                Text(LocalizedStringResource("programmes.field.day", defaultValue: "Day", table: "Programmes"))
                             }
                         }
                     }
@@ -1359,15 +1566,19 @@ private struct ProgramWorkoutEditorSheet: View {
             .screenContentPadding()
         }
         .appBackground()
-        .navigationTitle("Add Workout")
+        .navigationTitle(String(localized: LocalizedStringResource("programmes.action.addWorkout", defaultValue: "Add Workout", table: "Programmes")))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") { dismiss() }
+                Button {
+                    dismiss()
+                } label: {
+                    Text(LocalizedStringResource("programmes.action.cancel", defaultValue: "Cancel", table: "Programmes"))
+                }
             }
 
             ToolbarItem(placement: .confirmationAction) {
-                Button("Save") {
+                Button {
                     let trimmedName = customName.trimmingCharacters(in: .whitespacesAndNewlines)
                     _ = programService.addWorkout(
                         to: block,
@@ -1376,6 +1587,8 @@ private struct ProgramWorkoutEditorSheet: View {
                         weekdayIndex: block.program.mode == .weekly ? selectedWeekday.rawValue : nil
                     )
                     dismiss()
+                } label: {
+                    Text(LocalizedStringResource("programmes.action.save", defaultValue: "Save", table: "Programmes"))
                 }
                 .disabled(selectedRoutine == nil)
             }

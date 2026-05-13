@@ -1354,7 +1354,7 @@ private struct OnboardingExistingRoutineEditorView: View {
         .onboardingContentPadding()
         .sheet(isPresented: $showingExerciseSheet) {
             RoutineExercisePickerSheet(
-                title: "Add Exercises",
+                titleResource: LocalizedStringResource("exercises.picker.addExercises", defaultValue: "Add Exercises", table: "Exercises"),
                 searchText: $searchText,
                 exercises: availableExercises,
                 isSyncingCatalog: isSyncingCatalog,

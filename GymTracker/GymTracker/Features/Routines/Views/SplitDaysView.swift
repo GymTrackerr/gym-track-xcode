@@ -22,13 +22,33 @@ struct SplitDaysView: View {
                     SingleDayLabelView(routine: routine)
                         .cardListRowContentPadding()
                 }
+                .contextMenu {
+                    Button(role: .destructive) {
+                        deleteRoutine(routine)
+                    } label: {
+                        let isArchive = splitDayService.willArchiveOnDelete(routine)
+                        Label {
+                            Text(isArchive
+                                 ? LocalizedStringResource("routines.action.archive", defaultValue: "Archive", table: "Routines")
+                                 : LocalizedStringResource("routines.action.delete", defaultValue: "Delete", table: "Routines"))
+                        } icon: {
+                            Image(systemName: isArchive ? "archivebox" : "trash")
+                        }
+                    }
+                }
                 .cardListRowStyle()
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     Button(role: .destructive) {
                         deleteRoutine(routine)
                     } label: {
                         let isArchive = splitDayService.willArchiveOnDelete(routine)
-                        Label(isArchive ? "Archive" : "Delete", systemImage: isArchive ? "archivebox" : "trash")
+                        Label {
+                            Text(isArchive
+                                 ? LocalizedStringResource("routines.action.archive", defaultValue: "Archive", table: "Routines")
+                                 : LocalizedStringResource("routines.action.delete", defaultValue: "Delete", table: "Routines"))
+                        } icon: {
+                            Image(systemName: isArchive ? "archivebox" : "trash")
+                        }
                     }
                 }
             }
@@ -37,9 +57,9 @@ struct SplitDaysView: View {
 
             if splitDayService.routines.isEmpty {
                 EmptyStateView(
-                    title: "No routines yet",
+                    resourceTitle: LocalizedStringResource("routines.empty.title", defaultValue: "No routines yet", table: "Routines"),
                     systemImage: "figure.walk.motion",
-                    message: "Create a routine to see it here."
+                    resourceMessage: LocalizedStringResource("routines.empty.message", defaultValue: "Create a routine to see it here.", table: "Routines")
                 )
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
@@ -48,7 +68,7 @@ struct SplitDaysView: View {
         }
         .cardListScreen()
         .appBackground()
-        .navigationTitle("Routines")
+        .navigationTitle(String(localized: LocalizedStringResource("routines.title", defaultValue: "Routines", table: "Routines")))
         .toolbar {
 #if os(iOS)
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -59,7 +79,11 @@ struct SplitDaysView: View {
                 Button {
                     splitDayService.editingSplit = true
                 } label: {
-                    Label("Add Routine", systemImage: "plus.circle")
+                    Label {
+                        Text(LocalizedStringResource("routines.action.addRoutine", defaultValue: "Add Routine", table: "Routines"))
+                    } icon: {
+                        Image(systemName: "plus.circle")
+                    }
                 }
             }
         }
@@ -67,13 +91,20 @@ struct SplitDaysView: View {
             NavigationView {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 12) {
-                        SectionHeaderView(title: "Routine")
+                        SectionHeaderView(resourceTitle: LocalizedStringResource("routines.section.routine", defaultValue: "Routine", table: "Routines"))
 
                         ConnectedCardSection {
                             ConnectedCardRow {
-                                LabeledContent("Name") {
-                                    TextField("Required", text: $splitDayService.editingContent)
+                                LabeledContent {
+                                    TextField(
+                                        text: $splitDayService.editingContent,
+                                        prompt: Text(LocalizedStringResource("routines.placeholder.required", defaultValue: "Required", table: "Routines"))
+                                    ) {
+                                        Text(LocalizedStringResource("routines.field.name", defaultValue: "Name", table: "Routines"))
+                                    }
                                         .multilineTextAlignment(.trailing)
+                                } label: {
+                                    Text(LocalizedStringResource("routines.field.name", defaultValue: "Name", table: "Routines"))
                                 }
                             }
                         }
@@ -81,7 +112,11 @@ struct SplitDaysView: View {
                         Button {
                             _ = splitDayService.addSplitDay()
                         } label: {
-                            Label("Save", systemImage: "plus.circle")
+                            Label {
+                                Text(LocalizedStringResource("routines.action.save", defaultValue: "Save", table: "Routines"))
+                            } icon: {
+                                Image(systemName: "plus.circle")
+                            }
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
@@ -89,13 +124,15 @@ struct SplitDaysView: View {
                     }
                     .screenContentPadding()
                 }
-                .navigationTitle("Create New Routine")
+                .navigationTitle(String(localized: LocalizedStringResource("routines.editor.createNewRoutine", defaultValue: "Create New Routine", table: "Routines")))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") {
+                        Button {
                             splitDayService.editingSplit = false
                             splitDayService.editingContent = ""
+                        } label: {
+                            Text(LocalizedStringResource("routines.action.cancel", defaultValue: "Cancel", table: "Routines"))
                         }
                     }
                 }
@@ -138,15 +175,26 @@ struct SplitDaysView: View {
             splitDayService.removeSplitDay(offsets: indexSet)
         }
 
-        let isPlural = toDelete.count > 1
-        let noun = isPlural ? "routines" : "routine"
         let message: String
         if archiveCount == toDelete.count {
-            message = isPlural ? "Routines have history. Will archive \(noun)." : "Routine has history. Will archive \(noun)."
+            message = String(localized: LocalizedStringResource(
+                "routines.toast.archiveWithHistory",
+                defaultValue: "\(toDelete.count) routines have history and will be archived.",
+                table: "Routines"
+            ))
         } else if archiveCount == 0 {
-            message = "Delete \(toDelete.count) \(noun)?"
+            message = String(localized: LocalizedStringResource(
+                "routines.toast.deleteRoutines",
+                defaultValue: "Delete \(toDelete.count) routines?",
+                table: "Routines"
+            ))
         } else {
-            message = "Will archive \(archiveCount), delete \(toDelete.count - archiveCount)."
+            let deleteCount = toDelete.count - archiveCount
+            message = String(localized: LocalizedStringResource(
+                "routines.toast.archiveAndDelete",
+                defaultValue: "Will archive \(archiveCount), delete \(deleteCount).",
+                table: "Routines"
+            ))
         }
 
         let deletedItems = toDelete

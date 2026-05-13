@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct RoutineExercisePickerSheet: View {
-    let title: String
+    let titleResource: LocalizedStringResource
     @Binding var searchText: String
     let exercises: [Exercise]
     let isSyncingCatalog: Bool
@@ -46,8 +46,13 @@ struct RoutineExercisePickerSheet: View {
                                 ProgressView()
                                     .controlSize(.small)
 
-                                Text(syncStatusText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Syncing ExerciseDB..." : syncStatusText)
-                                    .font(.subheadline.weight(.semibold))
+                                if syncStatusText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                    Text(LocalizedStringResource("exercises.picker.syncingExerciseDB", defaultValue: "Syncing ExerciseDB...", table: "Exercises"))
+                                        .font(.subheadline.weight(.semibold))
+                                } else {
+                                    Text(verbatim: syncStatusText)
+                                        .font(.subheadline.weight(.semibold))
+                                }
 
                                 Spacer()
                             }
@@ -62,13 +67,22 @@ struct RoutineExercisePickerSheet: View {
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                     }
 
-                    TextField("Search or Create Exercise", text: $searchText)
+                    TextField(
+                        text: $searchText,
+                        prompt: Text(LocalizedStringResource("exercises.picker.searchOrCreate", defaultValue: "Search or Create Exercise", table: "Exercises"))
+                    ) {
+                        Text(LocalizedStringResource("exercises.picker.searchOrCreate", defaultValue: "Search or Create Exercise", table: "Exercises"))
+                    }
                         .textFieldStyle(.roundedBorder)
 
                     Button {
                         onCreate()
                     } label: {
-                        Label("Add", systemImage: "plus.circle")
+                        Label {
+                            Text(LocalizedStringResource("exercises.action.add", defaultValue: "Add", table: "Exercises"))
+                        } icon: {
+                            Image(systemName: "plus.circle")
+                        }
                             .font(.title2)
                             .padding(.vertical, 4)
                     }
@@ -81,7 +95,7 @@ struct RoutineExercisePickerSheet: View {
                             } label: {
                                 HStack {
                                     Image(systemName: showsMinusIcon(exercise) ? "minus" : "plus")
-                                    Text(exercise.name)
+                                    Text(verbatim: exercise.name)
                                 }
                                 .cardListRowContentPadding()
                             }
@@ -95,14 +109,18 @@ struct RoutineExercisePickerSheet: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .screenContentPadding()
-                .navigationTitle(title)
+                .navigationTitle(Text(titleResource))
                 .toolbar {
                     ToolbarItem(placement: .navigationBarTrailing) {
-                        Button("Save", action: onSave)
+                        Button(action: onSave) {
+                            Text(LocalizedStringResource("shared.action.save", defaultValue: "Save", table: "Shared"))
+                        }
                     }
 
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel", action: onCancel)
+                        Button(action: onCancel) {
+                            Text(LocalizedStringResource("shared.action.cancel", defaultValue: "Cancel", table: "Shared"))
+                        }
                     }
                 }
             }

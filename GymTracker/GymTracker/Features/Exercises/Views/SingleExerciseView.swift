@@ -1689,7 +1689,11 @@ struct SingleExerciseLabelView: View {
                                     .foregroundColor(.secondary)
                             } else {
                                 if (orderInSplit != nil) {
-                                    Text("Order \((orderInSplit ?? 0)+1)")
+                                    Text(LocalizedStringResource(
+                                        "exercises.label.order",
+                                        defaultValue: "Order \((orderInSplit ?? 0) + 1)",
+                                        table: "Exercises"
+                                    ))
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                     Spacer()
@@ -1752,7 +1756,11 @@ struct DetailedExerciseLabelView: View {
                     }
                 } else if let orderInSplit = orderInSplit {
                     HStack {
-                        Text("Order \((orderInSplit)+1)")
+                        Text(LocalizedStringResource(
+                            "exercises.label.order",
+                            defaultValue: "Order \(orderInSplit + 1)",
+                            table: "Exercises"
+                        ))
                             .font(.caption)
                             .foregroundColor(.secondary)
                         Spacer()

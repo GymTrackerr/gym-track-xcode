@@ -33,22 +33,36 @@ struct SingleDayView: View {
         String(localized: LocalizedStringResource("progression.value.none", defaultValue: "None", table: "Progression"))
     }
 
+    private var exerciseCountText: String {
+        String(localized: LocalizedStringResource(
+            "routines.exercise.count",
+            defaultValue: "\(routine.exerciseSplits.count) exercises",
+            table: "Routines"
+        ))
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             if (editMode?.wrappedValue == .inactive){
                 CardRowContainer {
                     VStack(alignment: .leading, spacing: 12) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(routine.name)
+                            Text(verbatim: routine.name)
                                 .font(.title3.weight(.semibold))
-                            Text("\(routine.exerciseSplits.count) exercise\(routine.exerciseSplits.count == 1 ? "" : "s")")
+                            Text(verbatim: exerciseCountText)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
 
                         VStack(spacing: 6) {
-                            detailRow(title: "Order", value: "\(routine.order)")
-                            detailRow(title: "Date", value: routine.timestamp.formatted(date: .abbreviated, time: .omitted))
+                            detailRow(
+                                titleResource: LocalizedStringResource("routines.detail.order", defaultValue: "Order", table: "Routines"),
+                                value: "\(routine.order)"
+                            )
+                            detailRow(
+                                titleResource: LocalizedStringResource("routines.detail.date", defaultValue: "Date", table: "Routines"),
+                                value: routine.timestamp.formatted(date: .abbreviated, time: .omitted)
+                            )
                             detailRow(
                                 titleResource: LocalizedStringResource(
                                     "progression.title",
@@ -63,7 +77,7 @@ struct SingleDayView: View {
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 8) {
                                     ForEach(routine.aliases, id: \.self) { alias in
-                                        Text(alias)
+                                        Text(verbatim: alias)
                                             .font(.caption.weight(.semibold))
                                             .padding(.horizontal, 10)
                                             .padding(.vertical, 5)
@@ -77,18 +91,30 @@ struct SingleDayView: View {
                 .screenContentPadding()
             } else {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Identity")
+                    Text(LocalizedStringResource("routines.section.identity", defaultValue: "Identity", table: "Routines"))
                         .font(.headline)
 
-                    TextField("Routine Name", text: $routine.name)
+                    TextField(
+                        text: $routine.name,
+                        prompt: Text(LocalizedStringResource("routines.field.routineName", defaultValue: "Routine Name", table: "Routines"))
+                    ) {
+                        Text(LocalizedStringResource("routines.field.routineName", defaultValue: "Routine Name", table: "Routines"))
+                    }
                         .textFieldStyle(.roundedBorder)
 
                     HStack(spacing: 8) {
-                        TextField("Add alias", text: $routineAliasDraft)
+                        TextField(
+                            text: $routineAliasDraft,
+                            prompt: Text(LocalizedStringResource("routines.field.addAlias", defaultValue: "Add alias", table: "Routines"))
+                        ) {
+                            Text(LocalizedStringResource("routines.field.addAlias", defaultValue: "Add alias", table: "Routines"))
+                        }
                             .textFieldStyle(.roundedBorder)
 
-                        Button("Add") {
+                        Button {
                             addRoutineAlias()
+                        } label: {
+                            Text(LocalizedStringResource("routines.action.add", defaultValue: "Add", table: "Routines"))
                         }
                         .buttonStyle(.bordered)
                         .disabled(routineAliasDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -99,7 +125,7 @@ struct SingleDayView: View {
                             HStack(spacing: 8) {
                                 ForEach(routine.aliases, id: \.self) { alias in
                                     HStack(spacing: 4) {
-                                        Text(alias)
+                                        Text(verbatim: alias)
                                             .font(.caption)
                                         Button {
                                             removeRoutineAlias(alias)
@@ -156,7 +182,7 @@ struct SingleDayView: View {
                     .onDelete(perform: removeExercise)
                     .onMove(perform: moveExercise)
                 } header: {
-                    Text("Exercises")
+                    Text(LocalizedStringResource("routines.section.exercises", defaultValue: "Exercises", table: "Routines"))
                 }
 
                 Section {
@@ -171,7 +197,7 @@ struct SingleDayView: View {
                         .cardListRowStyle()
                     }
                 } header: {
-                    Text("Session History")
+                    Text(LocalizedStringResource("routines.section.sessionHistory", defaultValue: "Session History", table: "Routines"))
                 }
             }
             .cardListScreen()
@@ -185,7 +211,11 @@ struct SingleDayView: View {
                     RoutineHistoryChartView(routine: routine)
                         .appBackground()
                 } label: {
-                    Label("Charts", systemImage: "chart.bar.xaxis")
+                    Label {
+                        Text(LocalizedStringResource("routines.action.charts", defaultValue: "Charts", table: "Routines"))
+                    } icon: {
+                        Image(systemName: "chart.bar.xaxis")
+                    }
                 }
             }
             
@@ -199,13 +229,17 @@ struct SingleDayView: View {
                     exerciseService.editingContent = ""
                     esdService.addingExerciseSplit = true
                 } label: {
-                    Label("Add Exercise", systemImage: "plus.circle")
+                    Label {
+                        Text(LocalizedStringResource("routines.action.addExercise", defaultValue: "Add Exercise", table: "Routines"))
+                    } icon: {
+                        Image(systemName: "plus.circle")
+                    }
                 }
             }
         }
         .sheet(isPresented: $esdService.addingExerciseSplit) {
             RoutineExercisePickerSheet(
-                title: "Add Exercises",
+                titleResource: LocalizedStringResource("exercises.picker.addExercises", defaultValue: "Add Exercises", table: "Exercises"),
                 searchText: $exerciseService.editingContent,
                 exercises: exerciseService.exercises,
                 isSyncingCatalog: false,
@@ -302,19 +336,6 @@ struct SingleDayView: View {
     }
 
     @ViewBuilder
-    private func detailRow(title: String, value: String) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Text(value)
-                .font(.caption.weight(.semibold))
-                .multilineTextAlignment(.trailing)
-        }
-    }
-
-    @ViewBuilder
     private func detailRow(titleResource: LocalizedStringResource, value: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(titleResource)
@@ -336,10 +357,13 @@ struct SingleDayView: View {
         esdService.removeExercise(routine: routine, splitIds: splitIds)
 
         let count = toRemove.count
-        let noun = count == 1 ? "exercise" : "exercises"
         let removedItems = toRemove
         toastManager.add(
-            message: "Remove \(count) \(noun) from routine?",
+            message: String(localized: LocalizedStringResource(
+                "routines.toast.removeExercises",
+                defaultValue: "Remove \(count) exercises from routine?",
+                table: "Routines"
+            )),
             intent: .undo,
             timeout: 4,
             onAction: {
@@ -436,9 +460,13 @@ struct SingleDayLabelView: View {
     var body : some View {
         ZStack {
             VStack(alignment: .leading) {
-                Text(routine.name)
+                Text(verbatim: routine.name)
                 HStack {
-                    Text("Day #\(routine.order+1)")
+                    Text(LocalizedStringResource(
+                        "routines.label.dayNumber",
+                        defaultValue: "Day #\(routine.order + 1)",
+                        table: "Routines"
+                    ))
                         .font(.caption)
                         .foregroundColor(.secondary)
 
