@@ -25,20 +25,24 @@ struct NotesImportView: View {
                 pasteScreen
             }
         }
-        .navigationTitle("Import from Notes")
+        .navigationTitle(Text(LocalizedStringResource("sessions.import.title", defaultValue: "Import from Notes", table: "Sessions")))
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             viewModel.configure(context: modelContext, currentUserId: currentUserId)
         }
-        .alert("Duplicate Session Detected", isPresented: $viewModel.showDuplicatePrompt) {
-            Button("Cancel", role: .cancel) { }
-            Button("Import Anyway") {
+        .alert(Text(LocalizedStringResource("sessions.import.duplicate.title", defaultValue: "Duplicate Session Detected", table: "Sessions")), isPresented: $viewModel.showDuplicatePrompt) {
+            Button(role: .cancel) { } label: {
+                Text(LocalizedStringResource("sessions.action.cancel", defaultValue: "Cancel", table: "Sessions"))
+            }
+            Button {
                 if viewModel.importDuplicateAnyway() {
                     markCurrentDraftConfirmedAndAdvance()
                 }
+            } label: {
+                Text(LocalizedStringResource("sessions.import.duplicate.importAnyway", defaultValue: "Import Anyway", table: "Sessions"))
             }
         } message: {
-            Text("Seems like this session was already imported. Import anyway?")
+            Text(LocalizedStringResource("sessions.import.duplicate.message", defaultValue: "Seems like this session was already imported. Import anyway?", table: "Sessions"))
         }
         .sheet(
             isPresented: Binding(
@@ -58,14 +62,14 @@ struct NotesImportView: View {
 
     private var pasteScreen: some View {
         VStack(spacing: 16) {
-            Text("Paste one or more sessions from Notes, choose the default weight unit, then parse.")
+            Text(LocalizedStringResource("sessions.import.paste.instructions", defaultValue: "Paste one or more sessions from Notes, choose the default weight unit, then parse.", table: "Sessions"))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            Picker("Default Unit", selection: $viewModel.defaultWeightUnit) {
+            Picker(LocalizedStringResource("sessions.import.defaultUnit", defaultValue: "Default Unit", table: "Sessions"), selection: $viewModel.defaultWeightUnit) {
                 ForEach(WeightUnit.allCases) { unit in
-                    Text(unit.name.uppercased()).tag(unit)
+                    Text(verbatim: unit.name.uppercased()).tag(unit)
                 }
             }
             .pickerStyle(.segmented)
@@ -81,7 +85,11 @@ struct NotesImportView: View {
             Button {
                 pasteFromClipboardAdding()
             } label: {
-                Label("Paste Add", systemImage: "plus.doc.on.clipboard")
+                Label {
+                    Text(LocalizedStringResource("sessions.import.paste.add", defaultValue: "Paste Add", table: "Sessions"))
+                } icon: {
+                    Image(systemName: "plus.doc.on.clipboard")
+                }
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
@@ -89,7 +97,11 @@ struct NotesImportView: View {
             Button(role: .destructive) {
                 pasteFromClipboardReplacing()
             } label: {
-                Label("Paste Replace", systemImage: "doc.on.clipboard")
+                Label {
+                    Text(LocalizedStringResource("sessions.import.paste.replace", defaultValue: "Paste Replace", table: "Sessions"))
+                } icon: {
+                    Image(systemName: "doc.on.clipboard")
+                }
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
@@ -97,7 +109,7 @@ struct NotesImportView: View {
             Button {
                 viewModel.parseInput(text: viewModel.rawInput)
             } label: {
-                Text("Parse")
+                Text(LocalizedStringResource("sessions.import.parse", defaultValue: "Parse", table: "Sessions"))
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
@@ -128,10 +140,10 @@ struct NotesImportView: View {
 
     private var draftNavigator: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Draft")
+            Text(LocalizedStringResource("sessions.import.draft.title", defaultValue: "Draft", table: "Sessions"))
                 .font(.headline)
 
-            Picker("Draft", selection: Binding(
+            Picker(LocalizedStringResource("sessions.import.draft.picker", defaultValue: "Draft", table: "Sessions"), selection: Binding(
                 get: { viewModel.currentDraftIndex },
                 set: { viewModel.setCurrentDraftIndex($0) }
             )) {
@@ -142,15 +154,19 @@ struct NotesImportView: View {
             .pickerStyle(.segmented)
 
             HStack {
-                Button("Previous") {
+                Button {
                     viewModel.moveToPreviousDraft()
+                } label: {
+                    Text(LocalizedStringResource("sessions.import.draft.previous", defaultValue: "Previous", table: "Sessions"))
                 }
                 .disabled(viewModel.currentDraftIndex == 0)
 
                 Spacer()
 
-                Button("Next") {
+                Button {
                     viewModel.moveToNextDraft()
+                } label: {
+                    Text(LocalizedStringResource("sessions.import.draft.next", defaultValue: "Next", table: "Sessions"))
                 }
                 .disabled(viewModel.currentDraftIndex >= viewModel.batch.drafts.count - 1)
             }
@@ -163,7 +179,7 @@ struct NotesImportView: View {
                     if viewModel.isCommitting {
                         ProgressView()
                     } else {
-                        Text("Confirm This Import")
+                        Text(LocalizedStringResource("sessions.import.confirmCurrent", defaultValue: "Confirm This Import", table: "Sessions"))
                     }
                 }
                 .buttonStyle(.borderedProminent)
@@ -173,19 +189,21 @@ struct NotesImportView: View {
                     || !viewModel.canConfirmCurrentDraft
                 )
 
-                Button("Deny This Import", role: .destructive) {
+                Button(role: .destructive) {
                     denyCurrentDraft()
+                } label: {
+                    Text(LocalizedStringResource("sessions.import.denyCurrent", defaultValue: "Deny This Import", table: "Sessions"))
                 }
                 .buttonStyle(.bordered)
                 .disabled(currentDraftDecision != nil || viewModel.isCommitting)
             }
 
             if let decision = currentDraftDecision {
-                Text("Decision: \(decision.title)")
+                Text(LocalizedStringResource("sessions.import.decision.value", defaultValue: "Decision: \(decision.titleText)", table: "Sessions"))
                     .font(.footnote)
                     .foregroundStyle(decision.color)
             } else {
-                Text("Decision: Pending")
+                Text(LocalizedStringResource("sessions.import.decision.pending", defaultValue: "Decision: Pending", table: "Sessions"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -194,18 +212,18 @@ struct NotesImportView: View {
 
     private func draftHeader(_ draft: NotesImportDraft) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Header")
+            Text(LocalizedStringResource("sessions.import.header.title", defaultValue: "Header", table: "Sessions"))
                 .font(.headline)
 
-            Text("Routine: \(draft.routineNameRaw ?? "(none)")")
-            Text("Date: \(dateText(draft.parsedDate))")
-            Text("Start: \(dateText(draft.startTime))")
-            Text("End: \(dateText(draft.endTime))")
+            Text(LocalizedStringResource("sessions.import.header.routine", defaultValue: "Routine: \(draft.routineNameRaw ?? noneText)", table: "Sessions"))
+            Text(LocalizedStringResource("sessions.import.header.date", defaultValue: "Date: \(dateText(draft.parsedDate))", table: "Sessions"))
+            Text(LocalizedStringResource("sessions.import.header.start", defaultValue: "Start: \(dateText(draft.startTime))", table: "Sessions"))
+            Text(LocalizedStringResource("sessions.import.header.end", defaultValue: "End: \(dateText(draft.endTime))", table: "Sessions"))
 
             dateTimeResolverSection(draft)
 
             if viewModel.resolutionState.duplicateExists {
-                Text("Potential duplicate detected for this user.")
+                Text(LocalizedStringResource("sessions.import.duplicate.inline", defaultValue: "Potential duplicate detected for this user.", table: "Sessions"))
                     .font(.footnote)
                     .foregroundStyle(.orange)
             }
@@ -214,12 +232,12 @@ struct NotesImportView: View {
 
     private func routineSection(_ draft: NotesImportDraft) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Routine Resolution")
+            Text(LocalizedStringResource("sessions.import.routineResolution.title", defaultValue: "Routine Resolution", table: "Sessions"))
                 .font(.headline)
 
-            Picker("Routine", selection: $viewModel.resolutionState.routineMode) {
+            Picker(LocalizedStringResource("sessions.import.routineResolution.picker", defaultValue: "Routine", table: "Sessions"), selection: $viewModel.resolutionState.routineMode) {
                 ForEach(NotesImportViewModel.RoutineResolutionMode.allCases) { mode in
-                    Text(mode.title).tag(mode)
+                    Text(mode.titleResource).tag(mode)
                 }
             }
             .pickerStyle(.segmented)
@@ -227,41 +245,43 @@ struct NotesImportView: View {
             switch viewModel.resolutionState.routineMode {
             case .matched, .existing:
                 Picker(
-                    "Existing Routine",
+                    LocalizedStringResource("sessions.import.routineResolution.existingRoutine", defaultValue: "Existing Routine", table: "Sessions"),
                     selection: Binding(
                         get: { viewModel.resolutionState.selectedRoutineId },
                         set: { viewModel.resolutionState.selectedRoutineId = $0 }
                     )
                 ) {
-                    Text("None").tag(UUID?.none)
+                    Text(LocalizedStringResource("sessions.value.none", defaultValue: "None", table: "Sessions")).tag(UUID?.none)
                     ForEach(viewModel.resolutionState.routineCandidates, id: \.id) { routine in
-                        Text(routine.name).tag(Optional(routine.id))
+                        Text(verbatim: routine.name).tag(Optional(routine.id))
                     }
                 }
 
                 if viewModel.resolutionState.routineMode == .existing, draft.routineNameRaw != nil {
                     Toggle(
-                        "Remember header as routine alias",
+                        LocalizedStringResource("sessions.import.routineResolution.rememberAlias", defaultValue: "Remember header as routine alias", table: "Sessions"),
                         isOn: $viewModel.resolutionState.rememberRoutineAlias
                     )
                 }
 
             case .createNew:
                 TextField(
-                    "New routine name",
-                    text: $viewModel.resolutionState.newRoutineName
-                )
+                    text: $viewModel.resolutionState.newRoutineName,
+                    prompt: Text(LocalizedStringResource("sessions.import.routineResolution.newRoutineName", defaultValue: "New routine name", table: "Sessions"))
+                ) {
+                    Text(LocalizedStringResource("sessions.import.routineResolution.newRoutineNameLabel", defaultValue: "New routine name", table: "Sessions"))
+                }
                 .textFieldStyle(.roundedBorder)
 
                 if draft.routineNameRaw != nil {
                     Toggle(
-                        "Remember header as routine alias",
+                        LocalizedStringResource("sessions.import.routineResolution.rememberAlias", defaultValue: "Remember header as routine alias", table: "Sessions"),
                         isOn: $viewModel.resolutionState.rememberRoutineAlias
                     )
                 }
 
             case .none:
-                Text("Session will be imported without a routine.")
+                Text(LocalizedStringResource("sessions.import.routineResolution.noneMessage", defaultValue: "Session will be imported without a routine.", table: "Sessions"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -270,11 +290,11 @@ struct NotesImportView: View {
 
     private func exerciseResolutionSection(_ draft: NotesImportDraft) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Exercise Resolution")
+            Text(LocalizedStringResource("sessions.import.exerciseResolution.title", defaultValue: "Exercise Resolution", table: "Sessions"))
                 .font(.headline)
 
             if viewModel.resolutionState.exerciseSelections.isEmpty {
-                Text("No parsed exercises.")
+                Text(LocalizedStringResource("sessions.import.exerciseResolution.empty", defaultValue: "No parsed exercises.", table: "Sessions"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -282,52 +302,58 @@ struct NotesImportView: View {
             ForEach(exerciseNames(from: draft), id: \.self) { rawName in
                 if let selection = viewModel.resolutionState.exerciseSelections[rawName] {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(rawName)
+                        Text(verbatim: rawName)
                             .font(.subheadline)
                             .fontWeight(.semibold)
 
                         Picker(
-                            "Mode",
+                            LocalizedStringResource("sessions.import.exerciseResolution.mode", defaultValue: "Mode", table: "Sessions"),
                             selection: Binding(
                                 get: { selection.mode },
                                 set: { viewModel.resolutionState.exerciseSelections[rawName]?.mode = $0 }
                             )
                         ) {
                             ForEach(availableExerciseModes(for: rawName, selection: selection)) { mode in
-                                Text(mode.title).tag(mode)
+                                Text(mode.titleResource).tag(mode)
                             }
                         }
                         .pickerStyle(.segmented)
 
                         switch selection.mode {
                         case .matched:
-                            Text("Matched: \(viewModel.selectedExercise(for: rawName)?.name ?? "Unknown")")
+                            Text(LocalizedStringResource("sessions.import.exerciseResolution.matched", defaultValue: "Matched: \(viewModel.selectedExercise(for: rawName)?.name ?? unknownText)", table: "Sessions"))
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                             if let matchedExercise = viewModel.selectedExercise(for: rawName) {
-                                NavigationLink("View Exercise Details") {
+                                NavigationLink {
                                     SingleExerciseView(exercise: matchedExercise)
+                                } label: {
+                                    Text(LocalizedStringResource("sessions.import.exerciseResolution.viewDetails", defaultValue: "View Exercise Details", table: "Sessions"))
                                 }
                                 .font(.footnote)
                             }
                         case .existing:
-                            Button("Choose Exercise…") {
+                            Button {
                                 exercisePickerRawName = rawName
+                            } label: {
+                                Text(LocalizedStringResource("sessions.import.exerciseResolution.chooseExercise", defaultValue: "Choose Exercise...", table: "Sessions"))
                             }
                             .buttonStyle(.bordered)
 
-                            Text("Selected: \(viewModel.selectedExercise(for: rawName)?.name ?? "None")")
+                            Text(LocalizedStringResource("sessions.import.exerciseResolution.selected", defaultValue: "Selected: \(viewModel.selectedExercise(for: rawName)?.name ?? noneText)", table: "Sessions"))
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                             if let selectedExercise = viewModel.selectedExercise(for: rawName) {
-                                NavigationLink("View Exercise Details") {
+                                NavigationLink {
                                     SingleExerciseView(exercise: selectedExercise)
+                                } label: {
+                                    Text(LocalizedStringResource("sessions.import.exerciseResolution.viewDetails", defaultValue: "View Exercise Details", table: "Sessions"))
                                 }
                                 .font(.footnote)
                             }
 
                             Toggle(
-                                "Remember alias for this exercise",
+                                LocalizedStringResource("sessions.import.exerciseResolution.rememberAlias", defaultValue: "Remember alias for this exercise", table: "Sessions"),
                                 isOn: Binding(
                                     get: { viewModel.resolutionState.exerciseSelections[rawName]?.rememberAlias ?? false },
                                     set: { viewModel.resolutionState.exerciseSelections[rawName]?.rememberAlias = $0 }
@@ -335,12 +361,14 @@ struct NotesImportView: View {
                             )
                         case .createNew:
                             TextField(
-                                "Create exercise name",
                                 text: Binding(
                                     get: { viewModel.resolutionState.exerciseSelections[rawName]?.newExerciseName ?? rawName },
                                     set: { viewModel.resolutionState.exerciseSelections[rawName]?.newExerciseName = $0 }
-                                )
-                            )
+                                ),
+                                prompt: Text(LocalizedStringResource("sessions.import.exerciseResolution.createName", defaultValue: "Create exercise name", table: "Sessions"))
+                            ) {
+                                Text(LocalizedStringResource("sessions.import.exerciseResolution.createNameLabel", defaultValue: "Create exercise name", table: "Sessions"))
+                            }
                             .textFieldStyle(.roundedBorder)
                         }
                     }
@@ -354,23 +382,23 @@ struct NotesImportView: View {
 
     private func parsedItemsSection(_ draft: NotesImportDraft) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Parsed Items")
+            Text(LocalizedStringResource("sessions.import.parsed.title", defaultValue: "Parsed Items", table: "Sessions"))
                 .font(.headline)
 
             ForEach(Array(draft.items.enumerated()), id: \.offset) { index, item in
                 switch item {
                 case .strength(let strength):
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("\(index + 1). Strength: \(strength.exerciseNameRaw)")
+                        Text(LocalizedStringResource("sessions.import.parsed.strengthHeading", defaultValue: "\(index + 1). Strength: \(strength.exerciseNameRaw)", table: "Sessions"))
                             .font(.footnote)
                             .fontWeight(.semibold)
 
                         ForEach(Array(strength.sets.enumerated()), id: \.offset) { setIndex, set in
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Set \(setIndex + 1): \(setDescription(set))")
+                                Text(LocalizedStringResource("sessions.import.parsed.set", defaultValue: "Set \(setIndex + 1): \(setDescription(set))", table: "Sessions"))
                                     .font(.footnote)
                                 if let details = perSideDescription(set) {
-                                    Text(details)
+                                    Text(verbatim: details)
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
@@ -378,24 +406,24 @@ struct NotesImportView: View {
                         }
 
                         if let notes = strength.notes, !notes.isEmpty {
-                            Text("Note: \(notes)")
+                            Text(LocalizedStringResource("sessions.import.parsed.note", defaultValue: "Note: \(notes)", table: "Sessions"))
                                 .font(.caption)
                                 .foregroundStyle(.orange)
                         }
                     }
                 case .cardio(let cardio):
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("\(index + 1). Cardio: \(cardio.exerciseNameRaw)")
+                        Text(LocalizedStringResource("sessions.import.parsed.cardioHeading", defaultValue: "\(index + 1). Cardio: \(cardio.exerciseNameRaw)", table: "Sessions"))
                             .font(.footnote)
                             .fontWeight(.semibold)
 
                         ForEach(Array(cardio.sets.enumerated()), id: \.offset) { setIndex, set in
-                            Text("Set \(setIndex + 1): \(cardioSetDescription(set))")
+                            Text(LocalizedStringResource("sessions.import.parsed.set", defaultValue: "Set \(setIndex + 1): \(cardioSetDescription(set))", table: "Sessions"))
                                 .font(.footnote)
                         }
 
                         if let notes = cardio.notes, !notes.isEmpty {
-                            Text("Telemetry: \(notes)")
+                            Text(LocalizedStringResource("sessions.import.parsed.telemetry", defaultValue: "Telemetry: \(notes)", table: "Sessions"))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -408,35 +436,35 @@ struct NotesImportView: View {
     private func warningsSection(_ draft: NotesImportDraft) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             if !draft.warnings.isEmpty {
-                Text("Warnings")
+                Text(LocalizedStringResource("sessions.import.warnings.title", defaultValue: "Warnings", table: "Sessions"))
                     .font(.headline)
 
                 ForEach(draft.warnings, id: \.self) { warning in
-                    Text("• \(warning)")
+                    Text(verbatim: "• \(warning)")
                         .font(.footnote)
                         .foregroundStyle(.orange)
                 }
             }
 
             if !draft.unknownLines.isEmpty {
-                Text("Unknown Lines")
+                Text(LocalizedStringResource("sessions.import.unknownLines.title", defaultValue: "Unknown Lines", table: "Sessions"))
                     .font(.headline)
 
                 ForEach(Array(viewModel.unknownLinePreviewItems(for: draft).enumerated()), id: \.offset) { _, item in
-                    Text("• \(item.line)")
+                    Text(verbatim: "• \(item.line)")
                         .font(.footnote)
                         .foregroundStyle(unknownLineColor(item.classification))
                 }
             }
 
             if let error = viewModel.resolutionState.errorMessage {
-                Text(error)
+                Text(verbatim: error)
                     .font(.footnote)
                     .foregroundStyle(.red)
             }
 
             if let status = viewModel.resolutionState.statusMessage {
-                Text(status)
+                Text(verbatim: status)
                     .font(.footnote)
                     .foregroundStyle(.green)
             }
@@ -445,17 +473,21 @@ struct NotesImportView: View {
 
     private var actionsSection: some View {
         VStack(spacing: 10) {
-            Button("Re-Resolve") {
+            Button {
                 viewModel.resolveRoutine()
                 viewModel.resolveExercise()
+            } label: {
+                Text(LocalizedStringResource("sessions.import.action.reResolve", defaultValue: "Re-Resolve", table: "Sessions"))
             }
             .buttonStyle(.bordered)
 
-            Button("Back to Paste") {
+            Button {
                 viewModel.batch = NotesImportBatch(drafts: [])
                 viewModel.currentDraftIndex = 0
                 viewModel.resolutionState = .empty
                 draftDecisions = [:]
+            } label: {
+                Text(LocalizedStringResource("sessions.import.action.backToPaste", defaultValue: "Back to Paste", table: "Sessions"))
             }
             .buttonStyle(.bordered)
         }
@@ -469,53 +501,57 @@ struct NotesImportView: View {
 
         if needsDateResolution || needsTimeResolution {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Resolve Date & Time")
+                Text(LocalizedStringResource("sessions.import.datetime.title", defaultValue: "Resolve Date & Time", table: "Sessions"))
                     .font(.subheadline)
                     .fontWeight(.semibold)
 
                 if needsDateResolution {
-                    DatePicker(
-                        "Session Date",
-                        selection: $viewModel.selectedDateForCurrentDraft,
-                        displayedComponents: .date
-                    )
+                    DatePicker(selection: $viewModel.selectedDateForCurrentDraft, displayedComponents: .date) {
+                        Text(LocalizedStringResource("sessions.import.datetime.sessionDate", defaultValue: "Session Date", table: "Sessions"))
+                    }
                     .datePickerStyle(.compact)
 
-                    Button("Use This Date") {
+                    Button {
                         viewModel.applySelectedDateToCurrentDraft()
+                    } label: {
+                        Text(LocalizedStringResource("sessions.import.datetime.useDate", defaultValue: "Use This Date", table: "Sessions"))
                     }
                     .buttonStyle(.bordered)
                 }
 
                 DatePicker(
-                    "Start",
                     selection: Binding(
                         get: { viewModel.selectedStartForCurrentDraft },
                         set: { viewModel.setResolvedStart($0) }
                     ),
                     displayedComponents: [.date, .hourAndMinute]
-                )
+                ) {
+                    Text(LocalizedStringResource("sessions.import.datetime.start", defaultValue: "Start", table: "Sessions"))
+                }
                 .datePickerStyle(.compact)
 
                 DatePicker(
-                    "End",
                     selection: Binding(
                         get: { viewModel.selectedEndForCurrentDraft },
                         set: { viewModel.setResolvedEnd($0) }
                     ),
                     displayedComponents: [.date, .hourAndMinute]
-                )
+                ) {
+                    Text(LocalizedStringResource("sessions.import.datetime.end", defaultValue: "End", table: "Sessions"))
+                }
                 .datePickerStyle(.compact)
 
                 if needsTimeResolution {
-                    Button("Use Suggested Time Range") {
+                    Button {
                         viewModel.useSuggestedTimeRangeForCurrentDraft()
+                    } label: {
+                        Text(LocalizedStringResource("sessions.import.datetime.useSuggestedTimeRange", defaultValue: "Use Suggested Time Range", table: "Sessions"))
                     }
                     .buttonStyle(.bordered)
                 }
 
                 if let validationMessage {
-                    Text(validationMessage)
+                    Text(verbatim: validationMessage)
                         .font(.footnote)
                         .foregroundStyle(.red)
                 }
@@ -524,8 +560,18 @@ struct NotesImportView: View {
     }
 
     private func dateText(_ date: Date?) -> String {
-        guard let date else { return "(missing)" }
+        guard let date else {
+            return String(localized: LocalizedStringResource("sessions.value.missing", defaultValue: "(missing)", table: "Sessions"))
+        }
         return date.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    private var noneText: String {
+        String(localized: LocalizedStringResource("sessions.value.none", defaultValue: "None", table: "Sessions"))
+    }
+
+    private var unknownText: String {
+        String(localized: LocalizedStringResource("sessions.value.unknown", defaultValue: "Unknown", table: "Sessions"))
     }
 
     private func pasteFromClipboardAdding() {
@@ -601,12 +647,14 @@ struct NotesImportView: View {
         if let weight = set.weight {
             weightText = "\(formattedNumber(weight)) \(set.weightUnit.name)"
         } else {
-            weightText = "bodyweight"
+            weightText = String(localized: LocalizedStringResource("sessions.import.parsed.bodyweight", defaultValue: "bodyweight", table: "Sessions"))
         }
 
-        var parts: [String] = ["\(set.reps)x @ \(weightText)"]
+        var parts: [String] = [
+            String(localized: LocalizedStringResource("sessions.import.parsed.strengthSetDetail", defaultValue: "\(set.reps)x @ \(weightText)", table: "Sessions"))
+        ]
         if let restSeconds = set.restSeconds {
-            parts.append("rest \(restSeconds)s")
+            parts.append(String(localized: LocalizedStringResource("sessions.import.parsed.restSeconds", defaultValue: "rest \(restSeconds)s", table: "Sessions")))
         }
         return parts.joined(separator: ", ")
     }
@@ -614,22 +662,25 @@ struct NotesImportView: View {
     private func perSideDescription(_ set: ParsedStrengthSet) -> String? {
         guard set.isPerSide else { return nil }
         guard let base = set.baseWeight, let perSide = set.perSideWeight else { return nil }
-        return "Base \(formattedNumber(base)) + per-side \(formattedNumber(perSide))"
+        let baseText = formattedNumber(base)
+        let perSideText = formattedNumber(perSide)
+        return String(localized: LocalizedStringResource("sessions.import.parsed.perSide", defaultValue: "Base \(baseText) + per-side \(perSideText)", table: "Sessions"))
     }
 
     private func cardioSetDescription(_ set: ParsedCardioSet) -> String {
         var parts: [String] = []
         if let duration = set.durationSeconds {
-            parts.append("duration \(duration)s")
+            parts.append(String(localized: LocalizedStringResource("sessions.import.parsed.durationSeconds", defaultValue: "duration \(duration)s", table: "Sessions")))
         }
         if let distance = set.distance {
-            parts.append("distance \(formattedNumber(distance)) \(set.distanceUnit.rawValue)")
+            let distanceText = formattedNumber(distance)
+            parts.append(String(localized: LocalizedStringResource("sessions.import.parsed.distance", defaultValue: "distance \(distanceText) \(set.distanceUnit.rawValue)", table: "Sessions")))
         }
         if let pace = set.paceSeconds {
-            parts.append("pace \(pace)s")
+            parts.append(String(localized: LocalizedStringResource("sessions.import.parsed.paceSeconds", defaultValue: "pace \(pace)s", table: "Sessions")))
         }
         if parts.isEmpty {
-            return "no cardio metrics parsed"
+            return String(localized: LocalizedStringResource("sessions.import.parsed.noCardioMetrics", defaultValue: "no cardio metrics parsed", table: "Sessions"))
         }
         return parts.joined(separator: ", ")
     }
@@ -702,13 +753,17 @@ private enum DraftDecision: Equatable {
     case confirmed
     case denied
 
-    var title: String {
+    var titleResource: LocalizedStringResource {
         switch self {
         case .confirmed:
-            return "Confirmed"
+            return LocalizedStringResource("sessions.import.decision.confirmed", defaultValue: "Confirmed", table: "Sessions")
         case .denied:
-            return "Denied"
+            return LocalizedStringResource("sessions.import.decision.denied", defaultValue: "Denied", table: "Sessions")
         }
+    }
+
+    var titleText: String {
+        String(localized: titleResource)
     }
 
     var color: Color {
@@ -717,6 +772,34 @@ private enum DraftDecision: Equatable {
             return .green
         case .denied:
             return .red
+        }
+    }
+}
+
+private extension NotesImportViewModel.RoutineResolutionMode {
+    var titleResource: LocalizedStringResource {
+        switch self {
+        case .matched:
+            return LocalizedStringResource("sessions.import.resolutionMode.matched", defaultValue: "Matched", table: "Sessions")
+        case .existing:
+            return LocalizedStringResource("sessions.import.resolutionMode.existing", defaultValue: "Existing", table: "Sessions")
+        case .createNew:
+            return LocalizedStringResource("sessions.import.resolutionMode.create", defaultValue: "Create", table: "Sessions")
+        case .none:
+            return LocalizedStringResource("sessions.value.none", defaultValue: "None", table: "Sessions")
+        }
+    }
+}
+
+private extension NotesImportViewModel.ExerciseResolutionMode {
+    var titleResource: LocalizedStringResource {
+        switch self {
+        case .matched:
+            return LocalizedStringResource("sessions.import.resolutionMode.matched", defaultValue: "Matched", table: "Sessions")
+        case .existing:
+            return LocalizedStringResource("sessions.import.resolutionMode.existing", defaultValue: "Existing", table: "Sessions")
+        case .createNew:
+            return LocalizedStringResource("sessions.import.resolutionMode.create", defaultValue: "Create", table: "Sessions")
         }
     }
 }

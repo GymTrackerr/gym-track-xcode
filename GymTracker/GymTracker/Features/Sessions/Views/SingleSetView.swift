@@ -14,15 +14,33 @@ struct SingleSetLabelView: View {
     var body: some View {
         VStack {
             HStack {
-                Text("Set #\(sessionSet.order+1)")
+                Text(
+                    LocalizedStringResource(
+                        "sessions.set.label.number",
+                        defaultValue: "Set #\(sessionSet.order + 1)",
+                        table: "Sessions"
+                    )
+                )
                 Spacer()
             }
             HStack {
-                Text("Reps: \(setService.getSetRepCount(sessionSet: sessionSet))")
+                Text(
+                    LocalizedStringResource(
+                        "sessions.set.label.reps",
+                        defaultValue: "Reps: \(setService.getSetRepCount(sessionSet: sessionSet))",
+                        table: "Sessions"
+                    )
+                )
                 Spacer()
             }
             HStack {
-                Text("Load: \(setService.getSetWorkload(sessionSet: sessionSet))")
+                Text(
+                    LocalizedStringResource(
+                        "sessions.set.label.load",
+                        defaultValue: "Load: \(setService.getSetWorkload(sessionSet: sessionSet))",
+                        table: "Sessions"
+                    )
+                )
                 Spacer()
             }
         }
@@ -36,13 +54,21 @@ struct CreateSetView: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            Text("Edit Set #\(sessionSet.order+1)")
+            Text(
+                LocalizedStringResource(
+                    "sessions.set.editTitle",
+                    defaultValue: "Edit Set #\(sessionSet.order + 1)",
+                    table: "Sessions"
+                )
+            )
                 .font(.headline)
-            TextField("Notes", text: $setService.create_notes)
+            TextField(text: $setService.create_notes, prompt: Text(LocalizedStringResource("sessions.set.notes.placeholder", defaultValue: "Notes", table: "Sessions"))) {
+                Text(LocalizedStringResource("sessions.set.notes.placeholder", defaultValue: "Notes", table: "Sessions"))
+            }
                 .textFieldStyle(.roundedBorder)
                 .padding(.horizontal)
             
-            Text("Add Reps")
+            Text(LocalizedStringResource("sessions.set.addReps", defaultValue: "Add Reps", table: "Sessions"))
             ForEach (sessionSet.sessionReps, id: \.id) { rep in
                 CreateSingleRepView(sessionSet: sessionSet, sessionRep: rep)
             }
@@ -51,7 +77,11 @@ struct CreateSetView: View {
             Button {
                 _ = setService.createBlankRep(sessionSet: sessionSet)
             } label: {
-                Label("Add Rep", systemImage: "plus.circle.fill")
+                Label {
+                    Text(LocalizedStringResource("sessions.set.addRep", defaultValue: "Add Rep", table: "Sessions"))
+                } icon: {
+                    Image(systemName: "plus.circle.fill")
+                }
                     .font(.subheadline)
             }
             .buttonStyle(.borderless)
@@ -62,7 +92,11 @@ struct CreateSetView: View {
                     setService.saveSetData(sessionSet: sessionSet)
                     setService.toggleSetCompletion(sessionSet: sessionSet)
                 } label: {
-                    Label("Save", systemImage: "plus.circle")
+                    Label {
+                        Text(LocalizedStringResource("sessions.action.save", defaultValue: "Save", table: "Sessions"))
+                    } icon: {
+                        Image(systemName: "plus.circle")
+                    }
                         .font(.title2)
                         .padding()
                 }
@@ -70,11 +104,13 @@ struct CreateSetView: View {
             Spacer()
         }
         .screenContentPadding()
-        .navigationTitle("Create New Set")
+        .navigationTitle(Text(LocalizedStringResource("sessions.set.createTitle", defaultValue: "Create New Set", table: "Sessions")))
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
-                Button("Done") {
+                Button {
                     setService.completeEditingSet(sessionSet: sessionSet)
+                } label: {
+                    Text(LocalizedStringResource("sessions.action.done", defaultValue: "Done", table: "Sessions"))
                 }
             }
         }
@@ -89,23 +125,27 @@ struct CreateSingleRepView: View {
     var body: some View {
         HStack(spacing: 10) {
             VStack {
-                Text("Weight")
-                TextField("Weight", value: $sessionRep.weight, format: .number)
+                Text(LocalizedStringResource("sessions.set.weight", defaultValue: "Weight", table: "Sessions"))
+                TextField(value: $sessionRep.weight, format: .number, prompt: Text(LocalizedStringResource("sessions.set.weight", defaultValue: "Weight", table: "Sessions"))) {
+                    Text(LocalizedStringResource("sessions.set.weight", defaultValue: "Weight", table: "Sessions"))
+                }
                     .keyboardType(.decimalPad)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 80)
             }
 
             VStack {
-                Text("Reps")
-                TextField("Reps", value: $sessionRep.count, format: .number)
+                Text(LocalizedStringResource("sessions.set.reps", defaultValue: "Reps", table: "Sessions"))
+                TextField(value: $sessionRep.count, format: .number, prompt: Text(LocalizedStringResource("sessions.set.reps", defaultValue: "Reps", table: "Sessions"))) {
+                    Text(LocalizedStringResource("sessions.set.reps", defaultValue: "Reps", table: "Sessions"))
+                }
                     .keyboardType(.numberPad)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 80)
                 
             }
             VStack {
-                Text("Weight Unit")
+                Text(LocalizedStringResource("sessions.set.weightUnit", defaultValue: "Weight Unit", table: "Sessions"))
 
                 Menu {
                     ForEach (WeightUnit.allCases, id: \.id) { weightUnit in
@@ -115,7 +155,11 @@ struct CreateSingleRepView: View {
                         })
                     }
                 } label: {
-                    Label("\(sessionRep.weightUnit.name)", systemImage: "chevron.down")
+                    Label {
+                        Text(verbatim: sessionRep.weightUnit.name)
+                    } icon: {
+                        Image(systemName: "chevron.down")
+                    }
                 }
             }
         }

@@ -11,23 +11,25 @@ struct NotesImportExercisePickerView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("Original Exercise") {
-                    Text(rawName)
+                Section {
+                    Text(verbatim: rawName)
                         .font(.headline)
+                } header: {
+                    Text(LocalizedStringResource("sessions.import.exercisePicker.originalSection", defaultValue: "Original Exercise", table: "Sessions"))
                 }
 
-                Section("Existing Exercises") {
+                Section {
                     ForEach(filteredExercises, id: \.id) { exercise in
                         Button {
                             viewModel.chooseExistingExercise(rawName: rawName, exercise: exercise)
                             dismiss()
                         } label: {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(exercise.name)
+                                Text(verbatim: exercise.name)
                                     .foregroundStyle(.primary)
 
                                 if let aliases = exercise.aliases, !aliases.isEmpty {
-                                    Text(aliases.joined(separator: ", "))
+                                    Text(verbatim: aliases.joined(separator: ", "))
                                         .font(.footnote)
                                         .foregroundStyle(.secondary)
                                         .lineLimit(1)
@@ -35,16 +37,20 @@ struct NotesImportExercisePickerView: View {
                             }
                         }
                     }
+                } header: {
+                    Text(LocalizedStringResource("sessions.import.exercisePicker.existingSection", defaultValue: "Existing Exercises", table: "Sessions"))
                 }
             }
             .screenContentPadding()
-            .navigationTitle("Choose Exercise")
+            .navigationTitle(Text(LocalizedStringResource("sessions.import.exercisePicker.title", defaultValue: "Choose Exercise", table: "Sessions")))
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $searchText, prompt: "Search name or alias")
+            .searchable(text: $searchText, prompt: Text(LocalizedStringResource("sessions.import.exercisePicker.search.placeholder", defaultValue: "Search name or alias", table: "Sessions")))
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Close") {
+                    Button {
                         dismiss()
+                    } label: {
+                        Text(LocalizedStringResource("sessions.action.close", defaultValue: "Close", table: "Sessions"))
                     }
                 }
             }

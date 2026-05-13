@@ -59,7 +59,7 @@ struct SingleSessionView: View {
                     .onDelete(perform: removeExercise)
                     .onMove(perform: moveExercise)
                 } header: {
-                    Text("Today's Exercises")
+                    Text(LocalizedStringResource("sessions.detail.todayExercises", defaultValue: "Today's Exercises", table: "Sessions"))
                 }
             }
             .cardListScreen()
@@ -67,7 +67,7 @@ struct SingleSessionView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .foregroundStyle(.primary)
         
-        .navigationTitle(sessionTitle)
+        .navigationTitle(Text(sessionTitleResource))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
         #if os(iOS)
@@ -75,8 +75,10 @@ struct SingleSessionView: View {
                 if canModifySessionExercises {
                     EditButton()
                 } else if navigationContext.allowsUnlock {
-                    Button("Unlock") {
+                    Button {
                         isUnlockedForEditing = true
+                    } label: {
+                        Text(LocalizedStringResource("sessions.action.unlock", defaultValue: "Unlock", table: "Sessions"))
                     }
                 }
             }
@@ -85,7 +87,11 @@ struct SingleSessionView: View {
                 NavigationLink {
                     TimerView()
                 } label: {
-                    Label(timerButtonTitle, systemImage: "timer")
+                    Label {
+                        Text(timerButtonTitleResource)
+                    } icon: {
+                        Image(systemName: "timer")
+                    }
                 }
             }
             ToolbarItem {
@@ -94,7 +100,11 @@ struct SingleSessionView: View {
                         exerciseService.editingContent = ""
                         seService.addingExerciseSession = true
                     } label: {
-                        Label("Add Exercise", systemImage: "plus.circle")
+                        Label {
+                            Text(LocalizedStringResource("sessions.action.addExercise", defaultValue: "Add Exercise", table: "Sessions"))
+                        } icon: {
+                            Image(systemName: "plus.circle")
+                        }
                     }
                 }
             }
@@ -169,12 +179,13 @@ struct SingleSessionView: View {
         session.timestampDone != session.timestamp
     }
 
-    private var sessionTitle: String {
+    private var sessionTitleResource: LocalizedStringResource {
         let dateStyle = Date.FormatStyle(date: .numeric, time: .omitted)
-        return "Session \(session.timestamp.formatted(dateStyle))"
+        let dateText = session.timestamp.formatted(dateStyle)
+        return LocalizedStringResource("sessions.detail.title", defaultValue: "Session \(dateText)", table: "Sessions")
     }
 
-    private var sessionTimeDetail: String {
+    private var sessionTimeDetailResource: LocalizedStringResource {
         let dateStyle = Date.FormatStyle(date: .long, time: .omitted)
         let timeStyle = Date.FormatStyle(date: .omitted, time: .shortened)
         let dateText = session.timestamp.formatted(dateStyle)
@@ -182,18 +193,29 @@ struct SingleSessionView: View {
 
         if isSessionCompleted {
             let endTime = session.timestampDone.formatted(timeStyle)
-            return "\(dateText) at \(startTime) - \(endTime)"
+            return LocalizedStringResource("sessions.detail.timeRange", defaultValue: "\(dateText) at \(startTime) - \(endTime)", table: "Sessions")
         }
 
-        return "\(dateText) at \(startTime)"
+        return LocalizedStringResource("sessions.detail.startTime", defaultValue: "\(dateText) at \(startTime)", table: "Sessions")
     }
 
-    private var timerButtonTitle: String {
+    private var timerButtonTitleResource: LocalizedStringResource {
         if timerService.timer != nil {
-            return "Timer \(timerService.formatted)"
+            return LocalizedStringResource("sessions.timer.titleWithTime", defaultValue: "Timer \(timerService.formatted)", table: "Sessions")
         }
 
-        return "Timer"
+        return LocalizedStringResource("sessions.timer.title", defaultValue: "Timer", table: "Sessions")
+    }
+
+    private var statusBadgeResource: LocalizedStringResource {
+        switch navigationContext {
+        case .active, .activePreferred:
+            return LocalizedStringResource("sessions.status.currentSession", defaultValue: "Current session", table: "Sessions")
+        case .pastPreferred:
+            return LocalizedStringResource("sessions.status.loggingExercise", defaultValue: "Logging exercise", table: "Sessions")
+        case .past, .fromExerciseHistory:
+            return LocalizedStringResource("sessions.status.pastSession", defaultValue: "Past session", table: "Sessions")
+        }
     }
 
     private var canModifySessionExercises: Bool {
@@ -207,7 +229,9 @@ struct SingleSessionView: View {
     @ViewBuilder
     private func sessionEntryLink(for sessionEntry: SessionEntry) -> some View {
         let destinationContext = SessionNavigationContext.forSession(session)
-        let completionLabel = sessionEntry.isCompleted ? "Uncheck" : "Complete"
+        let completionLabel = sessionEntry.isCompleted
+            ? LocalizedStringResource("sessions.action.uncheck", defaultValue: "Uncheck", table: "Sessions")
+            : LocalizedStringResource("sessions.action.complete", defaultValue: "Complete", table: "Sessions")
         let completionSystemImage = sessionEntry.isCompleted ? "pencil.slash" : "checkmark"
         let completionTint: Color = sessionEntry.isCompleted ? .orange : .green
         let completionEdge: HorizontalEdge = (editMode?.wrappedValue == .inactive) ? .leading : .trailing
@@ -229,7 +253,11 @@ struct SingleSessionView: View {
                 Button {
                     seService.toggleCompletion(sessionEntry: sessionEntry)
                 } label: {
-                    Label(completionLabel, systemImage: completionSystemImage)
+                    Label {
+                        Text(completionLabel)
+                    } icon: {
+                        Image(systemName: completionSystemImage)
+                    }
                 }
                 .tint(completionTint)
             }
@@ -239,7 +267,11 @@ struct SingleSessionView: View {
                 Button {
                     removeExerciseAndCleanupDraft(sessionEntry)
                 } label: {
-                    Label("Remove", systemImage: "trash")
+                    Label {
+                        Text(LocalizedStringResource("sessions.action.remove", defaultValue: "Remove", table: "Sessions"))
+                    } icon: {
+                        Image(systemName: "trash")
+                    }
                 }
                 .tint(.red)
             }
@@ -329,9 +361,9 @@ struct SingleSessionView: View {
         }
 
         if tail.isEmpty {
-            return "\(meaningfulSets.count) sets"
+            return String(localized: LocalizedStringResource("sessions.summary.setsOnly", defaultValue: "\(meaningfulSets.count) sets", table: "Sessions"))
         }
-        return "\(meaningfulSets.count) sets - \(tail)"
+        return String(localized: LocalizedStringResource("sessions.summary.setsWithDetail", defaultValue: "\(meaningfulSets.count) sets - \(tail)", table: "Sessions"))
     }
 
     private func cardioSummaryText(for sessionEntry: SessionEntry) -> String? {
@@ -386,7 +418,8 @@ struct SingleSessionView: View {
         let average = values.reduce(0.0, +) / Double(values.count)
         let allEqual = values.allSatisfy { abs($0 - values[0]) < 0.0001 }
         if includeAverageLabelWhenNeeded && !allEqual {
-            return "avg \(formattedValue(average))"
+            let value = formattedValue(average)
+            return String(localized: LocalizedStringResource("sessions.summary.averageValue", defaultValue: "avg \(value)", table: "Sessions"))
         }
         return formattedValue(average)
     }
@@ -395,16 +428,16 @@ struct SingleSessionView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 if let routine = session.routine {
-                    Text(routine.name)
+                    Text(verbatim: routine.name)
                         .font(.title3)
                         .fontWeight(.semibold)
                 } else {
-                    Text("Day #1")
+                    Text(LocalizedStringResource("sessions.detail.defaultDayName", defaultValue: "Day #1", table: "Sessions"))
                         .font(.title3)
                         .fontWeight(.semibold)
                 }
                 Spacer()
-                Text(navigationContext.statusBadgeText)
+                Text(statusBadgeResource)
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .padding(.horizontal, 10)
@@ -413,7 +446,7 @@ struct SingleSessionView: View {
                     .clipShape(Capsule())
             }
 
-            Text(sessionTimeDetail)
+            Text(sessionTimeDetailResource)
                 .font(.subheadline)
                 .foregroundColor(.secondary)
 
@@ -422,7 +455,7 @@ struct SingleSessionView: View {
                     sessionExerciseDraftStore.clearDrafts(for: session.sessionEntries.map(\.id))
                     sessionService.finishSession(session)
                 } label: {
-                    Text("Finish Session")
+                    Text(LocalizedStringResource("sessions.edit.finishSession", defaultValue: "Finish Session", table: "Sessions"))
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -430,7 +463,7 @@ struct SingleSessionView: View {
             }
 
             if session.notes.trimmingCharacters(in: .whitespacesAndNewlines) != "" {
-                Text(session.notes)
+                Text(verbatim: session.notes)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .padding(10)
@@ -444,7 +477,7 @@ struct SingleSessionView: View {
 
     private var sessionEditCard: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Edit Session")
+            Text(LocalizedStringResource("sessions.edit.title", defaultValue: "Edit Session", table: "Sessions"))
                 .font(.headline)
 
             VStack(spacing: 12) {
@@ -453,14 +486,24 @@ struct SingleSessionView: View {
                         _ = sessionService.updateSessionToSplitDay(session: session)
                     }
 
-                TextField("Add optional notes...", text: $session.notes)
+                TextField(
+                    text: $session.notes,
+                    prompt: Text(LocalizedStringResource("sessions.edit.notes.placeholder", defaultValue: "Add optional notes...", table: "Sessions"))
+                ) {
+                    Text(LocalizedStringResource("sessions.edit.notes.label", defaultValue: "Notes", table: "Sessions"))
+                }
                     .textFieldStyle(.roundedBorder)
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Start")
+                    Text(LocalizedStringResource("sessions.edit.start", defaultValue: "Start", table: "Sessions"))
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    DatePicker("Date & Time", selection: $session.timestamp, displayedComponents: [.date, .hourAndMinute])
+                    DatePicker(
+                        selection: $session.timestamp,
+                        displayedComponents: [.date, .hourAndMinute]
+                    ) {
+                        Text(LocalizedStringResource("sessions.edit.dateTime", defaultValue: "Date & Time", table: "Sessions"))
+                    }
                         .datePickerStyle(.compact)
                         .labelsHidden()
                         .onChange(of: session.timestamp) { oldValue, newValue in
@@ -471,10 +514,15 @@ struct SingleSessionView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("End")
+                    Text(LocalizedStringResource("sessions.edit.end", defaultValue: "End", table: "Sessions"))
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    DatePicker("Date & Time", selection: $session.timestampDone, displayedComponents: [.date, .hourAndMinute])
+                    DatePicker(
+                        selection: $session.timestampDone,
+                        displayedComponents: [.date, .hourAndMinute]
+                    ) {
+                        Text(LocalizedStringResource("sessions.edit.dateTime", defaultValue: "Date & Time", table: "Sessions"))
+                    }
                         .datePickerStyle(.compact)
                         .labelsHidden()
                 }
@@ -498,14 +546,14 @@ struct SingleSessionView: View {
                         }
 
                     } label: {
-                        Text("Restore Routine")
+                        Text(LocalizedStringResource("sessions.edit.restoreRoutine", defaultValue: "Restore Routine", table: "Sessions"))
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
                 }
 
                 if syncingSplit {
-                    Text("Are you sure? This action will replace all exercises with those in this session.")
+                    Text(LocalizedStringResource("sessions.edit.syncWarning", defaultValue: "Are you sure? This action will replace all exercises with those in this session.", table: "Sessions"))
                         .font(.caption)
                         .foregroundColor(.secondary)
 
@@ -513,7 +561,7 @@ struct SingleSessionView: View {
                         Button {
                             syncingSplit = false
                         } label: {
-                            Text("Cancel")
+                            Text(LocalizedStringResource("sessions.action.cancel", defaultValue: "Cancel", table: "Sessions"))
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
@@ -526,7 +574,7 @@ struct SingleSessionView: View {
                             esdService.syncSplitWithSession(routine: routine, session: session)
                             syncingSplit = false
                         } label: {
-                            Text("Confirm")
+                            Text(LocalizedStringResource("sessions.action.confirm", defaultValue: "Confirm", table: "Sessions"))
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
@@ -536,7 +584,7 @@ struct SingleSessionView: View {
                     Button {
                         syncingSplit = true
                     } label: {
-                        Text("Sync Routine with Session")
+                        Text(LocalizedStringResource("sessions.edit.syncRoutine", defaultValue: "Sync Routine with Session", table: "Sessions"))
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
@@ -546,15 +594,20 @@ struct SingleSessionView: View {
                     Button {
                         syncingSplit = true
                     } label: {
-                        Text("Create new Routine")
+                        Text(LocalizedStringResource("sessions.edit.createRoutine", defaultValue: "Create new Routine", table: "Sessions"))
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
                 } else {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Name your new split day")
+                        Text(LocalizedStringResource("sessions.edit.newRoutineNamePrompt", defaultValue: "Name your new split day", table: "Sessions"))
                             .font(.subheadline)
-                        TextField("Name", text: $splitDayService.editingContent)
+                        TextField(
+                            text: $splitDayService.editingContent,
+                            prompt: Text(LocalizedStringResource("sessions.edit.name.placeholder", defaultValue: "Name", table: "Sessions"))
+                        ) {
+                            Text(LocalizedStringResource("sessions.edit.name.label", defaultValue: "Name", table: "Sessions"))
+                        }
                             .textFieldStyle(.roundedBorder)
                     }
 
@@ -564,7 +617,7 @@ struct SingleSessionView: View {
                             splitDayService.editingSplit = false
                             splitDayService.editingContent = ""
                         } label: {
-                            Text("Cancel")
+                            Text(LocalizedStringResource("sessions.action.cancel", defaultValue: "Cancel", table: "Sessions"))
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
@@ -577,7 +630,7 @@ struct SingleSessionView: View {
                             }
                             syncingSplit = false
                         } label: {
-                            Text("Save")
+                            Text(LocalizedStringResource("sessions.action.save", defaultValue: "Save", table: "Sessions"))
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
@@ -622,7 +675,8 @@ struct SingleSessionLabelView: View {
         guard session.timestampDone > session.timestamp else { return nil }
         let duration = session.timestampDone.timeIntervalSince(session.timestamp)
         guard duration > 0 else { return nil }
-        return "\(Int((duration / 60).rounded())) min"
+        let minutes = Int((duration / 60).rounded())
+        return String(localized: LocalizedStringResource("sessions.summary.durationMinutes", defaultValue: "\(minutes) min", table: "Sessions"))
     }
 
     var body : some View {
@@ -632,13 +686,13 @@ struct SingleSessionLabelView: View {
                     .font(.headline)
 
                 if let subtitleText {
-                    Text(subtitleText)
+                    Text(verbatim: subtitleText)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
 
                 if let metrics {
-                    Text(metadataText(metrics: metrics))
+                    Text(verbatim: metadataText(metrics: metrics))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
@@ -651,7 +705,7 @@ struct SingleSessionLabelView: View {
 
     private func metadataText(metrics: SessionRowMetrics) -> String {
         var components = [
-            "\(metrics.exerciseCount) exercise\(metrics.exerciseCount == 1 ? "" : "s")",
+            String(localized: LocalizedStringResource("sessions.summary.exerciseCount", defaultValue: "\(metrics.exerciseCount) exercises", table: "Sessions")),
             metrics.volumeText
         ]
 
@@ -684,7 +738,12 @@ struct addingExerciseSessionView : View {
                 VStack(spacing: 12) {
                     ConnectedCardSection {
                         ConnectedCardRow {
-                            TextField("Search or create exercise", text: $exerciseService.editingContent)
+                            TextField(
+                                text: $exerciseService.editingContent,
+                                prompt: Text(LocalizedStringResource("sessions.addExercise.search.placeholder", defaultValue: "Search or create exercise", table: "Sessions"))
+                            ) {
+                                Text(LocalizedStringResource("sessions.addExercise.search.label", defaultValue: "Search exercise", table: "Sessions"))
+                            }
                                 .textFieldStyle(.roundedBorder)
                         }
 
@@ -694,7 +753,11 @@ struct addingExerciseSessionView : View {
                             createAndQueueExercise()
                         } label: {
                             ConnectedCardRow {
-                                Label("Add Exercise", systemImage: "plus.circle")
+                                Label {
+                                    Text(LocalizedStringResource("sessions.action.addExercise", defaultValue: "Add Exercise", table: "Sessions"))
+                                } icon: {
+                                    Image(systemName: "plus.circle")
+                                }
                             }
                         }
                         .buttonStyle(.plain)
@@ -709,11 +772,11 @@ struct addingExerciseSessionView : View {
                             addExerciseEditing(exercise: exercise)
                         }) {
                             HStack {
-                                Text("\(seService.amountAdded(session: session, exercise: exercise))")
+                                Text(verbatim: "\(seService.amountAdded(session: session, exercise: exercise))")
 
                                 Image(systemName: "plus")
 
-                                Text(exercise.name)
+                                Text(verbatim: exercise.name)
                             }
                             .cardListRowContentPadding()
                         }
@@ -723,21 +786,25 @@ struct addingExerciseSessionView : View {
                 }
                 .cardListScreen()
             }
-            .navigationTitle("Add Exercises")
+            .navigationTitle(Text(LocalizedStringResource("sessions.addExercise.title", defaultValue: "Add Exercises", table: "Sessions")))
             .navigationBarTitleDisplayMode(.inline)
             .appBackground()
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Save") {
+                    Button {
                         seService.confirmEditing(session: session)
                         exerciseService.editingContent = ""
+                    } label: {
+                        Text(LocalizedStringResource("sessions.action.save", defaultValue: "Save", table: "Sessions"))
                     }
                 }
             
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button {
                         seService.endEditing()
                         exerciseService.editingContent = ""
+                    } label: {
+                        Text(LocalizedStringResource("sessions.action.cancel", defaultValue: "Cancel", table: "Sessions"))
                     }
                 }
             }
